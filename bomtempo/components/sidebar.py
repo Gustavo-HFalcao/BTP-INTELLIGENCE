@@ -153,11 +153,12 @@ def sidebar_content() -> rx.Component:
         ),
         # ── Navigation ──
         rx.vstack(
-            # Mestre de Obras, solicitacao_reembolso e engenheiro NÃO veem Visão Geral
+            # Mestre de Obras, solicitacao_reembolso, engenheiro e data_edit NÃO veem Visão Geral
             rx.cond(
                 (GlobalState.current_user_role != "Mestre de Obras")
                 & (GlobalState.current_user_role != "solicitacao_reembolso")
-                & (GlobalState.current_user_role != "engenheiro"),
+                & (GlobalState.current_user_role != "engenheiro")
+                & (GlobalState.current_user_role != "data_edit"),
                 sidebar_item("VISÃO GERAL", "layout-dashboard", "/"),
             ),
             # Engenheiro (old), Admin e engenheiro (new) veem Obras
@@ -201,6 +202,12 @@ def sidebar_content() -> rx.Component:
                     width="100%",
                     spacing="2",
                 ),
+            ),
+            # Editor de Dados (Admin e data_edit)
+            rx.cond(
+                (GlobalState.current_user_role == "Administrador")
+                | (GlobalState.current_user_role == "data_edit"),
+                sidebar_item("EDITAR DADOS", "database", "/admin/editar_dados"),
             ),
             # Apenas Admin vê o resto
             rx.cond(

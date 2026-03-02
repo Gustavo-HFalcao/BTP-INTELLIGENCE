@@ -797,8 +797,11 @@ def default_layout(content: rx.Component) -> rx.Component:
             # ── Unauthenticated view ────────────────────────────────────────────
             login_page(),
         ),  # End rx.cond(is_authenticated)
-        # ── Floating AI Insight Button ───────────────────────────────────────────
-        _fab_ai_insight(),
+        # ── Floating AI Insight Button (oculto no Editor de Dados) ──────────────
+        rx.cond(
+            ~GlobalState.router.page.path.contains("editar_dados"),
+            _fab_ai_insight(),
+        ),
         # ── KPI Detail Popup (global, accessible from all pages) ─────────────
         _kpi_detail_dialog(),
         # Outer box props

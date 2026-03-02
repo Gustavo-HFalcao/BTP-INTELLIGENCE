@@ -98,11 +98,45 @@ def sb_insert(table: str, data: Dict[str, Any]) -> Optional[Dict]:
         if resp.status_code in (200, 201):
             result = resp.json()
             return result[0] if isinstance(result, list) and result else result
-        logger.error(f"Supabase INSERT {table} → {resp.status_code}: {resp.text[:400]}")
-        return None
+        err_msg = f"Supabase INSERT {table} → {resp.status_code}: {resp.text[:400]}"
+        logger.error(err_msg)
+        raise ValueError(err_msg)
     except Exception as e:
         logger.error(f"Supabase INSERT {table} exception: {e}")
-        return None
+        raise e
+
+
+def sb_upsert(
+    table: str,
+    record: Dict[str, Any],
+    on_conflict: str = "ID",
+) -> Dict:
+    """INSERT OR UPDATE a single record using PostgREST conflict resolution.
+
+    If the row with the given `on_conflict` column value exists → UPDATE.
+    If it doesn't exist → INSERT a new row.
+    Unlike sb_update, never silently skips when the ID is not found.
+
+    Returns {"upserted": 1} on success, raises ValueError on failure.
+    """
+    try:
+        h = _headers()
+        h["Prefer"] = "return=representation,resolution=merge-duplicates"
+        resp = httpx.post(
+            f"{REST_BASE}/{table}",
+            headers=h,
+            params={"on_conflict": on_conflict},
+            json=record,
+            timeout=15,
+        )
+        if resp.status_code in (200, 201):
+            return {"upserted": 1}
+        err_msg = f"Supabase UPSERT {table} → {resp.status_code}: {resp.text[:400]}"
+        logger.error(err_msg)
+        raise ValueError(err_msg)
+    except Exception as e:
+        logger.error(f"Supabase UPSERT {table} exception: {e}")
+        raise e
 
 
 def sb_update(
@@ -120,10 +154,14 @@ def sb_update(
             json=data,
             timeout=15,
         )
-        return resp.status_code in (200, 204)
+        if resp.status_code not in (200, 204):
+            err_msg = f"Supabase UPDATE {table} → {resp.status_code}: {resp.text[:400]}"
+            logger.error(err_msg)
+            raise ValueError(err_msg)
+        return True
     except Exception as e:
         logger.error(f"Supabase UPDATE {table} exception: {e}")
-        return False
+        raise e
 
 
 # ── Storage helpers ────────────────────────────────────────────────────────────

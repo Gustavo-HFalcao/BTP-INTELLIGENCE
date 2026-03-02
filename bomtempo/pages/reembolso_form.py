@@ -686,25 +686,22 @@ def _card_reembolso(r: dict) -> rx.Component:
                 width="100%",
                 align="center",
             ),
-            # Linha 3: PDF download (se disponível)
-            rx.cond(
-                r.get("pdf_report_url", "") != "",
-                rx.link(
-                    rx.hstack(
-                        rx.icon(tag="file-down", size=14, color=S.PATINA),
-                        rx.text(
-                            "Baixar Comprovante PDF",
-                            font_size="12px",
-                            color=S.PATINA,
-                            font_weight="600",
-                        ),
-                        spacing="2",
-                        align="center",
+            # Linha 3: PDF download (Sempre visível conforme especificação)
+            rx.link(
+                rx.hstack(
+                    rx.icon(tag="file-down", size=14, color=S.PATINA),
+                    rx.text(
+                        "Baixar Comprovante PDF",
+                        font_size="12px",
+                        color=S.PATINA,
+                        font_weight="600",
                     ),
-                    href=r.get("pdf_report_url", "#"),
-                    is_external=True,
-                    style={"text_decoration": "none"},
+                    spacing="2",
+                    align="center",
                 ),
+                href=r.get("pdf_report_url", "#"),
+                is_external=True,
+                style={"text_decoration": "none"},
             ),
             spacing="3",
             width="100%",

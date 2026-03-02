@@ -1135,6 +1135,8 @@ class GlobalState(rx.State):
                 yield rx.redirect("/reembolso")
             elif role == "engenheiro":
                 yield rx.redirect("/projetos")
+            elif role == "data_edit":
+                yield rx.redirect("/admin/editar_dados")
             else:
                 yield rx.redirect("/")
 
@@ -1151,6 +1153,9 @@ class GlobalState(rx.State):
             return
         if self.is_authenticated and self.current_user_role == "solicitacao_reembolso":
             yield rx.redirect("/reembolso")
+            return
+        if self.is_authenticated and self.current_user_role == "data_edit":
+            yield rx.redirect("/admin/editar_dados")
             return
         yield GlobalState.load_data
 

@@ -22,7 +22,8 @@ from bomtempo.pages.rdo_historico import RDOHistoricoState, rdo_historico_page
 from bomtempo.pages.reembolso_dashboard import reembolso_dashboard_page
 from bomtempo.pages.reembolso_form import reembolso_form_page
 from bomtempo.state.reembolso_state import ReembolsoState
-
+from bomtempo.pages.editar_dados import editar_dados_page
+from bomtempo.state.edit_state import EditState
 
 def index():
     return default_layout(index_page())
@@ -156,6 +157,18 @@ app.add_page(
     route="/reembolso-dash",
     title="BOMTEMPO | Reembolso Dashboard",
     on_load=[GlobalState.load_data, ReembolsoState.load_dashboard],
+)
+
+def editar_dados():
+    # Only Admin sees the sidebar normally. data_edit role is configured to hide other items inside sidebar.
+    from bomtempo.layouts.default import default_layout
+    return default_layout(editar_dados_page())
+
+app.add_page(
+    editar_dados,
+    route="/admin/editar_dados",
+    title="BOMTEMPO | Data Editor Dashboard",
+    on_load=[GlobalState.load_data, EditState.load_projetos],
 )
 
 from bomtempo.pages.voice_chat_page import voice_chat_page

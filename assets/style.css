@@ -531,6 +531,14 @@ h6 {
     background-color: rgba(255, 255, 255, 0.04) !important;
 }
 
+/* Placeholder do select — Radix baixa a opacidade por padrão, forçar legível */
+.rt-SelectTrigger[data-placeholder]>span,
+.rt-SelectTrigger[data-placeholder] .rt-SelectTriggerInner,
+.rt-SelectTrigger[data-placeholder] {
+    color: rgba(255, 255, 255, 0.55) !important;
+    opacity: 1 !important;
+}
+
 /* ── Placeholder contrast fix (Radix UI overrides) ──────────── */
 /* Radix dark theme sets placeholder too dark — force visible grey */
 .rt-TextFieldInput::placeholder,
@@ -615,12 +623,42 @@ button:active,
 }
 
 /* ── Input Focus Ring (Global) ───────────────────────────── */
-input:focus,
-textarea:focus,
-.rt-TextFieldInput:focus {
+/*
+   Radix TextField tem wrapper (.rt-TextFieldRoot) + inner input (.rt-TextFieldInput).
+   Ambos recebem estilos de foco independentes → dois anéis desalinhados.
+   Solução: ring APENAS no wrapper via :focus-within, suprimir no inner input.
+*/
+
+/* 1. Wrapper recebe o ring copper unificado */
+.rt-TextFieldRoot:focus-within {
+    box-shadow: 0 0 0 2px rgba(201, 139, 42, 0.28) !important;
     border-color: var(--copper-500) !important;
-    box-shadow: 0 0 0 3px rgba(201, 139, 42, 0.15) !important;
     outline: none !important;
+    transition: box-shadow 0.15s ease, border-color 0.15s ease !important;
+}
+
+/* 2. Inner input: sem ring próprio — o wrapper já cuida */
+.rt-TextFieldRoot .rt-TextFieldInput:focus,
+.rt-TextFieldRoot input:focus {
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+/* 3. Inputs standalone (fora de TextField) mantêm o ring direto */
+input:not(.rt-TextFieldInput):focus,
+textarea:focus {
+    border-color: var(--copper-500) !important;
+    box-shadow: 0 0 0 2px rgba(201, 139, 42, 0.25) !important;
+    outline: none !important;
+}
+
+/* 4. GDG (Glide Data Grid) — remove outline nativo do browser no editor de célula */
+.dvn-scroller textarea:focus,
+.dvn-scroller input:focus,
+[class*="gdg"] textarea:focus,
+[class*="gdg"] input:focus {
+    outline: none !important;
+    box-shadow: inset 0 0 0 1px rgba(201, 139, 42, 0.5) !important;
 }
 
 input,
@@ -631,7 +669,7 @@ textarea {
 /* ── Card Hover Lift Utility ─────────────────────────────── */
 .card-lift {
     transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-                box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
 .card-lift:hover {
@@ -649,15 +687,27 @@ textarea {
     animation: typingBounce 1.2s ease-in-out infinite;
 }
 
-.typing-dot:nth-child(1) { animation-delay: 0s; }
-.typing-dot:nth-child(2) { animation-delay: 0.2s; }
-.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+.typing-dot:nth-child(1) {
+    animation-delay: 0s;
+}
+
+.typing-dot:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.typing-dot:nth-child(3) {
+    animation-delay: 0.4s;
+}
 
 @keyframes typingBounce {
-    0%, 60%, 100% {
+
+    0%,
+    60%,
+    100% {
         transform: translateY(0);
         opacity: 0.4;
     }
+
     30% {
         transform: translateY(-6px);
         opacity: 1;
@@ -673,8 +723,15 @@ textarea {
 }
 
 @keyframes cursorBlink {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0; }
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0;
+    }
 }
 
 /* ── Empty State ─────────────────────────────────────────── */
@@ -687,7 +744,10 @@ textarea {
     gap: 12px;
 }
 
-.empty-state-icon { opacity: 0.3; margin-bottom: 8px; }
+.empty-state-icon {
+    opacity: 0.3;
+    margin-bottom: 8px;
+}
 
 .empty-state-title {
     font-family: 'Rajdhani', sans-serif;
@@ -723,8 +783,15 @@ textarea {
 }
 
 @keyframes fabGlow {
-    0%, 100% { box-shadow: 0 4px 20px rgba(201, 139, 42, 0.4); }
-    50% { box-shadow: 0 4px 32px rgba(201, 139, 42, 0.75), 0 0 0 6px rgba(201, 139, 42, 0.08); }
+
+    0%,
+    100% {
+        box-shadow: 0 4px 20px rgba(201, 139, 42, 0.4);
+    }
+
+    50% {
+        box-shadow: 0 4px 32px rgba(201, 139, 42, 0.75), 0 0 0 6px rgba(201, 139, 42, 0.08);
+    }
 }
 
 .fab-ai {
@@ -743,9 +810,12 @@ textarea {
 }
 
 @keyframes fabAiGlow {
-    0%, 100% {
+
+    0%,
+    100% {
         box-shadow: 0 4px 20px rgba(201, 139, 42, 0.2), 0 0 0 1px rgba(201, 139, 42, 0.2);
     }
+
     50% {
         box-shadow: 0 4px 28px rgba(201, 139, 42, 0.4), 0 0 0 1px rgba(201, 139, 42, 0.4);
     }
@@ -756,6 +826,7 @@ textarea {
     -ms-overflow-style: none !important;
     scrollbar-width: none !important;
 }
+
 .no-scrollbar::-webkit-scrollbar {
     display: none !important;
 }
@@ -772,14 +843,26 @@ textarea {
     font-weight: 700;
 }
 
-.analysis-markdown p { margin-bottom: 12px; line-height: 1.7; }
+.analysis-markdown p {
+    margin-bottom: 12px;
+    line-height: 1.7;
+}
 
 .analysis-markdown ul,
-.analysis-markdown ol { padding-left: 20px; margin-bottom: 12px; }
+.analysis-markdown ol {
+    padding-left: 20px;
+    margin-bottom: 12px;
+}
 
-.analysis-markdown li { margin-bottom: 6px; line-height: 1.6; }
+.analysis-markdown li {
+    margin-bottom: 6px;
+    line-height: 1.6;
+}
 
-.analysis-markdown strong { color: white; font-weight: 700; }
+.analysis-markdown strong {
+    color: white;
+    font-weight: 700;
+}
 
 .analysis-markdown code {
     font-family: 'JetBrains Mono', monospace !important;
@@ -800,23 +883,47 @@ textarea {
 
 /* ── Mobile Improvements ─────────────────────────────────── */
 @media (max-width: 768px) {
-    .kpi-card { padding: 16px !important; }
-    .glass-panel { padding: 24px !important; border-radius: 16px !important; }
-    .data-table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; width: 100%; }
-    .data-table { min-width: 600px; }
-    input, textarea, .rt-SelectTrigger {
-        min-height: 48px;
-        font-size: 16px !important; /* prevents iOS auto-zoom */
+    .kpi-card {
+        padding: 16px !important;
     }
-    .chat-input-area { padding: 12px !important; }
-    .chat-container { border-radius: 0 !important; }
+
+    .glass-panel {
+        padding: 24px !important;
+        border-radius: 16px !important;
+    }
+
+    .data-table-wrapper {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        width: 100%;
+    }
+
+    .data-table {
+        min-width: 600px;
+    }
+
+    input,
+    textarea,
+    .rt-SelectTrigger {
+        min-height: 48px;
+        font-size: 16px !important;
+        /* prevents iOS auto-zoom */
+    }
+
+    .chat-input-area {
+        padding: 12px !important;
+    }
+
+    .chat-container {
+        border-radius: 0 !important;
+    }
 }
 
 /* ── KPI Card Enhanced Hover ─────────────────────────────── */
 .kpi-card {
     transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-                box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-                border-color 0.2s ease !important;
+        box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+        border-color 0.2s ease !important;
 }
 
 .kpi-card:hover {
@@ -839,12 +946,25 @@ textarea {
     transform: translateY(-1px);
 }
 
-.suggestion-chip:active { transform: scale(0.96) !important; }
+.suggestion-chip:active {
+    transform: scale(0.96) !important;
+}
 
 /* ── Reembolso AI Status Cards ─────────────────────────── */
-.ai-validated { border-color: rgba(42, 157, 143, 0.5) !important; box-shadow: 0 0 20px rgba(42, 157, 143, 0.12) !important; }
-.ai-divergence { border-color: rgba(245, 158, 11, 0.5) !important; box-shadow: 0 0 20px rgba(245, 158, 11, 0.12) !important; }
-.ai-failed { border-color: rgba(239, 68, 68, 0.5) !important; box-shadow: 0 0 20px rgba(239, 68, 68, 0.12) !important; }
+.ai-validated {
+    border-color: rgba(42, 157, 143, 0.5) !important;
+    box-shadow: 0 0 20px rgba(42, 157, 143, 0.12) !important;
+}
+
+.ai-divergence {
+    border-color: rgba(245, 158, 11, 0.5) !important;
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.12) !important;
+}
+
+.ai-failed {
+    border-color: rgba(239, 68, 68, 0.5) !important;
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.12) !important;
+}
 
 /* ── RDO Stepper Enhanced ────────────────────────────────── */
 .stepper-dot-active {
@@ -853,8 +973,15 @@ textarea {
 }
 
 @keyframes stepperPulse {
-    0%, 100% { box-shadow: 0 0 8px rgba(201, 139, 42, 0.4); }
-    50% { box-shadow: 0 0 18px rgba(201, 139, 42, 0.7); }
+
+    0%,
+    100% {
+        box-shadow: 0 0 8px rgba(201, 139, 42, 0.4);
+    }
+
+    50% {
+        box-shadow: 0 0 18px rgba(201, 139, 42, 0.7);
+    }
 }
 
 /* ── Select Focus ────────────────────────────────────────── */
@@ -870,15 +997,32 @@ textarea {
 }
 
 @keyframes enterEnhanced {
-    from { opacity: 0; transform: translateY(16px) scale(0.99); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
+    from {
+        opacity: 0;
+        transform: translateY(16px) scale(0.99);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
 }
 
 /* ── AI Dialog Scanner ────────────────────────────────────── */
 @keyframes aiScanLine {
-    0%   { top: 0;    opacity: 1;   }
-    80%  {            opacity: 0.5; }
-    100% { top: 100%; opacity: 0;   }
+    0% {
+        top: 0;
+        opacity: 1;
+    }
+
+    80% {
+        opacity: 0.5;
+    }
+
+    100% {
+        top: 100%;
+        opacity: 0;
+    }
 }
 
 .ai-scan-line {
@@ -888,29 +1032,68 @@ textarea {
     top: 0;
     height: 2px;
     background: linear-gradient(90deg,
-        transparent 0%,
-        var(--copper-500) 20%,
-        var(--copper-400) 50%,
-        var(--copper-500) 80%,
-        transparent 100%);
+            transparent 0%,
+            var(--copper-500) 20%,
+            var(--copper-400) 50%,
+            var(--copper-500) 80%,
+            transparent 100%);
     box-shadow: 0 0 12px var(--copper-500), 0 0 28px rgba(201, 139, 42, 0.4);
     animation: aiScanLine 2.8s linear infinite;
 }
 
 /* ── AI Loading Concentric Rings ──────────────────────────── */
 @keyframes aiRingPulse {
-    0%, 100% { opacity: 0.25; }
-    50%       { opacity: 0.65; box-shadow: 0 0 20px rgba(201, 139, 42, 0.15); }
+
+    0%,
+    100% {
+        opacity: 0.25;
+    }
+
+    50% {
+        opacity: 0.65;
+        box-shadow: 0 0 20px rgba(201, 139, 42, 0.15);
+    }
 }
 
-.ai-ring-1 { animation: aiRingPulse 2.5s ease-in-out infinite 0.0s; }
-.ai-ring-2 { animation: aiRingPulse 2.5s ease-in-out infinite 0.5s; }
-.ai-ring-3 { animation: aiRingPulse 2.5s ease-in-out infinite 1.0s; }
+.ai-ring-1 {
+    animation: aiRingPulse 2.5s ease-in-out infinite 0.0s;
+}
+
+.ai-ring-2 {
+    animation: aiRingPulse 2.5s ease-in-out infinite 0.5s;
+}
+
+.ai-ring-3 {
+    animation: aiRingPulse 2.5s ease-in-out infinite 1.0s;
+}
+
+/* ── Editor Loading Overlay Ring ────────────────────────── */
+@keyframes editorRingPulse {
+    0% {
+        transform: scale(1);
+        opacity: 0.5;
+    }
+
+    50% {
+        transform: scale(1.25);
+        opacity: 0.15;
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 0.5;
+    }
+}
+
+.editor-loading-ring {
+    animation: editorRingPulse 1.6s ease-in-out infinite;
+}
 
 /* ── Chat Bubble Polish ───────────────────────────────────── */
 .chat-bubble-user {
     transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
+
 .chat-bubble-user:hover {
     box-shadow: 0 6px 24px rgba(201, 139, 42, 0.18) !important;
     transform: translateY(-1px);
@@ -919,7 +1102,137 @@ textarea {
 .chat-bubble-ai {
     transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
+
 .chat-bubble-ai:hover {
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
     transform: translateY(-1px);
+}
+
+/* ── Glass Reveal Animation ──────────────────────────────── */
+/* Used by login card (login.py class_name="glass-reveal")   */
+@keyframes glassReveal {
+    from {
+        opacity: 0;
+        transform: translateY(28px) scale(0.96);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.glass-reveal {
+    animation: glassReveal 0.75s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ── Button :focus-visible — Copper Ring ─────────────────── */
+/* Replaces the default browser blue outline on focused buttons
+   (tab navigation, click → focus). Keeps accessibility intact. */
+.rt-Button:focus-visible,
+.rt-IconButton:focus-visible,
+button:focus-visible {
+    outline: none !important;
+    box-shadow: 0 0 0 2px rgba(201, 139, 42, 0.4) !important;
+    border-radius: inherit;
+}
+
+/* ── Toolbar Button Group Hover ──────────────────────────── */
+/* The pill-shaped groups ([Nova Linha][Deletar] etc.) get a
+   subtle glow when the cursor is inside the group area.      */
+.toolbar-group {
+    transition: border-color 0.15s ease, background 0.15s ease !important;
+}
+
+.toolbar-group:hover {
+    border-color: rgba(201, 139, 42, 0.2) !important;
+    background: rgba(255, 255, 255, 0.04) !important;
+}
+
+/* ── Radix Alert Dialog Dark Theme ───────────────────────── */
+/* By default, Radix alert dialog has a light backdrop.
+   Force everything to the deep tectonic palette.            */
+.rt-AlertDialogContent,
+.rt-DialogContent {
+    background-color: #0e1a17 !important;
+    border: 1px solid rgba(201, 139, 42, 0.2) !important;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(201, 139, 42, 0.1) !important;
+    color: #e0e0e0 !important;
+}
+
+/* Overlay backdrop */
+.rt-AlertDialogOverlay,
+.rt-DialogOverlay {
+    background-color: rgba(3, 5, 4, 0.75) !important;
+    backdrop-filter: blur(4px) !important;
+}
+
+/* ── Radix Tooltip Dark Theme ────────────────────────────── */
+.rt-TooltipContent {
+    background-color: #0e1a17 !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    color: rgba(255, 255, 255, 0.85) !important;
+    font-size: 11px !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
+}
+
+.rt-TooltipArrow {
+    fill: #0e1a17 !important;
+}
+
+/* ── Radix Dropdown Menu Dark Theme ──────────────────────── */
+.rt-DropdownMenuContent,
+.rt-ContextMenuContent {
+    background-color: #0e1a17 !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6) !important;
+}
+
+.rt-DropdownMenuItem,
+.rt-ContextMenuItem {
+    color: #e0e0e0 !important;
+}
+
+.rt-DropdownMenuItem[data-highlighted],
+.rt-ContextMenuItem[data-highlighted] {
+    background-color: rgba(201, 139, 42, 0.15) !important;
+    color: white !important;
+    outline: none !important;
+}
+
+/* ── Data Grid Empty State Fade ──────────────────────────── */
+/* Subtle fade-in for when the editor content area becomes visible */
+@keyframes gridFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.grid-enter {
+    animation: gridFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ── Command Bar (Editor Toolbar) ────────────────────────── */
+/* The "TABELA / PROJETO / CONTRATO" inline label text in the
+   command bar should pulse slightly on hover to feel interactive */
+.rt-SelectRoot:hover+span,
+.rt-SelectTrigger:hover {
+    border-color: rgba(201, 139, 42, 0.35) !important;
+}
+
+/* Tighten the amber surface select to fit the compact toolbar */
+.rt-SelectTrigger[data-size="2"] {
+    height: 32px !important;
+    min-height: 32px !important;
+}
+
+/* Remove any residual browser default outline on the canvas element */
+canvas:focus {
+    outline: none !important;
 }
