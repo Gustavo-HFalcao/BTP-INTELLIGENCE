@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m streamlit:*)",
+      "Bash(grep:*)",
+      "Bash(ls:*)",
+      "Bash(python -c:*)",
+      "Bash(powershell -Command \"Expand-Archive -Path ''.\\\\bomtempo-premium-dashboard \\(2\\).zip'' -DestinationPath ''.\\\\ref-dashboard'' -Force\")",
+      "Bash(dir:*)",
+      "Bash(timeout 60 reflex export:*)",
+      "Bash(timeout 90 reflex export:*)",
+      "Bash(reflex export:*)",
+      "Bash(powershell:*)",
+      "Bash(python:*)",
+      "Bash(timeout 60 reflex run:*)",
+      "Bash(timeout:*)",
+      "Bash(reflex run)",
+      "Bash(tasklist:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)",
+      "Bash(netstat:*)",
+      "Bash(del \"\\\\?\\\\c:\\\\Users\\\\Gustavo\\\\bomtempo-dashboard\\\\nul\")",
+      "Bash(cmd /c \"del \\\\?\\\\c:\\\\Users\\\\Gustavo\\\\bomtempo-dashboard\\\\nul\")",
+      "Bash(cmd /c \"dir c:\\\\Users\\\\Gustavo\\\\bomtempo-dashboard\\\\nul\")",
+      "Bash(cmd /c \"del /f /q \\\\?\\\\C:\\\\Users\\\\Gustavo\\\\bomtempo-dashboard\\\\nul\")",
+      "Bash(pip install:*)",
+      "WebFetch(domain:docs.google.com)",
+      "WebFetch(domain:doc-0g-88-sheets.googleusercontent.com)",
+      "Bash(pip show reflex)",
+      "Bash(test:*)",
+      "Bash(find:*)",
+      "Bash(wc:*)",
+      "Bash(python3:*)"
+    ]
+  }
+}

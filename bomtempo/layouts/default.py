@@ -1,0 +1,808 @@
+import reflex as rx
+
+from bomtempo.components.loading_screen import loading_screen
+from bomtempo.components.sidebar import mobile_sidebar, sidebar
+from bomtempo.core import styles as S
+from bomtempo.pages.login import login_page
+from bomtempo.state.global_state import GlobalState
+
+
+def _fab_ai_insight() -> rx.Component:
+    """Floating AI Insight pill button — fixed above the chat FAB."""
+    return rx.cond(
+        GlobalState.is_authenticated,
+        rx.button(
+            rx.hstack(
+                rx.box(
+                    width="7px",
+                    height="7px",
+                    border_radius="50%",
+                    bg=S.COPPER,
+                    flex_shrink="0",
+                    class_name="animate-pulse",
+                ),
+                rx.icon(tag="sparkles", size=18, color="inherit"),
+                rx.text(
+                    "Gerar Insights com IA",
+                    font_family=S.FONT_TECH,
+                    font_weight="700",
+                    font_size="13px",
+                    letter_spacing="0.04em",
+                    white_space="nowrap",
+                    display=["none", "none", "block"],
+                ),
+                spacing="2",
+                align="center",
+            ),
+            on_click=GlobalState.analyze_current_view,
+            is_loading=GlobalState.is_analyzing,
+            class_name="fab-ai",
+            style={
+                "position": "fixed",
+                "bottom": "28px",
+                "right": "28px",
+                "background": "rgba(201, 139, 42, 0.1)",
+                "color": S.COPPER,
+                "border": "1px solid rgba(201, 139, 42, 0.35)",
+                "borderRadius": "999px",
+                "paddingLeft": "16px",
+                "paddingRight": "16px",
+                "paddingTop": "12px",
+                "paddingBottom": "12px",
+                "zIndex": "998",
+            },
+        ),
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# KPI Detail Popup helpers
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _popup_table_header(*cols: str) -> rx.Component:
+    """Renders a styled header row for the detail popup table."""
+    return rx.el.tr(
+        *[
+            rx.el.th(
+                col,
+                style={
+                    "padding": "10px 16px",
+                    "textAlign": "left",
+                    "fontWeight": "700",
+                    "color": S.COPPER_LIGHT,
+                    "backgroundColor": "rgba(201, 139, 42, 0.07)",
+                    "borderRight": f"1px solid {S.BORDER_SUBTLE}",
+                    "borderBottom": f"1px solid {S.BORDER_ACCENT}",
+                    "fontSize": "11px",
+                    "letterSpacing": "0.08em",
+                    "textTransform": "uppercase",
+                    "whiteSpace": "nowrap",
+                },
+            )
+            for col in cols
+        ]
+    )
+
+
+def _popup_cell(value, highlight: bool = False) -> rx.Component:
+    return rx.el.td(
+        value,
+        style={
+            "padding": "10px 16px",
+            "color": S.COPPER_LIGHT if highlight else S.TEXT_PRIMARY,
+            "borderRight": f"1px solid {S.BORDER_SUBTLE}",
+            "borderBottom": f"1px solid rgba(255,255,255,0.04)",
+            "fontSize": "13px",
+            "fontFamily": S.FONT_MONO if highlight else "inherit",
+            "fontWeight": "600" if highlight else "400",
+            "whiteSpace": "nowrap",
+        },
+    )
+
+
+def _kpi_detail_contrato_table() -> rx.Component:
+    """Total Contratado — breakdown per contract."""
+    return rx.vstack(
+        rx.text(
+            "Distribuição por Contrato",
+            font_size="11px",
+            color=S.TEXT_MUTED,
+            font_weight="700",
+            text_transform="uppercase",
+            letter_spacing="0.1em",
+            margin_bottom="8px",
+        ),
+        rx.el.table(
+            rx.el.thead(_popup_table_header("Contrato", "Contratado", "Medido", "Saldo", "% Exec.")),
+            rx.el.tbody(
+                rx.foreach(
+                    GlobalState.fin_contrato_rows,
+                    lambda row: rx.el.tr(
+                        _popup_cell(row["contrato"]),
+                        _popup_cell(row["total_contratado_fmt"], highlight=True),
+                        _popup_cell(row["total_realizado_fmt"]),
+                        _popup_cell(row["saldo_fmt"]),
+                        _popup_cell(row["pct_medido"]),
+                    ),
+                )
+            ),
+            style={
+                "width": "100%",
+                "borderCollapse": "collapse",
+                "border": f"1px solid {S.BORDER_ACCENT}",
+                "borderRadius": "8px",
+                "overflow": "hidden",
+            },
+        ),
+        width="100%",
+        spacing="0",
+    )
+
+
+def _kpi_detail_medido_table() -> rx.Component:
+    """Total Medido — breakdown per cockpit milestone."""
+    return rx.vstack(
+        rx.text(
+            "Medições por Marco (Cockpit)",
+            font_size="11px",
+            color=S.TEXT_MUTED,
+            font_weight="700",
+            text_transform="uppercase",
+            letter_spacing="0.1em",
+            margin_bottom="8px",
+        ),
+        rx.el.table(
+            rx.el.thead(_popup_table_header("Marco / Cockpit", "Contratado", "Medido", "% Exec.")),
+            rx.el.tbody(
+                rx.foreach(
+                    GlobalState.fin_cockpit_popup_rows,
+                    lambda row: rx.el.tr(
+                        _popup_cell(row["cockpit"]),
+                        _popup_cell(row["total_contratado_fmt"]),
+                        _popup_cell(row["total_realizado_fmt"], highlight=True),
+                        _popup_cell(row["pct_medido"]),
+                    ),
+                )
+            ),
+            style={
+                "width": "100%",
+                "borderCollapse": "collapse",
+                "border": f"1px solid {S.BORDER_ACCENT}",
+                "borderRadius": "8px",
+                "overflow": "hidden",
+            },
+        ),
+        width="100%",
+        spacing="0",
+    )
+
+
+def _kpi_detail_saldo_table() -> rx.Component:
+    """Saldo à Medir — pending balance per contract."""
+    return rx.vstack(
+        rx.text(
+            "Saldo Pendente por Contrato",
+            font_size="11px",
+            color=S.TEXT_MUTED,
+            font_weight="700",
+            text_transform="uppercase",
+            letter_spacing="0.1em",
+            margin_bottom="8px",
+        ),
+        rx.el.table(
+            rx.el.thead(_popup_table_header("Contrato", "Total Cont.", "Total Med.", "Saldo a Medir", "% Restante")),
+            rx.el.tbody(
+                rx.foreach(
+                    GlobalState.fin_contrato_rows,
+                    lambda row: rx.el.tr(
+                        _popup_cell(row["contrato"]),
+                        _popup_cell(row["total_contratado_fmt"]),
+                        _popup_cell(row["total_realizado_fmt"]),
+                        _popup_cell(row["saldo_fmt"], highlight=True),
+                        _popup_cell(row["pct_medido"]),
+                    ),
+                )
+            ),
+            style={
+                "width": "100%",
+                "borderCollapse": "collapse",
+                "border": f"1px solid {S.BORDER_ACCENT}",
+                "borderRadius": "8px",
+                "overflow": "hidden",
+            },
+        ),
+        width="100%",
+        spacing="0",
+    )
+
+
+def _kpi_detail_contratos_ativos_table() -> rx.Component:
+    """Contratos Ativos — list of active contracts."""
+    return rx.vstack(
+        rx.text(
+            "Contratos em Execução",
+            font_size="11px",
+            color=S.TEXT_MUTED,
+            font_weight="700",
+            text_transform="uppercase",
+            letter_spacing="0.1em",
+            margin_bottom="8px",
+        ),
+        rx.el.table(
+            rx.el.thead(_popup_table_header("Contrato", "Cliente", "Status", "Valor Contratado")),
+            rx.el.tbody(
+                rx.foreach(
+                    GlobalState.contratos_ativos_rows,
+                    lambda row: rx.el.tr(
+                        _popup_cell(row["contrato"]),
+                        _popup_cell(row["cliente"]),
+                        _popup_cell(row["status"]),
+                        _popup_cell(row["valor_fmt"], highlight=True),
+                    ),
+                )
+            ),
+            style={
+                "width": "100%",
+                "borderCollapse": "collapse",
+                "border": f"1px solid {S.BORDER_ACCENT}",
+                "borderRadius": "8px",
+                "overflow": "hidden",
+            },
+        ),
+        width="100%",
+        spacing="0",
+    )
+
+
+# Icon + title mapping for popup header
+_POPUP_META = {
+    "total_contratado": ("wallet", "Total Contratado", "Valor total dos contratos firmados"),
+    "receita_total": ("wallet", "Receita Total", "Valor total da carteira de contratos"),
+    "total_medido": ("dollar-sign", "Total Medido", "Execução financeira acumulada por marco"),
+    "saldo_medir": ("trending-up", "Saldo à Medir", "Saldo pendente de medição por contrato"),
+    "contratos_ativos": ("hard-hat", "Contratos Ativos", "Contratos em status de execução"),
+}
+
+
+def _kpi_detail_dialog() -> rx.Component:
+    """Premium KPI detail popup — glassmorphic, copper-themed data matrix."""
+
+    def _dialog_header() -> rx.Component:
+        return rx.hstack(
+            # Copper glow orb decoration
+            rx.box(
+                position="absolute",
+                top="-40px",
+                right="-40px",
+                width="200px",
+                height="200px",
+                border_radius="50%",
+                bg="rgba(201, 139, 42, 0.06)",
+                filter="blur(60px)",
+                pointer_events="none",
+            ),
+            rx.center(
+                rx.icon(tag="table-2", size=22, color=S.COPPER),
+                width="44px",
+                height="44px",
+                border_radius="12px",
+                bg="rgba(201, 139, 42, 0.1)",
+                border=f"1px solid {S.BORDER_ACCENT}",
+                flex_shrink="0",
+            ),
+            rx.vstack(
+                rx.dialog.title(
+                    rx.cond(
+                        GlobalState.show_kpi_detail == "total_contratado",
+                        "Total Contratado",
+                        rx.cond(
+                            GlobalState.show_kpi_detail == "total_medido",
+                            "Total Medido",
+                            rx.cond(
+                                GlobalState.show_kpi_detail == "saldo_medir",
+                                "Saldo à Medir",
+                                rx.cond(
+                                    GlobalState.show_kpi_detail == "contratos_ativos",
+                                    "Contratos Ativos",
+                                    "Receita Total",
+                                ),
+                            ),
+                        ),
+                    ),
+                    color=S.COPPER,
+                    font_family=S.FONT_TECH,
+                    font_size="1.1rem",
+                    letter_spacing="0.03em",
+                    margin="0",
+                ),
+                rx.text(
+                    rx.cond(
+                        GlobalState.show_kpi_detail == "total_contratado",
+                        "Valor total dos contratos firmados",
+                        rx.cond(
+                            GlobalState.show_kpi_detail == "total_medido",
+                            "Execução financeira acumulada por marco",
+                            rx.cond(
+                                GlobalState.show_kpi_detail == "saldo_medir",
+                                "Saldo pendente de medição por contrato",
+                                rx.cond(
+                                    GlobalState.show_kpi_detail == "contratos_ativos",
+                                    "Contratos em status de execução",
+                                    "Carteira financeira consolidada",
+                                ),
+                            ),
+                        ),
+                    ),
+                    color=S.TEXT_MUTED,
+                    font_size="12px",
+                    margin="0",
+                ),
+                spacing="1",
+                align="start",
+            ),
+            rx.spacer(),
+            rx.dialog.close(
+                rx.icon_button(
+                    rx.icon(tag="x", size=18),
+                    variant="ghost",
+                    color_scheme="gray",
+                    on_click=GlobalState.set_show_kpi_detail(""),
+                )
+            ),
+            width="100%",
+            align="center",
+            spacing="4",
+            position="relative",
+            overflow="hidden",
+            margin_bottom="24px",
+        )
+
+    return rx.dialog.root(
+        rx.dialog.content(
+            rx.vstack(
+                _dialog_header(),
+                rx.scroll_area(
+                    rx.cond(
+                        GlobalState.show_kpi_detail == "total_medido",
+                        _kpi_detail_medido_table(),
+                        rx.cond(
+                            GlobalState.show_kpi_detail == "contratos_ativos",
+                            _kpi_detail_contratos_ativos_table(),
+                            rx.cond(
+                                GlobalState.show_kpi_detail == "saldo_medir",
+                                _kpi_detail_saldo_table(),
+                                _kpi_detail_contrato_table(),  # total_contratado + receita_total
+                            ),
+                        ),
+                    ),
+                    max_height="65vh",
+                    type="hover",
+                    scrollbars="vertical",
+                    width="100%",
+                ),
+                width="100%",
+                spacing="0",
+            ),
+            bg="rgba(10, 31, 26, 0.97)",
+            backdrop_filter="blur(20px)",
+            border=f"1px solid {S.BORDER_ACCENT}",
+            max_width="860px",
+            width="95vw",
+            border_radius="20px",
+            padding="32px",
+            box_shadow="0 25px 60px -12px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(201,139,42,0.1)",
+        ),
+        open=GlobalState.show_kpi_detail != "",
+        on_open_change=GlobalState.handle_detail_open_change,
+    )
+
+
+def default_layout(content: rx.Component) -> rx.Component:
+    """Default layout matching React reference: sidebar + content (Mobile Responsive)"""
+
+    return rx.box(
+        # ── Loading overlay GLOBAL ──────────────────────────────────────────────
+        # Fora do rx.cond(is_authenticated): cobre login → redirect → página destino
+        # sem flash. check_login faz yield antes de autenticar, então o overlay
+        # já está visível enquanto is_authenticated ainda é False.
+        rx.cond(
+            GlobalState.show_loading_screen,
+            loading_screen(),
+        ),
+        # ── Conteúdo condicional por autenticação ───────────────────────────────
+        rx.cond(
+            GlobalState.is_authenticated,
+            # ── Authenticated view ──────────────────────────────────────────────
+            rx.box(
+                rx.flex(
+                    # Desktop Sidebar (Conditionally Hidden for Restricted Roles & Mobile)
+                    rx.cond(
+                        (GlobalState.current_user_role == "Administrador")
+                        | (GlobalState.current_user_role == "Engenheiro")
+                        | (GlobalState.current_user_role == "Gestão-Mobile")
+                        | (GlobalState.current_user_role == "engenheiro")
+                        | (GlobalState.current_user_role == ""),
+                        sidebar(),
+                    ),
+                    # Main Content Area
+                    rx.box(
+                        # Mobile sidebar trigger (fixed top-left, mobile only)
+                        rx.box(
+                            rx.cond(
+                                (GlobalState.current_user_role == "Administrador")
+                                | (GlobalState.current_user_role == "Engenheiro")
+                                | (GlobalState.current_user_role == "Gestão-Mobile")
+                                | (GlobalState.current_user_role == "engenheiro")
+                                | (GlobalState.current_user_role == ""),
+                                mobile_sidebar(),
+                            ),
+                            position="fixed",
+                            top="16px",
+                            left="16px",
+                            z_index="100",
+                            display=["block", "block", "none"],
+                        ),
+                        # Page content
+                        rx.box(
+                            rx.cond(
+                                GlobalState.is_loading,
+                                rx.center(
+                                    rx.spinner(size="3", color=S.COPPER),
+                                    width="100%",
+                                    height="100%",
+                                    min_height="50vh",
+                                ),
+                                rx.box(
+                                    content,
+                                    class_name="animate-enter",
+                                ),
+                            ),
+                            max_width="1600px",
+                            margin_x="auto",
+                            width="100%",
+                            transition="all 0.3s ease-in-out",
+                            padding_x=["16px", "16px", "32px"],
+                        ),
+                        **S.MAIN_CONTENT_STYLE,
+                        width="100%",
+                        min_height="100vh",
+                        overflow_y="auto",
+                    ),
+                    # Analysis Dialog
+                    rx.dialog.root(
+                        rx.dialog.content(
+                            rx.vstack(
+                                rx.hstack(
+                                    rx.box(
+                                        rx.icon(tag="brain-circuit", size=24, color=S.COPPER),
+                                        bg="rgba(212, 175, 55, 0.1)",
+                                        padding="10px",
+                                        border_radius="12px",
+                                    ),
+                                    rx.vstack(
+                                        rx.dialog.title(
+                                            "BOMTEMPO INTELLIGENCE",
+                                            color=S.COPPER,
+                                            font_family=S.FONT_TECH,
+                                            font_size="1rem",
+                                            margin="0",
+                                        ),
+                                        rx.text(
+                                            "Análise Estratégica em Tempo Real",
+                                            color=S.TEXT_MUTED,
+                                            font_size="12px",
+                                            margin="0",
+                                        ),
+                                        spacing="0",
+                                        align="start",
+                                    ),
+                                    rx.spacer(),
+                                    rx.dialog.close(
+                                        rx.icon_button(
+                                            rx.icon(tag="x", size=20),
+                                            variant="ghost",
+                                            color_scheme="gray",
+                                            on_click=GlobalState.close_analysis_dialog,
+                                        )
+                                    ),
+                                    width="100%",
+                                    align="center",
+                                    margin_bottom="24px",
+                                ),
+                                rx.scroll_area(
+                                    rx.cond(
+                                        GlobalState.is_analyzing,
+                                        # ── Premium AI Loading Screen ──────────────────────────
+                                        rx.box(
+                                            # Background copper glow orbs
+                                            rx.box(
+                                                position="absolute",
+                                                top="-60px",
+                                                right="-60px",
+                                                width="280px",
+                                                height="280px",
+                                                border_radius="50%",
+                                                bg="rgba(201, 139, 42, 0.07)",
+                                                filter="blur(80px)",
+                                                pointer_events="none",
+                                            ),
+                                            rx.box(
+                                                position="absolute",
+                                                bottom="-40px",
+                                                left="-40px",
+                                                width="180px",
+                                                height="180px",
+                                                border_radius="50%",
+                                                bg="rgba(201, 139, 42, 0.05)",
+                                                filter="blur(60px)",
+                                                pointer_events="none",
+                                            ),
+                                            # Scanner line
+                                            rx.box(class_name="ai-scan-line"),
+                                            # Center content
+                                            rx.center(
+                                                rx.vstack(
+                                                    # Concentric rings with brain icon
+                                                    rx.box(
+                                                        rx.box(
+                                                            rx.box(
+                                                                rx.center(
+                                                                    rx.icon(
+                                                                        tag="brain-circuit",
+                                                                        size=36,
+                                                                        color=S.COPPER,
+                                                                    ),
+                                                                    width="64px",
+                                                                    height="64px",
+                                                                    border_radius="50%",
+                                                                    bg="rgba(201, 139, 42, 0.12)",
+                                                                    border=f"1px solid {S.COPPER}",
+                                                                    box_shadow="0 0 30px rgba(201, 139, 42, 0.5), 0 0 60px rgba(201, 139, 42, 0.2)",
+                                                                    class_name="orb-glow",
+                                                                ),
+                                                                width="84px",
+                                                                height="84px",
+                                                                border_radius="50%",
+                                                                border="1px solid rgba(201, 139, 42, 0.4)",
+                                                                class_name="ai-ring-1",
+                                                                display="flex",
+                                                                align_items="center",
+                                                                justify_content="center",
+                                                            ),
+                                                            width="120px",
+                                                            height="120px",
+                                                            border_radius="50%",
+                                                            border="1px solid rgba(201, 139, 42, 0.25)",
+                                                            class_name="ai-ring-2",
+                                                            display="flex",
+                                                            align_items="center",
+                                                            justify_content="center",
+                                                        ),
+                                                        width="160px",
+                                                        height="160px",
+                                                        border_radius="50%",
+                                                        border="1px solid rgba(201, 139, 42, 0.15)",
+                                                        class_name="ai-ring-3",
+                                                        display="flex",
+                                                        align_items="center",
+                                                        justify_content="center",
+                                                    ),
+                                                    rx.text(
+                                                        "A IA está processando os vetores de dados desta página...",
+                                                        font_family=S.FONT_TECH,
+                                                        color=S.COPPER,
+                                                        font_size="18px",
+                                                        font_weight="bold",
+                                                        text_align="center",
+                                                        margin_top="32px",
+                                                    ),
+                                                    rx.text(
+                                                        "Cruzando indicadores e projetando recomendações táticas...",
+                                                        color=S.TEXT_MUTED,
+                                                        font_size="14px",
+                                                        text_align="center",
+                                                        class_name="fade-in-out",
+                                                    ),
+                                                    justify="center",
+                                                    align="center",
+                                                    spacing="4",
+                                                ),
+                                                width="100%",
+                                                height="100%",
+                                            ),
+                                            position="relative",
+                                            overflow="hidden",
+                                            height="400px",
+                                            width="100%",
+                                        ),
+                                        rx.cond(
+                                            GlobalState.is_streaming,
+                                            # ── Raw text while streaming — no expensive markdown re-parse ──
+                                            rx.box(
+                                                rx.text(
+                                                    GlobalState.analysis_result,
+                                                    white_space="pre-wrap",
+                                                    font_family=S.FONT_BODY,
+                                                    font_size="14px",
+                                                    color=S.TEXT_PRIMARY,
+                                                    line_height="1.9",
+                                                    letter_spacing="0.01em",
+                                                ),
+                                                min_height="480px",
+                                                padding_right="20px",
+                                            ),
+                                            # ── Final rendered markdown — single render after streaming ──
+                                            rx.box(
+                                            rx.markdown(
+                                                GlobalState.analysis_result,
+                                                class_name="analysis-markdown",
+                                                color=S.TEXT_PRIMARY,
+                                                component_map={
+                                                    "h1": lambda *children, **props: rx.heading(
+                                                        *children,
+                                                        size="6",
+                                                        color=S.COPPER,
+                                                        font_family=S.FONT_TECH,
+                                                        margin_top="1.2em",
+                                                        margin_bottom="0.4em",
+                                                        **props,
+                                                    ),
+                                                    "h2": lambda *children, **props: rx.heading(
+                                                        *children,
+                                                        size="5",
+                                                        color=S.COPPER,
+                                                        font_family=S.FONT_TECH,
+                                                        margin_top="1.2em",
+                                                        margin_bottom="0.4em",
+                                                        **props,
+                                                    ),
+                                                    "h3": lambda *children, **props: rx.heading(
+                                                        *children,
+                                                        size="4",
+                                                        color=S.COPPER_LIGHT,
+                                                        font_family=S.FONT_TECH,
+                                                        margin_top="0.8em",
+                                                        margin_bottom="0.3em",
+                                                        **props,
+                                                    ),
+                                                    "p": lambda *children, **props: rx.el.p(
+                                                        *children,
+                                                        style={
+                                                            "color": S.TEXT_PRIMARY,
+                                                            "lineHeight": "1.75",
+                                                            "marginBottom": "0.6em",
+                                                            "wordSpacing": "0.02em",
+                                                        },
+                                                    ),
+                                                    "em": lambda *children, **props: rx.el.em(
+                                                        *children,
+                                                        style={
+                                                            "color": S.TEXT_MUTED,
+                                                            "fontStyle": "normal",
+                                                            "fontSize": "0.92em",
+                                                        },
+                                                        **props,
+                                                    ),
+                                                    "code": lambda *children, **props: rx.el.code(
+                                                        *children,
+                                                        style={
+                                                            "background": "rgba(212, 175, 55, 0.1)",
+                                                            "color": S.COPPER_LIGHT,
+                                                            "padding": "1px 6px",
+                                                            "borderRadius": "4px",
+                                                            "fontFamily": S.FONT_MONO,
+                                                            "fontSize": "0.85em",
+                                                        },
+                                                        **props,
+                                                    ),
+                                                    "li": lambda *children, **props: rx.el.li(
+                                                        *children,
+                                                        style={
+                                                            "color": S.TEXT_PRIMARY,
+                                                            "marginBottom": "4px",
+                                                            "lineHeight": "1.6",
+                                                        },
+                                                        **props,
+                                                    ),
+                                                    "strong": lambda *children, **props: rx.el.strong(
+                                                        *children,
+                                                        style={"color": S.COPPER_LIGHT, "fontWeight": "700"},
+                                                        **props,
+                                                    ),
+                                                    "table": lambda *children, **props: rx.el.table(
+                                                        *children,
+                                                        style={
+                                                            "width": "100%",
+                                                            "borderCollapse": "collapse",
+                                                            "marginTop": "12px",
+                                                            "marginBottom": "12px",
+                                                            "fontSize": "13px",
+                                                            "border": f"1px solid {S.BORDER_ACCENT}",
+                                                        },
+                                                        **props,
+                                                    ),
+                                                    "thead": lambda *children, **props: rx.el.thead(
+                                                        *children,
+                                                        style={"backgroundColor": S.BG_ELEVATED},
+                                                        **props,
+                                                    ),
+                                                    "tbody": lambda *children, **props: rx.el.tbody(
+                                                        *children, **props
+                                                    ),
+                                                    "tr": lambda *children, **props: rx.el.tr(
+                                                        *children,
+                                                        style={"borderBottom": f"1px solid {S.BORDER_SUBTLE}"},
+                                                        **props,
+                                                    ),
+                                                    "th": lambda *children, **props: rx.el.th(
+                                                        *children,
+                                                        style={
+                                                            "padding": "10px 14px",
+                                                            "textAlign": "left",
+                                                            "fontWeight": "700",
+                                                            "color": S.COPPER_LIGHT,
+                                                            "backgroundColor": S.BG_ELEVATED,
+                                                            "borderRight": f"1px solid {S.BORDER_SUBTLE}",
+                                                            "fontSize": "12px",
+                                                            "letterSpacing": "0.04em",
+                                                        },
+                                                        **props,
+                                                    ),
+                                                    "td": lambda *children, **props: rx.el.td(
+                                                        *children,
+                                                        style={
+                                                            "padding": "9px 14px",
+                                                            "color": S.TEXT_PRIMARY,
+                                                            "borderRight": f"1px solid {S.BORDER_SUBTLE}",
+                                                            "fontSize": "13px",
+                                                            "lineHeight": "1.5",
+                                                        },
+                                                        **props,
+                                                    ),
+                                                },
+                                            ),
+                                                color=S.TEXT_PRIMARY,
+                                                padding_right="20px",
+                                            ),
+                                        ),  # closes inner rx.cond (is_streaming)
+                                    ),  # closes outer rx.cond (is_analyzing)
+                                    max_height="70vh",
+                                    type="hover",
+                                    scrollbars="vertical",
+                                    width="100%",
+                                ),
+                                width="100%",
+                                spacing="0",
+                            ),
+                            bg="rgba(10, 31, 26, 0.95)",
+                            backdrop_filter="blur(16px)",
+                            border=f"1px solid {S.BORDER_ACCENT}",
+                            max_width="1200px",
+                            border_radius="24px",
+                            padding="32px",
+                            box_shadow="0 25px 50px -12px rgba(0, 0, 0, 0.5)",
+                        ),
+                        open=GlobalState.show_analysis_dialog,
+                        on_open_change=GlobalState.set_analysis_dialog_open,
+                    ),
+                    direction="row",
+                    width="100%",
+                    min_height="100vh",
+                    background=S.BG_VOID,
+                ),  # End rx.flex
+                position="relative",
+                width="100%",
+                min_height="100vh",
+            ),  # End authenticated rx.box
+            # ── Unauthenticated view ────────────────────────────────────────────
+            login_page(),
+        ),  # End rx.cond(is_authenticated)
+        # ── Floating AI Insight Button ───────────────────────────────────────────
+        _fab_ai_insight(),
+        # ── KPI Detail Popup (global, accessible from all pages) ─────────────
+        _kpi_detail_dialog(),
+        # Outer box props
+        position="relative",
+        width="100%",
+        min_height="100vh",
+    )  # End outer rx.box

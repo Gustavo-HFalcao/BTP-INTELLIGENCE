@@ -1,0 +1,5 @@
+
+reflex>=0.6.0
+reflex-recharts>=0.0.1
+google-genai>=0.3.0
+pandas

@@ -1,0 +1,32 @@
+# Fuel Reimbursement Module Implementation Plan
+
+- [ ] Verify Database Schema
+  - [ ] Verify `fuel_reimbursements` table exists and matches expected structure in Supabase
+  - [ ] Verify/Update RLS (Row Level Security) policies for the table (Role: `solicitacao_reembolso`)
+- [ ] Verify Storage Buckets
+  - [ ] Verify `fuel_reimbursements_nf` bucket exists
+  - [ ] Verify `fuel_reimbursements_pdfs` bucket exists
+- [ ] Implement AI Vision Integration
+  - [ ] Create `ai_vision_client.py` or extend existing AI client to handle image analysis
+  - [ ] Implement the prompt for extracting fuel receipt data
+  - [ ] Add logic to compare extracted value with user input (tolerance ±R$0.50)
+- [ ] Develop Fuel Reimbursement Service (`fuel_service.py`)
+  - [ ] Implement business logic for calculating KM/L, Cost/KM
+  - [ ] Implement logic for calculating deviations (user average, fleet average)
+  - [ ] Implement PDF generation using ReportLab (similar to RDO)
+  - [ ] Implement database save and storage upload functions
+- [ ] Develop User Interface (Solicitation)
+  - [ ] Create `reembolso_form.py` page
+  - [ ] Implement form fields as specified (vehicle, fuel type, liters, prices, KMs, city, etc.)
+  - [ ] Add image upload component for the receipt
+  - [ ] Integrate with `fuel_service.py` and AI validation
+  - [ ] Implement RLS/UI filtering so users with role `solicitacao_reembolso` only see their own requests (Benchmark: RDO module)
+- [ ] Develop Manager Dashboard for Fuel
+  - [ ] Create `reembolso_dashboard.py` page
+  - [ ] Implement Financial KPIs (Total reimbursed, average ticket, etc.)
+  - [ ] Implement Operational KPIs (KM/L ranking, efficiency timeline, etc.)
+  - [ ] Implement Anomaly/Alerts section (outliers, low KM/L, etc.)
+- [ ] Update AI Context
+  - [ ] Add fuel reimbursement data to `ai_context.py` so the Chat AI can answer questions about it
+- [ ] Update Navigation
+  - [ ] Add links to the new pages in the sidebar/navigation component

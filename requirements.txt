@@ -1,0 +1,16 @@
+reflex
+pandas
+numpy
+openpyxl
+scikit-learn
+lxml
+requests
+html5lib
+openai>=1.0.0
+tabulate
+httpx
+reportlab>=4.0.0
+Pillow>=10.0.0
+python-dotenv>=1.0.0
+
+reflex==0.8.26

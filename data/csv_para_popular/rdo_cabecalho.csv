@@ -1,0 +1,6 @@
+id_rdo,id_obra,nome_obra,data_rdo,turno,responsavel_preenchimento,cargo_responsavel,condicao_climatica,choveu,impacto_clima,total_trabalhadores,total_equipamentos,atividades_resumo,acidentes,nao_conformidades,status_rdo,criado_em
+1,BOM010-24,Escola Municipal A,2026-02-17,manha,João Silva,Mestre de Obras,Ensolarado,nao,,12,3,Fundação completa - início estrutura metálica,nenhum,nenhuma,aprovado,2026-02-17 18:30
+2,BOM010-24,Escola Municipal A,2026-02-18,manha,João Silva,Mestre de Obras,Nublado,sim,Atraso de 2h por chuva,10,2,Continuação estrutura metálica - 40% concluída,nenhum,Falta EPI capacete amarelo,rascunho,2026-02-18 12:00
+3,BOM011-24,Hospital Regional,2026-02-17,tarde,Maria Santos,Engenheira Civil,Parcialmente nublado,nao,,18,5,Instalação elétrica pavimento 2 - pintura externa,nenhum,nenhuma,aprovado,2026-02-17 19:00
+4,BOM010-24,Escola Municipal A,2026-02-15,tarde,João Silva,Mestre de Obras,Ensolarado,nao,,15,4,Terraplanagem e escavação para fundação,nenhum,nenhuma,aprovado,2026-02-15 17:45
+5,BOM012-24,Centro Comercial,2026-02-16,manha,Pedro Costa,Mestre de Obras,Nublado,nao,,20,6,Concretagem laje térreo - montagem formas,nenhum,nenhuma,aprovado,2026-02-16 18:15

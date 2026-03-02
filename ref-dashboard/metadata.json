@@ -1,0 +1,7 @@
+{
+  "name": "BOMTEMPO Premium Dashboard",
+  "description": "A high-performance executive dashboard for electrical engineering portfolio management, featuring real-time analytics, financial tracking, and Gemini AI-powered strategic insights.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

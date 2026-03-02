@@ -1,0 +1,134 @@
+﻿id,prompt,response
+1,Qual é o status físico atual (realizado %) de todos os projetos ativos no painel?,"**STATUS FÍSICO DOS PROJETOS ATIVOS** 🚧
+
+**⚠️ ATENÇÃO - Desempenho vs Previsto:**
+
+**PIOR DESEMPENHO (Gap >20%)**
+- **Shopping Center Salvador**: 56.5% realizado vs 95% previsto (-38.5%)
+- **Shopping Iguatemi POA**: 56% realizado vs 95% previsto (-39%)
+- **Fábrica de Móveis Canoas**: 66.5% realizado vs 95% previsto (-28.5%)
+- **Indústria de Papel**: 66.5% realizado vs 95% previsto (-28.5%)
+- **Hospital Oswaldo Cruz**: 66.3% realizado vs 94.7% previsto (-28.4%)
+- **Shopping RioMar Recife**: 67.7% realizado vs 96.7% previsto (-29%)
+- **Escola Técnica Caxias**: 68.3% realizado vs 91.1% previsto (-22.8%)
+
+**MÉDIO DESEMPENHO (Gap 10-20%)**
+- **Condomínio Corporate**: 62.5% realizado vs 83.3% previsto (-20.8%)
+- **Hospital Moinhos**: 64% realizado vs 95% previsto (-29%)
+- **Indústria Calçados Sul**: 72% realizado vs 95% previsto (-23%)
+- **Shopping Metrô Tatuapé**: 75% realizado vs 75% previsto (✅ NO TARGET)
+- **Usina de Asfalto**: 81% realizado vs 90% previsto (-9%)
+
+**MELHOR DESEMPENHO (Gap <10%)**
+- **Centro Logístico Gravataí**: 76% realizado vs 95% previsto (-19%)
+- **Hospital Sarah Kubitschek**: 76.7% realizado vs 95% previsto (-18.3%)
+- **Indústria Têxtil**: 76% realizado vs 95% previsto (-19%)
+- **Supermercado Zaffari**: 84.2% realizado vs 88.7% previsto (-4.5%)
+- **Fábrica de Cimento**: 80.8% realizado vs 95% previsto (-14.2%)
+- **Fábrica de Cabos Elétricos**: 80.8% realizado vs 95% previsto (-14.2%)
+
+**✅ PROJETOS CONCLUÍDOS**
+- Centro Empresarial Paulista: 100%
+- Condomínio Residencial Alphaville: 100% 
+- Indústria Metalúrgica SP: 100%
+- Hotel Fazenda Interior: 100%
+- Shopping Curitiba: 100%"
+2,Liste os 5 contratos de maior valor e seus respectivos status.,"Top 5 contratos por valor contratado:
+
+1. **BOM-014 CobreBrasil** - **R$ 2.450.250** ✅ Em Execução  
+2. **BOM-002 Iguatemi SA** - **R$ 2.227.500** ✅ Em Execução  
+3. **BOM-030 Distribuição BR** - **R$ 2.227.500** ⚠️ Em Planejamento  
+4. **BOM-021 RioMar** - **R$ 2.316.600** ✅ Em Execução  
+5. **BOM-011 MultiShopping BA** - **R$ 2.673.000** ✅ Em Execução"
+3,"Com base nos dados de O&M, qual projeto teve a maior energia injetada nos últimos registros?",**Shopping RioMar Recife** - BOM-021: **73.075 kWh** injetados ✅
+4,Identifique 3 projetos onde o realizado (%) está abaixo do previsto (%).,"⚠️ **3 Projetos com Execução Abaixo do Previsto**
+
+1. **Shopping Center Salvador**  
+   - **Previsto:** 95 % | **Realizado:** 56,5 %  
+   - **Gap:** -38,5 pp ⚠️ *Atraso na fase de Comissionamento*
+
+2. **Shopping Iguatemi POA**  
+   - **Previsto:** 95 % | **Realizado:** 56 %  
+   - **Gap:** -39 pp ⚠️ *Retomada após recebimento de inversores*
+
+3. **Fábrica de Móveis Canoas**  
+   - **Previsto:** 95 % | **Realizado:** 66,5 %  
+   - **Gap:** -28,5 pp
+
+**Ação imediata:** Priorizar comissionamento e validar disponibilidade de inversores/insumos críticos nesses empreendimentos."
+5,Quais são os próximos milestones (atividades) para o projeto 'Indústria de Papel'?,"Não tenho informações suficientes no painel sobre isso (Tente: Resumo Financeiro, Cronograma)."
+6,Qual o total de faturamento líquido registrado na aba de O&M?,**R$ 267.910** é o faturamento líquido total consolidado na O&M.
+7,Quais projetos estão atualmente em status de 'Planejamento'?,"**Projetos em Planejamento:**
+
+- **BOM-020** - Einstein: **R$ 1.782.000**
+- **BOM-025** - Resort Carneiros: **R$ 801.900**  
+- **BOM-030** - Distribuição BR: **R$ 2.227.500**
+
+**Total:** **R$ 4.811.400** em contratos aguardando início de execução."
+8,"No financeiro, quais contratos já ultrapassaram o valor contratado de material (material_realizado > material_contratado)?","**⚠️ ALERTA DE CUSTO: 2 contratos com materiais ACIMA do contratado**
+
+1. **BOM-014 (CobreBrasil)**
+   - **Contratado:** R$ 1.848.000
+   - **Realizado:** R$ 2.096.320
+   - **SobreCusto:** **R$ 248.320 (+13,4%)**
+
+2. **BOM-015 (Fios & Cabos MG)**
+   - **Contratado:** R$ 1.276.800
+   - **Realizado:** R$ 1.432.290
+   - **SobreCusto:** **R$ 155.490 (+12,2%)**
+
+**AÇÃO IMEDIATA:** Ambos são contratos industriais com **alta exposição ao cobre** - revisar cláusulas de reajuste e negociar com fornecedores."
+9,"Fazendo uma média geral, qual o percentual médio de conclusão (conclusao_pct) dos projetos listados no cronograma?","**0%** – todos os 32 milestones ativos estão com **conclusao_pct = 0**.  
+⚠️ **Ação imediata:** revisar o plano de execução e atualizar o % real de cada atividade."
+10,Resuma a saúde financeira e física do contrato BOM-029 (PapelParaná).,"**BOM-029 - PapelParaná: Saúde Financeira e Física**
+
+**💰 Financeiro (Acumulado):**
+- **Serviço Contratado:** R$ 350.400 | **Realizado:** R$ 291.658 (**83,2%**)
+- **Material Contratado:** R$ 1.075.200 | **Realizado:** R$ 1.058.120 (**98,4%**)
+- **Status:** ✅ Financeiramente saudável - execução dentro do previsto
+
+**📊 Físico (Janeiro/26):**
+- **Previsto:** 95% | **Realizado:** 66,5% 
+- **Gap:** -28,5% ⚠️ **ATENÇÃO:** Desempenho físico abaixo do cronograma
+- **Comentário:** ""Coordenação de equipes em andamento""
+
+**🎯 Actionable Insight:**
+**RISCO DE PRAZO** - Com 95% do tempo previsto consumido e apenas 66,5% de avanço físico, há **necessidade imediata de aceleração** nas atividades de campo. Recomendo:
+1. Reunião de escalonamento com equipes esta semana
+2. Revisão de mão de obra e equipamentos
+3. Ajuste de sequência crítica para recuperar o atraso"
+11,Quais são as atividades com maior atraso ou menor percentual de conclusão no cronograma macro?,"**⚠️ CRÍTICO:** Todas as atividades do cronograma macro estão com **0% de conclusão** - **nenhuma milestone ativa foi iniciada**.
+
+**📊 ANÁLISE EXECUTIVA:**
+- **27 atividades** listadas, todas com **conclusão_pct = 0**
+- **Maior risco:** Atividades sem data de início (NaT) - **19 ocorrências**
+- **Foco imediato:** 6 atividades com datas já iniciadas ou próximas
+
+**🎯 AÇÕES PRIORITÁRIAS:**
+1. **Imediato:** Validar status real das atividades com datas vencidas
+2. **Semana 1:** Definir datas de início para as 19 atividades sem NaT
+3. **Mensal:** Implementar tracking semanal de progresso físico
+
+**⏰ DEADLINES CRÍTICOS:**
+- **Jan/2026:** 4 atividades com prazo já iniciado
+- **Fev-Mar/2026:** Homologações concessionárias (IDs 16)
+- **Mai-Jun/2026:** Projetos executivos (IDs 1,2,3)
+
+**Recomendação:** Acionar imediatamente gerentes de projeto para **replanejamento emergencial** com baseline revisado."
+12,Existe alguma obra onde o comentário indique risco ou alerta crítico?,"**⚠️ RISCOS IDENTIFICADOS**
+
+**3 Obras com Alertas Críticos:**
+
+1. **Hospital Sarah Kubitschek** - *""Atraso na fase de Comissionamento - problemas técnicos""*
+   - **Ação:** Priorizar equipe técnica especializada para resolução imediata
+   - **Impacto:** Pode comprometer entrega e faturamento final
+
+2. **Shopping Center Salvador** - *""Atraso na fase de Comissionamento - problemas técnicos""*
+   - **Ação:** Verificar se mesmo problema do Hospital Sarah (possível padrão)
+   - **Impacto:** Cliente de alto valor (BOM-011: **R$ 2,67M**)
+
+3. **Fábrica de Cabos Elétricos** - *""Reajuste de preços de cobre impactando custos""*
+   - **Ação:** Revisar margem do contrato BOM-014 (**R$ 2,45M**)
+   - **Impacto:** Risco de perda financeira em material
+
+**✅ Demais obras** apresentam status operacionais sem alertas críticos."

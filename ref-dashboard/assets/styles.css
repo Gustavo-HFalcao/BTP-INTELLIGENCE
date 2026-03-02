@@ -1,0 +1,41 @@
+
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Outfit:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+    --bg-void: #030504;
+    --bg-glass: rgba(14, 26, 23, 0.7);
+    --border-subtle: rgba(255, 255, 255, 0.08);
+}
+
+body {
+    background-color: var(--bg-void);
+    background-image: 
+        radial-gradient(circle at 50% 0%, #1a2e29 0%, transparent 40%),
+        url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E");
+    font-family: 'Outfit', sans-serif;
+}
+
+/* Glassmorphism Utility Class */
+.glass-panel {
+    background: var(--bg-glass);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--border-subtle);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+}
+
+/* Animation utilities */
+@keyframes enter {
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.animate-enter {
+    opacity: 0;
+    transform: translateY(20px) scale(0.98);
+    animation: enter cubic-bezier(0.16, 1, 0.3, 1) 0.8s forwards;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #030504; }
+::-webkit-scrollbar-thumb { background: #C98B2A; border-radius: 0px; }

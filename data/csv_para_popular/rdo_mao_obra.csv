@@ -1,0 +1,15 @@
+id_mao_obra,id_rdo,funcao,empresa,quantidade_trabalhadores,horas_normais,horas_extras,custo_hora,observacoes
+1,1,Pedreiro,Construtora XYZ,5,8,0,45.00,
+2,1,Servente,Construtora XYZ,4,8,0,25.00,
+3,1,Soldador,Metalúrgica ABC,3,8,2,65.00,Horas extras para finalizar fundação
+4,2,Pedreiro,Construtora XYZ,4,6,0,45.00,Reduzido por chuva
+5,2,Servente,Construtora XYZ,3,6,0,25.00,Reduzido por chuva
+6,2,Ajudante,Construtora XYZ,3,6,0,20.00,
+7,3,Eletricista,Elétrica DEF,8,8,0,55.00,
+8,3,Pintor,Pinturas GHI,10,8,0,40.00,
+9,4,Operador Escavadeira,Terraplenagem SA,2,8,0,70.00,
+10,4,Servente,Construtora XYZ,8,8,0,25.00,
+11,4,Pedreiro,Construtora XYZ,5,8,0,45.00,
+12,5,Carpinteiro,Madeiras PE,6,8,1,50.00,Hora extra para finalizar formas
+13,5,Armador,Aço Forte Ltda,8,8,0,48.00,
+14,5,Servente,Construtora XYZ,6,8,0,25.00,

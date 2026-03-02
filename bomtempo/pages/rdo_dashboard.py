@@ -1,0 +1,598 @@
+"""
+RDO Dashboard 360° — KPIs e gráficos para Admin/Gestor
+"""
+
+import reflex as rx
+
+from bomtempo.core import styles as S
+from bomtempo.state.rdo_dashboard_state import RDODashboardState
+
+
+# ── KPI Card RDO ────────────────────────────────────────────
+def _kpi(label: str, value, icon: str, color: str = S.COPPER, subtitle: str = "") -> rx.Component:
+    return rx.box(
+        rx.vstack(
+            rx.hstack(
+                rx.box(
+                    rx.icon(tag=icon, size=20, color=color),
+                    bg=(
+                        f"rgba({','.join(str(int(color.lstrip('#')[i:i+2], 16)) for i in (0, 2, 4))}, 0.12)"
+                        if color.startswith("#")
+                        else "rgba(201,139,42,0.12)"
+                    ),
+                    padding="10px",
+                    border_radius="10px",
+                ),
+                rx.spacer(),
+                spacing="0",
+                width="100%",
+            ),
+            rx.text(
+                value,
+                font_size="28px",
+                font_weight="700",
+                color=color,
+                font_family=S.FONT_TECH,
+                line_height="1",
+            ),
+            rx.text(label, font_size="12px", color=S.TEXT_MUTED, font_weight="600"),
+            rx.cond(
+                subtitle != "",
+                rx.text(subtitle, font_size="11px", color=S.TEXT_MUTED),
+            ),
+            spacing="2",
+            align="start",
+        ),
+        **{**S.GLASS_CARD, "padding": "20px"},
+        flex="1",
+        min_width="160px",
+    )
+
+
+# ── Gráfico linha: RDOs por dia ─────────────────────────────
+def _chart_por_dia() -> rx.Component:
+    return rx.box(
+        rx.vstack(
+            rx.hstack(
+                rx.icon(tag="trending-up", size=18, color=S.COPPER),
+                rx.text(
+                    "RDOs por Dia",
+                    font_size="14px",
+                    font_weight="700",
+                    color=S.TEXT_PRIMARY,
+                    font_family=S.FONT_TECH,
+                ),
+                spacing="2",
+                align="center",
+            ),
+            rx.recharts.area_chart(
+                rx.recharts.area(
+                    data_key="rdos",
+                    stroke=S.COPPER,
+                    fill="rgba(201,139,42,0.15)",
+                    stroke_width=2,
+                ),
+                rx.recharts.x_axis(
+                    data_key="data", tick={"fontSize": 9, "fill": S.TEXT_MUTED}, tick_count=7
+                ),
+                rx.recharts.y_axis(tick={"fontSize": 9, "fill": S.TEXT_MUTED}, width=25),
+                rx.recharts.cartesian_grid(stroke_dasharray="3 3", stroke="rgba(255,255,255,0.05)"),
+                rx.recharts.tooltip(
+                    content_style={
+                        "background": S.BG_SURFACE,
+                        "border": f"1px solid {S.BORDER_ACCENT}",
+                        "border_radius": "8px",
+                    },
+                    label_style={"color": S.COPPER},
+                    item_style={"color": S.TEXT_PRIMARY},
+                ),
+                data=RDODashboardState.grafico_por_dia,
+                height=200,
+                width="100%",
+            ),
+            spacing="3",
+            width="100%",
+        ),
+        **{**S.GLASS_CARD, "padding": "20px"},
+        flex="2",
+        min_width="300px",
+    )
+
+
+# ── Gráfico pie: Clima ──────────────────────────────────────
+def _chart_clima() -> rx.Component:
+    return rx.box(
+        rx.vstack(
+            rx.hstack(
+                rx.icon(tag="cloud-sun", size=18, color=S.PATINA),
+                rx.text(
+                    "Clima nos RDOs",
+                    font_size="14px",
+                    font_weight="700",
+                    color=S.TEXT_PRIMARY,
+                    font_family=S.FONT_TECH,
+                ),
+                spacing="2",
+                align="center",
+            ),
+            rx.recharts.pie_chart(
+                rx.recharts.pie(
+                    data=RDODashboardState.grafico_clima,
+                    data_key="value",
+                    name_key="name",
+                    cx="50%",
+                    cy="50%",
+                    outer_radius=75,
+                    inner_radius=40,
+                    fill=S.COPPER,
+                    label=True,
+                ),
+                rx.recharts.tooltip(
+                    content_style={
+                        "background": S.BG_SURFACE,
+                        "border": f"1px solid {S.BORDER_ACCENT}",
+                        "border_radius": "8px",
+                    },
+                    item_style={"color": S.TEXT_PRIMARY},
+                ),
+                height=200,
+                width="100%",
+            ),
+            spacing="3",
+            width="100%",
+        ),
+        **{**S.GLASS_CARD, "padding": "20px"},
+        flex="1",
+        min_width="220px",
+    )
+
+
+# ── Gráfico barras: MO por contrato ─────────────────────────
+def _chart_mo() -> rx.Component:
+    return rx.box(
+        rx.vstack(
+            rx.hstack(
+                rx.icon(tag="users", size=18, color=S.PATINA),
+                rx.text(
+                    "Mão de Obra por Contrato",
+                    font_size="14px",
+                    font_weight="700",
+                    color=S.TEXT_PRIMARY,
+                    font_family=S.FONT_TECH,
+                ),
+                spacing="2",
+                align="center",
+            ),
+            rx.recharts.bar_chart(
+                rx.recharts.bar(
+                    data_key="profissionais",
+                    fill=S.PATINA,
+                    radius=[4, 4, 0, 0],
+                ),
+                rx.recharts.x_axis(data_key="contrato", tick={"fontSize": 9, "fill": S.TEXT_MUTED}),
+                rx.recharts.y_axis(tick={"fontSize": 9, "fill": S.TEXT_MUTED}, width=25),
+                rx.recharts.cartesian_grid(stroke_dasharray="3 3", stroke="rgba(255,255,255,0.05)"),
+                rx.recharts.tooltip(
+                    content_style={
+                        "background": S.BG_SURFACE,
+                        "border": f"1px solid {S.BORDER_ACCENT}",
+                        "border_radius": "8px",
+                    },
+                    item_style={"color": S.TEXT_PRIMARY},
+                ),
+                data=RDODashboardState.grafico_mo_contrato,
+                height=200,
+                width="100%",
+            ),
+            spacing="3",
+            width="100%",
+        ),
+        **{**S.GLASS_CARD, "padding": "20px"},
+        flex="1",
+        min_width="260px",
+    )
+
+
+# ── Filtros ─────────────────────────────────────────────────
+def _filtros() -> rx.Component:
+    return rx.hstack(
+        rx.hstack(
+            rx.icon(tag="filter", size=16, color=S.TEXT_MUTED),
+            rx.text("Filtros:", font_size="13px", color=S.TEXT_MUTED, font_weight="600"),
+            spacing="1",
+            align="center",
+        ),
+        rx.select(
+            RDODashboardState.contratos_disponiveis,
+            value=RDODashboardState.filtro_contrato,
+            on_change=RDODashboardState.set_filtro_contrato,
+            placeholder="Contrato",
+            width="160px",
+        ),
+        rx.select(
+            ["7", "14", "30", "60", "90"],
+            value=RDODashboardState.filtro_periodo,
+            on_change=RDODashboardState.set_filtro_periodo,
+            placeholder="Período (dias)",
+            width="140px",
+        ),
+        rx.text(
+            RDODashboardState.filtro_periodo + " dias",
+            font_size="12px",
+            color=S.TEXT_MUTED,
+        ),
+        spacing="3",
+        align="center",
+        flex_wrap="wrap",
+    )
+
+
+# ── Tabela de últimos RDOs ───────────────────────────────────
+def _rdo_row(rdo: dict) -> rx.Component:
+    return rx.table.row(
+        rx.table.cell(
+            rx.text(rdo["ID_RDO"], font_size="12px", color=S.TEXT_MUTED, font_family=S.FONT_TECH),
+        ),
+        rx.table.cell(
+            rx.badge(rdo["Contrato"], color_scheme="yellow", variant="soft", size="1"),
+        ),
+        rx.table.cell(
+            rx.text(rdo["Data"], font_size="12px", color=S.TEXT_PRIMARY),
+        ),
+        rx.table.cell(
+            rx.text(rdo["Turno"], font_size="12px", color=S.TEXT_MUTED),
+        ),
+        rx.table.cell(
+            rx.cond(
+                rdo["pdf_path"],
+                rx.link(
+                    rx.button(
+                        rx.icon(tag="download", size=14),
+                        "PDF",
+                        size="1",
+                        variant="soft",
+                        color_scheme="yellow",
+                    ),
+                    href=rdo["pdf_path"],
+                    is_external=True,
+                ),
+                rx.text("—", font_size="12px", color=S.TEXT_MUTED),
+            ),
+        ),
+        style={"border_bottom": f"1px solid {S.BORDER_SUBTLE}"},
+        _hover={"background": "rgba(255,255,255,0.02)"},
+    )
+
+
+def _tabela_rdos() -> rx.Component:
+    return rx.box(
+        rx.vstack(
+            rx.hstack(
+                rx.icon(tag="table", size=18, color=S.COPPER),
+                rx.text(
+                    "Últimos Relatórios",
+                    font_size="14px",
+                    font_weight="700",
+                    color=S.TEXT_PRIMARY,
+                    font_family=S.FONT_TECH,
+                ),
+                spacing="2",
+                align="center",
+                width="100%",
+            ),
+            rx.scroll_area(
+                rx.table.root(
+                    rx.table.header(
+                        rx.table.row(
+                            *[
+                                rx.table.column_header_cell(
+                                    label,
+                                    style={
+                                        "font_size": "11px",
+                                        "color": S.TEXT_MUTED,
+                                        "text_transform": "uppercase",
+                                        "letter_spacing": "0.06em",
+                                        "padding": "10px 12px",
+                                        "font_weight": "600",
+                                        "background": "rgba(255,255,255,0.02)",
+                                    },
+                                )
+                                for label in ["ID RDO", "Contrato", "Data", "Turno", "Ação"]
+                            ],
+                        ),
+                    ),
+                    rx.table.body(
+                        rx.foreach(RDODashboardState.rdos, _rdo_row),
+                    ),
+                    width="100%",
+                    style={"border_collapse": "collapse"},
+                ),
+                type="hover",
+                scrollbars="horizontal",
+                max_height="320px",
+            ),
+            spacing="3",
+            width="100%",
+        ),
+        **{**S.GLASS_CARD, "padding": "20px"},
+        width="100%",
+    )
+
+
+# ── Gráfico barras: Equipamentos por tipo ────────────────────
+def _chart_equipamentos() -> rx.Component:
+    return rx.box(
+        rx.vstack(
+            rx.hstack(
+                rx.icon(tag="wrench", size=18, color="#3B82F6"),
+                rx.text(
+                    "Equipamentos por Tipo",
+                    font_size="14px",
+                    font_weight="700",
+                    color=S.TEXT_PRIMARY,
+                    font_family=S.FONT_TECH,
+                ),
+                spacing="2",
+                align="center",
+            ),
+            rx.recharts.bar_chart(
+                rx.recharts.bar(
+                    data_key="quantidade",
+                    fill="#3B82F6",
+                    radius=[4, 4, 0, 0],
+                ),
+                rx.recharts.x_axis(
+                    data_key="equipamento", tick={"fontSize": 9, "fill": S.TEXT_MUTED}
+                ),
+                rx.recharts.y_axis(tick={"fontSize": 9, "fill": S.TEXT_MUTED}, width=25),
+                rx.recharts.cartesian_grid(stroke_dasharray="3 3", stroke="rgba(255,255,255,0.05)"),
+                rx.recharts.tooltip(
+                    content_style={
+                        "background": S.BG_SURFACE,
+                        "border": f"1px solid {S.BORDER_ACCENT}",
+                        "border_radius": "8px",
+                    },
+                    item_style={"color": S.TEXT_PRIMARY},
+                ),
+                data=RDODashboardState.grafico_equipamentos,
+                height=200,
+                width="100%",
+            ),
+            spacing="3",
+            width="100%",
+        ),
+        **{**S.GLASS_CARD, "padding": "20px"},
+        flex="1",
+        min_width="260px",
+    )
+
+
+# ── Gráfico pie: Atividades por Status ──────────────────────
+def _chart_atividades_status() -> rx.Component:
+    return rx.box(
+        rx.vstack(
+            rx.hstack(
+                rx.icon(tag="clipboard-list", size=18, color="#8B5CF6"),
+                rx.text(
+                    "Atividades por Status",
+                    font_size="14px",
+                    font_weight="700",
+                    color=S.TEXT_PRIMARY,
+                    font_family=S.FONT_TECH,
+                ),
+                spacing="2",
+                align="center",
+            ),
+            rx.recharts.pie_chart(
+                rx.recharts.pie(
+                    data=RDODashboardState.grafico_atividades_status,
+                    data_key="value",
+                    name_key="name",
+                    cx="50%",
+                    cy="50%",
+                    outer_radius=75,
+                    inner_radius=40,
+                    fill="#8B5CF6",
+                    label=True,
+                ),
+                rx.recharts.tooltip(
+                    content_style={
+                        "background": S.BG_SURFACE,
+                        "border": f"1px solid {S.BORDER_ACCENT}",
+                        "border_radius": "8px",
+                    },
+                    item_style={"color": S.TEXT_PRIMARY},
+                ),
+                height=200,
+                width="100%",
+            ),
+            spacing="3",
+            width="100%",
+        ),
+        **{**S.GLASS_CARD, "padding": "20px"},
+        flex="1",
+        min_width="220px",
+    )
+
+
+# ── Gráfico barras: Top Materiais ────────────────────────────
+def _chart_materiais() -> rx.Component:
+    return rx.box(
+        rx.vstack(
+            rx.hstack(
+                rx.icon(tag="package", size=18, color="#EF4444"),
+                rx.text(
+                    "Top Materiais (Quantidade)",
+                    font_size="14px",
+                    font_weight="700",
+                    color=S.TEXT_PRIMARY,
+                    font_family=S.FONT_TECH,
+                ),
+                spacing="2",
+                align="center",
+            ),
+            rx.recharts.bar_chart(
+                rx.recharts.bar(
+                    data_key="quantidade",
+                    fill="#EF4444",
+                    radius=[4, 4, 0, 0],
+                ),
+                rx.recharts.x_axis(data_key="material", tick={"fontSize": 9, "fill": S.TEXT_MUTED}),
+                rx.recharts.y_axis(tick={"fontSize": 9, "fill": S.TEXT_MUTED}, width=35),
+                rx.recharts.cartesian_grid(stroke_dasharray="3 3", stroke="rgba(255,255,255,0.05)"),
+                rx.recharts.tooltip(
+                    content_style={
+                        "background": S.BG_SURFACE,
+                        "border": f"1px solid {S.BORDER_ACCENT}",
+                        "border_radius": "8px",
+                    },
+                    item_style={"color": S.TEXT_PRIMARY},
+                ),
+                data=RDODashboardState.grafico_materiais,
+                height=200,
+                width="100%",
+            ),
+            spacing="3",
+            width="100%",
+        ),
+        **{**S.GLASS_CARD, "padding": "20px"},
+        flex="1",
+        min_width="260px",
+    )
+
+
+# ── PÁGINA PRINCIPAL ─────────────────────────────────────────
+def rdo_dashboard_page() -> rx.Component:
+    return rx.box(
+        rx.cond(
+            RDODashboardState.is_loading,
+            rx.center(
+                rx.vstack(
+                    rx.icon(tag="zap", size=48, color=S.COPPER, class_name="animate-pulse"),
+                    rx.text(
+                        "Sincronizando dados...",
+                        font_size="14px",
+                        color=S.TEXT_MUTED,
+                        font_family=S.FONT_TECH,
+                        class_name="animate-pulse",
+                    ),
+                    align="center",
+                    spacing="4",
+                ),
+                width="100%",
+                height="50vh",
+            ),
+            rx.vstack(
+                # Header
+                rx.hstack(
+                    rx.box(
+                        rx.icon(tag="chart-bar", size=28, color=S.COPPER),
+                        bg=S.COPPER_GLOW,
+                        padding="10px",
+                        border_radius="12px",
+                    ),
+                    rx.vstack(
+                        rx.text("RDO ANALYTICS", **S.PAGE_TITLE_STYLE),
+                        rx.text(
+                            "Dashboard 360° · Relatórios Diários de Obra", **S.PAGE_SUBTITLE_STYLE
+                        ),
+                        spacing="0",
+                        align="start",
+                    ),
+                    rx.spacer(),
+                    rx.button(
+                        rx.icon(tag="refresh-cw", size=16),
+                        "Atualizar",
+                        on_click=RDODashboardState.load_dashboard,
+                        variant="outline",
+                        color_scheme="yellow",
+                        size="2",
+                        is_loading=RDODashboardState.is_loading,
+                    ),
+                    spacing="4",
+                    width="100%",
+                    align="center",
+                    margin_bottom="16px",
+                ),
+                # Filtros
+                _filtros(),
+                # KPI Row 1 — Cabeçalho
+                rx.flex(
+                    _kpi("Total de RDOs", RDODashboardState.kpi_total, "file-text", S.COPPER),
+                    _kpi("Obras com RDO", RDODashboardState.kpi_obras_ativas, "building", S.PATINA),
+                    _kpi("RDOs Hoje", RDODashboardState.kpi_hoje, "calendar-check", "#3B82F6"),
+                    _kpi(
+                        "Última Data",
+                        RDODashboardState.kpi_ultima_data,
+                        "clock",
+                        S.COPPER_LIGHT,
+                        subtitle="Mais recente",
+                    ),
+                    gap="16px",
+                    flex_wrap="wrap",
+                    width="100%",
+                ),
+                # KPI Row 2 — Detalhes (mão de obra, equipamentos, atividades)
+                rx.flex(
+                    _kpi(
+                        "Profissionais",
+                        RDODashboardState.kpi_profissionais,
+                        "hard-hat",
+                        S.PATINA,
+                        subtitle="Total mobilizado",
+                    ),
+                    _kpi(
+                        "Equipamentos",
+                        RDODashboardState.kpi_equipamentos,
+                        "wrench",
+                        "#3B82F6",
+                        subtitle="Registros no período",
+                    ),
+                    _kpi(
+                        "Atividades",
+                        RDODashboardState.kpi_atividades,
+                        "clipboard-list",
+                        "#8B5CF6",
+                        subtitle="Registros no período",
+                    ),
+                    gap="16px",
+                    flex_wrap="wrap",
+                    width="100%",
+                ),
+                # Gráficos row 1: Timeline + Clima
+                rx.flex(
+                    _chart_por_dia(),
+                    _chart_clima(),
+                    gap="16px",
+                    flex_wrap="wrap",
+                    width="100%",
+                    align="start",
+                ),
+                # Gráficos row 2: MO + Equipamentos
+                rx.flex(
+                    _chart_mo(),
+                    _chart_equipamentos(),
+                    gap="16px",
+                    flex_wrap="wrap",
+                    width="100%",
+                    align="start",
+                ),
+                # Gráficos row 3: Atividades Status + Materiais
+                rx.flex(
+                    _chart_atividades_status(),
+                    _chart_materiais(),
+                    gap="16px",
+                    flex_wrap="wrap",
+                    width="100%",
+                    align="start",
+                ),
+                # Tabela
+                _tabela_rdos(),
+                width="100%",
+                padding=["16px", "24px", "32px"],
+                spacing="4",
+            ),
+        ),
+        on_mount=RDODashboardState.load_dashboard,
+        width="100%",
+    )
