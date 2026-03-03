@@ -9,7 +9,7 @@ _UUID_RE = re.compile(
     r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
     re.IGNORECASE
 )
-from bomtempo.core.supabase_client import sb_select, sb_upsert, sb_update, sb_insert, sb_delete
+from bomtempo.core.supabase_client import sb_select, sb_upsert, sb_insert, sb_delete
 from bomtempo.core.logging_utils import get_logger
 
 logger = get_logger(__name__)
@@ -18,17 +18,21 @@ class EditState(rx.State):
     projetos: List[str] = []
     contratos: List[str] = []
     tabelas: List[str] = ["contratos", "projetos", "obras", "financeiro", "om"]
-    
+
     selected_projeto: str = ""
     selected_contrato: str = ""
     selected_tabela: str = "contratos"
-    
+
     raw_data: List[Dict[str, Any]] = []
 
     # Loading / UX states
     is_loading_table: bool = False
     is_saving: bool = False
     selected_row_idx: int = -1
+
+    # Unsaved changes tracking
+    has_unsaved_changes: bool = False
+    undo_count: int = 0
 
     # Dialog Variables para o Upload
     show_preview_dialog: bool = False
@@ -38,7 +42,54 @@ class EditState(rx.State):
     page: int = 1
     limit: int = 100
     toast_msg: str = ""
-    
+
+    # ── Undo stack (raw Python instance var — bypasses Reflex's __setattr__).
+    #
+    #    Reflex rejects `self.foo = x` for any name not declared as a class-level
+    #    state var. To store transient data without adding it to the serialized
+    #    state (and sending large payloads over the WebSocket), we use
+    #    object.__setattr__ / object.__getattribute__ which write directly to the
+    #    underlying CPython instance dict, invisible to Reflex.
+    # ────────────────────────────────────────────────────────────────────────
+
+    def _undo_get_stack(self) -> list:
+        """Return the raw undo stack, creating it if it doesn't exist yet."""
+        try:
+            return object.__getattribute__(self, "_undo_stack")
+        except AttributeError:
+            stack: list = []
+            object.__setattr__(self, "_undo_stack", stack)
+            return stack
+
+    def _undo_push(self):
+        """Save a snapshot of raw_data before a mutation (max 15 levels)."""
+        stack = self._undo_get_stack()
+        # undo_count=0 mas stack não-vazia → reset depois de save (stack stale).
+        # Limpa antes de empurrar novo snapshot para evitar undo incorreto.
+        if self.undo_count == 0 and stack:
+            stack.clear()
+        stack.append([dict(r) for r in self.raw_data])
+        if len(stack) > 15:
+            stack.pop(0)
+        self.undo_count = len(stack)
+
+    def _undo_reset(self):
+        """Clear the undo stack.
+
+        ONLY call from regular (sync/async) event handlers — NOT from inside
+        `async with self:` blocks in background events. In those contexts `self`
+        is a StateProxy and object.__setattr__ raises TypeError.
+        Use _undo_reset_vars() + yield EditState._clear_undo_stack_sync instead.
+        """
+        object.__setattr__(self, "_undo_stack", [])
+        self.undo_count = 0
+        self.has_unsaved_changes = False
+
+    def _undo_reset_vars(self):
+        """Reset only the Reflex state vars (safe inside async with self: / StateProxy)."""
+        self.undo_count = 0
+        self.has_unsaved_changes = False
+
     def set_selected_projeto(self, val: str):
         self.selected_projeto = val
         self.selected_contrato = ""  # cascata
@@ -66,6 +117,7 @@ class EditState(rx.State):
         self.selected_contrato = ""
         self.raw_data = []
         self.selected_row_idx = -1
+        self._undo_reset()
 
     def clear_filters(self):
         """Limpa filtros de projeto e contrato sem trocar de tabela."""
@@ -185,42 +237,40 @@ class EditState(rx.State):
                             str(r["Contrato"]) for r in data if r.get("Contrato")
                         )))
 
+                self._undo_reset_vars()
                 yield rx.toast(
                     f"Tabela '{selected_tabela}' carregada. ({len(data)} registros)",
                     position="bottom-right",
                 )
 
-    async def on_cell_edited(self, pos: Tuple[int, int], new_value: Dict[str, Any]):
+    def on_cell_edited(self, pos: Tuple[int, int], new_value: Dict[str, Any]):
+        """Atualiza o grid localmente (sem I/O). Persistir via 'Salvar no Banco'.
+
+        Manter este handler síncrono e sem chamadas de rede é CRÍTICO para que o
+        GDG (Glide Data Grid) responda ao duplo-clique imediatamente — chamadas
+        httpx bloqueantes congelavam o event loop em produção e impediam novas
+        interações até a resposta do banco chegar.
+        """
         try:
             col_idx, row_idx = pos
             if not self.raw_data or row_idx >= len(self.raw_data):
                 return
-            
+
             keys = list(self.raw_data[0].keys())
             if col_idx >= len(keys):
                 return
-                
+
             col_name = keys[col_idx]
-            row_id = self.raw_data[row_idx].get("ID")
-            
-            # Extract string from GridCell dict
             val_str = str(new_value.get("data", ""))
-            
-            if row_id:
-                # Otimista local com mutação explícita pontual
-                new_data = [dict(row) for row in self.raw_data]
-                new_data[row_idx][col_name] = val_str
-                self.raw_data = new_data
-                
-                # Update no BD
-                casted_val = EditState._cast_value(val_str)
-                try:
-                    sb_update(self.selected_tabela, {"ID": row_id}, {col_name: casted_val})
-                    yield rx.toast(f"{col_name} atualizado!", position="bottom-right")
-                except Exception as ex:
-                    yield rx.toast(f"Erro BD: {str(ex)[:100]}", position="bottom-right", color_scheme="red")
-                    # Force reload over optimistic cache to reflect true DB state
-                    yield EditState.load_table
+
+            # Push undo snapshot ANTES de mutar
+            self._undo_push()
+
+            new_data = [dict(row) for row in self.raw_data]
+            new_data[row_idx][col_name] = val_str
+            self.raw_data = new_data
+            self.has_unsaved_changes = True
+
         except Exception as e:
             logger.error(f"Erro on_cell_edited: {e}")
 
@@ -228,6 +278,18 @@ class EditState(rx.State):
         """Rastreia a linha selecionada para habilitar o delete."""
         _col_idx, row_idx = pos
         self.selected_row_idx = row_idx
+
+    def undo_last(self):
+        """Desfaz a última edição de célula ou adição de linha."""
+        stack = self._undo_get_stack()
+        if not stack:
+            yield rx.toast("Nada para desfazer.", position="bottom-right")
+            return
+        self.raw_data = stack.pop()
+        self.undo_count = len(stack)
+        # Stack vazia = revertido ao estado do último carregamento = sem pendências
+        self.has_unsaved_changes = bool(stack)
+        yield rx.toast("Ação desfeita.", position="bottom-right")
 
     def delete_selected_row(self):
         """Deleta a linha atualmente selecionada (clicada) no grid."""
@@ -254,31 +316,33 @@ class EditState(rx.State):
             yield rx.toast("Linha removida do grid (não estava no banco).", position="bottom-right")
 
     def add_row(self):
+        """Adiciona linha em branco ao grid localmente. Persiste via 'Salvar no Banco'."""
         try:
-            new_row = {}
+            if not self.selected_tabela:
+                yield rx.toast("Selecione uma tabela antes de adicionar linhas.", position="top-right")
+                return
+
+            if not self.raw_data:
+                # Sem schema local: avisa o usuário para carregar primeiro
+                yield rx.toast(
+                    "Carregue a tabela antes de adicionar linhas — o schema de colunas é necessário.",
+                    position="top-right",
+                    duration=5000,
+                )
+                return
+
+            self._undo_push()
+            # Espelha as colunas do primeiro registro com valores None
+            new_row: Dict[str, Any] = {key: None for key in self.raw_data[0].keys()}
             if self.selected_contrato:
                 new_row["Contrato"] = self.selected_contrato
-            
-            try:
-                sb_insert(self.selected_tabela, new_row)
-                yield rx.toast("Linha criada com sucesso!", position="bottom-right")
-                yield EditState.load_table
-            except Exception as ex:
-                yield rx.toast(f"Erro BD ao criar: {str(ex)[:100]}", position="bottom-right", color_scheme="red")
+
+            # Linha nova no topo — mais fácil de localizar e preencher
+            self.raw_data = [new_row] + list(self.raw_data)
+            self.has_unsaved_changes = True
+            yield rx.toast("Linha adicionada. Preencha e clique em Salvar no Banco.", position="bottom-right")
         except Exception as e:
             logger.error(f"Erro add_row: {e}")
-
-    def delete_row(self, row_idx: int):
-        # A simple action since rx.data_editor doesn't have native multi-select delete easily accessible
-        if 0 <= row_idx < len(self.raw_data):
-            row_id = self.raw_data[row_idx].get("ID")
-            if row_id:
-                try:
-                    sb_delete(self.selected_tabela, {"ID": row_id})
-                    yield rx.toast(f"Registro deletado.", position="bottom-right")
-                    yield EditState.load_table
-                except Exception as ex:
-                    yield rx.toast(f"Erro Delete: {str(ex)[:100]}", position="bottom-right", color_scheme="red")
 
     def download_excel(self):
         if not self.raw_data:
@@ -381,10 +445,27 @@ class EditState(rx.State):
             yield rx.toast(f"Erro ao ler arquivo: {e}", position="top-right")
 
     def confirm_preview_upload(self):
+        self._undo_reset()
         self.raw_data = self.preview_data
         self.show_preview_dialog = False
+        self.has_unsaved_changes = True
+
+        # Repopula filtros de Projeto/Contrato a partir dos dados do arquivo
+        # (equivalente ao que load_table faz após um carregamento do BD)
+        data = self.preview_data
         self.preview_data = []
-        return rx.toast("Preview absorvido. Lembre-se de clicar em 'Gravar BD' para efetivar.", position="bottom-right")
+        if data:
+            first = data[0]
+            if "Projeto" in first:
+                self.projetos = sorted(list(set(
+                    str(r["Projeto"]) for r in data if r.get("Projeto")
+                )))
+            if "Contrato" in first:
+                self.contratos = sorted(list(set(
+                    str(r["Contrato"]) for r in data if r.get("Contrato")
+                )))
+
+        return rx.toast("Arquivo absorvido no grid. Clique em 'Salvar no Banco' para efetivar.", position="bottom-right")
         
     def cancel_preview_upload(self):
         self.show_preview_dialog = False
@@ -466,8 +547,10 @@ class EditState(rx.State):
                 # Recarrega mesmo assim para refletir o que foi salvo
                 yield EditState.load_table
             else:
+                self.has_unsaved_changes = False
+                self.undo_count = 0
                 yield rx.toast(
-                    f"Sucesso: {result['upserted']} gravados (upsert), {result['inserted']} criados sem ID.",
+                    f"Salvo: {result['upserted']} atualizados, {result['inserted']} criados.",
                     position="bottom-right"
                 )
                 yield EditState.load_table

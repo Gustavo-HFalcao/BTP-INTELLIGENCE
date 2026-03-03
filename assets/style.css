@@ -1168,16 +1168,22 @@ button:focus-visible {
 }
 
 /* ── Radix Tooltip Dark Theme ────────────────────────────── */
+/* Contraste elevado: fundo mais claro + borda copper + sombra forte */
 .rt-TooltipContent {
-    background-color: #0e1a17 !important;
-    border: 1px solid rgba(255, 255, 255, 0.1) !important;
-    color: rgba(255, 255, 255, 0.85) !important;
+    background-color: #1e3530 !important;
+    border: 1px solid rgba(201, 139, 42, 0.45) !important;
+    color: #f0f0f0 !important;
     font-size: 11px !important;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
+    font-family: 'Outfit', sans-serif !important;
+    line-height: 1.4 !important;
+    padding: 5px 10px !important;
+    border-radius: 7px !important;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(201, 139, 42, 0.12) !important;
+    letter-spacing: 0.01em !important;
 }
 
 .rt-TooltipArrow {
-    fill: #0e1a17 !important;
+    fill: #1e3530 !important;
 }
 
 /* ── Radix Dropdown Menu Dark Theme ──────────────────────── */
@@ -1235,4 +1241,18 @@ button:focus-visible {
 /* Remove any residual browser default outline on the canvas element */
 canvas:focus {
     outline: none !important;
+}
+
+/* ── Unsaved Changes Pulse (Salvar no Banco button) ──────────── */
+@keyframes unsavedPulse {
+    0%, 100% {
+        box-shadow: 0 0 14px rgba(201, 139, 42, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 28px rgba(201, 139, 42, 0.75), 0 0 0 3px rgba(201, 139, 42, 0.08);
+    }
+}
+
+.save-unsaved {
+    animation: unsavedPulse 2.2s ease-in-out infinite !important;
 }

@@ -71,6 +71,35 @@ def _page_header() -> rx.Component:
                 rx.spacer(),
                 # Status pills
                 rx.hstack(
+                    # Unsaved changes indicator
+                    rx.cond(
+                        EditState.has_unsaved_changes,
+                        rx.hstack(
+                            rx.box(
+                                width="6px",
+                                height="6px",
+                                border_radius="50%",
+                                bg=S.WARNING,
+                                box_shadow=f"0 0 6px {S.WARNING}",
+                                class_name="stepper-dot-active",
+                            ),
+                            rx.text(
+                                "alterações não salvas",
+                                font_size="11px",
+                                color=S.WARNING,
+                                font_family=S.FONT_MONO,
+                                font_weight="600",
+                                white_space="nowrap",
+                            ),
+                            spacing="2",
+                            align="center",
+                            padding_x="10px",
+                            padding_y="4px",
+                            bg=S.WARNING_BG,
+                            border_radius="20px",
+                            border=f"1px solid rgba(245,158,11,0.3)",
+                        ),
+                    ),
                     rx.cond(
                         EditState.raw_data.length() > 0,
                         rx.hstack(
@@ -317,7 +346,7 @@ def _toolbar() -> rx.Component:
                     _btn("plus", "Nova Linha",
                          on_click=EditState.add_row,
                          variant="soft", color_scheme="teal"),
-                    content="Insere uma linha em branco",
+                    content="Insere uma linha em branco no topo do grid (salve para persistir)",
                 ),
                 rx.tooltip(
                     rx.button(
@@ -340,8 +369,50 @@ def _toolbar() -> rx.Component:
                     ),
                     content=rx.cond(
                         EditState.selected_row_idx >= 0,
-                        "Deleta a linha selecionada permanentemente",
-                        "Clique em uma célula para selecionar",
+                        "Remove a linha selecionada do banco permanentemente",
+                        "Clique em uma célula para selecionar a linha",
+                    ),
+                ),
+                # ── Undo button ──────────────────────────────────────────
+                rx.tooltip(
+                    rx.button(
+                        rx.icon(tag="undo-2", size=14),
+                        "Desfazer",
+                        # Badge with count — only shown when there are undoable actions
+                        rx.cond(
+                            EditState.undo_count > 0,
+                            rx.badge(
+                                EditState.undo_count.to_string(),
+                                color_scheme="amber",
+                                variant="soft",
+                                size="1",
+                                style={
+                                    "font_family": S.FONT_MONO,
+                                    "font_size": "10px",
+                                    "padding": "0 4px",
+                                },
+                            ),
+                        ),
+                        on_click=EditState.undo_last,
+                        disabled=EditState.undo_count == 0,
+                        size="2",
+                        variant="soft",
+                        color_scheme="amber",
+                        style={
+                            "font_family": S.FONT_TECH,
+                            "font_weight": "600",
+                            "font_size": "12px",
+                            "cursor": rx.cond(EditState.undo_count > 0, "pointer", "not-allowed"),
+                            "opacity": rx.cond(EditState.undo_count > 0, "1", "0.35"),
+                            "transition": "opacity 0.18s ease",
+                            "white_space": "nowrap",
+                            "gap": "5px",
+                        },
+                    ),
+                    content=rx.cond(
+                        EditState.undo_count > 0,
+                        "Desfaz a última edição de célula ou adição de linha",
+                        "Nenhuma ação para desfazer",
                     ),
                 ),
                 _thin_sep(),
@@ -349,7 +420,7 @@ def _toolbar() -> rx.Component:
                     _btn("download", "Exportar",
                          on_click=EditState.download_excel,
                          variant="soft", color_scheme="blue"),
-                    content="Baixa os dados como planilha Excel",
+                    content="Baixa os dados atuais do grid como planilha Excel",
                 ),
                 rx.upload(
                     rx.tooltip(
@@ -369,7 +440,7 @@ def _toolbar() -> rx.Component:
                                 "white_space": "nowrap",
                             },
                         ),
-                        content="Carrega CSV ou XLSX para preview antes de salvar",
+                        content="Importa CSV ou XLSX — mostra preview antes de absorver no grid",
                     ),
                     id="csv_upload",
                     accept={
@@ -404,25 +475,43 @@ def _toolbar() -> rx.Component:
                         disabled=EditState.is_saving,
                         size="2",
                         style={
-                            "background": f"linear-gradient(135deg, {S.COPPER} 0%, {S.COPPER_LIGHT} 100%)",
-                            "color": "#0A1F1A",
+                            "background": rx.cond(
+                                EditState.has_unsaved_changes,
+                                f"linear-gradient(135deg, {S.COPPER} 0%, {S.COPPER_LIGHT} 100%)",
+                                "rgba(201,139,42,0.18)",
+                            ),
+                            "color": rx.cond(EditState.has_unsaved_changes, "#0A1F1A", S.COPPER),
+                            "border": rx.cond(
+                                EditState.has_unsaved_changes,
+                                "none",
+                                f"1px solid {S.BORDER_ACCENT}",
+                            ),
                             "font_family": S.FONT_TECH,
                             "font_weight": "700",
                             "font_size": "13px",
                             "letter_spacing": "0.04em",
-                            "box_shadow": f"0 0 18px rgba(201,139,42,0.4)",
+                            "box_shadow": rx.cond(
+                                EditState.has_unsaved_changes,
+                                "0 0 20px rgba(201,139,42,0.5)",
+                                "none",
+                            ),
                             "cursor": "pointer",
                             "flex_shrink": "0",
                             "white_space": "nowrap",
                             "_hover": {
-                                "box_shadow": f"0 0 26px rgba(201,139,42,0.65)",
+                                "box_shadow": "0 0 28px rgba(201,139,42,0.7)",
                                 "transform": "translateY(-1px)",
                                 "background": f"linear-gradient(135deg, {S.COPPER_LIGHT} 0%, {S.COPPER} 100%)",
+                                "color": "#0A1F1A",
                             },
-                            "transition": "all 0.18s ease",
+                            "transition": "all 0.2s ease",
                         },
                     ),
-                    content="Persiste todos os dados via upsert (atualiza pelo ID, cria novos)",
+                    content=rx.cond(
+                        EditState.has_unsaved_changes,
+                        "Persiste todas as alterações via upsert (atualiza pelo ID, insere novos)",
+                        "Nenhuma alteração pendente",
+                    ),
                 ),
             ),
 
@@ -478,7 +567,7 @@ def _empty_state() -> rx.Component:
                         justify_content="center",
                         flex_shrink="0",
                     ),
-                    rx.text("Selecione Projeto, Contrato e Tabela Alvo acima", font_size="12px", color=S.TEXT_MUTED),
+                    rx.text("Selecione a Tabela — Projeto e Contrato são filtros opcionais", font_size="12px", color=S.TEXT_MUTED),
                     spacing="2",
                     align="center",
                 ),
@@ -494,7 +583,7 @@ def _empty_state() -> rx.Component:
                         justify_content="center",
                         flex_shrink="0",
                     ),
-                    rx.text('Clique em "Carregar Tabela" para buscar os registros', font_size="12px", color=S.TEXT_MUTED),
+                    rx.text('Clique em "Carregar" para buscar os registros do banco', font_size="12px", color=S.TEXT_MUTED),
                     spacing="2",
                     align="center",
                 ),

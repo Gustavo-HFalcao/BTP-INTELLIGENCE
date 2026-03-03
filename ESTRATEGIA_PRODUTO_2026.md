@@ -55,7 +55,7 @@ O diagnóstico honesto: o produto já contém funcionalidades que empresas pagam
 | **Bug crítico no Editor de Dados** | Impede uso interno | Fix da serialização UUID → Supabase REST |
 | **Mobile** (apenas chat mobile) | Limita adoção campo | PWA ou React Native — campo só usa celular |
 | **Precificação visível** (sem paywall) | Sem receita | Planos definidos + Stripe integration |
-| **Relatório executivo exportável** | Demanda enterprise | PDF automático do dashboard via weasyprint/wkhtmltopdf |
+| **Relatório executivo exportável** | Demanda enterprise | PDF automático do dashboard via weasyprint/wkhtmltopdf | -
 
 ---
 
