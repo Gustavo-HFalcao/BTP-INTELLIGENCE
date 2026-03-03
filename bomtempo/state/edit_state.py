@@ -39,6 +39,13 @@ class EditState(rx.State):
     preview_data: List[Dict[str, Any]] = []
     preview_stats: str = ""
 
+    # ── Inline Cell Edit Modal (production workaround for GDG overlay bug) ────
+    edit_modal_open: bool = False
+    edit_modal_row: int = -1
+    edit_modal_col: int = -1
+    edit_modal_col_name: str = ""
+    edit_modal_value: str = ""
+
     page: int = 1
     limit: int = 100
     toast_msg: str = ""
@@ -275,9 +282,65 @@ class EditState(rx.State):
             logger.error(f"Erro on_cell_edited: {e}")
 
     def on_cell_clicked(self, pos: Tuple[int, int]):
-        """Rastreia a linha selecionada para habilitar o delete."""
-        _col_idx, row_idx = pos
+        """Rastreia a linha selecionada e abre modal de edição inline.
+
+        O modal serve como fallback universal para produção onde o overlay
+        nativo do Glide Data Grid não renderiza (Reflex bug #6143).
+        """
+        col_idx, row_idx = pos
         self.selected_row_idx = row_idx
+
+        # Abre edit modal com o valor atual da célula
+        if self.raw_data and row_idx < len(self.raw_data):
+            keys = list(self.raw_data[0].keys())
+            if col_idx < len(keys):
+                col_name = keys[col_idx]
+                current_val = self.raw_data[row_idx].get(col_name)
+                self.edit_modal_row = row_idx
+                self.edit_modal_col = col_idx
+                self.edit_modal_col_name = col_name
+                self.edit_modal_value = str(current_val) if current_val is not None else ""
+                self.edit_modal_open = True
+
+    def set_edit_modal_value(self, val: str):
+        """Atualiza o valor no modal de edição inline."""
+        self.edit_modal_value = val
+
+    def cancel_edit_modal(self):
+        """Fecha o modal sem salvar."""
+        self.edit_modal_open = False
+        self.edit_modal_row = -1
+        self.edit_modal_col = -1
+        self.edit_modal_col_name = ""
+        self.edit_modal_value = ""
+
+    def confirm_edit_modal(self):
+        """Aplica a edição do modal no raw_data (mesma lógica de on_cell_edited)."""
+        row_idx = self.edit_modal_row
+        col_idx = self.edit_modal_col
+        col_name = self.edit_modal_col_name
+        val_str = self.edit_modal_value
+
+        if row_idx < 0 or row_idx >= len(self.raw_data):
+            self.cancel_edit_modal()
+            return
+
+        # Push undo snapshot ANTES de mutar
+        self._undo_push()
+
+        new_data = [dict(row) for row in self.raw_data]
+        new_data[row_idx][col_name] = val_str
+        self.raw_data = new_data
+        self.has_unsaved_changes = True
+
+        # Fecha modal
+        self.edit_modal_open = False
+        self.edit_modal_row = -1
+        self.edit_modal_col = -1
+        self.edit_modal_col_name = ""
+        self.edit_modal_value = ""
+
+        yield rx.toast(f"'{col_name}' atualizado.", position="bottom-right")
 
     def undo_last(self):
         """Desfaz a última edição de célula ou adição de linha."""
@@ -554,3 +617,71 @@ class EditState(rx.State):
                     position="bottom-right"
                 )
                 yield EditState.load_table
+
+        # ── Propaga alterações para todas as páginas do dashboard ──────────
+        # Editou contratos/projetos/obras/financeiro/om → GlobalState precisa
+        # recarregar para refletir as mudanças em KPIs, gráficos, listas, etc.
+        if selected_tabela in ("contratos", "projetos", "obras", "financeiro", "om"):
+            try:
+                # Invalida cache em disco FORA do state lock (I/O puro)
+                import os
+                from bomtempo.core.data_loader import CACHE_FILE
+                if os.path.exists(CACHE_FILE):
+                    os.remove(CACHE_FILE)
+                    logger.info("🗑️ Cache invalidado após commit no editor")
+
+                # Recarrega dados em executor (evita bloquear event loop)
+                from bomtempo.core.data_loader import DataLoader
+                fresh_data = await loop.run_in_executor(None, DataLoader().load_all)
+
+                # Aplica dados frescos no GlobalState
+                async with self:
+                    from bomtempo.state.global_state import GlobalState
+                    gs = await self.get_state(GlobalState)
+                    gs._data = fresh_data
+                    gs.contratos_list = []  # Reset guard
+                    gs.projetos_list = []
+                    gs.obras_list = []
+                    gs.financeiro_list = []
+                    gs.om_list = []
+                    # Inline re-populate (mesmo padrão de load_data)
+                    for table_key, attr_name in [
+                        ("contratos", "contratos_list"),
+                        ("projeto", "projetos_list"),
+                        ("obras", "obras_list"),
+                        ("financeiro", "financeiro_list"),
+                        ("om", "om_list"),
+                    ]:
+                        if table_key in fresh_data:
+                            df = fresh_data[table_key]
+                            if hasattr(df, 'empty') and not df.empty:
+                                import pandas as _pd
+                                for col in df.columns:
+                                    if _pd.api.types.is_datetime64_any_dtype(df[col]):
+                                        df[col] = df[col].astype(str)
+                                for col in df.columns:
+                                    if _pd.api.types.is_numeric_dtype(df[col]):
+                                        df[col] = df[col].fillna(0)
+                                    else:
+                                        df[col] = df[col].fillna("")
+                                setattr(gs, attr_name, df.to_dict("records"))
+
+                    # Recalcular métricas globais
+                    if "contratos" in fresh_data:
+                        df = fresh_data["contratos"]
+                        if hasattr(df, 'empty') and not df.empty:
+                            gs.total_contratos = len(df)
+                            gs.valor_tcv = (
+                                float(df["valor_contratado"].sum())
+                                if "valor_contratado" in df.columns
+                                else 0.0
+                            )
+                            gs.contratos_ativos = (
+                                len(df[df["status"] == "Em Execução"]) if "status" in df.columns else 0
+                            )
+
+                    gs.is_loading = False
+                    logger.info("✅ GlobalState re-sincronizado após commit no editor")
+            except Exception as e:
+                logger.warning(f"⚠️ Falha ao re-sincronizar GlobalState: {e}")
+

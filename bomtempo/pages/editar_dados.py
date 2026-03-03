@@ -219,36 +219,300 @@ def _ctx_field(tag: str, items, value, on_change, placeholder="", width="130px")
 
 
 def _toolbar() -> rx.Component:
-    """Command bar — single flat strip, all elements on the same 32px baseline.
-    Copper top-accent line. Three logical zones separated by gradient dividers.
+    """Command bar — 2-row responsive layout for small screens.
+    Row 1: Context filters (Tabela, Projeto, Contrato, Carregar)
+    Row 2: Actions (Nova Linha, Deletar, Desfazer | Exportar, Importar | Salvar)
     """
 
-    def _vdiv() -> rx.Component:
-        """Major zone separator — gradient copper line."""
-        return rx.box(
-            width="1px",
-            height="28px",
-            background=f"linear-gradient(180deg, transparent, {S.BORDER_ACCENT}55, transparent)",
-            flex_shrink="0",
-        )
+    # ── Shared button style with hover micro-animations ──────────────────
+    _action_btn_style = {
+        "font_family": S.FONT_TECH,
+        "font_weight": "600",
+        "font_size": "11px",
+        "cursor": "pointer",
+        "white_space": "nowrap",
+        "transition": "all 0.2s ease",
+        "_hover": {
+            "transform": "translateY(-1px)",
+            "box_shadow": "0 4px 12px rgba(0,0,0,0.3)",
+        },
+    }
 
     def _thin_sep() -> rx.Component:
         """Minor separator inside a zone."""
         return rx.box(
-            width="1px", height="20px",
+            width="1px", height="24px",
             bg=S.BORDER_SUBTLE,
             flex_shrink="0",
         )
 
-    def _btn(icon_tag, label, **kwargs) -> rx.Component:
-        return rx.button(
-            rx.icon(tag=icon_tag, size=14),
-            label,
-            size="2",
-            style={"font_family": S.FONT_TECH, "font_weight": "600", "font_size": "12px",
-                   "cursor": "pointer", "white_space": "nowrap"},
-            **kwargs,
-        )
+    # ── Row 1: Context Filters ───────────────────────────────────────────
+    row_filters = rx.hstack(
+        # Tabela
+        _ctx_field(
+            "TABELA",
+            EditState.tabelas,
+            EditState.selected_tabela,
+            EditState.set_selected_tabela,
+            width="130px",
+        ),
+        _thin_sep(),
+        # Projeto
+        _ctx_field(
+            "PROJETO",
+            EditState.projetos,
+            EditState.selected_projeto,
+            EditState.set_selected_projeto,
+            placeholder="Todos",
+            width="150px",
+        ),
+        # Contrato
+        _ctx_field(
+            "CONTRATO",
+            EditState.contratos,
+            EditState.selected_contrato,
+            EditState.set_selected_contrato,
+            placeholder="Todos",
+            width="150px",
+        ),
+        # Filtro ativo badge
+        rx.cond(
+            (EditState.selected_projeto != "") | (EditState.selected_contrato != ""),
+            rx.hstack(
+                rx.box(width="5px", height="5px", border_radius="50%", bg=S.WARNING, flex_shrink="0"),
+                rx.text("filtro ativo", font_size="8px", color=S.WARNING,
+                        font_family=S.FONT_MONO, font_weight="600", white_space="nowrap"),
+                rx.icon(tag="x", size=9, color=S.WARNING, cursor="pointer",
+                        on_click=EditState.clear_filters),
+                spacing="1", align="center",
+                padding_x="6px", padding_y="2px",
+                bg="rgba(245,158,11,0.07)",
+                border_radius="8px",
+                border="1px solid rgba(245,158,11,0.18)",
+                flex_shrink="0",
+            ),
+        ),
+        # Carregar button
+        rx.tooltip(
+            rx.button(
+                rx.cond(EditState.is_loading_table, rx.spinner(size="2"), rx.icon(tag="database-zap", size=14)),
+                rx.cond(EditState.is_loading_table, "Carregando...", "Carregar"),
+                on_click=EditState.load_table,
+                disabled=EditState.is_loading_table,
+                size="2",
+                style={
+                    "background": S.COPPER,
+                    "color": "white",
+                    "font_family": S.FONT_TECH,
+                    "font_weight": "700",
+                    "font_size": "11px",
+                    "letter_spacing": "0.04em",
+                    "cursor": "pointer",
+                    "opacity": rx.cond(EditState.is_loading_table, "0.7", "1"),
+                    "white_space": "nowrap",
+                    "flex_shrink": "0",
+                    "transition": "all 0.2s ease",
+                    "_hover": {
+                        "background": S.COPPER_LIGHT,
+                        "transform": "translateY(-1px)",
+                        "box_shadow": f"0 4px 16px rgba(201,139,42,0.4)",
+                    },
+                },
+            ),
+            content="Busca os registros da tabela. Projeto/Contrato são opcionais.",
+            side="bottom",
+        ),
+        spacing="2",
+        align="center",
+        flex_wrap="wrap",
+        row_gap="8px",
+        width="100%",
+    )
+
+    # ── Row 2: Action Buttons ────────────────────────────────────────────
+    row_actions = rx.hstack(
+        # ── Data actions group ───────────────────────────────────────
+        rx.tooltip(
+            rx.button(
+                rx.icon(tag="plus", size=13),
+                "Nova Linha",
+                on_click=EditState.add_row,
+                size="2",
+                variant="soft",
+                color_scheme="teal",
+                style=_action_btn_style,
+            ),
+            content="Insere uma linha em branco no topo do grid (salve para persistir)",
+            side="bottom",
+        ),
+        rx.tooltip(
+            rx.button(
+                rx.icon(tag="trash-2", size=13),
+                "Deletar",
+                on_click=EditState.delete_selected_row,
+                size="2",
+                variant="soft",
+                color_scheme="red",
+                disabled=EditState.selected_row_idx < 0,
+                style={
+                    **_action_btn_style,
+                    "cursor": rx.cond(EditState.selected_row_idx >= 0, "pointer", "not-allowed"),
+                    "opacity": rx.cond(EditState.selected_row_idx >= 0, "1", "0.35"),
+                },
+            ),
+            content=rx.cond(
+                EditState.selected_row_idx >= 0,
+                "Remove a linha selecionada do banco permanentemente",
+                "Clique em uma célula para selecionar a linha",
+            ),
+            side="bottom",
+        ),
+        rx.tooltip(
+            rx.button(
+                rx.icon(tag="undo-2", size=13),
+                "Desfazer",
+                rx.cond(
+                    EditState.undo_count > 0,
+                    rx.badge(
+                        EditState.undo_count.to_string(),
+                        color_scheme="amber",
+                        variant="soft",
+                        size="1",
+                        style={
+                            "font_family": S.FONT_MONO,
+                            "font_size": "9px",
+                            "padding": "0 3px",
+                        },
+                    ),
+                ),
+                on_click=EditState.undo_last,
+                disabled=EditState.undo_count == 0,
+                size="2",
+                variant="soft",
+                color_scheme="amber",
+                style={
+                    **_action_btn_style,
+                    "cursor": rx.cond(EditState.undo_count > 0, "pointer", "not-allowed"),
+                    "opacity": rx.cond(EditState.undo_count > 0, "1", "0.35"),
+                    "gap": "4px",
+                },
+            ),
+            content=rx.cond(
+                EditState.undo_count > 0,
+                "Desfaz a última edição de célula ou adição de linha",
+                "Nenhuma ação para desfazer",
+            ),
+            side="bottom",
+        ),
+
+        _thin_sep(),
+
+        # ── Import/Export group ───────────────────────────────────────
+        rx.tooltip(
+            rx.button(
+                rx.icon(tag="download", size=13),
+                "Exportar",
+                on_click=EditState.download_excel,
+                size="2",
+                variant="soft",
+                color_scheme="blue",
+                style=_action_btn_style,
+            ),
+            content="Baixa os dados atuais do grid como planilha Excel",
+            side="bottom",
+        ),
+        rx.upload(
+            rx.tooltip(
+                rx.button(
+                    rx.icon(tag="cloud-upload", size=13, color=S.COPPER),
+                    "Importar",
+                    size="2",
+                    variant="soft",
+                    color_scheme="gray",
+                    style={
+                        **_action_btn_style,
+                        "color": S.COPPER,
+                        "border": f"1px solid {S.BORDER_ACCENT}",
+                    },
+                ),
+                content="Importa CSV ou XLSX — mostra preview antes de absorver no grid",
+                side="bottom",
+            ),
+            id="csv_upload",
+            accept={
+                "text/csv": [".csv"],
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
+            },
+            max_files=1,
+            no_drag=True,
+            no_keyboard=True,
+            border="none",
+            padding="0",
+            background="transparent",
+            style={"min_height": "auto", "display": "inline-block"},
+            on_drop=EditState.handle_csv_upload(rx.upload_files(upload_id="csv_upload")),
+        ),
+
+        # ── Spacer → Save CTA right-aligned ──────────────────────────
+        rx.spacer(),
+
+        rx.cond(
+            EditState.raw_data.length() > 0,
+            rx.tooltip(
+                rx.button(
+                    rx.cond(EditState.is_saving, rx.spinner(size="2"), rx.icon(tag="save", size=13)),
+                    rx.cond(EditState.is_saving, "Salvando...", "Salvar no Banco"),
+                    on_click=EditState.commit_csv_upload,
+                    disabled=EditState.is_saving,
+                    size="2",
+                    style={
+                        "background": rx.cond(
+                            EditState.has_unsaved_changes,
+                            f"linear-gradient(135deg, {S.COPPER} 0%, {S.COPPER_LIGHT} 100%)",
+                            "rgba(201,139,42,0.18)",
+                        ),
+                        "color": rx.cond(EditState.has_unsaved_changes, "#0A1F1A", S.COPPER),
+                        "border": rx.cond(
+                            EditState.has_unsaved_changes,
+                            "none",
+                            f"1px solid {S.BORDER_ACCENT}",
+                        ),
+                        "font_family": S.FONT_TECH,
+                        "font_weight": "700",
+                        "font_size": "12px",
+                        "letter_spacing": "0.04em",
+                        "box_shadow": rx.cond(
+                            EditState.has_unsaved_changes,
+                            "0 0 20px rgba(201,139,42,0.5)",
+                            "none",
+                        ),
+                        "cursor": "pointer",
+                        "flex_shrink": "0",
+                        "white_space": "nowrap",
+                        "_hover": {
+                            "box_shadow": "0 0 28px rgba(201,139,42,0.7)",
+                            "transform": "translateY(-1px)",
+                            "background": f"linear-gradient(135deg, {S.COPPER_LIGHT} 0%, {S.COPPER} 100%)",
+                            "color": "#0A1F1A",
+                        },
+                        "transition": "all 0.2s ease",
+                    },
+                ),
+                content=rx.cond(
+                    EditState.has_unsaved_changes,
+                    "Persiste todas as alterações via upsert (atualiza pelo ID, insere novos)",
+                    "Nenhuma alteração pendente",
+                ),
+                side="bottom",
+            ),
+        ),
+
+        spacing="2",
+        align="center",
+        flex_wrap="wrap",
+        row_gap="8px",
+        width="100%",
+    )
 
     return rx.box(
         # ── Copper top accent line ──────────────────────────────────────────
@@ -260,264 +524,18 @@ def _toolbar() -> rx.Component:
             pointer_events="none",
         ),
 
-        # ── Main strip ──────────────────────────────────────────────────────
-        rx.hstack(
-
-            # ── Zone 1: Context filters ──────────────────────────────────
-            rx.hstack(
-                # Tabela (primary — no "opcional")
-                _ctx_field(
-                    "TABELA",
-                    EditState.tabelas,
-                    EditState.selected_tabela,
-                    EditState.set_selected_tabela,
-                    width="130px",
-                ),
-                _thin_sep(),
-                # Projeto (optional filter)
-                _ctx_field(
-                    "PROJETO",
-                    EditState.projetos,
-                    EditState.selected_projeto,
-                    EditState.set_selected_projeto,
-                    placeholder="Todos",
-                    width="150px",
-                ),
-                # Contrato (optional filter)
-                _ctx_field(
-                    "CONTRATO",
-                    EditState.contratos,
-                    EditState.selected_contrato,
-                    EditState.set_selected_contrato,
-                    placeholder="Todos",
-                    width="150px",
-                ),
-                # Filtro ativo badge
-                rx.cond(
-                    (EditState.selected_projeto != "") | (EditState.selected_contrato != ""),
-                    rx.hstack(
-                        rx.box(width="5px", height="5px", border_radius="50%", bg=S.WARNING, flex_shrink="0"),
-                        rx.text("filtro ativo", font_size="8px", color=S.WARNING,
-                                font_family=S.FONT_MONO, font_weight="600", white_space="nowrap"),
-                        rx.icon(tag="x", size=9, color=S.WARNING, cursor="pointer",
-                                on_click=EditState.clear_filters),
-                        spacing="1", align="center",
-                        padding_x="6px", padding_y="2px",
-                        bg="rgba(245,158,11,0.07)",
-                        border_radius="8px",
-                        border="1px solid rgba(245,158,11,0.18)",
-                        flex_shrink="0",
-                    ),
-                ),
-                # Carregar button — same zone as filters
-                rx.tooltip(
-                    rx.button(
-                        rx.cond(EditState.is_loading_table, rx.spinner(size="2"), rx.icon(tag="database-zap", size=15)),
-                        rx.cond(EditState.is_loading_table, "Carregando...", "Carregar"),
-                        on_click=EditState.load_table,
-                        disabled=EditState.is_loading_table,
-                        size="2",
-                        style={
-                            "background": S.COPPER,
-                            "color": "white",
-                            "font_family": S.FONT_TECH,
-                            "font_weight": "700",
-                            "font_size": "12px",
-                            "letter_spacing": "0.04em",
-                            "cursor": "pointer",
-                            "opacity": rx.cond(EditState.is_loading_table, "0.7", "1"),
-                            "_hover": {"background": S.COPPER_LIGHT},
-                            "white_space": "nowrap",
-                            "flex_shrink": "0",
-                        },
-                    ),
-                    content="Busca os registros da tabela. Projeto/Contrato são opcionais.",
-                ),
-                spacing="2",
-                align="center",
-                flex_shrink="0",
+        # ── Content: 2 rows ─────────────────────────────────────────────────
+        rx.vstack(
+            row_filters,
+            # Subtle divider between rows
+            rx.box(
+                height="1px",
+                width="100%",
+                background=f"linear-gradient(90deg, transparent 0%, {S.BORDER_SUBTLE} 20%, {S.BORDER_SUBTLE} 80%, transparent 100%)",
             ),
-
-            _vdiv(),
-
-            # ── Zone 2: Row & data actions ────────────────────────────────
-            rx.hstack(
-                rx.tooltip(
-                    _btn("plus", "Nova Linha",
-                         on_click=EditState.add_row,
-                         variant="soft", color_scheme="teal"),
-                    content="Insere uma linha em branco no topo do grid (salve para persistir)",
-                ),
-                rx.tooltip(
-                    rx.button(
-                        rx.icon(tag="trash-2", size=14),
-                        "Deletar",
-                        on_click=EditState.delete_selected_row,
-                        size="2",
-                        variant="soft",
-                        color_scheme="red",
-                        disabled=EditState.selected_row_idx < 0,
-                        style={
-                            "font_family": S.FONT_TECH,
-                            "font_weight": "600",
-                            "font_size": "12px",
-                            "cursor": rx.cond(EditState.selected_row_idx >= 0, "pointer", "not-allowed"),
-                            "opacity": rx.cond(EditState.selected_row_idx >= 0, "1", "0.35"),
-                            "transition": "opacity 0.18s ease",
-                            "white_space": "nowrap",
-                        },
-                    ),
-                    content=rx.cond(
-                        EditState.selected_row_idx >= 0,
-                        "Remove a linha selecionada do banco permanentemente",
-                        "Clique em uma célula para selecionar a linha",
-                    ),
-                ),
-                # ── Undo button ──────────────────────────────────────────
-                rx.tooltip(
-                    rx.button(
-                        rx.icon(tag="undo-2", size=14),
-                        "Desfazer",
-                        # Badge with count — only shown when there are undoable actions
-                        rx.cond(
-                            EditState.undo_count > 0,
-                            rx.badge(
-                                EditState.undo_count.to_string(),
-                                color_scheme="amber",
-                                variant="soft",
-                                size="1",
-                                style={
-                                    "font_family": S.FONT_MONO,
-                                    "font_size": "10px",
-                                    "padding": "0 4px",
-                                },
-                            ),
-                        ),
-                        on_click=EditState.undo_last,
-                        disabled=EditState.undo_count == 0,
-                        size="2",
-                        variant="soft",
-                        color_scheme="amber",
-                        style={
-                            "font_family": S.FONT_TECH,
-                            "font_weight": "600",
-                            "font_size": "12px",
-                            "cursor": rx.cond(EditState.undo_count > 0, "pointer", "not-allowed"),
-                            "opacity": rx.cond(EditState.undo_count > 0, "1", "0.35"),
-                            "transition": "opacity 0.18s ease",
-                            "white_space": "nowrap",
-                            "gap": "5px",
-                        },
-                    ),
-                    content=rx.cond(
-                        EditState.undo_count > 0,
-                        "Desfaz a última edição de célula ou adição de linha",
-                        "Nenhuma ação para desfazer",
-                    ),
-                ),
-                _thin_sep(),
-                rx.tooltip(
-                    _btn("download", "Exportar",
-                         on_click=EditState.download_excel,
-                         variant="soft", color_scheme="blue"),
-                    content="Baixa os dados atuais do grid como planilha Excel",
-                ),
-                rx.upload(
-                    rx.tooltip(
-                        rx.button(
-                            rx.icon(tag="cloud-upload", size=14, color=S.COPPER),
-                            "Importar",
-                            size="2",
-                            variant="soft",
-                            color_scheme="gray",
-                            style={
-                                "font_family": S.FONT_TECH,
-                                "font_weight": "600",
-                                "font_size": "12px",
-                                "cursor": "pointer",
-                                "color": S.COPPER,
-                                "border": f"1px solid {S.BORDER_ACCENT}",
-                                "white_space": "nowrap",
-                            },
-                        ),
-                        content="Importa CSV ou XLSX — mostra preview antes de absorver no grid",
-                    ),
-                    id="csv_upload",
-                    accept={
-                        "text/csv": [".csv"],
-                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
-                    },
-                    max_files=1,
-                    no_drag=True,
-                    no_keyboard=True,
-                    border="none",
-                    padding="0",
-                    background="transparent",
-                    style={"min_height": "auto", "display": "inline-block"},
-                    on_drop=EditState.handle_csv_upload(rx.upload_files(upload_id="csv_upload")),
-                ),
-                spacing="2",
-                align="center",
-                flex_shrink="0",
-            ),
-
-            # ── Spacer → CTA anchored right ───────────────────────────────
-            rx.spacer(),
-
-            # ── Zone 3: CTA ───────────────────────────────────────────────
-            rx.cond(
-                EditState.raw_data.length() > 0,
-                rx.tooltip(
-                    rx.button(
-                        rx.cond(EditState.is_saving, rx.spinner(size="2"), rx.icon(tag="save", size=14)),
-                        rx.cond(EditState.is_saving, "Salvando...", "Salvar no Banco"),
-                        on_click=EditState.commit_csv_upload,
-                        disabled=EditState.is_saving,
-                        size="2",
-                        style={
-                            "background": rx.cond(
-                                EditState.has_unsaved_changes,
-                                f"linear-gradient(135deg, {S.COPPER} 0%, {S.COPPER_LIGHT} 100%)",
-                                "rgba(201,139,42,0.18)",
-                            ),
-                            "color": rx.cond(EditState.has_unsaved_changes, "#0A1F1A", S.COPPER),
-                            "border": rx.cond(
-                                EditState.has_unsaved_changes,
-                                "none",
-                                f"1px solid {S.BORDER_ACCENT}",
-                            ),
-                            "font_family": S.FONT_TECH,
-                            "font_weight": "700",
-                            "font_size": "13px",
-                            "letter_spacing": "0.04em",
-                            "box_shadow": rx.cond(
-                                EditState.has_unsaved_changes,
-                                "0 0 20px rgba(201,139,42,0.5)",
-                                "none",
-                            ),
-                            "cursor": "pointer",
-                            "flex_shrink": "0",
-                            "white_space": "nowrap",
-                            "_hover": {
-                                "box_shadow": "0 0 28px rgba(201,139,42,0.7)",
-                                "transform": "translateY(-1px)",
-                                "background": f"linear-gradient(135deg, {S.COPPER_LIGHT} 0%, {S.COPPER} 100%)",
-                                "color": "#0A1F1A",
-                            },
-                            "transition": "all 0.2s ease",
-                        },
-                    ),
-                    content=rx.cond(
-                        EditState.has_unsaved_changes,
-                        "Persiste todas as alterações via upsert (atualiza pelo ID, insere novos)",
-                        "Nenhuma alteração pendente",
-                    ),
-                ),
-            ),
-
-            align="center",
+            row_actions,
+            spacing="2",
             width="100%",
-            spacing="3",
         ),
 
         # ── Container ───────────────────────────────────────────────────────
@@ -526,8 +544,8 @@ def _toolbar() -> rx.Component:
         bg=S.BG_DEPTH,
         border=f"1px solid {S.BORDER_SUBTLE}",
         border_radius="12px",
-        padding="10px 20px",
-        overflow="hidden",
+        padding="10px 16px",
+        overflow="visible",
         box_shadow=f"0 2px 20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)",
         margin_bottom="12px",
         class_name="animate-enter",
@@ -804,6 +822,141 @@ def _preview_dialog() -> rx.Component:
     )
 
 
+# ── Inline Cell Edit Dialog ──────────────────────────────────────────────────
+
+def _edit_cell_dialog() -> rx.Component:
+    """Modal de edição inline — fallback universal para produção.
+    Abre ao clicar na célula, funciona independente do overlay nativo do GDG.
+    """
+    return rx.alert_dialog.root(
+        rx.alert_dialog.content(
+            # Header
+            rx.hstack(
+                rx.box(
+                    rx.icon(tag="pencil", size=16, color=S.COPPER),
+                    bg=S.COPPER_GLOW,
+                    padding="8px",
+                    border_radius="8px",
+                    border=f"1px solid {S.BORDER_ACCENT}",
+                ),
+                rx.vstack(
+                    rx.text(
+                        "Editar Célula",
+                        font_family=S.FONT_TECH,
+                        font_size="15px",
+                        font_weight="700",
+                        color=S.TEXT_WHITE,
+                        letter_spacing="0.03em",
+                    ),
+                    rx.text(
+                        EditState.edit_modal_col_name,
+                        font_size="11px",
+                        color=S.COPPER,
+                        font_family=S.FONT_MONO,
+                        font_weight="600",
+                        text_transform="uppercase",
+                        letter_spacing="0.08em",
+                    ),
+                    spacing="0",
+                    align="start",
+                ),
+                spacing="3",
+                align="center",
+                width="100%",
+                margin_bottom="12px",
+            ),
+            # Divider
+            rx.box(
+                height="1px",
+                width="100%",
+                background=f"linear-gradient(90deg, {S.COPPER} 0%, rgba(201,139,42,0.1) 100%)",
+                margin_bottom="14px",
+            ),
+            # Row info
+            rx.hstack(
+                rx.icon(tag="info", size=12, color=S.TEXT_MUTED),
+                rx.text(
+                    "Linha " + (EditState.edit_modal_row + 1).to(str),
+                    font_size="10px",
+                    color=S.TEXT_MUTED,
+                    font_family=S.FONT_MONO,
+                ),
+                spacing="1",
+                align="center",
+                margin_bottom="8px",
+            ),
+            # Input field
+            rx.input(
+                value=EditState.edit_modal_value,
+                on_change=EditState.set_edit_modal_value,
+                placeholder="Valor da célula...",
+                auto_focus=True,
+                size="3",
+                style={
+                    "background": "rgba(0,0,0,0.3)",
+                    "border": f"1px solid {S.BORDER_ACCENT}",
+                    "color": S.TEXT_WHITE,
+                    "font_family": S.FONT_MONO,
+                    "font_size": "14px",
+                    "border_radius": "8px",
+                    "width": "100%",
+                    "_focus": {
+                        "border_color": S.COPPER,
+                        "box_shadow": f"0 0 12px rgba(201,139,42,0.25)",
+                    },
+                },
+            ),
+            # Buttons
+            rx.flex(
+                rx.alert_dialog.cancel(
+                    rx.button(
+                        rx.icon(tag="x", size=14),
+                        "Cancelar",
+                        variant="soft",
+                        color_scheme="gray",
+                        on_click=EditState.cancel_edit_modal,
+                        style={
+                            "font_family": S.FONT_TECH,
+                            "font_weight": "600",
+                            "cursor": "pointer",
+                        },
+                    ),
+                ),
+                rx.alert_dialog.action(
+                    rx.button(
+                        rx.icon(tag="check", size=14),
+                        "Salvar",
+                        on_click=EditState.confirm_edit_modal,
+                        style={
+                            "background": f"linear-gradient(135deg, {S.COPPER} 0%, {S.COPPER_LIGHT} 100%)",
+                            "color": "#0A1F1A",
+                            "font_family": S.FONT_TECH,
+                            "font_weight": "700",
+                            "cursor": "pointer",
+                            "_hover": {
+                                "box_shadow": f"0 0 20px rgba(201,139,42,0.5)",
+                                "transform": "translateY(-1px)",
+                            },
+                            "transition": "all 0.2s ease",
+                        },
+                    ),
+                ),
+                spacing="3",
+                margin_top="16px",
+                justify="end",
+            ),
+            # Dialog styling
+            bg=S.BG_ELEVATED,
+            border=f"1px solid {S.BORDER_ACCENT}",
+            border_radius="16px",
+            box_shadow="0 16px 48px rgba(0,0,0,0.6)",
+            padding="20px",
+            max_width="420px",
+        ),
+        open=EditState.edit_modal_open,
+    )
+
+
 # ── Acesso Negado ────────────────────────────────────────────────────────────
 
 def _acesso_negado() -> rx.Component:
@@ -948,6 +1101,7 @@ def editar_dados_page() -> rx.Component:
                 _toolbar(),
                 _data_grid(),
                 _preview_dialog(),
+                _edit_cell_dialog(),
                 width="100%",
                 align="stretch",
                 spacing="0",

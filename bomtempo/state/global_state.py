@@ -990,6 +990,80 @@ class GlobalState(rx.State):
             self.is_loading = False
             logger.error(f"❌ Erro no estado global: {e}")
 
+    def force_refresh_data(self):
+        """Recarrega TODOS os dados do Supabase, ignorando cache e guard.
+
+        Chamado após commit no Editor de Dados para manter todas as páginas
+        sincronizadas com as alterações mais recentes do banco.
+        """
+        import os
+        from bomtempo.core.data_loader import CACHE_FILE
+
+        # 1. Invalida cache em disco para forçar fetch fresco
+        try:
+            if os.path.exists(CACHE_FILE):
+                os.remove(CACHE_FILE)
+                logger.info("🗑️ Cache invalidado (data_cache.pkl removido)")
+        except Exception as e:
+            logger.warning(f"⚠️ Falha ao remover cache: {e}")
+
+        # 2. Reseta guard vars para permitir recarregamento
+        self.contratos_list = []
+        self.projetos_list = []
+        self.obras_list = []
+        self.financeiro_list = []
+        self.om_list = []
+        self._data = {}
+
+        # 3. Recarrega tudo (inline — sem yield)
+        logger.info("🔄 force_refresh_data: recarregando dados do Supabase...")
+        try:
+            loader = DataLoader()
+            self._data = loader.load_all()
+
+            def get_df(key: str) -> pd.DataFrame:
+                d = self._data.get(key)
+                return d if d is not None else pd.DataFrame()
+
+            for table_key, attr_name in [
+                ("contratos", "contratos_list"),
+                ("projeto", "projetos_list"),
+                ("obras", "obras_list"),
+                ("financeiro", "financeiro_list"),
+                ("om", "om_list"),
+            ]:
+                if table_key in self._data:
+                    df = get_df(table_key)
+                    if not df.empty:
+                        for col in df.columns:
+                            if pd.api.types.is_datetime64_any_dtype(df[col]):
+                                df[col] = df[col].astype(str)
+                        for col in df.columns:
+                            if pd.api.types.is_numeric_dtype(df[col]):
+                                df[col] = df[col].fillna(0)
+                            else:
+                                df[col] = df[col].fillna("")
+                        setattr(self, attr_name, df.to_dict("records"))
+
+            if "contratos" in self._data:
+                df = get_df("contratos")
+                if not df.empty:
+                    self.total_contratos = len(df)
+                    self.valor_tcv = (
+                        float(df["valor_contratado"].sum())
+                        if "valor_contratado" in df.columns
+                        else 0.0
+                    )
+                    self.contratos_ativos = (
+                        len(df[df["status"] == "Em Execução"]) if "status" in df.columns else 0
+                    )
+
+            self.is_loading = False
+            logger.info("✅ force_refresh_data: estado global re-sincronizado")
+        except Exception as e:
+            self.is_loading = False
+            logger.error(f"❌ force_refresh_data falhou: {e}")
+
     def toggle_sidebar(self):
         self.sidebar_open = not self.sidebar_open
 
