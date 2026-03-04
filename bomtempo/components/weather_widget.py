@@ -170,6 +170,7 @@ def weather_widget() -> rx.Component:
         ),
         **S.GLASS_CARD,
         min_height="320px",
+        height="100%",
         width="100%",
         display="flex",
         flex_direction="column",

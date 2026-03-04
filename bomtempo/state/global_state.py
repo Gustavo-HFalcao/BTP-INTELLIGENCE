@@ -4,6 +4,7 @@ Global State Management
 
 import asyncio
 import base64
+import math
 import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -363,6 +364,8 @@ class GlobalState(rx.State):
 
     # Obras page state
     obras_selected_contract: str = ""
+    obra_insight_text: str = ""
+    obra_insight_loading: bool = False
 
     # O&M page state
     om_time_filter: str = ""  # Empty = no time filter applied
@@ -1952,6 +1955,284 @@ class GlobalState(rx.State):
 
         return result
 
+    # ── Obras Enterprise (Revamp) ─────────────────────────────────
+
+    @rx.var
+    def obras_cards_list(self) -> List[Dict[str, Any]]:
+        """One enriched card per contract for the Obras list view."""
+        if not self.contratos_list:
+            return []
+
+        df_obras = self._data.get("obras")
+        cards = []
+
+        for c in self.contratos_list:
+            code = c.get("contrato", "")
+            cliente = c.get("cliente", "")
+            label = f"{code} - {cliente}" if cliente else code
+
+            card: Dict[str, Any] = {
+                "contrato": code,
+                "label": label,
+                "cliente": cliente or "—",
+                "localizacao": c.get("localizacao", "—"),
+                "status": c.get("status", "Em Execução"),
+                "avanco_pct": 0.0,
+                "budget_planejado": 0.0,
+                "budget_realizado": 0.0,
+                "equipe_presente_hoje": 0,
+                "efetivo_planejado": 0,
+                "chuva_acumulada_mm": 0.0,
+                "risco_geral_score": 0,
+            }
+
+            if df_obras is not None and not df_obras.empty and "contrato" in df_obras.columns:
+                sub = df_obras[df_obras["contrato"] == code]
+                if not sub.empty:
+                    if "realizado_pct" in sub.columns:
+                        card["avanco_pct"] = round(float(sub["realizado_pct"].mean()), 1)
+
+                    first = sub.iloc[0]
+                    for col, default in [
+                        ("budget_planejado", 0.0),
+                        ("budget_realizado", 0.0),
+                        ("equipe_presente_hoje", 0),
+                        ("efetivo_planejado", 0),
+                        ("chuva_acumulada_mm", 0.0),
+                        ("risco_geral_score", 0),
+                    ]:
+                        if col in first.index:
+                            raw = first[col]
+                            if pd.notna(raw):
+                                try:
+                                    card[col] = (
+                                        float(raw)
+                                        if isinstance(default, float)
+                                        else int(float(raw))
+                                    )
+                                except (ValueError, TypeError):
+                                    card[col] = default
+                            else:
+                                card[col] = default
+                        else:
+                            card[col] = default
+
+            cards.append(card)
+
+        return cards
+
+    @rx.var
+    def obra_enterprise_data(self) -> Dict[str, Any]:
+        """Extends obra_selected_data with enterprise columns (budget, equipe, risco)."""
+        base = dict(self.obra_selected_data)
+
+        target = self.obras_selected_contract
+        if not target:
+            return base
+
+        code = target.split(" - ")[0].strip() if " - " in target else target
+        df = self._data.get("obras")
+
+        if df is not None and not df.empty and "contrato" in df.columns:
+            sub = df[df["contrato"] == code]
+            if not sub.empty:
+                if "realizado_pct" in sub.columns:
+                    base["avanco_pct"] = round(float(sub["realizado_pct"].mean()), 1)
+
+                first = sub.iloc[0]
+                for col, default in [
+                    ("budget_planejado", 0.0),
+                    ("budget_realizado", 0.0),
+                    ("equipe_presente_hoje", 0),
+                    ("efetivo_planejado", 0),
+                    ("chuva_acumulada_mm", 0.0),
+                    ("risco_geral_score", 0),
+                ]:
+                    if col in first.index:
+                        raw = first[col]
+                        if pd.notna(raw):
+                            try:
+                                base[col] = (
+                                    float(raw)
+                                    if isinstance(default, float)
+                                    else int(float(raw))
+                                )
+                            except (ValueError, TypeError):
+                                base[col] = default
+                        else:
+                            base[col] = default
+                    else:
+                        base[col] = default
+
+        return base
+
+    @rx.var
+    def obra_budget_chart(self) -> List[Dict[str, Any]]:
+        """Budget planejado vs realizado for bar chart visualization."""
+        data = self.obra_enterprise_data
+        bp = float(data.get("budget_planejado", 0) or 0)
+        br = float(data.get("budget_realizado", 0) or 0)
+        if bp == 0 and br == 0:
+            return []
+        return [
+            {"categoria": "Planejado", "valor": bp},
+            {"categoria": "Realizado", "valor": br},
+        ]
+
+    @rx.var
+    def obra_kpi_fmt(self) -> Dict[str, Any]:
+        """Pre-formatted KPI display strings for the obras detail view.
+        All rounding and formatting done server-side to avoid float display issues.
+        """
+        data = self.obra_enterprise_data
+        bp = float(data.get("budget_planejado", 0) or 0)
+        br = float(data.get("budget_realizado", 0) or 0)
+        equipe = int(data.get("equipe_presente_hoje", 0) or 0)
+        efetivo = int(data.get("efetivo_planejado", 0) or 0)
+        risco = int(data.get("risco_geral_score", 0) or 0)
+        avanco = float(data.get("avanco_pct", 0) or 0)
+
+        # Disciplinas em risco
+        disc_data = self.disciplina_progress_chart
+        disc_total = len(disc_data)
+        disc_em_risco = sum(
+            1
+            for d in disc_data
+            if float(d.get("realizado_pct", 0)) < float(d.get("previsto_pct", 0))
+        )
+        disc_val = f"{disc_em_risco} / {disc_total}" if disc_total > 0 else "— / —"
+        if disc_total == 0:
+            disc_sub = "Sem dados de disciplina"
+            disc_icon_color = "#2A9D8F"
+        elif disc_em_risco == 0:
+            disc_sub = "✓ Todas em dia"
+            disc_icon_color = "#2A9D8F"
+        elif disc_em_risco <= 2:
+            disc_sub = f"⚠ {disc_em_risco} com atraso"
+            disc_icon_color = "#F59E0B"
+        else:
+            disc_sub = f"✕ {disc_em_risco} em atraso"
+            disc_icon_color = "#EF4444"
+
+        # Budget
+        bp_fmt = f"R$ {bp / 1_000_000:.1f}M" if bp > 0 else "—"
+        br_fmt = f"R$ {br / 1_000_000:.1f}M" if br > 0 else "—"
+        budget_over = False
+        var_fmt = "Orçamento não configurado"
+        budget_bar_pct = 0
+        budget_exec_rate_fmt = "—"
+        budget_bar_label = "—"
+        budget_color = "#2A9D8F"
+        if bp > 0:
+            exec_rate = br / bp * 100
+            budget_over = exec_rate > 100
+            budget_color = "#EF4444" if budget_over else "#2A9D8F"
+            if budget_over:
+                var_fmt = f"▲ {exec_rate:.1f}% do orçamento executado"
+            else:
+                var_fmt = f"▼ {exec_rate:.1f}% do orçamento executado"
+            budget_bar_pct = min(int(exec_rate), 100)
+            budget_exec_rate_fmt = f"{exec_rate:.1f}%"
+            budget_bar_label = f"{exec_rate:.1f}% do orçamento executado"
+
+        # Equipe
+        equipe_val = f"{equipe} / {efetivo}"
+        if efetivo > 0:
+            equipe_pct = equipe / efetivo * 100
+            equipe_sub = (
+                f"⚠ {equipe_pct:.0f}% do efetivo"
+                if equipe_pct < 70
+                else f"✓ {equipe_pct:.0f}% do efetivo"
+            )
+        else:
+            equipe_sub = "Planejado não definido"
+
+        # Risco
+        if risco >= 60:
+            risco_label = "CRÍTICO"
+            risco_color = "#EF4444"
+            risco_bg = "rgba(239, 68, 68, 0.1)"
+        elif risco >= 30:
+            risco_label = "MODERADO"
+            risco_color = "#F59E0B"
+            risco_bg = "rgba(245, 158, 11, 0.12)"
+        else:
+            risco_label = "CONTROLADO"
+            risco_color = "#2A9D8F"
+            risco_bg = "rgba(42, 157, 143, 0.15)"
+
+        return {
+            "budget_planejado_fmt": bp_fmt,
+            "budget_realizado_fmt": br_fmt,
+            "budget_variacao_fmt": var_fmt,
+            "budget_over": budget_over,
+            "budget_bar_pct": budget_bar_pct,
+            "budget_exec_rate_fmt": budget_exec_rate_fmt,
+            "budget_bar_label": budget_bar_label,
+            "budget_color": budget_color,
+            "equipe_val": equipe_val,
+            "equipe_sub": equipe_sub,
+            "risco_val": str(risco),
+            "risco_label": risco_label,
+            "risco_color": risco_color,
+            "risco_bg": risco_bg,
+            "avanco_fmt": f"{avanco:.1f}%",
+            "disc_val": disc_val,
+            "disc_sub": disc_sub,
+            "disc_icon_color": disc_icon_color,
+        }
+
+    @rx.var
+    def disciplina_gauges_list(self) -> List[Dict[str, Any]]:
+        """Pre-computed semi-circle gauge data for each discipline.
+        SVG stroke-dasharray values calculated server-side.
+        r=38, C=2*pi*38≈238.76, SEMI=C/2≈119.38
+        stroke-dashoffset=-119.38 positions arc start at 9-o'clock (left).
+        """
+        data = self.disciplina_progress_chart
+        r_svg = 38  # SVG circle radius
+        cx, cy = 50, 50  # SVG circle center
+        C = 2 * math.pi * r_svg  # ≈ 238.76
+        SEMI = C / 2  # ≈ 119.38
+        gauges = []
+        for item in data:
+            r_val = float(item.get("realizado_pct", 0))
+            p_val = float(item.get("previsto_pct", 0))
+            filled_r = round((r_val / 100) * SEMI, 2)
+
+            if r_val >= p_val:
+                color = "#2A9D8F"
+                status = "on_track"
+            elif r_val >= p_val - 15:
+                color = "#F59E0B"
+                status = "warning"
+            else:
+                color = "#EF4444"
+                status = "delayed"
+
+            # Previsto marker dot: position on the arc
+            # Arc goes from 180° to 360° (left → top → right)
+            angle = math.pi + (p_val / 100) * math.pi
+            mx = round(cx + r_svg * math.cos(angle), 2)
+            my = round(cy + r_svg * math.sin(angle), 2)
+
+            gauges.append(
+                {
+                    "categoria": item.get("categoria", ""),
+                    "realizado_pct": r_val,
+                    "previsto_pct": p_val,
+                    "realizado_pct_fmt": f"{r_val:.0f}%",
+                    "previsto_pct_fmt": f"{p_val:.0f}%",
+                    "pr_label": f"P:{p_val:.0f}% · R:{r_val:.0f}%",
+                    "realizado_dash": f"{filled_r} {round(C, 2)}",
+                    "status": status,
+                    "color": color,
+                    "marker_cx": str(mx),
+                    "marker_cy": str(my),
+                }
+            )
+        return gauges
+
     # ── O&M ──────────────────────────────────────────────────────
 
     @rx.var
@@ -2167,6 +2448,119 @@ class GlobalState(rx.State):
     weather_loading: bool = False
     weather_risk_level: str = "Unknown"
     weather_location_name: str = "Recife, PE"
+
+    async def select_obra_detail(self, label: str):
+        """Navigate to obra detail view and trigger AI insight generation."""
+        self.obras_selected_contract = label
+        self.obra_insight_text = ""
+        self.obra_insight_loading = True
+        yield GlobalState.load_weather_data
+        yield GlobalState.generate_obra_insight_bg
+
+    def deselect_obra(self):
+        """Return to obras list view."""
+        self.obras_selected_contract = ""
+        self.obra_insight_text = ""
+        self.obra_insight_loading = False
+
+    @rx.event(background=True)
+    async def generate_obra_insight_bg(self):
+        """Background fire-and-forget AI insight for the selected obra."""
+        import threading
+
+        async with self:
+            data = dict(self.obra_enterprise_data)
+            disciplines = list(self.disciplina_progress_chart)
+            selected = self.obras_selected_contract
+
+        if not data or not selected:
+            async with self:
+                self.obra_insight_loading = False
+            return
+
+        # Build context
+        delayed = [
+            d["categoria"]
+            for d in disciplines
+            if float(d.get("realizado_pct", 0)) < float(d.get("previsto_pct", 0))
+        ]
+        on_track = [
+            d["categoria"]
+            for d in disciplines
+            if float(d.get("realizado_pct", 0)) >= float(d.get("previsto_pct", 0))
+        ]
+
+        bp = float(data.get("budget_planejado", 0) or 0)
+        br = float(data.get("budget_realizado", 0) or 0)
+        if bp > 0:
+            variance = ((br - bp) / bp) * 100
+            if variance > 10:
+                budget_status = f"estourado em {variance:.0f}%"
+            elif variance > 0:
+                budget_status = f"levemente acima em {variance:.0f}%"
+            else:
+                budget_status = f"dentro do previsto ({abs(variance):.0f}% de sobra)"
+        else:
+            budget_status = "orçamento não configurado"
+
+        risco = int(data.get("risco_geral_score", 0) or 0)
+        avanco = float(data.get("avanco_pct", 0) or 0)
+        equipe_hoje = int(data.get("equipe_presente_hoje", 0) or 0)
+        efetivo_plan = int(data.get("efetivo_planejado", 0) or 0)
+        chuva = float(data.get("chuva_acumulada_mm", 0) or 0)
+
+        context = (
+            f"Obra: {data.get('contrato', '—')} — {data.get('cliente', '—')}\n"
+            f"Localização: {data.get('localizacao', '—')}\n"
+            f"Avanço físico médio: {avanco:.1f}%\n"
+            f"Orçamento: {budget_status}\n"
+            f"Equipe hoje: {equipe_hoje} pessoas (planejado: {efetivo_plan})\n"
+            f"Chuva acumulada: {chuva:.0f}mm\n"
+            f"Score de risco: {risco}/100\n"
+            f"Disciplinas em dia: {', '.join(on_track) if on_track else 'nenhuma'}\n"
+            f"Disciplinas em atraso: {', '.join(delayed) if delayed else 'nenhuma'}"
+        )
+
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "Você é um analista sênior de obras de engenharia civil. "
+                    "Gere UM parágrafo executivo (2 a 3 frases) de diagnóstico desta obra, em português. "
+                    "Seja direto, objetivo e use os dados fornecidos. Destaque o status geral, "
+                    "o principal risco e o ponto de atenção mais crítico. "
+                    "NÃO use markdown, bullets ou títulos — apenas texto corrido profissional."
+                ),
+            },
+            {"role": "user", "content": context},
+        ]
+
+        result: Dict[str, Any] = {"text": ""}
+
+        def run_ai():
+            try:
+                from bomtempo.core.ai_client import ai_client as _ai
+
+                result["text"] = _ai.query(messages)
+            except Exception:
+                risco_lvl = "crítico" if risco >= 60 else ("moderado" if risco >= 30 else "controlado")
+                result["text"] = (
+                    f"Obra com risco {risco_lvl} ({risco}/100). "
+                    f"Avanço físico em {avanco:.0f}% com orçamento {budget_status}. "
+                    + (
+                        f"Atenção às disciplinas: {', '.join(delayed)}."
+                        if delayed
+                        else "Todas as disciplinas dentro do prazo."
+                    )
+                )
+
+        t = threading.Thread(target=run_ai, daemon=True)
+        t.start()
+        t.join(timeout=30)
+
+        async with self:
+            self.obra_insight_text = result["text"] or "Análise em processamento..."
+            self.obra_insight_loading = False
 
     async def select_obra_and_load_weather(self, value: str):
         """Sets the selected contract and reloads weather data."""
