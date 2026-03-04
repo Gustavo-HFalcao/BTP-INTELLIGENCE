@@ -45,6 +45,9 @@ class EditState(rx.State):
     edit_modal_col: int = -1
     edit_modal_col_name: str = ""
     edit_modal_value: str = ""
+    _last_click_time: float = 0.0
+    _last_click_row: int = -1
+    _last_click_col: int = -1
 
     page: int = 1
     limit: int = 100
@@ -282,16 +285,27 @@ class EditState(rx.State):
             logger.error(f"Erro on_cell_edited: {e}")
 
     def on_cell_clicked(self, pos: Tuple[int, int]):
-        """Rastreia a linha selecionada e abre modal de edição inline.
+        """Click handler com detecção manual de duplo-clique.
 
-        O modal serve como fallback universal para produção onde o overlay
-        nativo do Glide Data Grid não renderiza (Reflex bug #6143).
+        Single click: seleciona linha.
+        Double click (<500ms, mesma célula): abre modal de edição.
+        NÃO usa on_cell_activated para evitar o overlay fantasma do GDG.
         """
+        import time
         col_idx, row_idx = pos
         self.selected_row_idx = row_idx
 
-        # Abre edit modal com o valor atual da célula
-        if self.raw_data and row_idx < len(self.raw_data):
+        now = time.time()
+        is_double = (
+            (now - self._last_click_time) < 0.8
+            and self._last_click_row == row_idx
+            and self._last_click_col == col_idx
+        )
+        self._last_click_time = now
+        self._last_click_row = row_idx
+        self._last_click_col = col_idx
+
+        if is_double and self.raw_data and row_idx < len(self.raw_data):
             keys = list(self.raw_data[0].keys())
             if col_idx < len(keys):
                 col_name = keys[col_idx]
@@ -301,6 +315,12 @@ class EditState(rx.State):
                 self.edit_modal_col_name = col_name
                 self.edit_modal_value = str(current_val) if current_val is not None else ""
                 self.edit_modal_open = True
+
+    def on_cell_activated(self, pos: Tuple[int, int]):
+        """Stub — mantém compatibilidade com frontend em cache.
+        A edição real usa duplo-clique via on_cell_clicked.
+        """
+        pass
 
     def set_edit_modal_value(self, val: str):
         """Atualiza o valor no modal de edição inline."""
@@ -325,6 +345,12 @@ class EditState(rx.State):
             self.cancel_edit_modal()
             return
 
+        # Verifica se realmente mudou — evita undo fantasma
+        old_val = str(self.raw_data[row_idx].get(col_name, ""))
+        if val_str == old_val:
+            self.cancel_edit_modal()
+            return
+
         # Push undo snapshot ANTES de mutar
         self._undo_push()
 
@@ -341,6 +367,40 @@ class EditState(rx.State):
         self.edit_modal_value = ""
 
         yield rx.toast(f"'{col_name}' atualizado.", position="bottom-right")
+
+    def handle_edit_key_down(self, key: str):
+        """Keyboard shortcuts no modal: Enter=salvar, Escape=cancelar."""
+        if key == "Enter":
+            # Inline a lógica de confirm_edit_modal (que é generator com yield)
+            row_idx = self.edit_modal_row
+            col_name = self.edit_modal_col_name
+            val_str = self.edit_modal_value
+
+            if row_idx < 0 or row_idx >= len(self.raw_data):
+                self.cancel_edit_modal()
+                return
+
+            old_val = str(self.raw_data[row_idx].get(col_name, ""))
+            if val_str == old_val:
+                self.cancel_edit_modal()
+                return
+
+            self._undo_push()
+            new_data = [dict(row) for row in self.raw_data]
+            new_data[row_idx][col_name] = val_str
+            self.raw_data = new_data
+            self.has_unsaved_changes = True
+
+            self.edit_modal_open = False
+            self.edit_modal_row = -1
+            self.edit_modal_col = -1
+            self.edit_modal_col_name = ""
+            self.edit_modal_value = ""
+
+            yield rx.toast(f"'{col_name}' atualizado.", position="bottom-right")
+
+        elif key == "Escape":
+            self.cancel_edit_modal()
 
     def undo_last(self):
         """Desfaz a última edição de célula ou adição de linha."""
@@ -469,8 +529,28 @@ class EditState(rx.State):
                         duration=6000,
                     )
                     return
+
+                # Rejeita se menos de 30% das colunas do banco estão no arquivo
+                match_ratio = len(known_cols) / len(db_cols) if db_cols else 1.0
+                if match_ratio < 0.3:
+                    yield rx.toast(
+                        f"Arquivo suspeito: apenas {len(known_cols)}/{len(db_cols)} colunas "
+                        f"reconhecidas ({match_ratio:.0%}). Verifique se é a planilha correta.",
+                        position="top-right",
+                        duration=6000,
+                    )
+                    return
             else:
                 unknown_cols = set()
+
+            # Trava: rejeita arquivo vazio (só cabeçalho, sem dados)
+            if df.empty or len(df) == 0:
+                yield rx.toast(
+                    "Arquivo vazio — contém apenas cabeçalho, sem linhas de dados.",
+                    position="top-right",
+                    duration=5000,
+                )
+                return
 
             # Limpa registros
             records = df.to_dict('records')
@@ -595,56 +675,61 @@ class EditState(rx.State):
                 yield rx.toast(f"Erro crítico no salvamento: {e}", position="top-right")
             return
 
-        async with self:
-            self.is_saving = False
-            if result["errors"]:
-                logger.error(f"PostgreSQL Rejection(s): {result['errors']}")
-                # Mostra erros mas também reporta o que foi salvo
-                saved = result["upserted"] + result["inserted"]
-                err_summary = "\n".join(result["errors"][:5])  # máx 5 erros na tela
-                yield rx.window_alert(
-                    f"Salvo parcialmente: {saved} registro(s) gravado(s).\n\n"
-                    f"ERROS ({len(result['errors'])}):\n{err_summary}\n\n"
-                    "Ajuste os campos com conflito de tipo e tente gravar novamente."
-                )
-                # Recarrega mesmo assim para refletir o que foi salvo
-                yield EditState.load_table
-            else:
-                self.has_unsaved_changes = False
-                self.undo_count = 0
-                yield rx.toast(
-                    f"Salvo: {result['upserted']} atualizados, {result['inserted']} criados.",
-                    position="bottom-right"
-                )
-                yield EditState.load_table
-
-        # ── Propaga alterações para todas as páginas do dashboard ──────────
-        # Editou contratos/projetos/obras/financeiro/om → GlobalState precisa
-        # recarregar para refletir as mudanças em KPIs, gráficos, listas, etc.
-        if selected_tabela in ("contratos", "projetos", "obras", "financeiro", "om"):
+        # ── Prepara refresh do GlobalState ANTES de adquirir o lock ──────────
+        # Faz todo o I/O pesado FORA do state lock para não bloquear
+        fresh_data = None
+        needs_global_refresh = selected_tabela in ("contratos", "projetos", "obras", "financeiro", "om")
+        if needs_global_refresh:
             try:
-                # Invalida cache em disco FORA do state lock (I/O puro)
                 import os
                 from bomtempo.core.data_loader import CACHE_FILE
                 if os.path.exists(CACHE_FILE):
                     os.remove(CACHE_FILE)
                     logger.info("🗑️ Cache invalidado após commit no editor")
 
-                # Recarrega dados em executor (evita bloquear event loop)
                 from bomtempo.core.data_loader import DataLoader
                 fresh_data = await loop.run_in_executor(None, DataLoader().load_all)
+                logger.info("📦 Dados frescos carregados para refresh")
+            except Exception as e:
+                logger.warning(f"⚠️ Falha ao carregar dados frescos: {e}")
+                fresh_data = None
 
-                # Aplica dados frescos no GlobalState
-                async with self:
+        # ── UMA ÚNICA transição de estado por lock — evita deadlocks ─────────
+        events = []
+        
+        # 1. Limpa o EditState local
+        async with self:
+            self.is_saving = False
+            if result["errors"]:
+                logger.error(f"PostgreSQL Rejection(s): {result['errors']}")
+                saved = result["upserted"] + result["inserted"]
+                err_summary = "\n".join(result["errors"][:5])
+                events.append(rx.window_alert(
+                    f"Salvo parcialmente: {saved} registro(s) gravado(s).\n\n"
+                    f"ERROS ({len(result['errors'])}):\n{err_summary}\n\n"
+                    "Ajuste os campos com conflito de tipo e tente gravar novamente."
+                ))
+            else:
+                self.has_unsaved_changes = False
+                self.undo_count = 0
+                events.append(rx.toast(
+                    f"Salvo: {result['upserted']} atualizados, {result['inserted']} criados.",
+                    position="bottom-right"
+                ))
+            
+            events.append(EditState.load_table)
+
+            # 2. Aplica dados frescos no GlobalState (NO MESMO LOCK PROXY)
+            if fresh_data is not None:
+                try:
                     from bomtempo.state.global_state import GlobalState
                     gs = await self.get_state(GlobalState)
                     gs._data = fresh_data
-                    gs.contratos_list = []  # Reset guard
+                    gs.contratos_list = []
                     gs.projetos_list = []
                     gs.obras_list = []
                     gs.financeiro_list = []
                     gs.om_list = []
-                    # Inline re-populate (mesmo padrão de load_data)
                     for table_key, attr_name in [
                         ("contratos", "contratos_list"),
                         ("projeto", "projetos_list"),
@@ -666,7 +751,6 @@ class EditState(rx.State):
                                         df[col] = df[col].fillna("")
                                 setattr(gs, attr_name, df.to_dict("records"))
 
-                    # Recalcular métricas globais
                     if "contratos" in fresh_data:
                         df = fresh_data["contratos"]
                         if hasattr(df, 'empty') and not df.empty:
@@ -682,6 +766,11 @@ class EditState(rx.State):
 
                     gs.is_loading = False
                     logger.info("✅ GlobalState re-sincronizado após commit no editor")
-            except Exception as e:
-                logger.warning(f"⚠️ Falha ao re-sincronizar GlobalState: {e}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Falha ao re-sincronizar GlobalState: {e}")
+
+        # 3. Dispara os eventos de UI para o frontend em sequência
+        for event in events:
+            yield event
+
 

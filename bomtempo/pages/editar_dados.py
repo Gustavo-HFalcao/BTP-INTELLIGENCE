@@ -672,6 +672,7 @@ def _data_grid() -> rx.Component:
                 columns=EditState.editor_columns,
                 on_cell_edited=EditState.on_cell_edited,
                 on_cell_clicked=EditState.on_cell_clicked,
+                on_cell_activated=EditState.on_cell_activated,
                 width="100%",
                 height="64vh",
                 smooth_scroll_x=True,
@@ -825,8 +826,8 @@ def _preview_dialog() -> rx.Component:
 # ── Inline Cell Edit Dialog ──────────────────────────────────────────────────
 
 def _edit_cell_dialog() -> rx.Component:
-    """Modal de edição inline — fallback universal para produção.
-    Abre ao clicar na célula, funciona independente do overlay nativo do GDG.
+    """Modal de edição inline — abre com duplo-clique na célula.
+    Fallback universal para produção. Enter=salvar, Escape=cancelar.
     """
     return rx.alert_dialog.root(
         rx.alert_dialog.content(
@@ -889,6 +890,7 @@ def _edit_cell_dialog() -> rx.Component:
             rx.input(
                 value=EditState.edit_modal_value,
                 on_change=EditState.set_edit_modal_value,
+                on_key_down=EditState.handle_edit_key_down,
                 placeholder="Valor da célula...",
                 auto_focus=True,
                 size="3",
@@ -906,6 +908,22 @@ def _edit_cell_dialog() -> rx.Component:
                     },
                 },
             ),
+            # Keyboard hint
+            rx.hstack(
+                rx.text("Enter", font_size="9px", color=S.COPPER, font_family=S.FONT_MONO,
+                        font_weight="700", padding="1px 5px",
+                        bg="rgba(201,139,42,0.1)", border_radius="3px",
+                        border=f"1px solid {S.BORDER_ACCENT}"),
+                rx.text("salvar", font_size="9px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                rx.text("Esc", font_size="9px", color=S.TEXT_MUTED, font_family=S.FONT_MONO,
+                        font_weight="700", padding="1px 5px",
+                        bg="rgba(255,255,255,0.04)", border_radius="3px",
+                        border=f"1px solid {S.BORDER_SUBTLE}"),
+                rx.text("cancelar", font_size="9px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                spacing="1",
+                align="center",
+                margin_top="6px",
+            ),
             # Buttons
             rx.flex(
                 rx.alert_dialog.cancel(
@@ -913,7 +931,7 @@ def _edit_cell_dialog() -> rx.Component:
                         rx.icon(tag="x", size=14),
                         "Cancelar",
                         variant="soft",
-                        color_scheme="gray",
+                        color_scheme="red",
                         on_click=EditState.cancel_edit_modal,
                         style={
                             "font_family": S.FONT_TECH,

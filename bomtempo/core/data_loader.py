@@ -15,8 +15,11 @@ from bomtempo.core.supabase_client import sb_select
 
 logger = get_logger(__name__)
 
-# Cache absoluto dentro do diretório do projeto
-CACHE_FILE = str(Config.ROOT_DIR / "data_cache.pkl")
+import tempfile
+
+# Cache absoluto completamente FORA do diretório do projeto 
+# Isso garante 100% que o Reflex (watchfiles) não vai dar hot-reload ao deletar/salvar o cache
+CACHE_FILE = os.path.join(tempfile.gettempdir(), "bomtempo_data_cache.pkl")
 CACHE_TTL = 3600  # 1 hora
 
 
