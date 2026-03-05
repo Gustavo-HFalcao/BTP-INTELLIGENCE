@@ -218,6 +218,7 @@ def sidebar_content() -> rx.Component:
                     sidebar_item("O&M", "zap", "/om"),
                     sidebar_item("ANALYTICS", "bar-chart-3", "/analytics"),
                     sidebar_item("PREVISÕES ML", "trending-up", "/previsoes"),
+                    sidebar_item("RELATÓRIOS", "file-text", "/relatorios"),
                     sidebar_item("CHAT IA", "message-square", "/chat-ia"),
                     sidebar_item("REEMBOLSO DASH", "receipt", "/reembolso-dash"),
                     width="100%",

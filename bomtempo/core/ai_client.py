@@ -45,7 +45,7 @@ class AIClient:
         else:
             self.vision_client = None
 
-    def query_stream(self, messages: list[dict], model: str = "kimi-k2-turbo-preview"):
+    def query_stream(self, messages: list[dict], model: str = "kimi-k2-turbo-preview", max_tokens: int = 8192):
         """
         Streams a query to Kimi AI, yielding text chunks as they arrive.
         """
@@ -55,6 +55,7 @@ class AIClient:
                 model=model,
                 messages=messages,
                 temperature=0.3,
+                max_tokens=max_tokens,
                 stream=True,
             )
             for chunk in stream:

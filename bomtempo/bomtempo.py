@@ -24,6 +24,8 @@ from bomtempo.pages.reembolso_form import reembolso_form_page
 from bomtempo.state.reembolso_state import ReembolsoState
 from bomtempo.pages.editar_dados import editar_dados_page
 from bomtempo.state.edit_state import EditState
+from bomtempo.pages.relatorios import relatorios_page
+from bomtempo.state.relatorios_state import RelatoriosState
 
 def index():
     return default_layout(index_page())
@@ -159,10 +161,21 @@ app.add_page(
     on_load=[GlobalState.load_data, ReembolsoState.load_dashboard],
 )
 
+def relatorios():
+    return default_layout(relatorios_page())
+
+
 def editar_dados():
     # Only Admin sees the sidebar normally. data_edit role is configured to hide other items inside sidebar.
     from bomtempo.layouts.default import default_layout
     return default_layout(editar_dados_page())
+
+app.add_page(
+    relatorios,
+    route="/relatorios",
+    title="BOMTEMPO | Central de Relatórios",
+    on_load=[GlobalState.load_data, RelatoriosState.load_page],
+)
 
 app.add_page(
     editar_dados,

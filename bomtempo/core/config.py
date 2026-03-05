@@ -61,6 +61,10 @@ class Config:
     RDO_SMTP_SERVER = "smtp.gmail.com"
     RDO_SMTP_PORT = 587
 
+    # ── Reports ───────────────────────────────────────────────────────────────
+    REPORTS_PDF_DIR = Path(os.environ.get("REPORTS_PDF_DIR", str(Path.home() / ".bomtempo_pdfs")))
+    REPORTS_BUCKET = "relatorios-pdfs"
+
     # ── Fuel Reimbursement (FR) ────────────────────────────────────────────────
     FR_PDF_DIR = Path(os.environ.get("FR_PDF_DIR", str(Path.home() / ".bomtempo_pdfs")))
     FR_BUCKET_NF = "fuel_reimbursements_nf"

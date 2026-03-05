@@ -43,3 +43,17 @@ Thumbs.db
 # IDE
 .idea/
 .vscode/
+
+# Node
+node_modules/
+package-lock.json
+
+# DB inspection scripts (one-off, not part of app)
+apply_db.py
+apply_db_direct.py
+apply_db_node.js
+apply_db_pg8000.py
+inspect_db.py
+schema.json
+supabase_inspection.txt
+supabase_setup.sql
