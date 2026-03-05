@@ -26,6 +26,12 @@ from bomtempo.pages.editar_dados import editar_dados_page
 from bomtempo.state.edit_state import EditState
 from bomtempo.pages.relatorios import relatorios_page
 from bomtempo.state.relatorios_state import RelatoriosState
+from bomtempo.pages.alertas import alertas_page
+from bomtempo.state.alertas_state import AlertasState
+from bomtempo.core.alert_service import start_alert_scheduler
+
+# Start proactive alerts background scheduler
+start_alert_scheduler()
 
 def index():
     return default_layout(index_page())
@@ -170,6 +176,10 @@ def editar_dados():
     from bomtempo.layouts.default import default_layout
     return default_layout(editar_dados_page())
 
+
+def alertas():
+    return default_layout(alertas_page())
+
 app.add_page(
     relatorios,
     route="/relatorios",
@@ -182,6 +192,13 @@ app.add_page(
     route="/admin/editar_dados",
     title="BOMTEMPO | Data Editor Dashboard",
     on_load=[GlobalState.load_data, EditState.load_projetos],
+)
+
+app.add_page(
+    alertas,
+    route="/alertas",
+    title="BOMTEMPO | Alertas Proativos",
+    on_load=[GlobalState.load_data, AlertasState.load_page],
 )
 
 from bomtempo.pages.voice_chat_page import voice_chat_page

@@ -4,6 +4,7 @@ Email Service - Envio SMTP com anexos e HTML formatado
 
 import re
 import smtplib
+from datetime import datetime
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -474,6 +475,158 @@ class EmailService:
             return False
         except Exception as e:
             logger.error(f"❌ Erro ao enviar email de reembolso: {e}")
+            return False
+
+    @staticmethod
+    def send_alert_email(
+        recipients: List[str],
+        contract: str,
+        alert_label: str,
+        alert_color: str,
+        obra_data: dict,
+    ) -> bool:
+        """
+        Envia email de alerta proativo.
+
+        Args:
+            recipients: Lista de emails destinatários
+            contract: Código do contrato
+            alert_type: Chave do tipo de alerta (daily/weekly/risk_high/etc.)
+            alert_label: Label legível do alerta
+            alert_color: Cor hex do alerta
+            obra_data: Dados da obra do Supabase
+
+        Returns:
+            True se enviado com sucesso
+        """
+        try:
+            if not recipients:
+                logger.warning("[AlertEmail] Nenhum destinatário.")
+                return False
+            if not Config.RDO_EMAIL_PASSWORD:
+                logger.error("[AlertEmail] RDO_EMAIL_PASSWORD não configurado.")
+                return False
+
+            avanco = (obra_data.get("Realizado (%)") or obra_data.get("avanco_fisico") or
+                      obra_data.get("avanço_fisico") or "—")
+            risco_val = obra_data.get("risco_geral_score") or "—"
+            budget_p = obra_data.get("budget_planejado") or "—"
+            budget_r = obra_data.get("budget_realizado") or "—"
+            projeto = obra_data.get("Projeto") or obra_data.get("projeto") or "—"
+            cliente = obra_data.get("Cliente") or obra_data.get("cliente") or "—"
+            localizacao = (obra_data.get("Localização") or obra_data.get("Localizacao") or
+                           obra_data.get("localizacao") or obra_data.get("localização") or "—")
+
+            try:
+                risco_num = float(str(risco_val).replace(",", "."))
+                risco_color = "#EF4444" if risco_num >= 70 else "#F59E0B" if risco_num >= 40 else "#2A9D8F"
+                risco_label = "ALTO" if risco_num >= 70 else "MODERADO" if risco_num >= 40 else "BAIXO"
+            except (ValueError, TypeError):
+                risco_color = "#889999"
+                risco_label = str(risco_val)
+
+            now_str = datetime.now().strftime("%d/%m/%Y %H:%M")
+
+            kpi_rows = ""
+            kpis = [
+                ("Projeto", projeto, "#E0E0E0"),
+                ("Avanço Físico", f"{avanco}%" if avanco != "—" else "—", "#2A9D8F" if avanco != "—" else "#889999"),
+                ("Score de Risco", f"{risco_val} — {risco_label}", risco_color),
+                ("Budget Planejado", str(budget_p), "#C98B2A"),
+                ("Budget Realizado", str(budget_r), "#E0E0E0"),
+                ("Localização", str(localizacao), "#889999"),
+            ]
+            for i, (label, value, col) in enumerate(kpis):
+                bg = "rgba(201,139,42,0.05)" if i % 2 == 0 else "transparent"
+                kpi_rows += f"""
+                <tr style="background:{bg};">
+                  <td style="padding:10px 14px;font-weight:600;color:#A8BCC0;font-size:13px;width:42%;border-bottom:1px solid rgba(255,255,255,0.08);">{label}</td>
+                  <td style="padding:10px 14px;color:{col};font-size:13px;font-weight:700;border-bottom:1px solid rgba(255,255,255,0.08);">{value}</td>
+                </tr>"""
+
+            body_html = f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background:#030504;font-family:'Segoe UI',Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#030504;">
+  <tr>
+    <td align="center" style="padding:32px 16px;">
+      <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#0e1a17;border-radius:16px;overflow:hidden;border:1px solid {alert_color}40;">
+
+        <!-- HEADER -->
+        <tr>
+          <td style="background:linear-gradient(135deg,#0B1A14 0%,#0E2B22 60%,#071D15 100%);padding:32px 32px 24px;text-align:center;border-bottom:2px solid {alert_color};">
+            <p style="margin:0 0 8px;color:rgba(255,255,255,0.5);font-size:10px;letter-spacing:0.2em;text-transform:uppercase;">BOMTEMPO INTELLIGENCE — ALERTA PROATIVO</p>
+            <div style="display:inline-block;background:{alert_color}22;border:1px solid {alert_color};border-radius:8px;padding:8px 20px;margin-bottom:12px;">
+              <p style="margin:0;color:{alert_color};font-size:13px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;">{alert_label}</p>
+            </div>
+            <h1 style="margin:0 0 8px;color:#fff;font-size:22px;font-weight:700;letter-spacing:0.02em;">{contract}</h1>
+            <p style="margin:0;color:rgba(255,255,255,0.6);font-size:13px;">{cliente} &nbsp;·&nbsp; {now_str}</p>
+          </td>
+        </tr>
+
+        <!-- KPI TABLE -->
+        <tr>
+          <td style="padding:28px 32px;">
+            <p style="margin:0 0 16px;color:{alert_color};font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;">Snapshot do Contrato</p>
+            <table style="width:100%;border-collapse:collapse;border-radius:8px;overflow:hidden;background:#081210;">
+              <tbody>{kpi_rows}</tbody>
+            </table>
+          </td>
+        </tr>
+
+        <!-- CTA -->
+        <tr>
+          <td style="padding:0 32px 28px;text-align:center;">
+            <p style="margin:0 0 16px;color:#889999;font-size:12px;line-height:1.6;">
+              Este alerta foi gerado automaticamente pelo Bomtempo Intelligence.<br>
+              Acesse o dashboard para análise completa e tomada de decisão.
+            </p>
+            <a href="https://bomtempo-gold-moon.reflex.run/" style="display:inline-block;background:linear-gradient(135deg,{alert_color},#C98B2A);color:#000;font-weight:700;font-size:13px;text-decoration:none;padding:12px 28px;border-radius:8px;letter-spacing:0.05em;text-transform:uppercase;">
+              Acessar Dashboard
+            </a>
+          </td>
+        </tr>
+
+        <!-- FOOTER -->
+        <tr>
+          <td style="background:#081210;padding:16px 32px;border-top:1px solid rgba(255,255,255,0.06);">
+            <p style="margin:0;color:#7A9A98;font-size:11px;text-align:center;">
+              BOMTEMPO Intelligence · Alertas Proativos · Gerado em {now_str}<br>
+              Para gerenciar suas notificações, acesse as configurações de alertas.
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>"""
+
+            msg = MIMEMultipart("alternative")
+            msg["From"] = Config.RDO_EMAIL_USER
+            msg["To"] = ", ".join(recipients)
+            msg["Subject"] = f"[{alert_label}] {contract} — BOMTEMPO Alertas"
+            msg.attach(MIMEText(body_html, "html"))
+
+            with smtplib.SMTP(Config.RDO_SMTP_SERVER, Config.RDO_SMTP_PORT) as server:
+                server.starttls()
+                server.login(Config.RDO_EMAIL_USER, Config.RDO_EMAIL_PASSWORD)
+                server.send_message(msg)
+
+            logger.info(f"[AlertEmail] Enviado '{alert_label}' / {contract} para {len(recipients)} destinatário(s).")
+            return True
+
+        except smtplib.SMTPAuthenticationError:
+            logger.error("[AlertEmail] Falha de autenticação SMTP.")
+            return False
+        except Exception as exc:
+            logger.error(f"[AlertEmail] Erro: {exc}")
             return False
 
     @staticmethod
