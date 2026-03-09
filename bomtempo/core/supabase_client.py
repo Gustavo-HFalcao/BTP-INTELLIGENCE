@@ -46,6 +46,62 @@ def _headers(prefer_return: bool = False) -> Dict[str, str]:
 # ── CRUD helpers ───────────────────────────────────────────────────────────────
 
 
+def sb_select_paginated(
+    table: str,
+    page: int = 1,
+    limit: int = 50,
+    filters: Dict[str, Any] = None,
+    ilike_filters: Dict[str, str] = None,
+    order: str = "created_at.desc",
+    select: str = "*",
+) -> tuple:
+    """
+    SELECT with server-side pagination using PostgREST Range header.
+    Returns (rows: List[Dict], total_count: int).
+
+    filters       — exact match: {"column": "value"}
+    ilike_filters — case-insensitive LIKE: {"column": "pattern"}
+    """
+    try:
+        offset = (page - 1) * limit
+        range_end = offset + limit - 1
+        h = _headers()
+        h["Prefer"] = "count=exact"
+        h["Range-Unit"] = "items"
+        h["Range"] = f"{offset}-{range_end}"
+
+        params: Dict[str, str] = {"select": select, "order": order}
+        for k, v in (filters or {}).items():
+            params[k] = f"eq.{v}"
+        for k, v in (ilike_filters or {}).items():
+            params[k] = f"ilike.*{v}*"
+
+        resp = httpx.get(
+            f"{REST_BASE}/{table}",
+            headers=h,
+            params=params,
+            timeout=15,
+        )
+        if resp.status_code in (200, 206):
+            rows = resp.json()
+            # Content-Range: 0-49/150
+            total = 0
+            cr = resp.headers.get("Content-Range", "")
+            if "/" in cr:
+                try:
+                    total = int(cr.split("/")[1])
+                except ValueError:
+                    total = len(rows)
+            else:
+                total = len(rows)
+            return rows, total
+        logger.error(f"sb_select_paginated {table} → {resp.status_code}: {resp.text[:300]}")
+        return [], 0
+    except Exception as e:
+        logger.error(f"sb_select_paginated {table} exception: {e}")
+        return [], 0
+
+
 def sb_select(
     table: str,
     filters: Dict[str, Any] = None,

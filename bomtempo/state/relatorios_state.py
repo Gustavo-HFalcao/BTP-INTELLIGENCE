@@ -15,6 +15,7 @@ import reflex as rx
 
 from bomtempo.core.logging_utils import get_logger
 from bomtempo.core.report_service import ReportService
+from bomtempo.core.audit_logger import audit_log, audit_error, AuditCategory
 
 logger = get_logger(__name__)
 
@@ -162,6 +163,14 @@ class RelatoriosState(rx.State):
             # Reload history
             history = await loop.run_in_executor(None, ReportService.load_history)
 
+            audit_log(
+                category=AuditCategory.REPORT_GEN,
+                action=f"Relatório estático gerado — contrato '{contrato}' por '{current_user}'",
+                username=current_user,
+                entity_type="relatorio",
+                metadata={"contrato": contrato, "tipo": "estatico", "pdf_url": pdf_url},
+                status="success",
+            )
             async with self:
                 self.report_pdf_url = pdf_url
                 self.reports_history = history
@@ -169,6 +178,12 @@ class RelatoriosState(rx.State):
 
         except Exception as e:
             logger.error(f"generate_static_report failed: {e}")
+            audit_error(
+                action=f"Falha ao gerar relatório estático — contrato '{contrato}'",
+                username=current_user,
+                entity_type="relatorio",
+                error=e,
+            )
             async with self:
                 self.error_msg = f"Erro ao gerar relatório: {str(e)[:200]}"
                 self.is_generating_static = False
@@ -257,6 +272,14 @@ class RelatoriosState(rx.State):
             except Exception as e:
                 logger.error(f"Error saving AI report to Supabase: {e}")
 
+        audit_log(
+            category=AuditCategory.REPORT_GEN,
+            action=f"Relatório IA ({abordagem}) gerado — contrato '{contrato}' por '{current_user}'",
+            username=current_user,
+            entity_type="relatorio",
+            metadata={"contrato": contrato, "tipo": "ia", "abordagem": abordagem},
+            status="success",
+        )
         async with self:
             self.is_generating_ai = False
             self.is_streaming = False
@@ -350,6 +373,14 @@ class RelatoriosState(rx.State):
             except Exception as e:
                 logger.error(f"Error saving custom report: {e}")
 
+        audit_log(
+            category=AuditCategory.REPORT_GEN,
+            action=f"Relatório custom gerado — contrato '{contrato}' por '{current_user}'",
+            username=current_user,
+            entity_type="relatorio",
+            metadata={"contrato": contrato, "tipo": "custom", "prompt_preview": (prompt or "")[:120]},
+            status="success",
+        )
         async with self:
             self.is_generating_custom = False
             self.is_streaming = False

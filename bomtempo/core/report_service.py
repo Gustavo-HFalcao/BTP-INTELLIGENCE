@@ -8,10 +8,7 @@ from __future__ import annotations
 
 import html as _html_lib
 import re
-import uuid
 from datetime import datetime
-from pathlib import Path
-from typing import Any
 
 from bomtempo.core.config import Config
 from bomtempo.core.logging_utils import get_logger
@@ -237,9 +234,44 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
     font-size: 9px; text-transform: uppercase; letter-spacing: 0.15em;
   }
 
+  /* ── Print / PDF rules ── */
   @media print {
     body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   }
+
+  /* ── Page layout for Playwright PDF ── */
+  @page {
+    size: A4;
+    margin: 0;  /* margins controlled by pdf_utils header/footer */
+  }
+  @page:first {
+    margin-top: 0;  /* no top margin on cover page */
+  }
+
+  /* ── Page-break control ── */
+  /* Cover = standalone first page */
+  .cover { page-break-after: always; }
+
+  /* Sections: keep header with its content; avoid breaking inside small sections */
+  .section { page-break-inside: avoid; }
+  .section-header { page-break-after: avoid; }
+
+  /* KPI grid and cards must never split across pages */
+  .kpi-grid { page-break-inside: avoid; }
+  .kpi-card { page-break-inside: avoid; }
+
+  /* Two-column info blocks */
+  .two-col { page-break-inside: avoid; }
+  .info-block { page-break-inside: avoid; }
+
+  /* Tables: prevent orphan header rows */
+  table { page-break-inside: auto; }
+  thead { display: table-header-group; }
+  tr { page-break-inside: avoid; }
+  td, th { orphans: 3; widows: 3; }
+
+  /* Footer always at bottom of last page */
+  .footer { page-break-before: avoid; }
 </style>
 </head>
 <body>
@@ -700,9 +732,14 @@ _AI_HTML_TEMPLATE = """<!DOCTYPE html>
   code { font-family:'JetBrains Mono',monospace; font-size:11px; background:#F3F4F6; padding:1px 5px; border-radius:3px; color:var(--patina); }
   strong { font-weight:700; color:var(--text); }
   em { font-style:italic; color:var(--light); }
-  table { page-break-inside:avoid; }
+  table { page-break-inside:auto; }
+  thead { display:table-header-group; }
   tr { page-break-inside:avoid; }
-  .footer { background:linear-gradient(135deg,#0B1A14,#071D15); color:rgba(255,255,255,.5); padding:16px 36px; display:flex; justify-content:space-between; align-items:center; font-size:10px; letter-spacing:.04em; }
+  td,th { orphans:3; widows:3; }
+  .section { page-break-inside:avoid; }
+  .sec-hdr { page-break-after:avoid; }
+  .cover { page-break-after:always; }
+  .footer { background:linear-gradient(135deg,#0B1A14,#071D15); color:rgba(255,255,255,.5); padding:16px 36px; display:flex; justify-content:space-between; align-items:center; font-size:10px; letter-spacing:.04em; page-break-before:avoid; }
   .footer-brand { font-family:'Rajdhani',sans-serif; font-weight:700; font-size:14px; color:var(--copper); letter-spacing:.15em; }
   .footer-conf { background:rgba(239,68,68,.2); border:1px solid rgba(239,68,68,.4); color:rgba(239,68,68,.8); padding:2px 8px; border-radius:4px; font-size:9px; text-transform:uppercase; letter-spacing:.15em; }
   @media print { body { print-color-adjust:exact; -webkit-print-color-adjust:exact; } }

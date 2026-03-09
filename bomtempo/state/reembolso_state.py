@@ -10,6 +10,7 @@ import reflex as rx
 
 from bomtempo.core.fuel_service import FuelService
 from bomtempo.core.logging_utils import get_logger
+from bomtempo.core.audit_logger import audit_log, audit_error, AuditCategory
 
 logger = get_logger(__name__)
 
@@ -473,6 +474,20 @@ class ReembolsoState(rx.State):
             threading.Thread(target=_send_email_fr, daemon=True).start()
 
             # FASE 7: sucesso
+            audit_log(
+                category=AuditCategory.REEMBOLSO_CREATE,
+                action=f"Reembolso submetido por '{current_user}' — {data.get('combustivel', '')} R$ {data.get('valor_total', '')}",
+                username=current_user,
+                entity_type="reembolso",
+                entity_id=str(id_fr),
+                metadata={
+                    "combustivel": data.get("combustivel", ""),
+                    "valor_total": data.get("valor_total", ""),
+                    "rota": data.get("rota", ""),
+                    "ai_override": ai_override_flag,
+                },
+                status="success",
+            )
             async with self:
                 self.reset_form()
                 self.submit_success = True
@@ -481,6 +496,12 @@ class ReembolsoState(rx.State):
 
         except Exception as e:
             logger.error(f"❌ FR submit_reembolso inesperado: {e}", exc_info=True)
+            audit_error(
+                action="Falha inesperada ao submeter reembolso",
+                username=current_user if "current_user" in dir() else "unknown",
+                entity_type="reembolso",
+                error=e,
+            )
             async with self:
                 yield rx.toast("❌ Erro inesperado. Tente novamente.", position="top-center")
         finally:

@@ -11,6 +11,7 @@ _UUID_RE = re.compile(
 )
 from bomtempo.core.supabase_client import sb_select, sb_upsert, sb_insert, sb_delete
 from bomtempo.core.logging_utils import get_logger
+from bomtempo.core.audit_logger import audit_log, audit_error, AuditCategory
 
 logger = get_logger(__name__)
 
@@ -48,6 +49,7 @@ class EditState(rx.State):
     _last_click_time: float = 0.0
     _last_click_row: int = -1
     _last_click_col: int = -1
+    _audit_username: str = ""  # populated on load_projetos from GlobalState
 
     page: int = 1
     limit: int = 100
@@ -61,6 +63,10 @@ class EditState(rx.State):
     #    object.__setattr__ / object.__getattribute__ which write directly to the
     #    underlying CPython instance dict, invisible to Reflex.
     # ────────────────────────────────────────────────────────────────────────
+
+    def _get_username(self) -> str:
+        """Return cached username for audit logging (set during load_projetos)."""
+        return self._audit_username or "unknown"
 
     def _undo_get_stack(self) -> list:
         """Return the raw undo stack, creating it if it doesn't exist yet."""
@@ -172,6 +178,11 @@ class EditState(rx.State):
 
     async def load_projetos(self):
         try:
+            # Cache username for audit calls throughout this session
+            from bomtempo.state.global_state import GlobalState
+            gs = await self.get_state(GlobalState)
+            self._audit_username = str(gs.current_user_name or "unknown")
+
             # Projetos agora é carregado dos metadados ativos na tabela de mestre contratos
             res = sb_select("contratos", limit=500) or []
             self.projetos = sorted(list(set([str(r.get("Projeto", "")) for r in res if r.get("Projeto")])))
@@ -422,14 +433,30 @@ class EditState(rx.State):
             return
         row_id = self.raw_data[idx].get("ID")
         label = self.raw_data[idx].get("Projeto") or self.raw_data[idx].get("Contrato") or f"linha {idx + 1}"
+        tabela = self.selected_tabela
         if row_id:
             try:
-                sb_delete(self.selected_tabela, {"ID": row_id})
+                sb_delete(tabela, {"ID": row_id})
                 new_data = [r for i, r in enumerate(self.raw_data) if i != idx]
                 self.raw_data = new_data
                 self.selected_row_idx = -1
+                audit_log(
+                    category=AuditCategory.DATA_DELETE,
+                    action=f"Registro '{label}' deletado da tabela '{tabela}'",
+                    username=self._get_username(),
+                    entity_type=tabela,
+                    entity_id=str(row_id),
+                    status="success",
+                )
                 yield rx.toast(f"'{label}' deletado.", position="bottom-right")
             except Exception as ex:
+                audit_error(
+                    action=f"Falha ao deletar '{label}' da tabela '{tabela}'",
+                    username=self._get_username(),
+                    entity_type=tabela,
+                    entity_id=str(row_id),
+                    error=ex,
+                )
                 yield rx.toast(f"Erro ao deletar: {str(ex)[:100]}", position="bottom-right")
         else:
             # Linha local sem ID — apenas remove do grid (nunca foi salva no banco)
@@ -582,9 +609,23 @@ class EditState(rx.State):
             self.preview_data = clean_records
             self.preview_stats = "\n".join(stats_lines)
             self.show_preview_dialog = True
+            audit_log(
+                category=AuditCategory.DATA_UPLOAD,
+                action=f"Arquivo '{file.filename}' carregado para preview em '{self.selected_tabela}' ({len(clean_records)} linhas)",
+                username=self._get_username(),
+                entity_type=self.selected_tabela,
+                metadata={"filename": file.filename, "rows": len(clean_records), "dup_ids": dup_count},
+                status="success",
+            )
 
         except Exception as e:
             logger.error(f"Erro CSV upload: {e}")
+            audit_error(
+                action=f"Falha ao processar upload de arquivo em '{self.selected_tabela}'",
+                username=self._get_username(),
+                entity_type=self.selected_tabela,
+                error=e,
+            )
             yield rx.toast(f"Erro ao ler arquivo: {e}", position="top-right")
 
     def confirm_preview_upload(self):
@@ -716,6 +757,17 @@ class EditState(rx.State):
                     f"Salvo: {result['upserted']} atualizados, {result['inserted']} criados.",
                     position="bottom-right"
                 ))
+                audit_log(
+                    category=AuditCategory.DATA_SAVE,
+                    action=(
+                        f"Salvo em '{selected_tabela}': "
+                        f"{result['upserted']} atualizados, {result['inserted']} criados"
+                    ),
+                    username=self._get_username(),
+                    entity_type=selected_tabela,
+                    metadata={"upserted": result["upserted"], "inserted": result["inserted"]},
+                    status="success",
+                )
             
             events.append(EditState.load_table)
 

@@ -1,9 +1,0 @@
-alarme_id,tipo_alarme,status,nome_alarme,descricao,modulo,condicao_sql,threshold,frequencia,horario_envio,contrato,destinatarios,criado_em,criado_por,ultima_execucao
-1,reativo,ativo,Atraso Crítico em Obras,Dispara quando atraso físico > 15%,obras,realizado_pct < previsto_pct - 15,15,continuo,,,admin@bomtempo.com;gestor@bomtempo.com,2026-02-01,gustavo,2026-02-18 08:30
-2,reativo,ativo,Saldo Financeiro Baixo,Dispara quando margem < 10%,financeiro,margem_pct < 10,10,continuo,,,admin@bomtempo.com;financeiro@bomtempo.com,2026-02-01,gustavo,
-3,reativo,ativo,RDO Não Preenchido,Dispara quando RDO não é preenchido por 2 dias,rdo,dias_sem_rdo > 2,2,continuo,,BOM010-24,gestor@bomtempo.com;mestre1@bomtempo.com,2026-02-01,gustavo,
-4,reativo,ativo,Geração O&M Abaixo do Esperado,Dispara quando performance < 80%,om,performance_pct < 80,80,continuo,,,admin@bomtempo.com;operacao@bomtempo.com,2026-02-01,gustavo,
-5,programado,ativo,Resumo Diário de Obras,Resumo consolidado de todas as obras,obras,,,diario,08:00,,admin@bomtempo.com;gestor@bomtempo.com,2026-02-01,gustavo,2026-02-18 08:00
-6,programado,ativo,Relatório Semanal Financeiro,Análise financeira semanal,financeiro,,,semanal,09:00,,admin@bomtempo.com;financeiro@bomtempo.com,2026-02-01,gustavo,2026-02-17 09:00
-7,programado,ativo,Consolidado Mensal RDO,Consolidação mensal de RDOs preenchidos,rdo,,,mensal,10:00,,admin@bomtempo.com;gestor@bomtempo.com,2026-02-01,gustavo,
-8,programado,inativo,Dashboard Executivo Semanal,Resumo executivo completo (INATIVO para teste),geral,,,semanal,07:00,,admin@bomtempo.com,2026-02-01,gustavo,

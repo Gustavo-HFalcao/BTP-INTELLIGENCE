@@ -18,6 +18,7 @@ from bomtempo.core.ai_context import AIContext
 from bomtempo.core.analysis_service import AnalysisService
 from bomtempo.core.data_loader import DataLoader
 from bomtempo.core.logging_utils import get_logger
+from bomtempo.core.audit_logger import audit_log, audit_error, AuditCategory
 
 logger = get_logger(__name__)
 
@@ -220,6 +221,13 @@ class GlobalState(rx.State):
             self.chat_history = new_history
             self.is_processing_chat = False
             yield rx.call_script("window.scrollToBottom('chat-container')")
+            username = self.current_user_name
+        audit_log(
+            category=AuditCategory.AI_CHAT,
+            action=f"Chat IA — resposta gerada ({len(final_content)} chars)",
+            username=username,
+            status="success",
+        )
 
     async def process_voice_input(self, text: str):
         """Receives transcribed text directly from the frontend."""
@@ -834,6 +842,12 @@ class GlobalState(rx.State):
 
     def logout(self):
         """Sai da plataforma"""
+        audit_log(
+            category=AuditCategory.LOGOUT,
+            action=f"Usuário '{self.current_user_name}' fez logout",
+            username=self.current_user_name,
+            status="success",
+        )
         self.is_authenticated = False
         self.username_input = ""
         self.password_input = ""
@@ -1175,6 +1189,12 @@ class GlobalState(rx.State):
                     f"Usuário '{username}' não encontrado. "
                     f"Disponíveis: {[_get_user_field(u) for u in all_users]}"
                 )
+                audit_log(
+                    category=AuditCategory.LOGIN,
+                    action=f"Tentativa de login falhou — usuário '{username}' não encontrado",
+                    username=username,
+                    status="error",
+                )
                 self.show_loading_screen = False
                 self.login_error = "Usuário ou senha inválidos"
                 self.is_authenticated = False
@@ -1182,6 +1202,12 @@ class GlobalState(rx.State):
 
             if _get_password_field(matched) != password:
                 logger.warning(f"Senha incorreta para '{username}'")
+                audit_log(
+                    category=AuditCategory.LOGIN,
+                    action=f"Tentativa de login falhou — senha incorreta para '{username}'",
+                    username=username,
+                    status="error",
+                )
                 self.show_loading_screen = False
                 self.login_error = "Usuário ou senha inválidos"
                 self.is_authenticated = False
@@ -1201,6 +1227,13 @@ class GlobalState(rx.State):
             self.username_input = ""
             self.password_input = ""
             logger.info(f"✅ Login OK via Supabase. Role: {role}")
+            audit_log(
+                category=AuditCategory.LOGIN,
+                action=f"Login bem-sucedido — role: {role}",
+                username=self.current_user_name,
+                metadata={"role": role},
+                status="success",
+            )
 
             yield GlobalState.load_initial_data_smooth
 
@@ -1219,6 +1252,11 @@ class GlobalState(rx.State):
 
         except Exception as e:
             logger.error(f"❌ Erro ao conectar com Supabase: {e}")
+            audit_error(
+                action=f"Erro crítico ao autenticar usuário '{username}'",
+                username=username,
+                error=e,
+            )
             self.show_loading_screen = False
             self.login_error = "Erro ao conectar com o servidor. Tente novamente."
             self.is_authenticated = False

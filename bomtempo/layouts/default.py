@@ -1,6 +1,10 @@
 import reflex as rx
 
-from bomtempo.components.loading_screen import loading_screen
+from bomtempo.components.loading_screen import (
+    loading_screen,
+    skeleton_chart,
+    skeleton_kpi_grid,
+)
 from bomtempo.components.sidebar import mobile_sidebar, sidebar
 from bomtempo.core import styles as S
 from bomtempo.pages.login import login_page
@@ -446,11 +450,13 @@ def default_layout(content: rx.Component) -> rx.Component:
                         rx.box(
                             rx.cond(
                                 GlobalState.is_loading,
-                                rx.center(
-                                    rx.spinner(size="3", color=S.COPPER),
+                                rx.vstack(
+                                    skeleton_kpi_grid(),
+                                    skeleton_chart(height="260px"),
+                                    skeleton_chart(height="200px"),
+                                    spacing="6",
                                     width="100%",
-                                    height="100%",
-                                    min_height="50vh",
+                                    padding_y="8px",
                                 ),
                                 rx.box(
                                     content,

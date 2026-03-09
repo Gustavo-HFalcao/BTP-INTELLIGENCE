@@ -222,6 +222,7 @@ def sidebar_content() -> rx.Component:
                     sidebar_item("ALERTAS", "bell-ring", "/alertas"),
                     sidebar_item("CHAT IA", "message-square", "/chat-ia"),
                     sidebar_item("REEMBOLSO DASH", "receipt", "/reembolso-dash"),
+                    sidebar_item("LOGS & AUDITORIA", "shield-check", "/logs-auditoria"),
                     width="100%",
                     spacing="2",
                 ),

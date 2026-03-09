@@ -10,6 +10,7 @@ import reflex as rx
 from bomtempo.core.email_service import EmailService
 from bomtempo.core.logging_utils import get_logger
 from bomtempo.core.rdo_service import RDOService
+from bomtempo.core.audit_logger import audit_log, audit_error, AuditCategory
 
 logger = get_logger(__name__)
 
@@ -360,6 +361,15 @@ class RDOState(rx.State):
 
             # Sucesso — reset + redirect
             logger.info(f"🎯 COMPLETO: {id_rdo}")
+            audit_log(
+                category=AuditCategory.RDO_CREATE,
+                action=f"RDO criado — contrato '{rdo_data.get('contrato', '')}' por '{user_name}'",
+                username=user_name,
+                entity_type="rdo",
+                entity_id=str(id_rdo),
+                metadata={"contrato": rdo_data.get("contrato", ""), "data": rdo_data.get("data", "")},
+                status="success",
+            )
             async with self:
                 self._reset_form()
                 self.is_submitting = False
@@ -368,6 +378,12 @@ class RDOState(rx.State):
 
         except Exception as e:
             logger.error(f"❌ execute_submit ERRO: {e}", exc_info=True)
+            audit_error(
+                action=f"Falha ao submeter RDO",
+                username=user_name if "user_name" in dir() else "unknown",
+                entity_type="rdo",
+                error=e,
+            )
             async with self:
                 self.is_submitting = False
                 yield rx.toast(f"❌ Erro: {str(e)[:80]}", position="top-center")

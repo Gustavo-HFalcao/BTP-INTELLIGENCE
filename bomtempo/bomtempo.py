@@ -29,6 +29,8 @@ from bomtempo.state.relatorios_state import RelatoriosState
 from bomtempo.pages.alertas import alertas_page
 from bomtempo.state.alertas_state import AlertasState
 from bomtempo.core.alert_service import start_alert_scheduler
+from bomtempo.pages.logs_auditoria import logs_auditoria_page
+from bomtempo.state.logs_state import LogsState
 
 # Start proactive alerts background scheduler
 start_alert_scheduler()
@@ -180,6 +182,11 @@ def editar_dados():
 def alertas():
     return default_layout(alertas_page())
 
+
+def logs_auditoria():
+    return default_layout(logs_auditoria_page())
+
+
 app.add_page(
     relatorios,
     route="/relatorios",
@@ -199,6 +206,13 @@ app.add_page(
     route="/alertas",
     title="BOMTEMPO | Alertas Proativos",
     on_load=[GlobalState.load_data, AlertasState.load_page],
+)
+
+app.add_page(
+    logs_auditoria,
+    route="/logs-auditoria",
+    title="BOMTEMPO | Logs & Auditoria",
+    on_load=[GlobalState.load_data, LogsState.load_page],
 )
 
 from bomtempo.pages.voice_chat_page import voice_chat_page

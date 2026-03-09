@@ -131,35 +131,6 @@ class DataLoader:
         except Exception as e:
             logger.error(f"Erro ao salvar cache: {e}")
 
-    def _load_from_web(self, url: str, sheet_name=0) -> pd.DataFrame:
-        """Carrega Google Sheets com retries e backoff curto.
-
-        Args:
-            url: URL da planilha (CSV ou XLSX)
-            sheet_name: Nome ou índice da aba (para XLSX multi-sheet)
-        """
-        max_attempts = 2
-        for attempt in range(max_attempts):
-            try:
-                if "output=csv" in url or url.endswith(".csv"):
-                    return pd.read_csv(url, on_bad_lines="skip")
-                elif "output=xlsx" in url or url.endswith(".xlsx"):
-                    # XLSX multi-sheet support
-                    return pd.read_excel(url, sheet_name=sheet_name)
-                else:
-                    dfs = pd.read_html(url, header=1)
-                    if dfs:
-                        df = dfs[0]
-                        df = df.loc[:, ~df.columns.str.contains("^Unnamed")]
-                        return df
-                    return pd.DataFrame()
-            except Exception as e:
-                logger.warning(f"Tentativa {attempt + 1}/{max_attempts}: {e}")
-                if attempt < max_attempts - 1:
-                    time.sleep(1)
-
-        return pd.DataFrame()
-
     # ── Normalização ──────────────────────────────────────────────
 
     def _normalize_all(self, data: dict) -> dict:

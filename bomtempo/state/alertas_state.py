@@ -10,6 +10,7 @@ import reflex as rx
 
 from bomtempo.core.alert_service import ALERT_TYPES, AlertService
 from bomtempo.core.logging_utils import get_logger
+from bomtempo.core.audit_logger import audit_log, AuditCategory
 
 logger = get_logger(__name__)
 
@@ -186,6 +187,14 @@ class AlertasState(rx.State):
             ),
         )
 
+        if ok:
+            audit_log(
+                category=AuditCategory.ALERT_CONFIG,
+                action=f"Assinatura de alerta '{alert_type}' adicionada — email '{email}' contrato '{contract}'",
+                metadata={"alert_type": alert_type, "email": email, "contract": contract},
+                status="success",
+            )
+
         async with self:
             self.form_message = msg
             self.form_is_error = not ok
@@ -205,6 +214,13 @@ class AlertasState(rx.State):
 
     def delete_email_chip(self, row_id: str):
         AlertService.delete_email_subscription(row_id)
+        audit_log(
+            category=AuditCategory.ALERT_CONFIG,
+            action=f"Assinatura de alerta removida — id '{row_id}'",
+            entity_type="alert_subscriptions",
+            entity_id=row_id,
+            status="success",
+        )
         raw = AlertService.get_email_subscriptions()
         self.subscriptions = [_norm_group(g) for g in raw]
         counts: dict = {k: 0 for k in ALERT_TYPES}
@@ -248,7 +264,13 @@ class AlertasState(rx.State):
                 msg = f"{sent} email(s) enviado(s) com sucesso."
 
             self.sweep_results = {**self.sweep_results, alert_type: msg}
-
+            audit_log(
+                category=AuditCategory.ALERT_TRIGGER,
+                action=f"Alerta '{alert_type}' disparado manualmente — {msg}",
+                entity_type="alert_history",
+                metadata={"alert_type": alert_type, "sent": sent, "errors": errors, "skipped": skipped},
+                status="success" if not errors else "warning",
+            )
             raw_hist = AlertService.get_history(limit=self.history_limit)
             self.history = [_norm_hist(h) for h in raw_hist]
             self.sweep_running = False

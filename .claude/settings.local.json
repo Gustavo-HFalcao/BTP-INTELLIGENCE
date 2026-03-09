@@ -34,7 +34,12 @@
       "Bash(git rm -r --cached node_modules/)",
       "Bash(git reset HEAD -- node_modules/ package-lock.json package.json apply_db.py apply_db_direct.py apply_db_node.js apply_db_pg8000.py inspect_db.py schema.json supabase_inspection.txt supabase_setup.sql)",
       "Bash(py -c \":*)",
-      "Bash(\"c:/Users/Gustavo/bomtempo-dashboard/test_reports.py\":*)"
+      "Bash(\"c:/Users/Gustavo/bomtempo-dashboard/test_reports.py\":*)",
+      "Bash(source .venv/Scripts/activate)",
+      "Bash(pip show playwright)",
+      "Bash(playwright install --help)",
+      "Bash(playwright install msedge)",
+      "Bash(echo \"exit: $?\")"
     ]
   }
 }
