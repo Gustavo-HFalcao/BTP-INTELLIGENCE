@@ -188,9 +188,57 @@ def forecast_chart() -> rx.Component:
     )
 
 
+def _em_construcao_banner() -> rx.Component:
+    return rx.box(
+        rx.hstack(
+            rx.center(
+                rx.icon(tag="construction", size=20, color="#F59E0B"),
+                width="40px",
+                height="40px",
+                border_radius="10px",
+                bg="rgba(245,158,11,0.12)",
+                border="1px solid rgba(245,158,11,0.3)",
+                flex_shrink="0",
+            ),
+            rx.vstack(
+                rx.hstack(
+                    rx.text(
+                        "EM CONSTRUÇÃO",
+                        font_family="Rajdhani, sans-serif",
+                        font_size="0.75rem",
+                        font_weight="800",
+                        letter_spacing="0.18em",
+                        color="#F59E0B",
+                    ),
+                    rx.badge("DADOS MOCKADOS", color_scheme="amber", variant="soft", size="1"),
+                    spacing="2",
+                    align="center",
+                ),
+                rx.text(
+                    "Esta página exibe dados simulados para fins de demonstração. Os modelos de Machine Learning estão em desenvolvimento e serão integrados com dados reais em breve.",
+                    font_size="0.82rem",
+                    color="rgba(255,255,255,0.55)",
+                    line_height="1.5",
+                ),
+                spacing="1",
+                align="start",
+            ),
+            spacing="4",
+            align="center",
+            width="100%",
+        ),
+        bg="rgba(245,158,11,0.06)",
+        border="1px solid rgba(245,158,11,0.25)",
+        border_radius="12px",
+        padding="16px 20px",
+        width="100%",
+    )
+
+
 def previsoes_page() -> rx.Component:
     return rx.vstack(
         previsoes_header(),
+        _em_construcao_banner(),
         rx.cond(
             GlobalState.is_loading,
             rx.center(rx.spinner(size="3"), width="100%", height="50vh"),

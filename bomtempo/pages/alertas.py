@@ -638,7 +638,7 @@ def _history_panel() -> rx.Component:
                     spacing="2", align="center",
                 ),
                 rx.spacer(),
-                rx.text(AlertasState.history_limit.to_string() + " eventos",
+                rx.text(AlertasState.history.length().to_string() + " eventos",
                         font_size="0.7rem", color=S.TEXT_MUTED),
                 align="center",
                 width="100%",

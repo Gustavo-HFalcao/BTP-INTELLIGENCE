@@ -54,6 +54,7 @@ class AuditCategory:
     AI_INSIGHT = "AI_INSIGHT"
     ALERT_TRIGGER = "ALERT_TRIGGER"
     ALERT_CONFIG = "ALERT_CONFIG"
+    USER_MGMT = "USER_MGMT"
     ERROR = "ERROR"
     SYSTEM = "SYSTEM"
 
@@ -73,6 +74,7 @@ ALL_CATEGORIES: list = [
     AuditCategory.AI_INSIGHT,
     AuditCategory.ALERT_TRIGGER,
     AuditCategory.ALERT_CONFIG,
+    AuditCategory.USER_MGMT,
     AuditCategory.ERROR,
     AuditCategory.SYSTEM,
 ]
@@ -92,6 +94,7 @@ CATEGORY_LABELS: Dict[str, str] = {
     AuditCategory.AI_INSIGHT: "Insight IA",
     AuditCategory.ALERT_TRIGGER: "Alerta Disparado",
     AuditCategory.ALERT_CONFIG: "Config. de Alertas",
+    AuditCategory.USER_MGMT: "Gestão de Usuários",
     AuditCategory.ERROR: "Erro",
     AuditCategory.SYSTEM: "Sistema",
 }
@@ -111,6 +114,7 @@ CATEGORY_COLORS: Dict[str, str] = {
     AuditCategory.AI_INSIGHT: "#F59E0B",      # amber
     AuditCategory.ALERT_TRIGGER: "#EF4444",   # red
     AuditCategory.ALERT_CONFIG: "#C98B2A",    # copper
+    AuditCategory.USER_MGMT: "#8B5CF6",       # purple
     AuditCategory.ERROR: "#EF4444",           # danger
     AuditCategory.SYSTEM: "#6B7280",          # gray
 }

@@ -130,28 +130,38 @@ class AlertasState(rx.State):
 
     # ── Load ─────────────────────────────────────────────────────────────────
 
-    def load_page(self):
-        self.is_loading = True
-        self.form_message = ""
-        self.sweep_results = {}
+    @rx.event(background=True)
+    async def load_page(self):
+        async with self:
+            self.is_loading = True
+            self.form_message = ""
+            self.sweep_results = {}
+            limit = self.history_limit
+
+        loop = asyncio.get_running_loop()
         try:
-            raw = AlertService.get_email_subscriptions()
-            self.subscriptions = [_norm_group(g) for g in raw]
+            raw = await loop.run_in_executor(None, AlertService.get_email_subscriptions)
 
             counts: dict = {k: 0 for k in ALERT_TYPES}
             for g in raw:
                 at = g.get("alert_type", "")
                 if at in counts:
                     counts[at] += len(g.get("email_chips", []))
-            self.subscription_counts = counts
 
-            raw_hist = AlertService.get_history(limit=self.history_limit)
-            self.history = [_norm_hist(h) for h in raw_hist]
+            raw_hist = await loop.run_in_executor(
+                None, lambda: AlertService.get_history(limit=limit)
+            )
+
+            async with self:
+                self.subscriptions = [_norm_group(g) for g in raw]
+                self.subscription_counts = counts
+                self.history = [_norm_hist(h) for h in raw_hist]
+                self.is_loading = False
 
         except Exception as exc:
             logger.error(f"[AlertasState.load_page] {exc}")
-        finally:
-            self.is_loading = False
+            async with self:
+                self.is_loading = False
 
     # ── History pagination ────────────────────────────────────────────────────
 

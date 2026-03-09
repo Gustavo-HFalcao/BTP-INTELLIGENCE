@@ -59,10 +59,8 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
     background: linear-gradient(135deg, #0B1A14 0%, #0E2B22 50%, #071D15 100%);
     color: white;
     padding: 60px 50px;
-    min-height: 200px;
+    min-height: 230mm;
     position: relative;
-    overflow: hidden;
-    page-break-after: avoid;
   }
   .cover::before {
     content: '';
@@ -239,21 +237,11 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
     body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   }
 
-  /* ── Page layout for Playwright PDF ── */
-  @page {
-    size: A4;
-    margin: 0;  /* margins controlled by pdf_utils header/footer */
-  }
-  @page:first {
-    margin-top: 0;  /* no top margin on cover page */
-  }
-
   /* ── Page-break control ── */
-  /* Cover = standalone first page */
-  .cover { page-break-after: always; }
+  /* Content starts on page 2 — avoids Chromium blank-first-page bug with page-break-after on first element */
+  .content { page-break-before: always; }
 
-  /* Sections: keep header with its content; avoid breaking inside small sections */
-  .section { page-break-inside: avoid; }
+  /* Keep section headers with their content — but allow breaks inside long sections */
   .section-header { page-break-after: avoid; }
 
   /* KPI grid and cards must never split across pages */

@@ -349,7 +349,7 @@ def _kpi_detail_dialog() -> rx.Component:
                 rx.icon_button(
                     rx.icon(tag="x", size=18),
                     variant="ghost",
-                    color_scheme="gray",
+                    color_scheme="amber",
                     on_click=GlobalState.set_show_kpi_detail(""),
                 )
             ),
@@ -507,7 +507,7 @@ def default_layout(content: rx.Component) -> rx.Component:
                                         rx.icon_button(
                                             rx.icon(tag="x", size=20),
                                             variant="ghost",
-                                            color_scheme="gray",
+                                            color_scheme="amber",
                                             on_click=GlobalState.close_analysis_dialog,
                                         )
                                     ),

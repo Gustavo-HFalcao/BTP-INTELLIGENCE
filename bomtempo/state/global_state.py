@@ -343,7 +343,7 @@ class GlobalState(rx.State):
     _data: Dict[str, pd.DataFrame] = {}
 
     # Flags de carregamento
-    is_loading: bool = True
+    is_loading: bool = False
     initial_loading: bool = False  # Loading screen after login
     show_loading_screen: bool = False  # Full-screen loading overlay
     error_message: str = ""
@@ -833,6 +833,7 @@ class GlobalState(rx.State):
     current_user_name: str = ""
     current_user_role: str = ""
     current_user_contrato: str = ""  # Contrato associado ao usuário (Mestre de Obras)
+    allowed_modules: List[str] = []  # Module slugs from roles table
 
     async def check_login_on_enter(self, key: str):
         """Login apenas se Enter for pressionado"""
@@ -851,6 +852,9 @@ class GlobalState(rx.State):
         self.is_authenticated = False
         self.username_input = ""
         self.password_input = ""
+        self.allowed_modules = []
+        self.current_user_name = ""
+        self.current_user_role = ""
 
     def set_current_path(self, path: str):
         self.current_path = path
@@ -1122,6 +1126,8 @@ class GlobalState(rx.State):
             self.current_user_name = "fallback"
             self.current_user_role = "Administrador"
             self.current_user_contrato = ""
+            from bomtempo.state.usuarios_state import MODULE_SLUGS
+            self.allowed_modules = list(MODULE_SLUGS)
             self.login_error = ""
             self.username_input = ""
             self.password_input = ""
@@ -1227,6 +1233,22 @@ class GlobalState(rx.State):
             self.username_input = ""
             self.password_input = ""
             logger.info(f"✅ Login OK via Supabase. Role: {role}")
+
+            # ── Fetch module permissions from roles table ─────────────────────
+            try:
+                from bomtempo.core.supabase_client import sb_select
+                from bomtempo.state.usuarios_state import MODULE_SLUGS
+                role_rows = sb_select("roles", filters={"name": role})
+                if role_rows:
+                    self.allowed_modules = list(role_rows[0].get("modules", []))
+                    logger.info(f"Permissões carregadas: {len(self.allowed_modules)} módulos")
+                else:
+                    # Fallback: Administrador full access, others none (need role in DB)
+                    self.allowed_modules = list(MODULE_SLUGS) if role == "Administrador" else []
+                    logger.warning(f"Role '{role}' não encontrado na tabela roles — fallback aplicado")
+            except Exception as role_err:
+                logger.error(f"Erro ao carregar permissões do role '{role}': {role_err}")
+                self.allowed_modules = list(MODULE_SLUGS) if role == "Administrador" else []
             audit_log(
                 category=AuditCategory.LOGIN,
                 action=f"Login bem-sucedido — role: {role}",
@@ -1311,6 +1333,11 @@ class GlobalState(rx.State):
     @rx.var
     def om_time_filters(self) -> List[str]:
         return ["Mês", "Trimestre", "Ano"]
+
+    @rx.var
+    def contract_ids_list(self) -> List[str]:
+        """Pure contract IDs for user→project assignment."""
+        return [str(c.get("contrato", "")) for c in self.contratos_list if c.get("contrato")]
 
     @rx.var
     def obras_contract_options(self) -> List[str]:

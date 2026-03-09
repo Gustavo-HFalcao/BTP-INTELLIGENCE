@@ -151,81 +151,67 @@ def sidebar_content() -> rx.Component:
             border_bottom=f"1px solid {S.BORDER_SUBTLE}",
             margin_bottom="16px",
         ),
-        # ── Navigation ──
+        # ── Navigation (permission-based via allowed_modules) ──
         rx.vstack(
-            # Mestre de Obras, solicitacao_reembolso, engenheiro e data_edit NÃO veem Visão Geral
             rx.cond(
-                (GlobalState.current_user_role != "Mestre de Obras")
-                & (GlobalState.current_user_role != "solicitacao_reembolso")
-                & (GlobalState.current_user_role != "engenheiro")
-                & (GlobalState.current_user_role != "data_edit"),
+                GlobalState.allowed_modules.contains("visao_geral"),
                 sidebar_item("VISÃO GERAL", "layout-dashboard", "/"),
             ),
-            # Engenheiro (old), Admin e engenheiro (new) veem Obras
             rx.cond(
-                (GlobalState.current_user_role == "Administrador")
-                | (GlobalState.current_user_role == "Engenheiro")
-                | (GlobalState.current_user_role == "engenheiro"),
+                GlobalState.allowed_modules.contains("obras"),
                 sidebar_item("OBRAS", "hard-hat", "/obras"),
             ),
-            # Mestre de Obras vê RDO
             rx.cond(
-                GlobalState.current_user_role == "Mestre de Obras",
-                rx.vstack(
-                    sidebar_item("RDO DIÁRIO", "clipboard-list", "/rdo-form"),
-                    sidebar_item("MEUS RDOS", "file-text", "/rdo-historico"),
-                    width="100%",
-                    spacing="2",
-                ),
+                GlobalState.allowed_modules.contains("projetos"),
+                sidebar_item("PROJETOS", "briefcase", "/projetos"),
             ),
-            # RDO Analytics para Admin e Gestão-Mobile
             rx.cond(
-                (GlobalState.current_user_role == "Administrador")
-                | (GlobalState.current_user_role == "Gestão-Mobile"),
+                GlobalState.allowed_modules.contains("financeiro"),
+                sidebar_item("FINANCEIRO", "wallet", "/financeiro"),
+            ),
+            rx.cond(
+                GlobalState.allowed_modules.contains("om"),
+                sidebar_item("O&M", "zap", "/om"),
+            ),
+            rx.cond(
+                GlobalState.allowed_modules.contains("analytics"),
+                sidebar_item("ANALYTICS", "bar-chart-3", "/analytics"),
+            ),
+            rx.cond(
+                GlobalState.allowed_modules.contains("previsoes"),
+                sidebar_item("PREVISÕES ML", "trending-up", "/previsoes"),
+            ),
+            rx.cond(
+                GlobalState.allowed_modules.contains("relatorios"),
+                sidebar_item("RELATÓRIOS", "file-text", "/relatorios"),
+            ),
+            rx.cond(
+                GlobalState.allowed_modules.contains("chat_ia"),
+                sidebar_item("CHAT IA", "message-square", "/chat-ia"),
+            ),
+            rx.cond(
+                GlobalState.allowed_modules.contains("reembolso"),
+                sidebar_item("REEMBOLSO", "fuel", "/reembolso"),
+            ),
+            rx.cond(
+                GlobalState.allowed_modules.contains("reembolso_dash"),
+                sidebar_item("REEMBOLSO DASH", "receipt", "/reembolso-dash"),
+            ),
+            rx.cond(
+                GlobalState.allowed_modules.contains("rdo_form"),
+                sidebar_item("RDO DIÁRIO", "clipboard-list", "/rdo-form"),
+            ),
+            rx.cond(
+                GlobalState.allowed_modules.contains("rdo_historico"),
+                sidebar_item("MEUS RDOS", "clock", "/rdo-historico"),
+            ),
+            rx.cond(
+                GlobalState.allowed_modules.contains("rdo_dashboard"),
                 sidebar_item("RDO ANALYTICS", "chart-bar", "/rdo-dashboard"),
             ),
-            # Solicitação de Reembolso
             rx.cond(
-                GlobalState.current_user_role == "solicitacao_reembolso",
-                rx.vstack(
-                    sidebar_item("REEMBOLSO", "fuel", "/reembolso"),
-                    width="100%",
-                    spacing="2",
-                ),
-            ),
-            # Engenheiro: Projetos + O&M
-            rx.cond(
-                GlobalState.current_user_role == "engenheiro",
-                rx.vstack(
-                    sidebar_item("PROJETOS", "briefcase", "/projetos"),
-                    sidebar_item("O&M", "zap", "/om"),
-                    width="100%",
-                    spacing="2",
-                ),
-            ),
-            # Editor de Dados (Admin e data_edit)
-            rx.cond(
-                (GlobalState.current_user_role == "Administrador")
-                | (GlobalState.current_user_role == "data_edit"),
+                GlobalState.allowed_modules.contains("editar_dados"),
                 sidebar_item("EDITAR DADOS", "database", "/admin/editar_dados"),
-            ),
-            # Apenas Admin vê o resto
-            rx.cond(
-                GlobalState.current_user_role == "Administrador",
-                rx.vstack(
-                    sidebar_item("PROJETOS", "briefcase", "/projetos"),
-                    sidebar_item("FINANCEIRO", "wallet", "/financeiro"),
-                    sidebar_item("O&M", "zap", "/om"),
-                    sidebar_item("ANALYTICS", "bar-chart-3", "/analytics"),
-                    sidebar_item("PREVISÕES ML", "trending-up", "/previsoes"),
-                    sidebar_item("RELATÓRIOS", "file-text", "/relatorios"),
-                    sidebar_item("ALERTAS", "bell-ring", "/alertas"),
-                    sidebar_item("CHAT IA", "message-square", "/chat-ia"),
-                    sidebar_item("REEMBOLSO DASH", "receipt", "/reembolso-dash"),
-                    sidebar_item("LOGS & AUDITORIA", "shield-check", "/logs-auditoria"),
-                    width="100%",
-                    spacing="2",
-                ),
             ),
             width="100%",
             spacing="2",
@@ -234,43 +220,139 @@ def sidebar_content() -> rx.Component:
             flex="1",
             class_name="no-scrollbar",
         ),
-        # ── User Info ──
-        rx.box(
-            rx.hstack(
-                rx.avatar(
-                    fallback=GlobalState.current_user_name.to_string()[0].upper(),
-                    size="3",
-                    radius="full",
-                    variant="soft",
-                    color_scheme="bronze",
-                ),
-                rx.cond(
-                    GlobalState.sidebar_open,
-                    rx.vstack(
-                        rx.text(
-                            GlobalState.current_user_name,
-                            font_weight="bold",
-                            font_size="14px",
-                            color="white",
+        # ── User Info (with popover menu) ──
+        rx.popover.root(
+            rx.popover.trigger(
+                rx.box(
+                    rx.hstack(
+                        rx.avatar(
+                            fallback=GlobalState.current_user_name.to_string()[0].upper(),
+                            size="3",
+                            radius="full",
+                            variant="soft",
+                            color_scheme="bronze",
                         ),
-                        rx.text(
-                            GlobalState.current_user_role, font_size="11px", color=S.TEXT_MUTED
+                        rx.cond(
+                            GlobalState.sidebar_open,
+                            rx.hstack(
+                                rx.vstack(
+                                    rx.text(
+                                        GlobalState.current_user_name,
+                                        font_weight="bold",
+                                        font_size="14px",
+                                        color="white",
+                                    ),
+                                    rx.text(
+                                        GlobalState.current_user_role,
+                                        font_size="11px",
+                                        color=S.TEXT_MUTED,
+                                    ),
+                                    spacing="0",
+                                    align="start",
+                                ),
+                                rx.spacer(),
+                                rx.icon(tag="chevron-up", size=14, color=S.TEXT_MUTED),
+                                align="center",
+                                width="100%",
+                            ),
                         ),
-                        spacing="0",
-                        align="start",
+                        spacing="3",
+                        align="center",
+                        justify=rx.cond(GlobalState.sidebar_open, "start", "center"),
+                        width="100%",
                     ),
+                    width="100%",
+                    padding_x="24px",
+                    padding_bottom="24px",
+                    border_top=f"1px solid {S.BORDER_SUBTLE}",
+                    padding_top="16px",
+                    cursor="pointer",
+                    _hover={"bg": "rgba(255,255,255,0.03)"},
                 ),
-                spacing="3",
-                align="center",
-                justify=rx.cond(GlobalState.sidebar_open, "start", "center"),
-                width="100%",
             ),
-            width="100%",
-            padding_x="24px",
-            padding_bottom="24px",
-            border_bottom=f"1px solid {S.BORDER_SUBTLE}",
-            margin_bottom="16px",
-            bg="transparent",
+            rx.popover.content(
+                rx.vstack(
+                    # Logs & Auditoria
+                    rx.cond(
+                        GlobalState.allowed_modules.contains("logs_auditoria"),
+                        rx.link(
+                            rx.hstack(
+                                rx.icon(tag="shield-check", size=16, color=S.COPPER),
+                                rx.text("Logs & Auditoria", font_size="14px", color="white"),
+                                spacing="3",
+                                align="center",
+                            ),
+                            href="/logs-auditoria",
+                            style={"text_decoration": "none"},
+                            width="100%",
+                            padding="8px 12px",
+                            border_radius="8px",
+                            _hover={"bg": "rgba(255,255,255,0.06)"},
+                        ),
+                    ),
+                    # Alertas
+                    rx.cond(
+                        GlobalState.allowed_modules.contains("alertas"),
+                        rx.link(
+                            rx.hstack(
+                                rx.icon(tag="bell-ring", size=16, color=S.COPPER),
+                                rx.text("Alertas", font_size="14px", color="white"),
+                                spacing="3",
+                                align="center",
+                            ),
+                            href="/alertas",
+                            style={"text_decoration": "none"},
+                            width="100%",
+                            padding="8px 12px",
+                            border_radius="8px",
+                            _hover={"bg": "rgba(255,255,255,0.06)"},
+                        ),
+                    ),
+                    # Gerenciar Usuários
+                    rx.cond(
+                        GlobalState.allowed_modules.contains("gerenciar_usuarios"),
+                        rx.link(
+                            rx.hstack(
+                                rx.icon(tag="users", size=16, color=S.COPPER),
+                                rx.text("Gerenciar Usuários", font_size="14px", color="white"),
+                                spacing="3",
+                                align="center",
+                            ),
+                            href="/admin/usuarios",
+                            style={"text_decoration": "none"},
+                            width="100%",
+                            padding="8px 12px",
+                            border_radius="8px",
+                            _hover={"bg": "rgba(255,255,255,0.06)"},
+                        ),
+                    ),
+                    rx.separator(width="100%"),
+                    # Logout
+                    rx.box(
+                        rx.hstack(
+                            rx.icon(tag="log-out", size=16, color="#EF4444"),
+                            rx.text("Logout", font_size="14px", color="#EF4444"),
+                            spacing="3",
+                            align="center",
+                        ),
+                        width="100%",
+                        padding="8px 12px",
+                        border_radius="8px",
+                        cursor="pointer",
+                        on_click=GlobalState.logout,
+                        _hover={"bg": "rgba(239,68,68,0.08)"},
+                    ),
+                    spacing="1",
+                    width="200px",
+                    padding="4px",
+                ),
+                bg=S.BG_ELEVATED,
+                border=f"1px solid {S.BORDER_SUBTLE}",
+                border_radius="12px",
+                side="top",
+                align="start",
+                padding="8px",
+            ),
         ),
         # ── Navigation ──
         height="100%",

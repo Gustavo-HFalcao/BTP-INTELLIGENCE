@@ -630,7 +630,7 @@ def _history_row(row: dict) -> rx.Component:
                 tipo_label,
                 color_scheme=rx.cond(
                     row["tipo"] == "ia", "teal",
-                    rx.cond(row["tipo"] == "custom", "amber", "gray"),
+                    rx.cond(row["tipo"] == "custom", "amber", "orange"),
                 ),
                 variant="soft",
                 size="1",

@@ -154,7 +154,7 @@ def _email_config_dialog() -> rx.Component:
                         rx.icon_button(
                             rx.icon(tag="x", size=16),
                             variant="ghost",
-                            color_scheme="gray",
+                            color_scheme="amber",
                             size="1",
                             on_click=RDOHistoricoState.close_email_config,
                         )
@@ -352,7 +352,7 @@ def _rdo_card(rdo: dict) -> rx.Component:
                         size="2",
                         variant="ghost",
                         disabled=True,
-                        color_scheme="gray",
+                        color_scheme="amber",
                     ),
                     content="PDF não disponível",
                 ),
