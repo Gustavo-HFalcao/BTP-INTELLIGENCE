@@ -36,7 +36,7 @@ def previsoes_header() -> rx.Component:
             position="relative",
             z_index="10",
         ),
-        padding="48px",
+        padding=S.PADDING_HERO,
         border_radius="24px",
         background="linear-gradient(90deg, #1A3A30, #0A1F1A)",
         border=f"1px solid {S.BORDER_ACCENT}",

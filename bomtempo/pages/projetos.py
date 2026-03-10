@@ -272,7 +272,7 @@ def project_info_panel() -> rx.Component:
                         ),
                         spacing="1",
                     ),
-                    columns="2",
+                    columns=rx.breakpoints(initial="1", sm="2"),
                     spacing="4",
                     width="100%",
                 ),

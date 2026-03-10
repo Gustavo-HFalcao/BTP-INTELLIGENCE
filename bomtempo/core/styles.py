@@ -121,7 +121,8 @@ GLASS_CARD_NO_HOVER = {
 # ── Section title ────────────────────────────────────────────
 SECTION_TITLE_STYLE = {
     "font_family": FONT_TECH,
-    "font_size": "1.25rem",
+    # clamp(min, fluid, max) — max matches previous desktop value
+    "font_size": "clamp(1rem, 3.5vw, 1.25rem)",
     "font_weight": "700",
     "color": TEXT_PRIMARY,
     "margin_bottom": "24px",
@@ -130,7 +131,7 @@ SECTION_TITLE_STYLE = {
 }
 
 SECTION_SUBTITLE_STYLE = {
-    "font_size": "0.75rem",
+    "font_size": "clamp(0.65rem, 2vw, 0.75rem)",
     "color": TEXT_MUTED,
     "text_transform": "uppercase",
     "letter_spacing": "0.15em",
@@ -140,7 +141,8 @@ SECTION_SUBTITLE_STYLE = {
 # ── Page title ───────────────────────────────────────────────
 PAGE_TITLE_STYLE = {
     "font_family": FONT_TECH,
-    "font_size": "1.875rem",
+    # clamp: mobile 22px → desktop 30px (1.875rem)
+    "font_size": "clamp(1.375rem, 4.5vw, 1.875rem)",
     "font_weight": "700",
     "color": TEXT_WHITE,
     "text_transform": "uppercase",
@@ -148,10 +150,16 @@ PAGE_TITLE_STYLE = {
 }
 
 PAGE_SUBTITLE_STYLE = {
-    "font_size": "0.875rem",
+    # clamp: mobile ~13px → desktop 14px (0.875rem)
+    "font_size": "clamp(0.8rem, 2.5vw, 0.875rem)",
     "color": TEXT_MUTED,
     "margin_top": "4px",
 }
+
+# ── Responsive padding helper ─────────────────────────────────
+# clamp(mobile, fluid, desktop) — use for padding props
+PADDING_HERO = "clamp(20px, 5vw, 48px)"   # hero header panels: 48px desktop
+PADDING_CARD = "clamp(16px, 3vw, 32px)"   # glass cards: 32px desktop
 
 # ── Recharts ─────────────────────────────────────────────────
 TOOLTIP_STYLE = {

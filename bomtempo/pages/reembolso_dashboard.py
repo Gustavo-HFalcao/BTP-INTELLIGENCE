@@ -127,7 +127,7 @@ def _tab_emails() -> rx.Component:
                             _placeholder={"color": S.TEXT_MUTED},
                         ),
                     ),
-                    columns="2",
+                    columns=rx.breakpoints(initial="1", sm="2"),
                     spacing="3",
                     width="100%",
                 ),

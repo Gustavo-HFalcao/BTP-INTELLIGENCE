@@ -1257,11 +1257,141 @@ canvas:focus {
     animation: unsavedPulse 2.2s ease-in-out infinite !important;
 }
 
+/* ═══════════════════════════════════════════════════════════
+   MOBILE-FIRST RESPONSIVE SYSTEM
+   Breakpoints: sm=640px, md=768px, lg=1024px
+   RULE: max values in clamp() ALWAYS match current desktop values.
+   Desktop layout is never modified — all overrides are ≤640px only.
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Safe Area Insets (notch / home-indicator support) ────── */
+body {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+}
+
 /* ── Radix Popover — force above mobile drawer ───────────── */
 /* Sidebar popover (user menu) must render above the mobile drawer (z-index: 9999) */
 .rt-PopoverContent,
 [data-radix-popper-content-wrapper] {
     z-index: 10001 !important;
+}
+
+/* ── Mobile baseline (≤640px) ────────────────────────────── */
+@media (max-width: 640px) {
+
+    /* ── Layout: reduce main content padding ── */
+    /* Reflex MAIN_CONTENT_STYLE uses inline padding; !important overrides */
+    /* Target the main content flex child (sibling of sidebar, which is hidden) */
+    body > div > div > div:last-child,
+    #app > div > div > div:last-child {
+        padding: 12px 12px 80px 12px !important;
+    }
+
+    /* ── Glass Panel / Hero Header: reduce from 48px ── */
+    .glass-panel {
+        padding: clamp(16px, 4vw, 24px) !important;
+        border-radius: 16px !important;
+    }
+
+    /* ── Glass Panel background decorative icon: hide on mobile ── */
+    /* Prevents the huge 200px icon from creating horizontal overflow */
+    .glass-panel > div[style*="position: absolute"][style*="right: 0"] {
+        display: none !important;
+    }
+
+    /* ── KPI Cards: reduce padding ── */
+    .kpi-card {
+        padding: 14px !important;
+    }
+
+    /* ── KPI value font: 2.5rem → clamp on mobile ── */
+    /* Desktop value 2.5rem is preserved as max */
+    .kpi-card .rt-Text[style*="2.5rem"],
+    .kpi-card [style*="font-size: 2.5rem"] {
+        font-size: clamp(1.6rem, 5.5vw, 2.5rem) !important;
+    }
+
+    /* ── Touch targets: minimum 44×44px for all interactive elements ── */
+    .rt-Button,
+    .rt-IconButton,
+    button:not([role="checkbox"]) {
+        min-height: 44px !important;
+    }
+
+    /* ── Filter bars: allow wrapping ── */
+    .rt-Flex[style*="width: 100%"],
+    .rt-HStack {
+        flex-wrap: wrap !important;
+    }
+
+    /* ── Filter bar native selects: readable font on iOS ── */
+    .filter-select,
+    select {
+        font-size: 16px !important; /* prevents iOS auto-zoom */
+    }
+
+    /* ── Charts: prevent overflow ── */
+    .recharts-wrapper {
+        overflow: hidden !important;
+    }
+
+    /* ── Data table: horizontal scroll container ── */
+    .data-table-wrapper {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+    .data-table {
+        min-width: 480px;
+    }
+
+    /* ── Stepper (RDO wizard): smaller circles on mobile ── */
+    /* Desktop: 32px circles, mobile: 26px */
+    [style*="width: 32px"][style*="height: 32px"][style*="border-radius: 50%"] {
+        width: 26px !important;
+        height: 26px !important;
+        font-size: 9px !important;
+    }
+
+    /* ── FAB button: respect safe-area on mobile ── */
+    .fab-ai {
+        bottom: calc(20px + env(safe-area-inset-bottom)) !important;
+        right: calc(16px + env(safe-area-inset-right)) !important;
+    }
+
+    /* ── Sidebar popover content: ensure visible above drawer ── */
+    .rt-PopoverContent {
+        z-index: 10002 !important;
+    }
+
+    /* ── Page header titles: reduce decorative hero size ── */
+    /* "VISÃO GERAL", "FINANCEIRO" etc. at 3rem/2.25rem */
+    [style*="font-size: 3rem"] {
+        font-size: clamp(1.75rem, 6vw, 3rem) !important;
+    }
+    [style*="font-size: 2.25rem"] {
+        font-size: clamp(1.5rem, 5vw, 2.25rem) !important;
+    }
+    [style*="font-size: 1.875rem"],
+    [style*="font-size: 1.8rem"] {
+        font-size: clamp(1.25rem, 4.5vw, 1.875rem) !important;
+    }
+
+    /* ── Section titles: clamp ── */
+    [style*="font-size: 1.6rem"] {
+        font-size: clamp(1.1rem, 4vw, 1.6rem) !important;
+    }
+    [style*="font-size: 1.25rem"] {
+        font-size: clamp(1rem, 3.5vw, 1.25rem) !important;
+    }
+
+    /* ── Prevent any element from causing horizontal overflow ── */
+    /* Applied to direct page content; does NOT hide overflow-x on body */
+    main,
+    [id="__next"],
+    [data-nextjs-scroll-focus-boundary] {
+        overflow-x: hidden !important;
+    }
 }
 
 /* ── Mobile Dialog Size Fix ──────────────────────────────── */
@@ -1286,3 +1416,4 @@ canvas:focus {
         overflow-x: hidden !important;
     }
 }
+
