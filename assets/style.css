@@ -1256,3 +1256,33 @@ canvas:focus {
 .save-unsaved {
     animation: unsavedPulse 2.2s ease-in-out infinite !important;
 }
+
+/* ── Radix Popover — force above mobile drawer ───────────── */
+/* Sidebar popover (user menu) must render above the mobile drawer (z-index: 9999) */
+.rt-PopoverContent,
+[data-radix-popper-content-wrapper] {
+    z-index: 10001 !important;
+}
+
+/* ── Mobile Dialog Size Fix ──────────────────────────────── */
+@media (max-width: 768px) {
+    .rt-DialogContent,
+    .rt-AlertDialogContent {
+        width: calc(100vw - 32px) !important;
+        max-width: calc(100vw - 32px) !important;
+        max-height: calc(100dvh - 48px) !important;
+        overflow-y: auto !important;
+    }
+
+    /* Prevent body scroll bleed on mobile */
+    body {
+        overflow-x: hidden !important;
+    }
+
+    /* Mobile page content should not overflow horizontally */
+    #app,
+    #__next,
+    .reflex-app {
+        overflow-x: hidden !important;
+    }
+}

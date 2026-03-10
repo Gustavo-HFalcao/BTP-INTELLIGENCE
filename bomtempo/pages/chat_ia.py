@@ -24,10 +24,10 @@ def chat_header() -> rx.Component:
             ),
             rx.vstack(
                 rx.text(
-                    "BOMTEMPO INTELLIGENCE",
+                    "PLATAFORMA DE INTELIGÊNCIA OPERACIONAL",
                     font_weight="900",
                     color="white",
-                    font_size="16px",
+                    font_size="13px",
                     font_family=S.FONT_TECH,
                     letter_spacing="0.05em",
                 ),

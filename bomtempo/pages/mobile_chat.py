@@ -17,14 +17,14 @@ def mobile_header() -> rx.Component:
             rx.icon(tag="sparkles", size=24, color="#C98B2A"),
             rx.vstack(
                 rx.text(
-                    "BOMTEMPO INTELLIGENCE",
+                    "PLATAFORMA DE INTELIGÊNCIA OPERACIONAL",
                     font_weight="900",
                     color="white",
-                    font_size="18px",
+                    font_size="13px",
                     line_height="1",
                 ),
                 rx.text(
-                    "EXECUTIVE MOBILE",
+                    "MOBILE",
                     font_size="10px",
                     color="#C98B2A",
                     font_weight="bold",
