@@ -39,7 +39,9 @@
       "Bash(pip show playwright)",
       "Bash(playwright install --help)",
       "Bash(playwright install msedge)",
-      "Bash(echo \"exit: $?\")"
+      "Bash(echo \"exit: $?\")",
+      "Bash(git add bomtempo/core/alert_service.py bomtempo/pages/alertas.py bomtempo/pages/usuarios.py bomtempo/state/alertas_state.py bomtempo/state/logs_state.py bomtempo/state/usuarios_state.py)",
+      "Bash(git commit:*)"
     ]
   }
 }

@@ -38,6 +38,34 @@ MODULES: List[tuple] = [
 MODULE_SLUGS: List[str] = [m[0] for m in MODULES]
 MODULE_LABELS: Dict[str, str] = {m[0]: m[1] for m in MODULES}
 
+# Curated icon set for role/avatar personalization: (lucide-slug, label-PT)
+AVATAR_ICONS: List[tuple] = [
+    ("user",           "Usuário"),
+    ("shield-check",   "Admin"),
+    ("hard-hat",       "Engenheiro"),
+    ("hammer",         "Mestre"),
+    ("briefcase",      "Gestor"),
+    ("building-2",     "Empresa"),
+    ("bar-chart-3",    "Analista"),
+    ("database",       "TI"),
+    ("file-text",      "Editor"),
+    ("fuel",           "Campo"),
+    ("truck",          "Logística"),
+    ("zap",            "Operações"),
+    ("star",           "Destaque"),
+    ("award",          "Especialista"),
+    ("target",         "Coordenador"),
+    ("compass",        "Diretor"),
+    ("layers",         "Supervisor"),
+    ("settings-2",     "Técnico"),
+    ("users",          "Equipe"),
+    ("wallet",         "Financeiro"),
+    ("globe",          "Projetos"),
+    ("eye",            "Auditor"),
+    ("clipboard-list", "RDO"),
+    ("wrench",         "Manutenção"),
+]
+
 
 class UsuariosState(rx.State):
     """State para a página de gerenciamento de usuários e perfis."""
@@ -70,6 +98,7 @@ class UsuariosState(rx.State):
 
     edit_role_id: str = ""
     edit_role_name: str = ""
+    edit_role_icon: str = "user"
     edit_role_modules: list[str] = []
     role_form_error: str = ""
 
@@ -129,6 +158,7 @@ class UsuariosState(rx.State):
                 {
                     "id": str(r.get("id", "")),
                     "name": str(r.get("name", "")),
+                    "icon": str(r.get("icon", "user") or "user"),
                     "modules": list(r.get("modules", [])),
                     "module_count": str(len(r.get("modules", []))),
                 }
@@ -300,6 +330,7 @@ class UsuariosState(rx.State):
         self.is_editing_role = False
         self.edit_role_id = ""
         self.edit_role_name = ""
+        self.edit_role_icon = "user"
         self.edit_role_modules = []
         self.role_form_error = ""
         self.show_role_dialog = True
@@ -311,6 +342,7 @@ class UsuariosState(rx.State):
         for r in self.roles_list:
             if r["id"] == role_id:
                 self.edit_role_name = r["name"]
+                self.edit_role_icon = str(r.get("icon", "user") or "user")
                 self.edit_role_modules = list(r["modules"])
                 break
         self.show_role_dialog = True
@@ -320,6 +352,9 @@ class UsuariosState(rx.State):
 
     def set_edit_role_name(self, val: str):
         self.edit_role_name = val
+
+    def set_edit_role_icon(self, val: str):
+        self.edit_role_icon = val
 
     def toggle_module(self, slug: str):
         """Toggle a module slug in/out of edit_role_modules."""
@@ -347,7 +382,7 @@ class UsuariosState(rx.State):
                 sb_update(
                     "roles",
                     filters={"id": self.edit_role_id},
-                    data={"name": name, "modules": self.edit_role_modules},
+                    data={"name": name, "icon": self.edit_role_icon, "modules": self.edit_role_modules},
                 )
                 audit_log(
                     category=AuditCategory.USER_MGMT,
@@ -365,7 +400,7 @@ class UsuariosState(rx.State):
                 logger.info(f"Perfil '{name}' atualizado por '{self._get_admin()}'")
 
             else:
-                result = sb_insert("roles", {"name": name, "modules": self.edit_role_modules})
+                result = sb_insert("roles", {"name": name, "icon": self.edit_role_icon, "modules": self.edit_role_modules})
                 new_id = str(result.get("id", "")) if result else ""
 
                 audit_log(

@@ -9,6 +9,7 @@ from bomtempo.components.sidebar import mobile_sidebar, sidebar
 from bomtempo.core import styles as S
 from bomtempo.pages.login import login_page
 from bomtempo.state.global_state import GlobalState
+from bomtempo.state.usuarios_state import AVATAR_ICONS
 
 
 def _fab_ai_insight() -> rx.Component:
@@ -266,6 +267,181 @@ _POPUP_META = {
     "saldo_medir": ("trending-up", "Saldo à Medir", "Saldo pendente de medição por contrato"),
     "contratos_ativos": ("hard-hat", "Contratos Ativos", "Contratos em status de execução"),
 }
+
+
+def _avatar_icon_btn(item: tuple) -> rx.Component:
+    slug = item[0]
+    label = item[1]
+    is_sel = GlobalState.avatar_edit_icon == slug
+    return rx.tooltip(
+        rx.box(
+            rx.icon(tag=slug, size=15, color=rx.cond(is_sel, S.COPPER, S.TEXT_MUTED)),
+            width="34px",
+            height="34px",
+            border_radius="8px",
+            bg=rx.cond(is_sel, "rgba(201,139,42,0.15)", "rgba(255,255,255,0.04)"),
+            border=rx.cond(is_sel, f"1.5px solid {S.COPPER}", "1.5px solid transparent"),
+            display="flex",
+            align_items="center",
+            justify_content="center",
+            cursor="pointer",
+            on_click=GlobalState.set_avatar_edit_icon(slug),
+            transition="all 0.12s ease",
+            _hover={"bg": "rgba(201,139,42,0.1)"},
+        ),
+        content=label,
+    )
+
+
+def _avatar_modal() -> rx.Component:
+    """Avatar personalization modal — opened from 'Meu Perfil' in sidebar popover."""
+    preview_icon = rx.cond(
+        GlobalState.avatar_edit_icon != "",
+        GlobalState.avatar_edit_icon,
+        GlobalState.current_user_role_icon,
+    )
+    return rx.dialog.root(
+        rx.dialog.content(
+            rx.vstack(
+                # Header
+                rx.hstack(
+                    rx.icon(tag="user-circle", size=18, color=S.COPPER),
+                    rx.text(
+                        "Personalizar Avatar",
+                        font_family=S.FONT_TECH,
+                        font_size="1.05rem",
+                        font_weight="700",
+                        color="white",
+                    ),
+                    rx.spacer(),
+                    rx.icon_button(
+                        rx.icon(tag="x", size=16),
+                        on_click=GlobalState.close_avatar_modal,
+                        variant="ghost",
+                        color_scheme="amber",
+                        size="2",
+                    ),
+                    width="100%",
+                    align="center",
+                    margin_bottom="4px",
+                ),
+                # Preview card
+                rx.hstack(
+                    rx.text("Prévia:", font_size="12px", color=S.TEXT_MUTED, font_weight="600"),
+                    rx.cond(
+                        GlobalState.avatar_edit_type == "icon",
+                        rx.box(
+                            rx.icon(tag=preview_icon, size=20, color=S.COPPER),
+                            width="40px",
+                            height="40px",
+                            border_radius="full",
+                            bg="rgba(201,139,42,0.15)",
+                            border=f"1.5px solid {S.COPPER}",
+                            display="flex",
+                            align_items="center",
+                            justify_content="center",
+                        ),
+                        rx.avatar(
+                            fallback=GlobalState.current_user_name.to_string()[0].upper(),
+                            size="3",
+                            radius="full",
+                            variant="soft",
+                            color_scheme="bronze",
+                        ),
+                    ),
+                    rx.vstack(
+                        rx.text(GlobalState.current_user_name, font_weight="600", color="white", font_size="14px"),
+                        rx.text(GlobalState.current_user_role, font_size="11px", color=S.TEXT_MUTED),
+                        spacing="0",
+                        align="start",
+                    ),
+                    spacing="3",
+                    align="center",
+                    padding="12px 16px",
+                    bg="rgba(255,255,255,0.03)",
+                    border_radius="10px",
+                    width="100%",
+                    border=f"1px solid {S.BORDER_SUBTLE}",
+                ),
+                # Type toggle
+                rx.vstack(
+                    rx.text("Tipo de Avatar", font_size="12px", font_weight="600", color=S.TEXT_MUTED),
+                    rx.hstack(
+                        rx.box(
+                            rx.hstack(
+                                rx.icon(tag="type", size=13, color=rx.cond(GlobalState.avatar_edit_type == "initial", S.COPPER, S.TEXT_MUTED)),
+                                rx.text("Inicial", font_size="13px", color=rx.cond(GlobalState.avatar_edit_type == "initial", "white", S.TEXT_MUTED)),
+                                spacing="2",
+                                align="center",
+                            ),
+                            padding="7px 16px",
+                            border_radius="8px",
+                            border=rx.cond(GlobalState.avatar_edit_type == "initial", f"1.5px solid {S.COPPER}", "1.5px solid transparent"),
+                            bg=rx.cond(GlobalState.avatar_edit_type == "initial", "rgba(201,139,42,0.1)", "rgba(255,255,255,0.04)"),
+                            cursor="pointer",
+                            on_click=GlobalState.set_avatar_edit_type("initial"),
+                        ),
+                        rx.box(
+                            rx.hstack(
+                                rx.icon(tag="smile", size=13, color=rx.cond(GlobalState.avatar_edit_type == "icon", S.COPPER, S.TEXT_MUTED)),
+                                rx.text("Ícone", font_size="13px", color=rx.cond(GlobalState.avatar_edit_type == "icon", "white", S.TEXT_MUTED)),
+                                spacing="2",
+                                align="center",
+                            ),
+                            padding="7px 16px",
+                            border_radius="8px",
+                            border=rx.cond(GlobalState.avatar_edit_type == "icon", f"1.5px solid {S.COPPER}", "1.5px solid transparent"),
+                            bg=rx.cond(GlobalState.avatar_edit_type == "icon", "rgba(201,139,42,0.1)", "rgba(255,255,255,0.04)"),
+                            cursor="pointer",
+                            on_click=GlobalState.set_avatar_edit_type("icon"),
+                        ),
+                        spacing="2",
+                    ),
+                    spacing="2",
+                    width="100%",
+                ),
+                # Icon picker (only when type == "icon")
+                rx.cond(
+                    GlobalState.avatar_edit_type == "icon",
+                    rx.vstack(
+                        rx.text("Escolha um ícone", font_size="12px", font_weight="600", color=S.TEXT_MUTED),
+                        rx.flex(
+                            *[_avatar_icon_btn(item) for item in AVATAR_ICONS],
+                            wrap="wrap",
+                            gap="5px",
+                            width="100%",
+                        ),
+                        spacing="2",
+                        width="100%",
+                    ),
+                ),
+                # Actions
+                rx.hstack(
+                    rx.button(
+                        "Cancelar",
+                        on_click=GlobalState.close_avatar_modal,
+                        variant="ghost",
+                        color_scheme="gray",
+                    ),
+                    rx.button(
+                        "Salvar",
+                        on_click=GlobalState.save_avatar_pref,
+                        color_scheme="amber",
+                    ),
+                    spacing="3",
+                    justify="end",
+                    width="100%",
+                    margin_top="4px",
+                ),
+                spacing="4",
+                width="100%",
+            ),
+            max_width="460px",
+            background=S.BG_ELEVATED,
+            border=f"1px solid {S.BORDER_SUBTLE}",
+        ),
+        open=GlobalState.show_avatar_modal,
+    )
 
 
 def _kpi_detail_dialog() -> rx.Component:
@@ -810,6 +986,8 @@ def default_layout(content: rx.Component) -> rx.Component:
         ),
         # ── KPI Detail Popup (global, accessible from all pages) ─────────────
         _kpi_detail_dialog(),
+        # ── Avatar Personalization Modal ──────────────────────────────────────
+        _avatar_modal(),
         # Outer box props
         position="relative",
         width="100%",

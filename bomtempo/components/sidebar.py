@@ -225,12 +225,31 @@ def sidebar_content() -> rx.Component:
             rx.popover.trigger(
                 rx.box(
                     rx.hstack(
-                        rx.avatar(
-                            fallback=GlobalState.current_user_name.to_string()[0].upper(),
-                            size="3",
-                            radius="full",
-                            variant="soft",
-                            color_scheme="bronze",
+                        rx.cond(
+                            GlobalState.current_user_avatar_type == "icon",
+                            rx.box(
+                                rx.icon(
+                                    tag=GlobalState.effective_avatar_icon,
+                                    size=18,
+                                    color=S.COPPER,
+                                ),
+                                width="36px",
+                                height="36px",
+                                border_radius="full",
+                                bg="rgba(201,139,42,0.15)",
+                                border="1.5px solid rgba(201,139,42,0.4)",
+                                display="flex",
+                                align_items="center",
+                                justify_content="center",
+                                flex_shrink="0",
+                            ),
+                            rx.avatar(
+                                fallback=GlobalState.current_user_name.to_string()[0].upper(),
+                                size="3",
+                                radius="full",
+                                variant="soft",
+                                color_scheme="bronze",
+                            ),
                         ),
                         rx.cond(
                             GlobalState.sidebar_open,
@@ -325,6 +344,21 @@ def sidebar_content() -> rx.Component:
                             border_radius="8px",
                             _hover={"bg": "rgba(255,255,255,0.06)"},
                         ),
+                    ),
+                    # Meu Perfil
+                    rx.box(
+                        rx.hstack(
+                            rx.icon(tag="user-circle", size=16, color=S.COPPER),
+                            rx.text("Meu Perfil", font_size="14px", color="white"),
+                            spacing="3",
+                            align="center",
+                        ),
+                        width="100%",
+                        padding="8px 12px",
+                        border_radius="8px",
+                        cursor="pointer",
+                        on_click=GlobalState.open_avatar_modal,
+                        _hover={"bg": "rgba(255,255,255,0.06)"},
                     ),
                     rx.separator(width="100%"),
                     # Logout

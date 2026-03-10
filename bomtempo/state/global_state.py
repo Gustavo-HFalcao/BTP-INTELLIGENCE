@@ -835,6 +835,14 @@ class GlobalState(rx.State):
     current_user_contrato: str = ""  # Contrato associado ao usuário (Mestre de Obras)
     allowed_modules: List[str] = []  # Module slugs from roles table
 
+    # Avatar personalization
+    current_user_role_icon: str = "user"     # default icon from role row (roles.icon)
+    current_user_avatar_icon: str = ""       # user-chosen icon (login.avatar_icon)
+    current_user_avatar_type: str = "initial"  # "initial" or "icon" (login.avatar_type)
+    show_avatar_modal: bool = False
+    avatar_edit_icon: str = ""
+    avatar_edit_type: str = "initial"
+
     async def check_login_on_enter(self, key: str):
         """Login apenas se Enter for pressionado"""
         if key == "Enter":
@@ -855,6 +863,10 @@ class GlobalState(rx.State):
         self.allowed_modules = []
         self.current_user_name = ""
         self.current_user_role = ""
+        self.current_user_role_icon = "user"
+        self.current_user_avatar_icon = ""
+        self.current_user_avatar_type = "initial"
+        self.show_avatar_modal = False
 
     def set_current_path(self, path: str):
         self.current_path = path
@@ -864,6 +876,45 @@ class GlobalState(rx.State):
 
     def set_password_input(self, value: str):
         self.password_input = value
+
+    # ── Avatar personalization ─────────────────────────────────────────────────
+
+    @rx.var
+    def effective_avatar_icon(self) -> str:
+        """Resolved icon slug to display when avatar_type == 'icon'."""
+        return self.current_user_avatar_icon or self.current_user_role_icon or "user"
+
+    def open_avatar_modal(self):
+        self.avatar_edit_icon = self.current_user_avatar_icon
+        self.avatar_edit_type = self.current_user_avatar_type
+        self.show_avatar_modal = True
+
+    def close_avatar_modal(self):
+        self.show_avatar_modal = False
+
+    def set_avatar_edit_type(self, val: str):
+        self.avatar_edit_type = val
+
+    def set_avatar_edit_icon(self, val: str):
+        self.avatar_edit_icon = val
+
+    def save_avatar_pref(self):
+        """Persist avatar preferences to login table and update local state."""
+        from bomtempo.core.supabase_client import sb_update
+        try:
+            sb_update(
+                "login",
+                filters={"user": self.current_user_name},
+                data={
+                    "avatar_icon": self.avatar_edit_icon,
+                    "avatar_type": self.avatar_edit_type,
+                },
+            )
+            self.current_user_avatar_icon = self.avatar_edit_icon
+            self.current_user_avatar_type = self.avatar_edit_type
+        except Exception as e:
+            logger.error(f"Erro ao salvar preferência de avatar: {e}")
+        self.show_avatar_modal = False
 
     @rx.var
     def page_title(self) -> str:
@@ -1234,21 +1285,28 @@ class GlobalState(rx.State):
             self.password_input = ""
             logger.info(f"✅ Login OK via Supabase. Role: {role}")
 
-            # ── Fetch module permissions from roles table ─────────────────────
+            # ── Fetch module permissions + role icon from roles table ─────────
             try:
                 from bomtempo.core.supabase_client import sb_select
                 from bomtempo.state.usuarios_state import MODULE_SLUGS
                 role_rows = sb_select("roles", filters={"name": role})
                 if role_rows:
                     self.allowed_modules = list(role_rows[0].get("modules", []))
+                    self.current_user_role_icon = str(role_rows[0].get("icon", "user") or "user")
                     logger.info(f"Permissões carregadas: {len(self.allowed_modules)} módulos")
                 else:
                     # Fallback: Administrador full access, others none (need role in DB)
                     self.allowed_modules = list(MODULE_SLUGS) if role == "Administrador" else []
+                    self.current_user_role_icon = "user"
                     logger.warning(f"Role '{role}' não encontrado na tabela roles — fallback aplicado")
             except Exception as role_err:
                 logger.error(f"Erro ao carregar permissões do role '{role}': {role_err}")
                 self.allowed_modules = list(MODULE_SLUGS) if role == "Administrador" else []
+                self.current_user_role_icon = "user"
+
+            # ── Load user avatar preferences from login row ───────────────────
+            self.current_user_avatar_icon = str(matched.get("avatar_icon", "") or "")
+            self.current_user_avatar_type = str(matched.get("avatar_type", "initial") or "initial")
             audit_log(
                 category=AuditCategory.LOGIN,
                 action=f"Login bem-sucedido — role: {role}",

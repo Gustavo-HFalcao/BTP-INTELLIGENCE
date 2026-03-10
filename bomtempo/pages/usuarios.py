@@ -7,7 +7,7 @@ import reflex as rx
 
 from bomtempo.core import styles as S
 from bomtempo.state.global_state import GlobalState
-from bomtempo.state.usuarios_state import MODULES, UsuariosState
+from bomtempo.state.usuarios_state import AVATAR_ICONS, MODULES, UsuariosState
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -236,6 +236,57 @@ def _module_checkbox(module: tuple) -> rx.Component:
     )
 
 
+def _role_icon_btn(item: tuple) -> rx.Component:
+    """Single icon button in the role icon picker grid."""
+    slug = item[0]
+    label = item[1]
+    is_sel = UsuariosState.edit_role_icon == slug
+    return rx.tooltip(
+        rx.box(
+            rx.icon(tag=slug, size=15, color=rx.cond(is_sel, S.COPPER, S.TEXT_MUTED)),
+            width="34px",
+            height="34px",
+            border_radius="8px",
+            bg=rx.cond(is_sel, "rgba(201,139,42,0.15)", "rgba(255,255,255,0.04)"),
+            border=rx.cond(is_sel, f"1.5px solid {S.COPPER}", "1.5px solid transparent"),
+            display="flex",
+            align_items="center",
+            justify_content="center",
+            cursor="pointer",
+            on_click=UsuariosState.set_edit_role_icon(slug),
+            transition="all 0.12s ease",
+            _hover={"bg": "rgba(201,139,42,0.1)"},
+        ),
+        content=label,
+    )
+
+
+def _role_icon_picker() -> rx.Component:
+    """Icon selection grid for the role form dialog."""
+    return rx.vstack(
+        rx.hstack(
+            rx.text("Ícone do Perfil", font_size="12px", font_weight="600", color=S.TEXT_MUTED),
+            rx.hstack(
+                rx.icon(tag=UsuariosState.edit_role_icon, size=14, color=S.COPPER),
+                rx.text(UsuariosState.edit_role_icon, font_size="11px", font_family=S.FONT_MONO, color=S.TEXT_MUTED),
+                spacing="2",
+                align="center",
+            ),
+            width="100%",
+            justify="between",
+            align="center",
+        ),
+        rx.flex(
+            *[_role_icon_btn(item) for item in AVATAR_ICONS],
+            wrap="wrap",
+            gap="5px",
+            width="100%",
+        ),
+        spacing="2",
+        width="100%",
+    )
+
+
 def _role_form_dialog() -> rx.Component:
     return rx.dialog.root(
         rx.dialog.content(
@@ -295,6 +346,8 @@ def _role_form_dialog() -> rx.Component:
                     spacing="1",
                     width="100%",
                 ),
+                # Icon picker
+                _role_icon_picker(),
                 # Modules header
                 rx.hstack(
                     rx.text(
