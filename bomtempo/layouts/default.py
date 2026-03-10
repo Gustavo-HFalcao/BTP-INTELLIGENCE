@@ -269,143 +269,6 @@ _POPUP_META = {
 }
 
 
-def _password_modal() -> rx.Component:
-    """Change own password modal — accessible from sidebar popover."""
-    return rx.dialog.root(
-        rx.dialog.content(
-            rx.vstack(
-                # Header
-                rx.hstack(
-                    rx.icon(tag="key-round", size=18, color=S.COPPER),
-                    rx.text(
-                        "Alterar Senha",
-                        font_family=S.FONT_TECH,
-                        font_size="1.05rem",
-                        font_weight="700",
-                        color="white",
-                    ),
-                    rx.spacer(),
-                    rx.icon_button(
-                        rx.icon(tag="x", size=16),
-                        on_click=GlobalState.close_password_modal,
-                        variant="ghost",
-                        color_scheme="amber",
-                        size="2",
-                    ),
-                    width="100%",
-                    align="center",
-                    margin_bottom="4px",
-                ),
-                # Error
-                rx.cond(
-                    GlobalState.pw_error != "",
-                    rx.callout.root(
-                        rx.callout.icon(rx.icon(tag="triangle-alert", size=14)),
-                        rx.callout.text(GlobalState.pw_error),
-                        color_scheme="red",
-                        variant="soft",
-                        size="1",
-                        width="100%",
-                    ),
-                ),
-                # Success
-                rx.cond(
-                    GlobalState.pw_success,
-                    rx.callout.root(
-                        rx.callout.icon(rx.icon(tag="check-circle", size=14)),
-                        rx.callout.text("Senha alterada com sucesso!"),
-                        color_scheme="green",
-                        variant="soft",
-                        size="1",
-                        width="100%",
-                    ),
-                ),
-                # Fields (hidden after success)
-                rx.cond(
-                    ~GlobalState.pw_success,
-                    rx.vstack(
-                        rx.vstack(
-                            rx.text("Senha Atual", font_size="12px", font_weight="600", color=S.TEXT_MUTED),
-                            rx.input(
-                                type="password",
-                                placeholder="••••••••",
-                                value=GlobalState.pw_current,
-                                on_change=GlobalState.set_pw_current,
-                                width="100%",
-                                color_scheme="amber",
-                            ),
-                            spacing="1",
-                            width="100%",
-                        ),
-                        rx.vstack(
-                            rx.text("Nova Senha", font_size="12px", font_weight="600", color=S.TEXT_MUTED),
-                            rx.input(
-                                type="password",
-                                placeholder="••••••••",
-                                value=GlobalState.pw_new,
-                                on_change=GlobalState.set_pw_new,
-                                width="100%",
-                                color_scheme="amber",
-                            ),
-                            spacing="1",
-                            width="100%",
-                        ),
-                        rx.vstack(
-                            rx.text("Confirmar Nova Senha", font_size="12px", font_weight="600", color=S.TEXT_MUTED),
-                            rx.input(
-                                type="password",
-                                placeholder="••••••••",
-                                value=GlobalState.pw_confirm,
-                                on_change=GlobalState.set_pw_confirm,
-                                width="100%",
-                                color_scheme="amber",
-                            ),
-                            spacing="1",
-                            width="100%",
-                        ),
-                        spacing="3",
-                        width="100%",
-                    ),
-                ),
-                # Actions
-                rx.hstack(
-                    rx.cond(
-                        GlobalState.pw_success,
-                        rx.button(
-                            "Fechar",
-                            on_click=GlobalState.close_password_modal,
-                            color_scheme="amber",
-                        ),
-                        rx.hstack(
-                            rx.button(
-                                "Cancelar",
-                                on_click=GlobalState.close_password_modal,
-                                variant="ghost",
-                                color_scheme="gray",
-                            ),
-                            rx.button(
-                                "Salvar",
-                                on_click=GlobalState.save_password,
-                                color_scheme="amber",
-                            ),
-                            spacing="3",
-                        ),
-                    ),
-                    justify="end",
-                    width="100%",
-                    margin_top="4px",
-                ),
-                spacing="4",
-                width="100%",
-            ),
-            max_width="400px",
-            background=S.BG_ELEVATED,
-            border=f"1px solid {S.BORDER_SUBTLE}",
-        ),
-        open=GlobalState.show_password_modal,
-    )
-
-
 def _avatar_icon_btn(item: tuple) -> rx.Component:
     slug = item[0]
     label = item[1]
@@ -431,12 +294,160 @@ def _avatar_icon_btn(item: tuple) -> rx.Component:
 
 
 def _avatar_modal() -> rx.Component:
-    """Avatar personalization modal — opened from 'Meu Perfil' in sidebar popover."""
+    """Meu Perfil modal — Avatar tab + Senha tab."""
     preview_icon = rx.cond(
         GlobalState.avatar_edit_icon != "",
         GlobalState.avatar_edit_icon,
         GlobalState.current_user_role_icon,
     )
+
+    def _tab_btn(label: str, icon_tag: str, tab_key: str) -> rx.Component:
+        active = GlobalState.avatar_modal_tab == tab_key
+        return rx.box(
+            rx.hstack(
+                rx.icon(tag=icon_tag, size=13, color=rx.cond(active, S.COPPER, S.TEXT_MUTED)),
+                rx.text(label, font_size="13px", color=rx.cond(active, "white", S.TEXT_MUTED)),
+                spacing="2",
+                align="center",
+            ),
+            padding="6px 14px",
+            border_radius="8px",
+            border=rx.cond(active, f"1.5px solid {S.COPPER}", "1.5px solid transparent"),
+            bg=rx.cond(active, "rgba(201,139,42,0.1)", "rgba(255,255,255,0.04)"),
+            cursor="pointer",
+            on_click=GlobalState.set_avatar_modal_tab(tab_key),
+        )
+
+    # ── Avatar tab content ────────────────────────────────────────────────────
+    avatar_tab = rx.vstack(
+        # Preview
+        rx.hstack(
+            rx.text("Prévia:", font_size="12px", color=S.TEXT_MUTED, font_weight="600"),
+            rx.cond(
+                GlobalState.avatar_edit_type == "icon",
+                rx.box(
+                    rx.icon(tag=preview_icon, size=20, color=S.COPPER),
+                    width="40px", height="40px", border_radius="full",
+                    bg="rgba(201,139,42,0.15)", border=f"1.5px solid {S.COPPER}",
+                    display="flex", align_items="center", justify_content="center",
+                ),
+                rx.avatar(
+                    fallback=GlobalState.current_user_name.to_string()[0].upper(),
+                    size="3", radius="full", variant="soft", color_scheme="bronze",
+                ),
+            ),
+            rx.vstack(
+                rx.text(GlobalState.current_user_name, font_weight="600", color="white", font_size="14px"),
+                rx.text(GlobalState.current_user_role, font_size="11px", color=S.TEXT_MUTED),
+                spacing="0", align="start",
+            ),
+            spacing="3", align="center",
+            padding="10px 14px", bg="rgba(255,255,255,0.03)",
+            border_radius="10px", width="100%",
+            border=f"1px solid {S.BORDER_SUBTLE}",
+        ),
+        # Type toggle
+        rx.vstack(
+            rx.text("Tipo de Avatar", font_size="12px", font_weight="600", color=S.TEXT_MUTED),
+            rx.hstack(
+                rx.box(
+                    rx.hstack(
+                        rx.icon(tag="type", size=13, color=rx.cond(GlobalState.avatar_edit_type == "initial", S.COPPER, S.TEXT_MUTED)),
+                        rx.text("Inicial", font_size="13px", color=rx.cond(GlobalState.avatar_edit_type == "initial", "white", S.TEXT_MUTED)),
+                        spacing="2", align="center",
+                    ),
+                    padding="7px 16px", border_radius="8px",
+                    border=rx.cond(GlobalState.avatar_edit_type == "initial", f"1.5px solid {S.COPPER}", "1.5px solid transparent"),
+                    bg=rx.cond(GlobalState.avatar_edit_type == "initial", "rgba(201,139,42,0.1)", "rgba(255,255,255,0.04)"),
+                    cursor="pointer", on_click=GlobalState.set_avatar_edit_type("initial"),
+                ),
+                rx.box(
+                    rx.hstack(
+                        rx.icon(tag="smile", size=13, color=rx.cond(GlobalState.avatar_edit_type == "icon", S.COPPER, S.TEXT_MUTED)),
+                        rx.text("Ícone", font_size="13px", color=rx.cond(GlobalState.avatar_edit_type == "icon", "white", S.TEXT_MUTED)),
+                        spacing="2", align="center",
+                    ),
+                    padding="7px 16px", border_radius="8px",
+                    border=rx.cond(GlobalState.avatar_edit_type == "icon", f"1.5px solid {S.COPPER}", "1.5px solid transparent"),
+                    bg=rx.cond(GlobalState.avatar_edit_type == "icon", "rgba(201,139,42,0.1)", "rgba(255,255,255,0.04)"),
+                    cursor="pointer", on_click=GlobalState.set_avatar_edit_type("icon"),
+                ),
+                spacing="2",
+            ),
+            spacing="2", width="100%",
+        ),
+        # Icon grid
+        rx.cond(
+            GlobalState.avatar_edit_type == "icon",
+            rx.vstack(
+                rx.text("Escolha um ícone", font_size="12px", font_weight="600", color=S.TEXT_MUTED),
+                rx.flex(*[_avatar_icon_btn(item) for item in AVATAR_ICONS], wrap="wrap", gap="5px", width="100%"),
+                spacing="2", width="100%",
+            ),
+        ),
+        # Save
+        rx.hstack(
+            rx.button("Cancelar", on_click=GlobalState.close_avatar_modal, variant="ghost", color_scheme="gray"),
+            rx.button("Salvar Avatar", on_click=GlobalState.save_avatar_pref, color_scheme="amber"),
+            spacing="3", justify="end", width="100%",
+        ),
+        spacing="4", width="100%",
+    )
+
+    # ── Senha tab content ─────────────────────────────────────────────────────
+    senha_tab = rx.vstack(
+        rx.cond(
+            GlobalState.pw_error != "",
+            rx.callout.root(
+                rx.callout.icon(rx.icon(tag="triangle-alert", size=14)),
+                rx.callout.text(GlobalState.pw_error),
+                color_scheme="red", variant="soft", size="1", width="100%",
+            ),
+        ),
+        rx.cond(
+            GlobalState.pw_success,
+            rx.callout.root(
+                rx.callout.icon(rx.icon(tag="check-circle", size=14)),
+                rx.callout.text("Senha alterada com sucesso!"),
+                color_scheme="green", variant="soft", size="1", width="100%",
+            ),
+        ),
+        rx.cond(
+            ~GlobalState.pw_success,
+            rx.vstack(
+                rx.vstack(
+                    rx.text("Senha Atual", font_size="12px", font_weight="600", color=S.TEXT_MUTED),
+                    rx.input(type="password", placeholder="••••••••", value=GlobalState.pw_current, on_change=GlobalState.set_pw_current, width="100%", color_scheme="amber"),
+                    spacing="1", width="100%",
+                ),
+                rx.vstack(
+                    rx.text("Nova Senha", font_size="12px", font_weight="600", color=S.TEXT_MUTED),
+                    rx.input(type="password", placeholder="••••••••", value=GlobalState.pw_new, on_change=GlobalState.set_pw_new, width="100%", color_scheme="amber"),
+                    spacing="1", width="100%",
+                ),
+                rx.vstack(
+                    rx.text("Confirmar Nova Senha", font_size="12px", font_weight="600", color=S.TEXT_MUTED),
+                    rx.input(type="password", placeholder="••••••••", value=GlobalState.pw_confirm, on_change=GlobalState.set_pw_confirm, width="100%", color_scheme="amber"),
+                    spacing="1", width="100%",
+                ),
+                spacing="3", width="100%",
+            ),
+        ),
+        rx.hstack(
+            rx.cond(
+                GlobalState.pw_success,
+                rx.button("Fechar", on_click=GlobalState.close_avatar_modal, color_scheme="amber"),
+                rx.hstack(
+                    rx.button("Cancelar", on_click=GlobalState.close_avatar_modal, variant="ghost", color_scheme="gray"),
+                    rx.button("Salvar Senha", on_click=GlobalState.save_password, color_scheme="amber"),
+                    spacing="3",
+                ),
+            ),
+            justify="end", width="100%",
+        ),
+        spacing="4", width="100%",
+    )
+
     return rx.dialog.root(
         rx.dialog.content(
             rx.vstack(
@@ -444,7 +455,7 @@ def _avatar_modal() -> rx.Component:
                 rx.hstack(
                     rx.icon(tag="user-circle", size=18, color=S.COPPER),
                     rx.text(
-                        "Personalizar Avatar",
+                        "Meu Perfil",
                         font_family=S.FONT_TECH,
                         font_size="1.05rem",
                         font_weight="700",
@@ -460,116 +471,16 @@ def _avatar_modal() -> rx.Component:
                     ),
                     width="100%",
                     align="center",
-                    margin_bottom="4px",
                 ),
-                # Preview card
+                # Tab switcher
                 rx.hstack(
-                    rx.text("Prévia:", font_size="12px", color=S.TEXT_MUTED, font_weight="600"),
-                    rx.cond(
-                        GlobalState.avatar_edit_type == "icon",
-                        rx.box(
-                            rx.icon(tag=preview_icon, size=20, color=S.COPPER),
-                            width="40px",
-                            height="40px",
-                            border_radius="full",
-                            bg="rgba(201,139,42,0.15)",
-                            border=f"1.5px solid {S.COPPER}",
-                            display="flex",
-                            align_items="center",
-                            justify_content="center",
-                        ),
-                        rx.avatar(
-                            fallback=GlobalState.current_user_name.to_string()[0].upper(),
-                            size="3",
-                            radius="full",
-                            variant="soft",
-                            color_scheme="bronze",
-                        ),
-                    ),
-                    rx.vstack(
-                        rx.text(GlobalState.current_user_name, font_weight="600", color="white", font_size="14px"),
-                        rx.text(GlobalState.current_user_role, font_size="11px", color=S.TEXT_MUTED),
-                        spacing="0",
-                        align="start",
-                    ),
-                    spacing="3",
-                    align="center",
-                    padding="12px 16px",
-                    bg="rgba(255,255,255,0.03)",
-                    border_radius="10px",
-                    width="100%",
-                    border=f"1px solid {S.BORDER_SUBTLE}",
-                ),
-                # Type toggle
-                rx.vstack(
-                    rx.text("Tipo de Avatar", font_size="12px", font_weight="600", color=S.TEXT_MUTED),
-                    rx.hstack(
-                        rx.box(
-                            rx.hstack(
-                                rx.icon(tag="type", size=13, color=rx.cond(GlobalState.avatar_edit_type == "initial", S.COPPER, S.TEXT_MUTED)),
-                                rx.text("Inicial", font_size="13px", color=rx.cond(GlobalState.avatar_edit_type == "initial", "white", S.TEXT_MUTED)),
-                                spacing="2",
-                                align="center",
-                            ),
-                            padding="7px 16px",
-                            border_radius="8px",
-                            border=rx.cond(GlobalState.avatar_edit_type == "initial", f"1.5px solid {S.COPPER}", "1.5px solid transparent"),
-                            bg=rx.cond(GlobalState.avatar_edit_type == "initial", "rgba(201,139,42,0.1)", "rgba(255,255,255,0.04)"),
-                            cursor="pointer",
-                            on_click=GlobalState.set_avatar_edit_type("initial"),
-                        ),
-                        rx.box(
-                            rx.hstack(
-                                rx.icon(tag="smile", size=13, color=rx.cond(GlobalState.avatar_edit_type == "icon", S.COPPER, S.TEXT_MUTED)),
-                                rx.text("Ícone", font_size="13px", color=rx.cond(GlobalState.avatar_edit_type == "icon", "white", S.TEXT_MUTED)),
-                                spacing="2",
-                                align="center",
-                            ),
-                            padding="7px 16px",
-                            border_radius="8px",
-                            border=rx.cond(GlobalState.avatar_edit_type == "icon", f"1.5px solid {S.COPPER}", "1.5px solid transparent"),
-                            bg=rx.cond(GlobalState.avatar_edit_type == "icon", "rgba(201,139,42,0.1)", "rgba(255,255,255,0.04)"),
-                            cursor="pointer",
-                            on_click=GlobalState.set_avatar_edit_type("icon"),
-                        ),
-                        spacing="2",
-                    ),
+                    _tab_btn("Avatar", "user-circle", "avatar"),
+                    _tab_btn("Senha", "key-round", "senha"),
                     spacing="2",
-                    width="100%",
                 ),
-                # Icon picker (only when type == "icon")
-                rx.cond(
-                    GlobalState.avatar_edit_type == "icon",
-                    rx.vstack(
-                        rx.text("Escolha um ícone", font_size="12px", font_weight="600", color=S.TEXT_MUTED),
-                        rx.flex(
-                            *[_avatar_icon_btn(item) for item in AVATAR_ICONS],
-                            wrap="wrap",
-                            gap="5px",
-                            width="100%",
-                        ),
-                        spacing="2",
-                        width="100%",
-                    ),
-                ),
-                # Actions
-                rx.hstack(
-                    rx.button(
-                        "Cancelar",
-                        on_click=GlobalState.close_avatar_modal,
-                        variant="ghost",
-                        color_scheme="gray",
-                    ),
-                    rx.button(
-                        "Salvar",
-                        on_click=GlobalState.save_avatar_pref,
-                        color_scheme="amber",
-                    ),
-                    spacing="3",
-                    justify="end",
-                    width="100%",
-                    margin_top="4px",
-                ),
+                rx.separator(width="100%"),
+                # Tab content
+                rx.cond(GlobalState.avatar_modal_tab == "avatar", avatar_tab, senha_tab),
                 spacing="4",
                 width="100%",
             ),
@@ -1123,10 +1034,8 @@ def default_layout(content: rx.Component) -> rx.Component:
         ),
         # ── KPI Detail Popup (global, accessible from all pages) ─────────────
         _kpi_detail_dialog(),
-        # ── Avatar Personalization Modal ──────────────────────────────────────
+        # ── Meu Perfil Modal (avatar + senha) ────────────────────────────────
         _avatar_modal(),
-        # ── Change Password Modal ─────────────────────────────────────────────
-        _password_modal(),
         # Outer box props
         position="relative",
         width="100%",

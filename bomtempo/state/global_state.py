@@ -843,8 +843,8 @@ class GlobalState(rx.State):
     avatar_edit_icon: str = ""
     avatar_edit_type: str = "initial"
 
-    # Change password modal
-    show_password_modal: bool = False
+    # Avatar modal tab ("avatar" | "senha") + password fields
+    avatar_modal_tab: str = "avatar"
     pw_current: str = ""
     pw_new: str = ""
     pw_confirm: str = ""
@@ -875,7 +875,7 @@ class GlobalState(rx.State):
         self.current_user_avatar_icon = ""
         self.current_user_avatar_type = "initial"
         self.show_avatar_modal = False
-        self.show_password_modal = False
+        self.avatar_modal_tab = "avatar"
         self.pw_current = ""
         self.pw_new = ""
         self.pw_confirm = ""
@@ -901,10 +901,21 @@ class GlobalState(rx.State):
     def open_avatar_modal(self):
         self.avatar_edit_icon = self.current_user_avatar_icon
         self.avatar_edit_type = self.current_user_avatar_type
+        self.avatar_modal_tab = "avatar"
+        self.pw_current = ""
+        self.pw_new = ""
+        self.pw_confirm = ""
+        self.pw_error = ""
+        self.pw_success = False
         self.show_avatar_modal = True
 
     def close_avatar_modal(self):
         self.show_avatar_modal = False
+
+    def set_avatar_modal_tab(self, tab: str):
+        self.avatar_modal_tab = tab
+        self.pw_error = ""
+        self.pw_success = False
 
     def set_avatar_edit_type(self, val: str):
         self.avatar_edit_type = val
@@ -931,17 +942,6 @@ class GlobalState(rx.State):
         self.show_avatar_modal = False
 
     # ── Change password ────────────────────────────────────────────────────────
-
-    def open_password_modal(self):
-        self.pw_current = ""
-        self.pw_new = ""
-        self.pw_confirm = ""
-        self.pw_error = ""
-        self.pw_success = False
-        self.show_password_modal = True
-
-    def close_password_modal(self):
-        self.show_password_modal = False
 
     def set_pw_current(self, val: str):
         self.pw_current = val

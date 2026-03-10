@@ -360,21 +360,6 @@ def sidebar_content() -> rx.Component:
                         on_click=GlobalState.open_avatar_modal,
                         _hover={"bg": "rgba(255,255,255,0.06)"},
                     ),
-                    # Alterar Senha
-                    rx.box(
-                        rx.hstack(
-                            rx.icon(tag="key-round", size=16, color=S.COPPER),
-                            rx.text("Alterar Senha", font_size="14px", color="white"),
-                            spacing="3",
-                            align="center",
-                        ),
-                        width="100%",
-                        padding="8px 12px",
-                        border_radius="8px",
-                        cursor="pointer",
-                        on_click=GlobalState.open_password_modal,
-                        _hover={"bg": "rgba(255,255,255,0.06)"},
-                    ),
                     rx.separator(width="100%"),
                     # Logout
                     rx.box(
