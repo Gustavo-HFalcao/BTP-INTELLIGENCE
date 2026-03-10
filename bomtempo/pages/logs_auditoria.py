@@ -126,6 +126,7 @@ def _stats_row() -> rx.Component:
             S.DANGER_BG,
         ),
         spacing="4",
+        flex_wrap="wrap",
         width="100%",
     )
 
@@ -317,6 +318,7 @@ def _filter_bar() -> rx.Component:
                 ),
                 spacing="4",
                 align="end",
+                flex_wrap="wrap",
                 width="100%",
             ),
             spacing="4",
@@ -562,9 +564,11 @@ def _logs_table() -> rx.Component:
             ),
             spacing="0",
             width="100%",
+            min_width="600px",
         ),
         padding="0",
-        overflow="hidden",
+        overflow_x="auto",
+        overflow_y="hidden",
         width="100%",
     )
 

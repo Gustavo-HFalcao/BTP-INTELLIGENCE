@@ -198,8 +198,8 @@ def _static_module_card() -> rx.Component:
         align="start",
         width="100%",
         **{**S.GLASS_CARD, "padding": "20px", "border_top": f"2px solid {S.COPPER}"},
-        flex="1",
-        height="100%",
+        flex="1 1 280px",
+        min_width="280px",
     )
 
 
@@ -347,8 +347,8 @@ def _ai_module_card() -> rx.Component:
         align="start",
         width="100%",
         **{**S.GLASS_CARD, "padding": "20px", "border_top": f"2px solid {S.PATINA}"},
-        flex="1",
-        height="100%",
+        flex="1 1 280px",
+        min_width="280px",
     )
 
 
@@ -929,6 +929,7 @@ def relatorios_page() -> rx.Component:
             spacing="4",
             width="100%",
             align_items="stretch",
+            flex_wrap="wrap",
         ),
 
         # Error banner (if any)

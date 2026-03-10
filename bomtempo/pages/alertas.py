@@ -551,41 +551,50 @@ def _subscriptions_panel() -> rx.Component:
                 align="center",
                 width="100%",
             ),
-            # Column headers
+            # Column headers + rows (scrollable on mobile)
             rx.box(
-                rx.flex(
-                    rx.text("TIPO", font_size="0.62rem", font_weight="700",
-                            color=S.TEXT_MUTED, letter_spacing="0.15em", min_width="160px"),
-                    rx.text("CONTRATO", font_size="0.62rem", font_weight="700",
-                            color=S.TEXT_MUTED, letter_spacing="0.15em", min_width="110px"),
-                    rx.text("DESTINATÁRIOS", font_size="0.62rem", font_weight="700",
-                            color=S.TEXT_MUTED, letter_spacing="0.15em", flex="1"),
-                    gap="14px",
-                    width="100%",
-                ),
-                padding_x="14px",
-                padding_y="8px",
-                border_bottom=f"1px solid {S.BORDER_SUBTLE}",
-            ),
-            # Rows
-            rx.cond(
-                AlertasState.subscriptions,
                 rx.vstack(
-                    rx.foreach(AlertasState.subscriptions, _subscription_row),
-                    spacing="2",
+                    rx.box(
+                        rx.flex(
+                            rx.text("TIPO", font_size="0.62rem", font_weight="700",
+                                    color=S.TEXT_MUTED, letter_spacing="0.15em", min_width="160px"),
+                            rx.text("CONTRATO", font_size="0.62rem", font_weight="700",
+                                    color=S.TEXT_MUTED, letter_spacing="0.15em", min_width="110px"),
+                            rx.text("DESTINATÁRIOS", font_size="0.62rem", font_weight="700",
+                                    color=S.TEXT_MUTED, letter_spacing="0.15em", flex="1"),
+                            gap="14px",
+                            width="100%",
+                            min_width="380px",
+                        ),
+                        padding_x="14px",
+                        padding_y="8px",
+                        border_bottom=f"1px solid {S.BORDER_SUBTLE}",
+                    ),
+                    rx.cond(
+                        AlertasState.subscriptions,
+                        rx.vstack(
+                            rx.foreach(AlertasState.subscriptions, _subscription_row),
+                            spacing="2",
+                            width="100%",
+                            min_width="380px",
+                        ),
+                        rx.box(
+                            rx.vstack(
+                                rx.icon(tag="bell-off", size=28, color=S.TEXT_MUTED),
+                                rx.text("Nenhum destinatário cadastrado ainda.",
+                                        font_size="0.82rem", color=S.TEXT_MUTED),
+                                rx.text("Use o formulário acima para configurar alertas.",
+                                        font_size="0.72rem", color=S.TEXT_MUTED),
+                                spacing="2", align="center",
+                            ),
+                            width="100%", padding="36px", text_align="center",
+                        ),
+                    ),
+                    spacing="0",
                     width="100%",
                 ),
-                rx.box(
-                    rx.vstack(
-                        rx.icon(tag="bell-off", size=28, color=S.TEXT_MUTED),
-                        rx.text("Nenhum destinatário cadastrado ainda.",
-                                font_size="0.82rem", color=S.TEXT_MUTED),
-                        rx.text("Use o formulário acima para configurar alertas.",
-                                font_size="0.72rem", color=S.TEXT_MUTED),
-                        spacing="2", align="center",
-                    ),
-                    width="100%", padding="36px", text_align="center",
-                ),
+                overflow_x="auto",
+                width="100%",
             ),
             spacing="3",
             width="100%",
@@ -643,42 +652,51 @@ def _history_panel() -> rx.Component:
                 align="center",
                 width="100%",
             ),
-            # Headers
+            # Headers + Rows (scrollable on mobile)
             rx.box(
-                rx.flex(
-                    rx.text("DATA/HORA", font_size="0.62rem", font_weight="700",
-                            color=S.TEXT_MUTED, letter_spacing="0.15em", min_width="125px"),
-                    rx.text("TIPO", font_size="0.62rem", font_weight="700",
-                            color=S.TEXT_MUTED, letter_spacing="0.15em", min_width="150px"),
-                    rx.text("CONTRATO", font_size="0.62rem", font_weight="700",
-                            color=S.TEXT_MUTED, letter_spacing="0.15em", min_width="105px"),
-                    rx.text("MENSAGEM", font_size="0.62rem", font_weight="700",
-                            color=S.TEXT_MUTED, letter_spacing="0.15em", flex="1"),
-                    gap="14px",
-                    width="100%",
-                ),
-                padding="8px 14px",
-                border_bottom=f"1px solid {S.BORDER_ACCENT}",
-            ),
-            # Rows
-            rx.cond(
-                AlertasState.history,
                 rx.vstack(
-                    rx.foreach(AlertasState.history, _history_row),
+                    rx.box(
+                        rx.flex(
+                            rx.text("DATA/HORA", font_size="0.62rem", font_weight="700",
+                                    color=S.TEXT_MUTED, letter_spacing="0.15em", min_width="125px"),
+                            rx.text("TIPO", font_size="0.62rem", font_weight="700",
+                                    color=S.TEXT_MUTED, letter_spacing="0.15em", min_width="150px"),
+                            rx.text("CONTRATO", font_size="0.62rem", font_weight="700",
+                                    color=S.TEXT_MUTED, letter_spacing="0.15em", min_width="105px"),
+                            rx.text("MENSAGEM", font_size="0.62rem", font_weight="700",
+                                    color=S.TEXT_MUTED, letter_spacing="0.15em", flex="1"),
+                            gap="14px",
+                            width="100%",
+                            min_width="480px",
+                        ),
+                        padding="8px 14px",
+                        border_bottom=f"1px solid {S.BORDER_ACCENT}",
+                    ),
+                    rx.cond(
+                        AlertasState.history,
+                        rx.vstack(
+                            rx.foreach(AlertasState.history, _history_row),
+                            spacing="0",
+                            width="100%",
+                            min_width="480px",
+                        ),
+                        rx.box(
+                            rx.vstack(
+                                rx.icon(tag="inbox", size=28, color=S.TEXT_MUTED),
+                                rx.text("Nenhum alerta disparado ainda.",
+                                        font_size="0.82rem", color=S.TEXT_MUTED),
+                                rx.text("Use o ⚡ nos cards acima para testar.",
+                                        font_size="0.72rem", color=S.TEXT_MUTED),
+                                spacing="2", align="center",
+                            ),
+                            width="100%", padding="36px", text_align="center",
+                        ),
+                    ),
                     spacing="0",
                     width="100%",
                 ),
-                rx.box(
-                    rx.vstack(
-                        rx.icon(tag="inbox", size=28, color=S.TEXT_MUTED),
-                        rx.text("Nenhum alerta disparado ainda.",
-                                font_size="0.82rem", color=S.TEXT_MUTED),
-                        rx.text("Use o ⚡ nos cards acima para testar.",
-                                font_size="0.72rem", color=S.TEXT_MUTED),
-                        spacing="2", align="center",
-                    ),
-                    width="100%", padding="36px", text_align="center",
-                ),
+                overflow_x="auto",
+                width="100%",
             ),
             # Pagination controls
             rx.cond(
