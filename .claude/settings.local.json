@@ -41,7 +41,10 @@
       "Bash(playwright install msedge)",
       "Bash(echo \"exit: $?\")",
       "Bash(git add bomtempo/core/alert_service.py bomtempo/pages/alertas.py bomtempo/pages/usuarios.py bomtempo/state/alertas_state.py bomtempo/state/logs_state.py bomtempo/state/usuarios_state.py)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git add bomtempo/state/usuarios_state.py bomtempo/state/global_state.py bomtempo/pages/usuarios.py bomtempo/components/sidebar.py bomtempo/layouts/default.py)",
+      "Bash(git add bomtempo/state/global_state.py bomtempo/components/sidebar.py bomtempo/layouts/default.py)",
+      "Bash(git add bomtempo/layouts/default.py)"
     ]
   }
 }
