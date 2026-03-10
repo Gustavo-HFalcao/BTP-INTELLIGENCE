@@ -387,7 +387,7 @@ def _avatar_modal() -> rx.Component:
         ),
         # Save
         rx.hstack(
-            rx.button("Cancelar", on_click=GlobalState.close_avatar_modal, variant="ghost", color_scheme="gray"),
+            rx.button("Cancelar", on_click=GlobalState.close_avatar_modal, variant="soft", color_scheme="gray", style={"color": "rgba(255,255,255,0.75)"}),
             rx.button("Salvar Avatar", on_click=GlobalState.save_avatar_pref, color_scheme="amber"),
             spacing="3", justify="end", width="100%",
         ),
@@ -438,7 +438,7 @@ def _avatar_modal() -> rx.Component:
                 GlobalState.pw_success,
                 rx.button("Fechar", on_click=GlobalState.close_avatar_modal, color_scheme="amber"),
                 rx.hstack(
-                    rx.button("Cancelar", on_click=GlobalState.close_avatar_modal, variant="ghost", color_scheme="gray"),
+                    rx.button("Cancelar", on_click=GlobalState.close_avatar_modal, variant="soft", color_scheme="gray", style={"color": "rgba(255,255,255,0.75)"}),
                     rx.button("Salvar Senha", on_click=GlobalState.save_password, color_scheme="amber"),
                     spacing="3",
                 ),
