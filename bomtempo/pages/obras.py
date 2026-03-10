@@ -294,7 +294,7 @@ def _kpi_card_static(
         ),
         **_GLASS_COMPACT,
         flex="1",
-        min_width="0",
+        min_width="160px",
     )
 
 
@@ -360,7 +360,7 @@ def _obra_status_strip() -> rx.Component:
             ),
             **_GLASS_COMPACT,
             flex="1",
-            min_width="0",
+            min_width="160px",
         ),
         # Equipe
         _kpi_card_static(
@@ -417,7 +417,7 @@ def _obra_status_strip() -> rx.Component:
             ),
             **_GLASS_COMPACT,
             flex="1",
-            min_width="0",
+            min_width="160px",
         ),
         # Risco
         rx.box(
@@ -483,7 +483,7 @@ def _obra_status_strip() -> rx.Component:
             ),
             **_GLASS_COMPACT,
             flex="1",
-            min_width="0",
+            min_width="160px",
         ),
         gap="16px",
         flex_wrap=rx.breakpoints(initial="wrap", lg="nowrap"),
@@ -1017,17 +1017,23 @@ def obra_detail_view() -> rx.Component:
         # 1 — Status strip
         _obra_status_strip(),
         # 2 — Left: info bar + AI insight | Right: weather
-        rx.hstack(
+        rx.flex(
             rx.vstack(
                 _obra_compact_info(),
                 _obra_ai_insight_panel(),
-                flex="2",
+                flex=rx.breakpoints(initial="0 0 100%", lg="2"),
                 spacing="6",
                 width="100%",
+                min_width="280px",
             ),
-            rx.box(weather_widget(), flex="1", height="100%"),
+            rx.box(
+                weather_widget(),
+                flex=rx.breakpoints(initial="0 0 100%", lg="1"),
+                min_width="200px",
+            ),
             width="100%",
-            spacing="6",
+            gap="1.5rem",
+            flex_wrap=rx.breakpoints(initial="wrap", lg="nowrap"),
             align_items="stretch",
         ),
         # 3 — Discipline gauges (full width)

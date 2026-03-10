@@ -1127,7 +1127,7 @@ def editar_dados_page() -> rx.Component:
             width="100%",
             max_width="1440px",
             margin_x="auto",
-            padding="24px",
+            padding=rx.breakpoints(initial="8px", md="16px", xl="24px"),
             min_height="100vh",
             position="relative",
         ),

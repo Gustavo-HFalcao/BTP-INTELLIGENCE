@@ -1277,6 +1277,17 @@ body {
     z-index: 10001 !important;
 }
 
+/* ── Dialogs always above sidebar drawer (z-index: 9999) ─── */
+/* Applies globally (not just mobile) to prevent drawer overlap */
+.rt-DialogContent,
+.rt-AlertDialogContent {
+    z-index: 10100 !important;
+}
+.rt-DialogOverlay,
+.rt-AlertDialogOverlay {
+    z-index: 10099 !important;
+}
+
 /* ── Mobile baseline (≤640px) ────────────────────────────── */
 @media (max-width: 640px) {
 
