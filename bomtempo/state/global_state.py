@@ -843,6 +843,14 @@ class GlobalState(rx.State):
     avatar_edit_icon: str = ""
     avatar_edit_type: str = "initial"
 
+    # Change password modal
+    show_password_modal: bool = False
+    pw_current: str = ""
+    pw_new: str = ""
+    pw_confirm: str = ""
+    pw_error: str = ""
+    pw_success: bool = False
+
     async def check_login_on_enter(self, key: str):
         """Login apenas se Enter for pressionado"""
         if key == "Enter":
@@ -867,6 +875,12 @@ class GlobalState(rx.State):
         self.current_user_avatar_icon = ""
         self.current_user_avatar_type = "initial"
         self.show_avatar_modal = False
+        self.show_password_modal = False
+        self.pw_current = ""
+        self.pw_new = ""
+        self.pw_confirm = ""
+        self.pw_error = ""
+        self.pw_success = False
 
     def set_current_path(self, path: str):
         self.current_path = path
@@ -915,6 +929,65 @@ class GlobalState(rx.State):
         except Exception as e:
             logger.error(f"Erro ao salvar preferência de avatar: {e}")
         self.show_avatar_modal = False
+
+    # ── Change password ────────────────────────────────────────────────────────
+
+    def open_password_modal(self):
+        self.pw_current = ""
+        self.pw_new = ""
+        self.pw_confirm = ""
+        self.pw_error = ""
+        self.pw_success = False
+        self.show_password_modal = True
+
+    def close_password_modal(self):
+        self.show_password_modal = False
+
+    def set_pw_current(self, val: str):
+        self.pw_current = val
+
+    def set_pw_new(self, val: str):
+        self.pw_new = val
+
+    def set_pw_confirm(self, val: str):
+        self.pw_confirm = val
+
+    def save_password(self):
+        self.pw_error = ""
+        self.pw_success = False
+
+        if not self.pw_new.strip():
+            self.pw_error = "A nova senha não pode estar vazia."
+            return
+        if len(self.pw_new.strip()) < 3:
+            self.pw_error = "A nova senha deve ter ao menos 3 caracteres."
+            return
+        if self.pw_new != self.pw_confirm:
+            self.pw_error = "As senhas não coincidem."
+            return
+
+        from bomtempo.core.supabase_client import sb_select, sb_update
+        try:
+            rows = sb_select("login", filters={"user": self.current_user_name})
+            if not rows:
+                self.pw_error = "Usuário não encontrado."
+                return
+            db_pw = str(rows[0].get("password", ""))
+            if self.pw_current.strip() != db_pw:
+                self.pw_error = "Senha atual incorreta."
+                return
+            sb_update(
+                "login",
+                filters={"user": self.current_user_name},
+                data={"password": self.pw_new.strip()},
+            )
+            self.pw_current = ""
+            self.pw_new = ""
+            self.pw_confirm = ""
+            self.pw_success = True
+        except Exception as e:
+            logger.error(f"Erro ao alterar senha: {e}")
+            self.pw_error = "Erro ao salvar. Tente novamente."
 
     @rx.var
     def page_title(self) -> str:

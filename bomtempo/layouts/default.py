@@ -269,6 +269,143 @@ _POPUP_META = {
 }
 
 
+def _password_modal() -> rx.Component:
+    """Change own password modal — accessible from sidebar popover."""
+    return rx.dialog.root(
+        rx.dialog.content(
+            rx.vstack(
+                # Header
+                rx.hstack(
+                    rx.icon(tag="key-round", size=18, color=S.COPPER),
+                    rx.text(
+                        "Alterar Senha",
+                        font_family=S.FONT_TECH,
+                        font_size="1.05rem",
+                        font_weight="700",
+                        color="white",
+                    ),
+                    rx.spacer(),
+                    rx.icon_button(
+                        rx.icon(tag="x", size=16),
+                        on_click=GlobalState.close_password_modal,
+                        variant="ghost",
+                        color_scheme="amber",
+                        size="2",
+                    ),
+                    width="100%",
+                    align="center",
+                    margin_bottom="4px",
+                ),
+                # Error
+                rx.cond(
+                    GlobalState.pw_error != "",
+                    rx.callout.root(
+                        rx.callout.icon(rx.icon(tag="triangle-alert", size=14)),
+                        rx.callout.text(GlobalState.pw_error),
+                        color_scheme="red",
+                        variant="soft",
+                        size="1",
+                        width="100%",
+                    ),
+                ),
+                # Success
+                rx.cond(
+                    GlobalState.pw_success,
+                    rx.callout.root(
+                        rx.callout.icon(rx.icon(tag="check-circle", size=14)),
+                        rx.callout.text("Senha alterada com sucesso!"),
+                        color_scheme="green",
+                        variant="soft",
+                        size="1",
+                        width="100%",
+                    ),
+                ),
+                # Fields (hidden after success)
+                rx.cond(
+                    ~GlobalState.pw_success,
+                    rx.vstack(
+                        rx.vstack(
+                            rx.text("Senha Atual", font_size="12px", font_weight="600", color=S.TEXT_MUTED),
+                            rx.input(
+                                type="password",
+                                placeholder="••••••••",
+                                value=GlobalState.pw_current,
+                                on_change=GlobalState.set_pw_current,
+                                width="100%",
+                                color_scheme="amber",
+                            ),
+                            spacing="1",
+                            width="100%",
+                        ),
+                        rx.vstack(
+                            rx.text("Nova Senha", font_size="12px", font_weight="600", color=S.TEXT_MUTED),
+                            rx.input(
+                                type="password",
+                                placeholder="••••••••",
+                                value=GlobalState.pw_new,
+                                on_change=GlobalState.set_pw_new,
+                                width="100%",
+                                color_scheme="amber",
+                            ),
+                            spacing="1",
+                            width="100%",
+                        ),
+                        rx.vstack(
+                            rx.text("Confirmar Nova Senha", font_size="12px", font_weight="600", color=S.TEXT_MUTED),
+                            rx.input(
+                                type="password",
+                                placeholder="••••••••",
+                                value=GlobalState.pw_confirm,
+                                on_change=GlobalState.set_pw_confirm,
+                                width="100%",
+                                color_scheme="amber",
+                            ),
+                            spacing="1",
+                            width="100%",
+                        ),
+                        spacing="3",
+                        width="100%",
+                    ),
+                ),
+                # Actions
+                rx.hstack(
+                    rx.cond(
+                        GlobalState.pw_success,
+                        rx.button(
+                            "Fechar",
+                            on_click=GlobalState.close_password_modal,
+                            color_scheme="amber",
+                        ),
+                        rx.hstack(
+                            rx.button(
+                                "Cancelar",
+                                on_click=GlobalState.close_password_modal,
+                                variant="ghost",
+                                color_scheme="gray",
+                            ),
+                            rx.button(
+                                "Salvar",
+                                on_click=GlobalState.save_password,
+                                color_scheme="amber",
+                            ),
+                            spacing="3",
+                        ),
+                    ),
+                    justify="end",
+                    width="100%",
+                    margin_top="4px",
+                ),
+                spacing="4",
+                width="100%",
+            ),
+            max_width="400px",
+            background=S.BG_ELEVATED,
+            border=f"1px solid {S.BORDER_SUBTLE}",
+        ),
+        open=GlobalState.show_password_modal,
+    )
+
+
 def _avatar_icon_btn(item: tuple) -> rx.Component:
     slug = item[0]
     label = item[1]
@@ -988,6 +1125,8 @@ def default_layout(content: rx.Component) -> rx.Component:
         _kpi_detail_dialog(),
         # ── Avatar Personalization Modal ──────────────────────────────────────
         _avatar_modal(),
+        # ── Change Password Modal ─────────────────────────────────────────────
+        _password_modal(),
         # Outer box props
         position="relative",
         width="100%",
