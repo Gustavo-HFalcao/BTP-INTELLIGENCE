@@ -638,7 +638,7 @@ def _history_panel() -> rx.Component:
                     spacing="2", align="center",
                 ),
                 rx.spacer(),
-                rx.text(AlertasState.history.length().to_string() + " eventos",
+                rx.text(AlertasState.history_page_info,
                         font_size="0.7rem", color=S.TEXT_MUTED),
                 align="center",
                 width="100%",
@@ -680,24 +680,39 @@ def _history_panel() -> rx.Component:
                     width="100%", padding="36px", text_align="center",
                 ),
             ),
-            # Load more
+            # Pagination controls
             rx.cond(
-                AlertasState.history,
-                rx.button(
-                    rx.hstack(
-                        rx.icon(tag="chevrons-down", size=14),
-                        rx.text("Ver mais", font_size="0.78rem", font_weight="600"),
-                        spacing="2", align="center",
+                AlertasState.history_total > AlertasState.history_per_page,
+                rx.hstack(
+                    rx.icon_button(
+                        rx.icon(tag="chevron-left", size=14),
+                        on_click=AlertasState.history_prev,
+                        disabled=~AlertasState.history_has_prev,
+                        variant="ghost",
+                        color_scheme="gray",
+                        size="2",
+                        cursor="pointer",
                     ),
-                    on_click=AlertasState.load_more_history,
-                    variant="ghost",
-                    color_scheme="gray",
-                    width="100%",
-                    cursor="pointer",
-                    border_top=f"1px solid {S.BORDER_SUBTLE}",
-                    border_radius="0",
+                    rx.text(
+                        "Pág. " + AlertasState.history_page.to_string()
+                        + " / " + AlertasState.history_total_pages.to_string(),
+                        font_size="0.72rem",
+                        color=S.TEXT_MUTED,
+                    ),
+                    rx.icon_button(
+                        rx.icon(tag="chevron-right", size=14),
+                        on_click=AlertasState.history_next,
+                        disabled=~AlertasState.history_has_next,
+                        variant="ghost",
+                        color_scheme="gray",
+                        size="2",
+                        cursor="pointer",
+                    ),
+                    justify="center",
+                    spacing="3",
                     padding_y="10px",
-                    _hover={"bg": "rgba(255,255,255,0.03)"},
+                    border_top=f"1px solid {S.BORDER_SUBTLE}",
+                    width="100%",
                 ),
             ),
             spacing="0",

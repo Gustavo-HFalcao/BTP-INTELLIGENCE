@@ -5,6 +5,7 @@ State management for the Proactive Alerts module.
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timezone, timedelta
 
 import reflex as rx
 
@@ -32,6 +33,23 @@ class SubscriptionGroup(rx.Base):
     email_chips: list[EmailChip] = []
     emails_display: str = ""
     count: str = "0"
+
+
+_BRT = timezone(timedelta(hours=-3))  # Brasília Time (UTC-3)
+
+
+def _utc_to_brt(ts: str) -> str:
+    """Convert UTC ISO timestamp to BRT display string 'DD/MM HH:MM'."""
+    if not ts or ts in ("—", ""):
+        return ts
+    try:
+        ts_norm = ts.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(ts_norm[:32])
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(_BRT).strftime("%d/%m %H:%M")
+    except Exception:
+        return ts[:16].replace("T", " ") if len(ts) >= 16 else ts
 
 
 # ── Normalizers ───────────────────────────────────────────────────────────────
@@ -68,7 +86,7 @@ def _norm_hist(h: dict) -> dict:
         "alert_color": ALERT_TYPES.get(at, {}).get("color", "#C98B2A"),
         "message": msg[:140],
         "is_read": bool(h.get("is_read", False)),
-        "timestamp": ts[:16].replace("T", " ") if len(ts) >= 16 else ts,
+        "timestamp": _utc_to_brt(ts),
     }
 
 
@@ -99,7 +117,9 @@ class AlertasState(rx.State):
     confirm_sweep_label: str = ""  # PT-BR label shown in the dialog
 
     # History pagination
-    history_limit: int = 50
+    history_page: int = 1
+    history_total: int = 0
+    history_per_page: int = 30
 
     # ── Explicit setters ──────────────────────────────────────────────────────
 
@@ -111,6 +131,30 @@ class AlertasState(rx.State):
 
     def set_new_email(self, val: str):
         self.new_email = val
+
+    # ── History pagination computed vars ──────────────────────────────────────
+
+    @rx.var
+    def history_total_pages(self) -> int:
+        if self.history_total == 0:
+            return 1
+        return max(1, (self.history_total + self.history_per_page - 1) // self.history_per_page)
+
+    @rx.var
+    def history_has_prev(self) -> bool:
+        return self.history_page > 1
+
+    @rx.var
+    def history_has_next(self) -> bool:
+        return self.history_page < self.history_total_pages
+
+    @rx.var
+    def history_page_info(self) -> str:
+        if self.history_total == 0:
+            return "Nenhum disparo"
+        start = (self.history_page - 1) * self.history_per_page + 1
+        end = min(self.history_page * self.history_per_page, self.history_total)
+        return f"{start}–{end} de {self.history_total}"
 
     def clear_type_sweep_result(self, alert_type: str):
         new_r = {**self.sweep_results}
@@ -136,7 +180,7 @@ class AlertasState(rx.State):
             self.is_loading = True
             self.form_message = ""
             self.sweep_results = {}
-            limit = self.history_limit
+            self.history_page = 1
 
         loop = asyncio.get_running_loop()
         try:
@@ -148,14 +192,15 @@ class AlertasState(rx.State):
                 if at in counts:
                     counts[at] += len(g.get("email_chips", []))
 
-            raw_hist = await loop.run_in_executor(
-                None, lambda: AlertService.get_history(limit=limit)
+            rows, total = await loop.run_in_executor(
+                None, lambda: AlertService.get_history(page=1, per_page=30)
             )
 
             async with self:
                 self.subscriptions = [_norm_group(g) for g in raw]
                 self.subscription_counts = counts
-                self.history = [_norm_hist(h) for h in raw_hist]
+                self.history = [_norm_hist(h) for h in rows]
+                self.history_total = total
                 self.is_loading = False
 
         except Exception as exc:
@@ -165,13 +210,35 @@ class AlertasState(rx.State):
 
     # ── History pagination ────────────────────────────────────────────────────
 
-    def load_more_history(self):
-        self.history_limit += 50
-        try:
-            raw_hist = AlertService.get_history(limit=self.history_limit)
-            self.history = [_norm_hist(h) for h in raw_hist]
-        except Exception as exc:
-            logger.error(f"[AlertasState.load_more_history] {exc}")
+    @rx.event(background=True)
+    async def history_prev(self):
+        async with self:
+            if self.history_page <= 1:
+                return
+            self.history_page -= 1
+            page = self.history_page
+        loop = asyncio.get_running_loop()
+        rows, total = await loop.run_in_executor(
+            None, lambda: AlertService.get_history(page=page, per_page=30)
+        )
+        async with self:
+            self.history = [_norm_hist(h) for h in rows]
+            self.history_total = total
+
+    @rx.event(background=True)
+    async def history_next(self):
+        async with self:
+            if self.history_page >= self.history_total_pages:
+                return
+            self.history_page += 1
+            page = self.history_page
+        loop = asyncio.get_running_loop()
+        rows, total = await loop.run_in_executor(
+            None, lambda: AlertService.get_history(page=page, per_page=30)
+        )
+        async with self:
+            self.history = [_norm_hist(h) for h in rows]
+            self.history_total = total
 
     # ── Add subscription (async background) ──────────────────────────────────
 
@@ -281,7 +348,14 @@ class AlertasState(rx.State):
                 metadata={"alert_type": alert_type, "sent": sent, "errors": errors, "skipped": skipped},
                 status="success" if not errors else "warning",
             )
-            raw_hist = AlertService.get_history(limit=self.history_limit)
-            self.history = [_norm_hist(h) for h in raw_hist]
+            self.history_page = 1
             self.sweep_running = False
             self.sweep_running_type = ""
+
+        # Reload history after releasing state lock
+        rows, total = await loop.run_in_executor(
+            None, lambda: AlertService.get_history(page=1, per_page=30)
+        )
+        async with self:
+            self.history = [_norm_hist(h) for h in rows]
+            self.history_total = total

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
 from bomtempo.core.logging_utils import get_logger
@@ -73,6 +73,8 @@ ALERT_TYPES: Dict[str, Dict[str, str]] = {
         "schedule": "Verificado diariamente às 18h",
     },
 }
+
+_BRT = timezone(timedelta(hours=-3))  # Brasília Time (UTC-3)
 
 _SENTINEL_EMAIL = "scheduler@bomtempo.com.br"
 _TABLE_SUBS = "alert_subscriptions"   # global toggle per alert_type
@@ -244,8 +246,16 @@ class AlertService:
     # ────────────────────────────────────────────────────────────────────────
 
     @staticmethod
-    def get_history(limit: int = 50) -> List[Dict]:
-        return sb_select(_TABLE_HIST, order="timestamp.desc", limit=limit) or []
+    def get_history(page: int = 1, per_page: int = 30) -> tuple:
+        """Returns (rows: List[Dict], total_count: int) — paginated."""
+        from bomtempo.core.supabase_client import sb_select_paginated
+        rows, total = sb_select_paginated(
+            _TABLE_HIST,
+            page=page,
+            limit=per_page,
+            order="timestamp.desc",
+        )
+        return rows or [], total
 
     @staticmethod
     def _log_history(contract: str, alert_type: str, message: str) -> None:
@@ -397,34 +407,76 @@ _last_weekly: Any = None
 _last_monthly: Any = None
 
 
+def _already_fired_today(alert_type: str, brt_date_str: str) -> bool:
+    """
+    DB-level dedup: returns True if this alert_type already has an entry
+    in alert_history for today (BRT). Prevents multi-worker duplicate fires.
+    brt_date_str: YYYY-MM-DD in BRT.
+    """
+    try:
+        import httpx
+        from bomtempo.core.supabase_client import REST_BASE, _headers
+        # BRT 00:00 = UTC 03:00 (BRT is UTC-3, so add 3h)
+        brt_midnight_utc = f"{brt_date_str}T03:00:00"
+        h = _headers()
+        h["Prefer"] = "count=exact"
+        h["Range"] = "0-0"
+        resp = httpx.get(
+            f"{REST_BASE}/{_TABLE_HIST}",
+            headers=h,
+            params={
+                "select": "id",
+                "alert_type": f"eq.{alert_type}",
+                "timestamp": f"gte.{brt_midnight_utc}",
+            },
+            timeout=10,
+        )
+        cr = resp.headers.get("Content-Range", "")
+        if "/" in cr:
+            return int(cr.split("/")[1]) > 0
+    except Exception as e:
+        logger.warning(f"[_already_fired_today] {e}")
+    return False
+
+
 def _scheduler_loop() -> None:
     global _last_daily, _last_weekly, _last_monthly
     logger.info("[AlertScheduler] Background scheduler started — checking every 60s.")
     while True:
         try:
-            now = datetime.now()
+            now = datetime.now(_BRT)  # Always use explicit BRT timezone
             today = now.date()
+            today_str = today.isoformat()
             this_week = now.isocalendar()[1]
 
-            # Daily at 18h — includes reactive checks
+            # Daily at 18h BRT — includes reactive checks
             if now.hour == 18 and now.minute < 5 and _last_daily != today:
-                logger.info("[AlertScheduler] Firing daily+reactive sweeps.")
-                for at in ("daily", "risk_high", "budget_overage", "rdo_pending"):
-                    AlertService.run_sweep(at)
-                _last_daily = today
+                if not _already_fired_today("daily", today_str):
+                    logger.info("[AlertScheduler] Firing daily+reactive sweeps.")
+                    for at in ("daily", "risk_high", "budget_overage", "rdo_pending"):
+                        AlertService.run_sweep(at)
+                else:
+                    logger.info("[AlertScheduler] Daily already fired today (DB check) — skip.")
+                _last_daily = today  # Update in-process guard regardless
 
-            # Weekly on Monday at 8h
+            # Weekly on Monday at 8h BRT
             if now.weekday() == 0 and now.hour == 8 and now.minute < 5 and _last_weekly != this_week:
-                logger.info("[AlertScheduler] Firing weekly sweep.")
-                AlertService.run_sweep("weekly")
+                if not _already_fired_today("weekly", today_str):
+                    logger.info("[AlertScheduler] Firing weekly sweep.")
+                    AlertService.run_sweep("weekly")
+                else:
+                    logger.info("[AlertScheduler] Weekly already fired today (DB check) — skip.")
                 _last_weekly = this_week
 
-            # Monthly on day 25 at 9h
+            # Monthly on day 25 at 9h BRT
             if now.day == 25 and now.hour == 9 and now.minute < 5:
                 month_key = (now.year, now.month)
                 if _last_monthly != month_key:
-                    logger.info("[AlertScheduler] Firing monthly sweep.")
-                    AlertService.run_sweep("monthly")
+                    if not _already_fired_today("monthly", today_str):
+                        logger.info("[AlertScheduler] Firing monthly sweep.")
+                        AlertService.run_sweep("monthly")
+                    else:
+                        logger.info("[AlertScheduler] Monthly already fired today (DB check) — skip.")
                     _last_monthly = month_key
 
         except Exception as exc:

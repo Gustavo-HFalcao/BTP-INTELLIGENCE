@@ -179,7 +179,8 @@ class UsuariosState(rx.State):
         self.edit_user_role = val
 
     def set_edit_user_project(self, val: str):
-        self.edit_user_project = val
+        # "__none__" sentinel used by Select.Item (empty string is disallowed as item value)
+        self.edit_user_project = "" if val == "__none__" else val
 
     def save_user(self):
         self.user_form_error = ""

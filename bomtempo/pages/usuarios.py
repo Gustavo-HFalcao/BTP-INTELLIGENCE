@@ -153,7 +153,7 @@ def _user_form_dialog() -> rx.Component:
                             color_scheme="amber",
                         ),
                         rx.select.content(
-                            rx.select.item("Nenhum", value=""),
+                            rx.select.item("Nenhum", value="__none__"),
                             rx.foreach(
                                 GlobalState.contract_ids_list,
                                 lambda c: rx.select.item(c, value=c),
@@ -366,15 +366,74 @@ def _role_form_dialog() -> rx.Component:
 
 
 def _user_row(user: dict) -> rx.Component:
+    role = user["user_role"]
+    avatar_color = rx.cond(
+        role == "Administrador", "amber",
+        rx.cond(
+            (role == "Engenheiro") | (role == "engenheiro"), "teal",
+            rx.cond(
+                role == "Mestre de Obras", "blue",
+                rx.cond(
+                    role == "solicitacao_reembolso", "grass",
+                    rx.cond(role == "data_edit", "violet", "bronze"),
+                ),
+            ),
+        ),
+    )
+    badge_bg = rx.cond(
+        role == "Administrador", "#C98B2A",
+        rx.cond(
+            (role == "Engenheiro") | (role == "engenheiro"), "#2A9D8F",
+            rx.cond(
+                role == "Mestre de Obras", "#3B82F6",
+                rx.cond(
+                    role == "solicitacao_reembolso", "#22c55e",
+                    rx.cond(role == "data_edit", "#8B5CF6", "#92683a"),
+                ),
+            ),
+        ),
+    )
+    role_icon = rx.cond(
+        role == "Administrador", "shield-check",
+        rx.cond(
+            (role == "Engenheiro") | (role == "engenheiro"), "hard-hat",
+            rx.cond(
+                role == "Mestre de Obras", "hammer",
+                rx.cond(
+                    role == "solicitacao_reembolso", "fuel",
+                    rx.cond(role == "data_edit", "database", "user"),
+                ),
+            ),
+        ),
+    )
     return rx.table.row(
         rx.table.cell(
             rx.hstack(
-                rx.avatar(
-                    fallback=user["user"][0].upper(),
-                    size="2",
-                    radius="full",
-                    variant="soft",
-                    color_scheme="bronze",
+                rx.box(
+                    rx.avatar(
+                        fallback=user["user"][0].upper(),
+                        size="2",
+                        radius="full",
+                        variant="soft",
+                        color_scheme=avatar_color,
+                    ),
+                    rx.box(
+                        rx.icon(tag=role_icon, size=8, color="white"),
+                        position="absolute",
+                        bottom="-2px",
+                        right="-2px",
+                        width="14px",
+                        height="14px",
+                        border_radius="50%",
+                        bg=badge_bg,
+                        display="flex",
+                        align_items="center",
+                        justify_content="center",
+                        border="1.5px solid #0E1A17",
+                    ),
+                    position="relative",
+                    display="inline-flex",
+                    flex_shrink="0",
                 ),
                 rx.text(user["user"], font_weight="600", color="white", font_size="14px"),
                 spacing="3",

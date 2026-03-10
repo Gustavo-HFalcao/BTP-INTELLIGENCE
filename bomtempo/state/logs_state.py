@@ -7,8 +7,24 @@ Paginação 100% server-side via Range header para não travar memória.
 from __future__ import annotations
 
 import json
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List
+
+_BRT = timezone(timedelta(hours=-3))
+
+
+def _utc_to_brt(ts: str) -> str:
+    """Convert UTC ISO timestamp to BRT display string 'DD/MM HH:MM'."""
+    if not ts or ts in ("—", ""):
+        return ts
+    try:
+        ts_norm = ts.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(ts_norm[:32])
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(_BRT).strftime("%d/%m %H:%M")
+    except Exception:
+        return ts[:16].replace("T", " ") if len(ts) >= 16 else ts
 
 import reflex as rx
 
@@ -24,15 +40,7 @@ def _normalize_log(row: dict) -> dict:
     """Normaliza um registro de log para uso em rx.foreach."""
     cat = str(row.get("action_category", ""))
     ts = str(row.get("created_at", ""))
-    # Format timestamp: "2024-01-15T14:32:00.000+00:00" → "15/01 14:32"
-    ts_display = ts
-    if len(ts) >= 16:
-        try:
-            d, t = ts[:16].split("T")
-            y, m, day = d.split("-")
-            ts_display = f"{day}/{m} {t}"
-        except Exception:
-            ts_display = ts[:16]
+    ts_display = _utc_to_brt(ts)  # Convert UTC → BRT (DD/MM HH:MM)
 
     meta = row.get("metadata")
     meta_str = ""
