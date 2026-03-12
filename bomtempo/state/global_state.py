@@ -2664,28 +2664,27 @@ class GlobalState(rx.State):
     weather_risk_level: str = "Unknown"
     weather_location_name: str = "Recife, PE"
 
+    @rx.event(background=True)
     async def select_obra_detail(self, label: str):
-        """Navigate to obra detail view and trigger AI insight generation."""
-        self.obras_navigating = True
-        yield  # flush — overlay appears on list view immediately
-        await asyncio.sleep(0.5)  # keep overlay visible long enough to register
-        self.obras_selected_contract = label
-        self.obra_insight_text = ""
-        self.obra_insight_loading = True
-        self.obras_navigating = False
-        yield  # flush — detail view appears, overlay gone
-        yield GlobalState.load_weather_data
-        yield GlobalState.generate_obra_insight_bg
+        """Navigate to obra detail view and trigger AI + weather in parallel."""
+        async with self:
+            self.obras_selected_contract = label
+            self.obra_insight_text = ""
+            self.obra_insight_loading = True
+            # Pre-set weather loading so the widget shows immediately
+            self.weather_loading = True
+            self.weather_data = {}
+            # Dispatch both background tasks in the same block → start in parallel
+            yield GlobalState.load_weather_data
+            yield GlobalState.generate_obra_insight_bg
 
+    @rx.event(background=True)
     async def deselect_obra(self):
         """Return to obras list view."""
-        self.obras_navigating = True
-        yield  # flush — overlay appears on detail view
-        await asyncio.sleep(0.4)  # keep overlay visible
-        self.obras_selected_contract = ""
-        self.obra_insight_text = ""
-        self.obra_insight_loading = False
-        self.obras_navigating = False
+        async with self:
+            self.obras_selected_contract = ""
+            self.obra_insight_text = ""
+            self.obra_insight_loading = False
 
     @rx.event(background=True)
     async def generate_obra_insight_bg(self):
@@ -2791,106 +2790,105 @@ class GlobalState(rx.State):
         self.set_obras_selected_contract(value)
         return GlobalState.load_weather_data
 
+    @rx.event(background=True)
     async def load_weather_data(self):
-        """Fetches weather data from OpenMeteo with Dynamic Geocoding."""
-        # Defaults — only used if no location found anywhere
-        lat, lon = -8.05428, -34.8813  # Recife (fallback)
-        location_name = "Recife, PE"
-
-        # Determine which contract to use for location lookup
-        contract_to_use = self.obras_selected_contract
-
-        # If no contract selected, use the first available contract with a localizacao
-        if not contract_to_use or contract_to_use == "Todos":
-            for df_key in ("obras", "contratos"):
-                df_auto = self._data.get(df_key)
-                if df_auto is not None and not df_auto.empty and "localizacao" in df_auto.columns:
-                    first_loc = df_auto["localizacao"].dropna()
-                    first_loc = first_loc[first_loc.str.strip() != ""]
-                    if not first_loc.empty:
-                        # Take the localizacao of the first contrato row
-                        if "contrato" in df_auto.columns:
+        """Fetches weather data from OpenMeteo with Dynamic Geocoding.
+        Background event — HTTP calls happen outside the state lock so card
+        clicks are never blocked while weather is loading.
+        """
+        # ── Step 1: read needed state under the lock (no I/O here) ──────────
+        async with self:
+            contract_to_use = self.obras_selected_contract
+            df_obras_ref = self._data.get("obras")
+            df_contratos_ref = self._data.get("contratos")
+            # Auto-detect first available contract when none is selected
+            if not contract_to_use or contract_to_use == "Todos":
+                for df_key in ("obras", "contratos"):
+                    df_auto = self._data.get(df_key)
+                    if (
+                        df_auto is not None
+                        and not df_auto.empty
+                        and "localizacao" in df_auto.columns
+                    ):
+                        first_loc = df_auto["localizacao"].dropna()
+                        first_loc = first_loc[first_loc.str.strip() != ""]
+                        if not first_loc.empty and "contrato" in df_auto.columns:
                             contract_to_use = df_auto.loc[first_loc.index[0], "contrato"]
                         break
 
-        if contract_to_use and contract_to_use != "Todos":
-            logger.info(f"DEBUG: Processing weather for contract: '{contract_to_use}'")
-            city = None
-            df_obras = self._data.get("obras")
-            if df_obras is not None and not df_obras.empty:
-                target_code = (
-                    contract_to_use.split(" - ")[0].strip()
-                    if " - " in contract_to_use
-                    else contract_to_use
-                )
+        # ── Step 2: pandas lookups outside the lock (CPU, no I/O) ──────────
+        lat, lon = -8.05428, -34.8813  # Recife (fallback)
+        location_name = "Recife, PE"
+        city = None
 
-                for index, row in df_obras.iterrows():
+        if contract_to_use and contract_to_use != "Todos":
+            target_code = (
+                contract_to_use.split(" - ")[0].strip()
+                if " - " in contract_to_use
+                else contract_to_use
+            )
+            logger.info(f"DEBUG: Processing weather for contract: '{target_code}'")
+
+            if df_obras_ref is not None and not df_obras_ref.empty:
+                for _, row in df_obras_ref.iterrows():
                     contrato_val = str(row.get("contrato", "")).strip()
-                    # Robust match: check if code is inside the value
                     if contrato_val and (
                         target_code in contrato_val or contrato_val in target_code
                     ):
-                        # Found match
                         city = str(row.get("localizacao", "")).strip()
                         logger.info(f"DEBUG: Found in OBRA. City: '{city}'")
                         break
 
-                if not city:
-                    logger.info("DEBUG: City not found in Obras. Checking Contratos...")
-                    # Fallback to df_contratos
-                    df_contratos = self._data.get("contratos")
-                    if df_contratos is not None and not df_contratos.empty:
-                        for index, row in df_contratos.iterrows():
-                            # Contracts usually have 'contrato' column
-                            contrato_val = str(row.get("contrato", "")).strip()
-                            if contrato_val and (
-                                target_code in contrato_val or contrato_val in target_code
-                            ):
-                                city = str(row.get("localizacao", "")).strip()
-                                logger.info(f"DEBUG: Found in CONTRATOS. City: '{city}'")
-                                break
+            if not city and df_contratos_ref is not None and not df_contratos_ref.empty:
+                for _, row in df_contratos_ref.iterrows():
+                    contrato_val = str(row.get("contrato", "")).strip()
+                    if contrato_val and (
+                        target_code in contrato_val or contrato_val in target_code
+                    ):
+                        city = str(row.get("localizacao", "")).strip()
+                        logger.info(f"DEBUG: Found in CONTRATOS. City: '{city}'")
+                        break
 
-                if city and city.lower() != "nan":
-                    # 2. Geocode
-                    logger.info(f"DEBUG: Geocoding city: '{city}'")
-                    try:
-                        coords = await weather_api.get_coordinates(city)
-                        if coords:
-                            lat = coords["lat"]
-                            lon = coords["lon"]
-                            location_name = coords["name"]
-                    except Exception as geo_err:
-                        logger.error(f"Geocoding Error: {geo_err}")
-            else:
-                logger.warning("df_obras is None or empty. Cannot look up location.")
+        # ── Step 3: geocoding HTTP call — outside the lock ──────────────────
+        if city and city.lower() not in ("", "nan"):
+            logger.info(f"DEBUG: Geocoding city: '{city}'")
+            try:
+                coords = await weather_api.get_coordinates(city)
+                if coords:
+                    lat = coords["lat"]
+                    lon = coords["lon"]
+                    location_name = coords["name"]
+            except Exception as geo_err:
+                logger.error(f"Geocoding Error: {geo_err}")
 
-        self.weather_location_name = location_name
-        self.weather_loading = True
-        yield
+        # ── Step 4: mark loading (brief lock) ───────────────────────────────
+        async with self:
+            self.weather_location_name = location_name
+            self.weather_loading = True
 
+        # ── Step 5: forecast HTTP call — outside the lock ───────────────────
+        weather_result = None
+        risk = "Unknown"
         try:
-            data = await weather_api.get_forecast(lat=lat, lon=lon)
-            if data:
-                self.weather_data = data
-                # Calculate risk
-                today_rain = data.get("daily_rain_sum", [0])[0]
-                today_prob = data.get("daily_rain_prob", [0])[0]
-                current_rain = data.get("rain", 0)
-
+            weather_result = await weather_api.get_forecast(lat=lat, lon=lon)
+            if weather_result:
+                today_rain = weather_result.get("daily_rain_sum", [0])[0]
+                today_prob = weather_result.get("daily_rain_prob", [0])[0]
+                current_rain = weather_result.get("rain", 0)
                 if current_rain > 5 or today_rain > 15 or today_prob > 80:
-                    self.weather_risk_level = "High"
+                    risk = "High"
                 elif current_rain > 0.5 or today_rain > 5 or today_prob > 50:
-                    self.weather_risk_level = "Medium"
+                    risk = "Medium"
                 else:
-                    self.weather_risk_level = "Low"
-
-            else:
-                self.weather_risk_level = "Unknown"
-
+                    risk = "Low"
         except Exception as e:
             logger.error(f"Error loading weather: {e}")
-            self.weather_risk_level = "Unknown"
-        finally:
+
+        # ── Step 6: write results to state (brief lock) ──────────────────────
+        async with self:
+            if weather_result:
+                self.weather_data = weather_result
+            self.weather_risk_level = risk
             self.weather_loading = False
 
     def _build_project_context_for_weather(self) -> str:

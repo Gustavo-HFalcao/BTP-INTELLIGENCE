@@ -479,16 +479,13 @@ def detail_view() -> rx.Component:
 
 
 def list_view() -> rx.Component:
-    return rx.box(
-        rx.grid(
-            rx.foreach(
-                GlobalState.filtered_contratos,
-                project_card,
-            ),
-            columns=rx.breakpoints(initial="1", md="2", lg="3"),
-            spacing="6",
-            width="100%",
+    return rx.grid(
+        rx.foreach(
+            GlobalState.filtered_contratos,
+            project_card,
         ),
+        columns=rx.breakpoints(initial="1", md="2", lg="3"),
+        spacing="6",
         width="100%",
     )
 

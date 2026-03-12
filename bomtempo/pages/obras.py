@@ -1,6 +1,6 @@
 import reflex as rx
 
-from bomtempo.components.skeletons import page_centered_loader, page_loading_skeleton
+from bomtempo.components.skeletons import page_loading_skeleton
 from bomtempo.components.weather_widget import weather_widget
 from bomtempo.core import styles as S
 from bomtempo.state.global_state import GlobalState
@@ -29,11 +29,7 @@ def obras_header() -> rx.Component:
         rx.cond(
             GlobalState.obras_selected_contract != "",
             rx.button(
-                rx.cond(
-                    GlobalState.obras_navigating,
-                    rx.hstack(rx.spinner(size="1", color=S.COPPER), rx.text("Voltando...", font_size="13px", font_weight="700"), spacing="2", align="center"),
-                    rx.hstack(rx.icon(tag="arrow-left", size=14), rx.text("Todas as Obras", font_size="13px", font_weight="700"), spacing="2", align="center"),
-                ),
+                rx.hstack(rx.icon(tag="arrow-left", size=14), rx.text("Todas as Obras", font_size="13px", font_weight="700"), spacing="2", align="center"),
                 color=S.COPPER,
                 variant="ghost",
                 cursor="pointer",
@@ -219,22 +215,6 @@ def obra_card(item: dict) -> rx.Component:
 
 def obras_list_view() -> rx.Component:
     return rx.box(
-        # Navigation loading overlay — shown while card click is processing
-        rx.cond(
-            GlobalState.obras_navigating,
-            page_centered_loader(
-                "CARREGANDO OBRA",
-                "Buscando dados operacionais e análise de risco",
-                "hard-hat",
-                position="absolute",
-                top="0", left="0", right="0", bottom="0",
-                z_index="20",
-                border_radius=S.R_CARD,
-                min_height="unset",
-                height="100%",
-                padding="0",
-            ),
-        ),
         rx.vstack(
             rx.cond(
                 GlobalState.obras_cards_list,
@@ -258,9 +238,7 @@ def obras_list_view() -> rx.Component:
             width="100%",
             class_name="animate-enter",
         ),
-        position="relative",
         width="100%",
-        min_height="200px",
     )
 
 
@@ -1038,23 +1016,7 @@ def obra_detail_view() -> rx.Component:
     3. Discipline semi-gauges (full width)
     4. Budget (full width, alone)
     """
-    return rx.box(
-     rx.cond(
-         GlobalState.obras_navigating,
-         page_centered_loader(
-             "RETORNANDO",
-             "Voltando para lista de obras",
-             "arrow-left",
-             position="absolute",
-             top="0", left="0", right="0", bottom="0",
-             z_index="20",
-             border_radius=S.R_CARD,
-             min_height="unset",
-             height="100%",
-             padding="0",
-         ),
-     ),
-     rx.vstack(
+    return rx.vstack(
         # 1 — Status strip
         _obra_status_strip(),
         # 2 — Left: info bar + AI insight | Right: weather
@@ -1084,9 +1046,6 @@ def obra_detail_view() -> rx.Component:
         width="100%",
         spacing="6",
         class_name="animate-enter",
-     ),
-     position="relative",
-     width="100%",
     )
 
 
@@ -1110,8 +1069,5 @@ def obras_page() -> rx.Component:
         width="100%",
         spacing="8",
         class_name="animate-enter",
-        on_mount=[
-            lambda: GlobalState.set_current_path("/obras"),
-            GlobalState.load_weather_data,
-        ],
+        on_mount=lambda: GlobalState.set_current_path("/obras"),
     )
