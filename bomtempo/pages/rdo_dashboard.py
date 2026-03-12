@@ -4,6 +4,7 @@ RDO Dashboard 360° — KPIs e gráficos para Admin/Gestor
 
 import reflex as rx
 
+from bomtempo.components.skeletons import rdo_sync_loader
 from bomtempo.core import styles as S
 from bomtempo.state.rdo_dashboard_state import RDODashboardState
 
@@ -66,12 +67,13 @@ def _chart_por_dia() -> rx.Component:
                 align="center",
             ),
             rx.recharts.area_chart(
-                rx.recharts.area(
-                    data_key="rdos",
-                    stroke=S.COPPER,
-                    fill="rgba(201,139,42,0.15)",
-                    stroke_width=2,
-                ),
+            rx.recharts.area(
+                data_key="rdos",
+                stroke=S.COPPER,
+                fill="rgba(201,139,42,0.15)",
+                stroke_width=2,
+                is_animation_active=False,
+            ),
                 rx.recharts.x_axis(
                     data_key="data", tick={"fontSize": 9, "fill": S.TEXT_MUTED}, tick_count=7
                 ),
@@ -94,6 +96,7 @@ def _chart_por_dia() -> rx.Component:
             width="100%",
         ),
         **{**S.GLASS_CARD, "padding": "20px"},
+        class_name="chart-enter",
         flex="2",
         min_width="300px",
     )
@@ -126,6 +129,7 @@ def _chart_clima() -> rx.Component:
                     inner_radius=40,
                     fill=S.COPPER,
                     label=True,
+                    is_animation_active=False,
                 ),
                 rx.recharts.tooltip(
                     content_style={
@@ -164,11 +168,12 @@ def _chart_mo() -> rx.Component:
                 align="center",
             ),
             rx.recharts.bar_chart(
-                rx.recharts.bar(
-                    data_key="profissionais",
-                    fill=S.PATINA,
-                    radius=[4, 4, 0, 0],
-                ),
+            rx.recharts.bar(
+                data_key="profissionais",
+                fill=S.PATINA,
+                radius=[4, 4, 0, 0],
+                is_animation_active=False,
+            ),
                 rx.recharts.x_axis(data_key="contrato", tick={"fontSize": 9, "fill": S.TEXT_MUTED}),
                 rx.recharts.y_axis(tick={"fontSize": 9, "fill": S.TEXT_MUTED}, width=25),
                 rx.recharts.cartesian_grid(stroke_dasharray="3 3", stroke="rgba(255,255,255,0.05)"),
@@ -336,10 +341,11 @@ def _chart_equipamentos() -> rx.Component:
                 align="center",
             ),
             rx.recharts.bar_chart(
-                rx.recharts.bar(
+            rx.recharts.bar(
                     data_key="quantidade",
                     fill="#3B82F6",
                     radius=[4, 4, 0, 0],
+                    is_animation_active=False,
                 ),
                 rx.recharts.x_axis(
                     data_key="equipamento", tick={"fontSize": 9, "fill": S.TEXT_MUTED}
@@ -394,6 +400,7 @@ def _chart_atividades_status() -> rx.Component:
                     inner_radius=40,
                     fill="#8B5CF6",
                     label=True,
+                    is_animation_active=False,
                 ),
                 rx.recharts.tooltip(
                     content_style={
@@ -432,10 +439,11 @@ def _chart_materiais() -> rx.Component:
                 align="center",
             ),
             rx.recharts.bar_chart(
-                rx.recharts.bar(
+            rx.recharts.bar(
                     data_key="quantidade",
                     fill="#EF4444",
                     radius=[4, 4, 0, 0],
+                    is_animation_active=False,
                 ),
                 rx.recharts.x_axis(data_key="material", tick={"fontSize": 9, "fill": S.TEXT_MUTED}),
                 rx.recharts.y_axis(tick={"fontSize": 9, "fill": S.TEXT_MUTED}, width=35),
@@ -466,23 +474,9 @@ def rdo_dashboard_page() -> rx.Component:
     return rx.box(
         rx.cond(
             RDODashboardState.is_loading,
-            rx.center(
-                rx.vstack(
-                    rx.icon(tag="zap", size=48, color=S.COPPER, class_name="animate-pulse"),
-                    rx.text(
-                        "Sincronizando dados...",
-                        font_size="14px",
-                        color=S.TEXT_MUTED,
-                        font_family=S.FONT_TECH,
-                        class_name="animate-pulse",
-                    ),
-                    align="center",
-                    spacing="4",
-                ),
-                width="100%",
-                height="50vh",
-            ),
+            rdo_sync_loader(),
             rx.vstack(
+
                 # Header
                 rx.hstack(
                     rx.box(
@@ -593,6 +587,5 @@ def rdo_dashboard_page() -> rx.Component:
                 spacing="4",
             ),
         ),
-        on_mount=RDODashboardState.load_dashboard,
         width="100%",
     )

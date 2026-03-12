@@ -5,6 +5,7 @@ from bomtempo.components.charts import (
     kpi_card,
     pie_chart_donut,
 )
+from bomtempo.components.skeletons import page_loading_skeleton
 from bomtempo.core import styles as S
 from bomtempo.state.global_state import GlobalState
 
@@ -77,23 +78,32 @@ def header_banner() -> rx.Component:
             z_index="10",
             max_width="640px",
         ),
-        # Glass panel styling — FULL WIDTH
-        position="relative",
-        overflow="hidden",
-        padding="48px",
-        border_radius="24px",
-        width="100%",
-        class_name="glass-panel animate-enter",
-    )
+    # Glass panel styling — FULL WIDTH
+    position="relative",
+    overflow="hidden",
+    padding="48px",
+    border_radius=S.R_CARD,
+    width="100%",
+    border_left=f"3px solid {S.COPPER}",
+    class_name="glass-panel animate-enter",
+)
 
 
 def filter_bar() -> rx.Component:
-    """Global project/client filter for overview page"""
+    """Global project/client filter — top-right enterprise pill."""
     return rx.hstack(
         rx.spacer(),
         rx.hstack(
-            rx.icon(tag="filter", size=16, color=S.COPPER),
-            rx.text("Filtro:", font_size="12px", color=S.TEXT_MUTED, font_weight="700"),
+            rx.icon(tag="filter", size=13, color=S.COPPER),
+            rx.text(
+                "Filtro:",
+                font_size="11px",
+                color=S.TEXT_MUTED,
+                font_weight="700",
+                font_family=S.FONT_MONO,
+                letter_spacing="0.1em",
+                text_transform="uppercase",
+            ),
             rx.el.select(
                 rx.foreach(
                     GlobalState.project_filter_options,
@@ -104,25 +114,27 @@ def filter_bar() -> rx.Component:
                 value=GlobalState.global_project_filter,
                 on_change=GlobalState.set_global_project_filter,
                 background="transparent",
-                color="white",
+                color=S.COPPER,
                 border="none",
                 outline="none",
-                font_size="14px",
+                font_size="13px",
                 font_family=S.FONT_MONO,
-                padding="8px",
+                font_weight="700",
+                padding_x="4px",
                 cursor="pointer",
             ),
-            bg=S.PATINA_GLOW,
-            padding_x="8px",
-            padding_y="4px",
-            border_radius="12px",
-            border=f"1px solid {S.PATINA}",
+            bg="rgba(201,139,42,0.06)",
+            padding_x="12px",
+            padding_y="7px",
+            border_radius=S.R_CONTROL,
+            border=f"1px solid rgba(201,139,42,0.25)",
             align="center",
-            spacing="3",
+            spacing="2",
+            transition="all 0.15s ease",
+            _hover={"bg": "rgba(201,139,42,0.1)", "border_color": S.COPPER},
         ),
         width="100%",
         align="center",
-        class_name="animate-enter delay-100",
     )
 
 
@@ -211,7 +223,7 @@ def main_bar_chart() -> rx.Component:
             width="100%",
         ),
         **S.GLASS_CARD,
-        class_name="animate-enter delay-300",
+        class_name="chart-enter delay-300",
     )
 
 
@@ -322,7 +334,7 @@ def portfolio_status_chart() -> rx.Component:
             width="100%",
         ),
         **S.GLASS_CARD,
-        class_name="animate-enter delay-400",
+        class_name="chart-enter delay-400",
     )
 
 
@@ -368,11 +380,7 @@ def index_page() -> rx.Component:
             header_banner(),
             rx.cond(
                 GlobalState.is_loading,
-                rx.center(
-                    rx.spinner(size="3", color=S.COPPER),
-                    width="100%",
-                    height="50vh",
-                ),
+                page_loading_skeleton(),
                 rx.vstack(
                     kpi_grid(),
                     charts_section(),

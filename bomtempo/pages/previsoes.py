@@ -1,6 +1,7 @@
 import reflex as rx
 
 from bomtempo.components.charts import dual_area_chart
+from bomtempo.components.skeletons import page_loading_skeleton
 from bomtempo.core import styles as S
 from bomtempo.state.global_state import GlobalState
 
@@ -241,7 +242,7 @@ def previsoes_page() -> rx.Component:
         _em_construcao_banner(),
         rx.cond(
             GlobalState.is_loading,
-            rx.center(rx.spinner(size="3"), width="100%", height="50vh"),
+            page_loading_skeleton(),
             rx.vstack(
                 rx.grid(
                     delay_probability_card(),

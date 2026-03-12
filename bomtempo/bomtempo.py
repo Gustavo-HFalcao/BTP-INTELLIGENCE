@@ -17,6 +17,7 @@ from bomtempo.pages.om import om_page
 from bomtempo.pages.previsoes import previsoes_page
 from bomtempo.pages.projetos import projetos_page
 from bomtempo.pages.rdo_dashboard import rdo_dashboard_page
+from bomtempo.state.rdo_dashboard_state import RDODashboardState
 from bomtempo.pages.rdo_form import rdo_form_page
 from bomtempo.pages.rdo_historico import RDOHistoricoState, rdo_historico_page
 from bomtempo.pages.reembolso_dashboard import reembolso_dashboard_page
@@ -108,7 +109,7 @@ app = rx.App(
     theme=rx.theme(
         appearance="dark",
         accent_color="amber",
-        radius="medium",
+        radius="none",
     ),
 )
 
@@ -154,7 +155,7 @@ app.add_page(
     rdo_dashboard,
     route="/rdo-dashboard",
     title="BOMTEMPO | RDO Analytics",
-    on_load=GlobalState.load_data,
+    on_load=[GlobalState.load_data, RDODashboardState.load_dashboard],
 )
 
 # Reembolso Pages

@@ -5,6 +5,7 @@ Tab 2: Perfis de Acesso (CRUD na tabela roles com seleção de módulos)
 """
 import reflex as rx
 
+from bomtempo.components.skeletons import page_centered_loader, table_skeleton
 from bomtempo.core import styles as S
 from bomtempo.state.global_state import GlobalState
 from bomtempo.state.usuarios_state import AVATAR_ICONS, MODULES, UsuariosState
@@ -16,24 +17,26 @@ from bomtempo.state.usuarios_state import AVATAR_ICONS, MODULES, UsuariosState
 
 
 def _role_badge(role: str) -> rx.Component:
-    color = rx.cond(
-        role == "Administrador",
-        "amber",
-        rx.cond(
-            (role == "Engenheiro") | (role == "engenheiro"),
-            "teal",
-            rx.cond(
-                role == "Mestre de Obras",
-                "blue",
-                rx.cond(role == "", "gray", "bronze"),
-            ),
-        ),
-    )
-    variant = rx.cond(role == "", "surface", "solid")
+    """Executive monochrome role pill — no per-role color."""
     return rx.cond(
         role != "",
-        rx.badge(role, color_scheme=color, variant=variant, size="1"),
-        rx.text("—", font_size="13px", color="rgba(255,255,255,0.25)"),
+        rx.box(
+            rx.text(
+                role,
+                font_size="11px",
+                font_weight="600",
+                font_family=S.FONT_MONO,
+                color=S.TEXT_MUTED,
+                letter_spacing="0.04em",
+                white_space="nowrap",
+            ),
+            padding="3px 9px",
+            border_radius=S.R_CONTROL,
+            border="1px solid rgba(255,255,255,0.1)",
+            bg="rgba(255,255,255,0.05)",
+            display="inline-block",
+        ),
+        rx.text("—", font_size="13px", color="rgba(255,255,255,0.2)"),
     )
 
 
@@ -419,33 +422,9 @@ def _role_form_dialog() -> rx.Component:
 
 
 def _user_row(user: dict) -> rx.Component:
+    """Executive user row — monochrome avatar, inline role icon, normalised badge."""
     role = user["user_role"]
-    avatar_color = rx.cond(
-        role == "Administrador", "amber",
-        rx.cond(
-            (role == "Engenheiro") | (role == "engenheiro"), "teal",
-            rx.cond(
-                role == "Mestre de Obras", "blue",
-                rx.cond(
-                    role == "solicitacao_reembolso", "grass",
-                    rx.cond(role == "data_edit", "violet", "bronze"),
-                ),
-            ),
-        ),
-    )
-    badge_bg = rx.cond(
-        role == "Administrador", "#C98B2A",
-        rx.cond(
-            (role == "Engenheiro") | (role == "engenheiro"), "#2A9D8F",
-            rx.cond(
-                role == "Mestre de Obras", "#3B82F6",
-                rx.cond(
-                    role == "solicitacao_reembolso", "#22c55e",
-                    rx.cond(role == "data_edit", "#8B5CF6", "#92683a"),
-                ),
-            ),
-        ),
-    )
+    # Role icon: derived from role name, displayed INLINE beside the username
     role_icon = rx.cond(
         role == "Administrador", "shield-check",
         rx.cond(
@@ -453,55 +432,52 @@ def _user_row(user: dict) -> rx.Component:
             rx.cond(
                 role == "Mestre de Obras", "hammer",
                 rx.cond(
-                    role == "solicitacao_reembolso", "fuel",
-                    rx.cond(role == "data_edit", "database", "user"),
+                    role == "solicitacao_reembolso", "receipt",
+                    rx.cond(role == "data_edit", "database",
+                    rx.cond(role == "Gestão-Mobile", "smartphone", "user")),
                 ),
             ),
         ),
     )
     return rx.table.row(
+        # ── Username + role icon ──────────────────────────────────
         rx.table.cell(
             rx.hstack(
-                rx.box(
-                    rx.avatar(
-                        fallback=user["user"][0].upper(),
-                        size="2",
-                        radius="full",
-                        variant="soft",
-                        color_scheme=avatar_color,
+                # Monochrome avatar — just the letter, no color branding
+                rx.center(
+                    rx.text(
+                        user["user"][0].upper(),
+                        font_family=S.FONT_TECH,
+                        font_weight="700",
+                        font_size="13px",
+                        color=S.TEXT_MUTED,
                     ),
-                    rx.box(
-                        rx.icon(tag=role_icon, size=8, color="white"),
-                        position="absolute",
-                        bottom="-2px",
-                        right="-2px",
-                        width="14px",
-                        height="14px",
-                        border_radius="50%",
-                        bg=badge_bg,
-                        display="flex",
-                        align_items="center",
-                        justify_content="center",
-                        border="1.5px solid #0E1A17",
-                    ),
-                    position="relative",
-                    display="inline-flex",
+                    width="32px",
+                    height="32px",
+                    border_radius="50%",
+                    bg="rgba(255,255,255,0.06)",
+                    border="1px solid rgba(255,255,255,0.1)",
                     flex_shrink="0",
                 ),
-                rx.text(user["user"], font_weight="600", color="white", font_size="14px"),
-                spacing="3",
+                # Role icon inline — small, muted
+                rx.icon(tag=role_icon, size=13, color="rgba(136,153,153,0.6)"),
+                rx.text(user["user"], font_weight="600", color=S.TEXT_PRIMARY, font_size="14px"),
+                spacing="2",
                 align="center",
             )
         ),
+        # ── Role pill — monochrome ─────────────────────────────────
         rx.table.cell(_role_badge(user["user_role"])),
+        # ── Project — mono font ────────────────────────────────────
         rx.table.cell(
             rx.text(
                 rx.cond(user["project"] != "", user["project"], "—"),
                 font_size="13px",
                 font_family=rx.cond(user["project"] != "", S.FONT_MONO, "inherit"),
-                color=rx.cond(user["project"] != "", S.TEXT_MUTED, "rgba(255,255,255,0.2)"),
+                color=rx.cond(user["project"] != "", S.TEXT_MUTED, "rgba(255,255,255,0.18)"),
             )
         ),
+        # ── Actions ───────────────────────────────────────────────
         rx.table.cell(
             rx.hstack(
                 rx.icon_button(
@@ -538,9 +514,19 @@ def _usuarios_tab() -> rx.Component:
                 rx.icon(tag="plus", size=15),
                 "Novo Usuário",
                 on_click=UsuariosState.open_add_user_dialog,
-                color_scheme="amber",
                 size="2",
-                variant="soft",
+                style={
+                    "background": f"linear-gradient(135deg, {S.COPPER}, {S.COPPER_LIGHT})",
+                    "color": "#0A1F1A",
+                    "font_family": S.FONT_TECH,
+                    "font_weight": "700",
+                    "font_size": "13px",
+                    "letter_spacing": "0.06em",
+                    "cursor": "pointer",
+                    "border_radius": S.R_CONTROL,
+                    "_hover": {"opacity": "0.9", "transform": "translateY(-1px)"},
+                    "transition": "all 0.2s ease",
+                },
             ),
             width="100%",
             align="center",
@@ -549,21 +535,30 @@ def _usuarios_tab() -> rx.Component:
         rx.box(
             rx.cond(
                 UsuariosState.users_loading,
-                rx.center(rx.spinner(size="3"), width="100%", padding="40px"),
+                page_centered_loader(
+                    "CARREGANDO USUÁRIOS",
+                    "Sincronizando perfis e permissões...",
+                    "users",
+                    border="none",
+                    border_radius="0",
+                    background="transparent",
+                    min_height="280px",
+                ),
                 rx.cond(
                     UsuariosState.users_list,
                     rx.table.root(
                         rx.table.header(
                             rx.table.row(
-                                rx.table.column_header_cell("Usuário"),
-                                rx.table.column_header_cell("Perfil"),
-                                rx.table.column_header_cell("Projeto"),
-                                rx.table.column_header_cell(""),
+                                rx.table.column_header_cell("Usuário", style={"color": S.TEXT_MUTED, "font_size": "10px", "letter_spacing": "0.14em", "text_transform": "uppercase", "padding": "12px 16px", "border_bottom": f"1px solid {S.BORDER_ACCENT}"}),
+                                rx.table.column_header_cell("Perfil", style={"color": S.TEXT_MUTED, "font_size": "10px", "letter_spacing": "0.14em", "text_transform": "uppercase", "padding": "12px 16px", "border_bottom": f"1px solid {S.BORDER_ACCENT}"}),
+                                rx.table.column_header_cell("Projeto", style={"color": S.TEXT_MUTED, "font_size": "10px", "letter_spacing": "0.14em", "text_transform": "uppercase", "padding": "12px 16px", "border_bottom": f"1px solid {S.BORDER_ACCENT}"}),
+                                rx.table.column_header_cell("", style={"border_bottom": f"1px solid {S.BORDER_ACCENT}", "padding": "12px 16px"}),
                             )
                         ),
                         rx.table.body(rx.foreach(UsuariosState.users_list, _user_row)),
-                        variant="ghost",
+                        variant="surface",
                         width="100%",
+                        style={"background": S.BG_ELEVATED},
                     ),
                     rx.center(
                         rx.vstack(
@@ -608,11 +603,20 @@ def _role_row(role: dict) -> rx.Component:
             )
         ),
         rx.table.cell(
-            rx.badge(
-                role["module_count"] + " módulos",
-                color_scheme="amber",
-                variant="solid",
-                size="1",
+            rx.box(
+                rx.text(
+                    role["module_count"] + " módulos",
+                    font_size="11px",
+                    font_weight="600",
+                    font_family=S.FONT_MONO,
+                    color=S.TEXT_MUTED,
+                    letter_spacing="0.04em",
+                ),
+                padding="3px 9px",
+                border_radius=S.R_CONTROL,
+                border="1px solid rgba(255,255,255,0.1)",
+                bg="rgba(255,255,255,0.05)",
+                display="inline-block",
             )
         ),
         rx.table.cell(
@@ -651,9 +655,19 @@ def _perfis_tab() -> rx.Component:
                 rx.icon(tag="plus", size=15),
                 "Novo Perfil",
                 on_click=UsuariosState.open_add_role_dialog,
-                color_scheme="amber",
                 size="2",
-                variant="soft",
+                style={
+                    "background": S.COPPER_GLOW,
+                    "color": S.COPPER,
+                    "font_family": S.FONT_TECH,
+                    "font_weight": "700",
+                    "font_size": "13px",
+                    "border": f"1px solid {S.BORDER_ACCENT}",
+                    "cursor": "pointer",
+                    "border_radius": S.R_CONTROL,
+                    "_hover": {"bg": S.COPPER, "color": "#0A1F1A"},
+                    "transition": "all 0.2s ease",
+                },
             ),
             width="100%",
             align="center",
@@ -662,20 +676,21 @@ def _perfis_tab() -> rx.Component:
         rx.box(
             rx.cond(
                 UsuariosState.roles_loading,
-                rx.center(rx.spinner(size="3"), width="100%", padding="40px"),
+                table_skeleton(rows=4),
                 rx.cond(
                     UsuariosState.roles_list,
                     rx.table.root(
                         rx.table.header(
                             rx.table.row(
-                                rx.table.column_header_cell("Perfil"),
-                                rx.table.column_header_cell("Acesso"),
-                                rx.table.column_header_cell(""),
+                                rx.table.column_header_cell("Perfil", style={"color": S.TEXT_MUTED, "font_size": "10px", "letter_spacing": "0.14em", "text_transform": "uppercase", "padding": "12px 16px", "border_bottom": f"1px solid {S.BORDER_ACCENT}"}),
+                                rx.table.column_header_cell("Acesso", style={"color": S.TEXT_MUTED, "font_size": "10px", "letter_spacing": "0.14em", "text_transform": "uppercase", "padding": "12px 16px", "border_bottom": f"1px solid {S.BORDER_ACCENT}"}),
+                                rx.table.column_header_cell("", style={"border_bottom": f"1px solid {S.BORDER_ACCENT}", "padding": "12px 16px"}),
                             )
                         ),
                         rx.table.body(rx.foreach(UsuariosState.roles_list, _role_row)),
-                        variant="ghost",
+                        variant="surface",
                         width="100%",
+                        style={"background": S.BG_ELEVATED},
                     ),
                     rx.center(
                         rx.vstack(

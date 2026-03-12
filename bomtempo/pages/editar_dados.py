@@ -6,6 +6,7 @@ import reflex as rx
 from bomtempo.state.edit_state import EditState
 from bomtempo.state.global_state import GlobalState
 from bomtempo.core import styles as S
+from bomtempo.components.skeletons import page_centered_loader
 
 # ── Tema escuro para o rx.data_editor (Glide Data Grid) ─────────────────────
 _GDG_DARK_THEME = {
@@ -1019,87 +1020,32 @@ def _acesso_negado() -> rx.Component:
 # ── Overlay de Loading Global ────────────────────────────────────────────────
 
 def _loading_overlay() -> rx.Component:
-    """Overlay fixo que cobre a tela durante operações assíncronas.
-    Bloqueia interação e pulsa para sinalizar que algo está acontecendo.
-    """
+    """Full-screen enterprise loader — replaces the plain spinner."""
     return rx.cond(
         EditState.is_loading_table | EditState.is_saving,
         rx.box(
-            rx.vstack(
-                # Anel pulsante duplo
+            rx.center(
                 rx.box(
-                    rx.box(
-                        rx.box(
-                            rx.spinner(size="3", color=S.COPPER),
-                            display="flex",
-                            align_items="center",
-                            justify_content="center",
-                            width="56px",
-                            height="56px",
-                            border_radius="50%",
-                            bg=S.COPPER_GLOW,
-                            border=f"1px solid {S.BORDER_ACCENT}",
+                    page_centered_loader(
+                        title=rx.cond(EditState.is_saving, "SALVANDO DADOS", "CARREGANDO TABELA"),
+                        subtitle=rx.cond(
+                            EditState.is_saving,
+                            "Persistindo registros no banco de dados…",
+                            "Buscando registros no banco de dados…",
                         ),
-                        position="relative",
-                        z_index="1",
+                        icon="database",
                     ),
-                    # Anel externo pulsante
-                    rx.box(
-                        position="absolute",
-                        top="-8px",
-                        left="-8px",
-                        width="72px",
-                        height="72px",
-                        border_radius="50%",
-                        border=f"1px solid rgba(201,139,42,0.3)",
-                        class_name="editor-loading-ring",
-                    ),
-                    position="relative",
-                    width="72px",
-                    height="72px",
-                    display="flex",
-                    align_items="center",
-                    justify_content="center",
+                    max_width="480px",
+                    width="90vw",
                 ),
-                rx.text(
-                    rx.cond(
-                        EditState.is_saving,
-                        "Salvando no banco...",
-                        "Carregando tabela...",
-                    ),
-                    font_family=S.FONT_TECH,
-                    font_size="15px",
-                    font_weight="600",
-                    color=S.TEXT_WHITE,
-                    letter_spacing="0.04em",
-                    margin_top="16px",
-                ),
-                rx.text(
-                    rx.cond(
-                        EditState.is_saving,
-                        "Aguarde enquanto os dados são persistidos no banco.",
-                        "Buscando registros no banco de dados.",
-                    ),
-                    font_size="12px",
-                    color=S.TEXT_MUTED,
-                    text_align="center",
-                    max_width="240px",
-                    line_height="1.5",
-                ),
-                align="center",
-                spacing="1",
+                width="100%",
+                height="100%",
             ),
             position="fixed",
-            top="0",
-            left="0",
-            right="0",
-            bottom="0",
-            bg="rgba(3,5,4,0.82)",
+            top="0", left="0", right="0", bottom="0",
+            bg="rgba(3,5,4,0.88)",
             z_index="999",
-            display="flex",
-            align_items="center",
-            justify_content="center",
-            backdrop_filter="blur(3px)",
+            backdrop_filter="blur(6px)",
             style={"pointer_events": "all"},
         ),
     )
@@ -1130,6 +1076,8 @@ def editar_dados_page() -> rx.Component:
             padding=rx.breakpoints(initial="8px", md="16px", xl="24px"),
             min_height="100vh",
             position="relative",
+            # Auto-load default table on page open — no manual "Carregar" needed
+            on_mount=EditState.load_table,
         ),
         _acesso_negado(),
     )

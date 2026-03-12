@@ -1,5 +1,6 @@
 import reflex as rx
 
+from bomtempo.components.skeletons import page_loading_skeleton
 from bomtempo.core import styles as S
 from bomtempo.state.global_state import GlobalState
 
@@ -500,7 +501,7 @@ def projetos_page() -> rx.Component:
         projetos_header(),
         rx.cond(
             GlobalState.is_loading,
-            rx.center(rx.spinner(size="3"), width="100%", height="50vh"),
+            page_loading_skeleton(),
             rx.cond(
                 GlobalState.selected_contrato != "",
                 detail_view(),

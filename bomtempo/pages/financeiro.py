@@ -7,6 +7,7 @@ from bomtempo.components.charts import (
     money_formatter_js,
     pie_chart_donut,
 )
+from bomtempo.components.skeletons import page_loading_skeleton
 from bomtempo.core import styles as S
 from bomtempo.state.global_state import GlobalState
 
@@ -401,7 +402,7 @@ def financeiro_page() -> rx.Component:
         finance_header(),
         rx.cond(
             GlobalState.is_loading,
-            rx.center(rx.spinner(size="3"), width="100%", height="50vh"),
+            page_loading_skeleton(),
             rx.vstack(
                 finance_kpi_grid(),
                 rx.grid(

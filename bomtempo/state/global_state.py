@@ -30,11 +30,11 @@ class GlobalState(rx.State):
     chat_history: list[dict] = [
         {
             "role": "system",
-            "content": "Você é o assistente inteligente do BOMTEMPO Dashboard. Responda de forma concisa e profissional. Use markdown para tabelas e negrito para destacar valores.",
+            "content": "Você é o assistente inteligente da Plataforma de Inteligência Operacional Bomtempo. Responda de forma concisa e profissional. Use markdown para tabelas e negrito para destacar valores.",
         },
         {
             "role": "assistant",
-            "content": "👋 Olá! Sou o assistente do BOMTEMPO Dashboard. Posso te ajudar a extrair insights dos seus dados, explicar métricas, gerar planos de ação e muito mais. Qual sua necessidade hoje?",
+            "content": "👋 Olá! Sou o assistente da Plataforma de Inteligência Operacional Bomtempo. Posso te ajudar a extrair insights dos seus dados, explicar métricas, gerar planos de ação e muito mais. Qual sua necessidade hoje?",
         },
     ]
     chat_input: str = ""
@@ -346,6 +346,7 @@ class GlobalState(rx.State):
     is_loading: bool = False
     initial_loading: bool = False  # Loading screen after login
     show_loading_screen: bool = False  # Full-screen loading overlay
+    is_authenticating: bool = False   # Intermediate auth button state (login page)
     error_message: str = ""
 
     # Dados processados para UI
@@ -374,6 +375,7 @@ class GlobalState(rx.State):
     obras_selected_contract: str = ""
     obra_insight_text: str = ""
     obra_insight_loading: bool = False
+    obras_navigating: bool = False   # True while transitioning list→detail or back
 
     # O&M page state
     om_time_filter: str = ""  # Empty = no time filter applied
@@ -894,6 +896,12 @@ class GlobalState(rx.State):
     # ── Avatar personalization ─────────────────────────────────────────────────
 
     @rx.var
+    def avatar_fallback(self) -> str:
+        """First letter of the logged-in username for avatar display."""
+        name = self.current_user_name
+        return name[0].upper() if name else "?"
+
+    @rx.var
     def effective_avatar_icon(self) -> str:
         """Resolved icon slug to display when avatar_type == 'icon'."""
         return self.current_user_avatar_icon or self.current_user_role_icon or "user"
@@ -1239,8 +1247,8 @@ class GlobalState(rx.State):
             self.login_error = "Preencha usuário e senha"
             return
 
-        # Mostrar loading IMEDIATAMENTE — antes de qualquer query Supabase.
-        self.show_loading_screen = True
+        # ── Intermediate auth state: button changes on login page ─────────────
+        self.is_authenticating = True
         self.login_error = ""
         yield
 
@@ -1255,6 +1263,9 @@ class GlobalState(rx.State):
             self.login_error = ""
             self.username_input = ""
             self.password_input = ""
+            self.is_authenticating = False
+            self.show_loading_screen = True
+            yield
             yield GlobalState.load_initial_data_smooth
             yield rx.redirect("/")
             return
@@ -1267,6 +1278,7 @@ class GlobalState(rx.State):
                 logger.error(
                     "CRITICAL: SUPABASE_SERVICE_KEY não encontrada nas variáveis de ambiente."
                 )
+                self.is_authenticating = False
                 self.show_loading_screen = False
                 self.login_error = "Erro de Configuração: Chave de API não encontrada no servidor."
                 self.is_authenticated = False
@@ -1325,6 +1337,7 @@ class GlobalState(rx.State):
                     username=username,
                     status="error",
                 )
+                self.is_authenticating = False
                 self.show_loading_screen = False
                 self.login_error = "Usuário ou senha inválidos"
                 self.is_authenticated = False
@@ -1338,12 +1351,17 @@ class GlobalState(rx.State):
                     username=username,
                     status="error",
                 )
+                self.is_authenticating = False
                 self.show_loading_screen = False
                 self.login_error = "Usuário ou senha inválidos"
                 self.is_authenticated = False
                 return
 
-            # ── Login OK — loading screen já está visível ────────────────────
+            # ── Login OK — switch to enterprise full-screen loader ────────────
+            self.is_authenticating = False
+            self.show_loading_screen = True
+            yield
+
             role = _get_role_field(matched)
             self.is_authenticated = True
             self.current_user_name = str(
@@ -1410,6 +1428,7 @@ class GlobalState(rx.State):
                 username=username,
                 error=e,
             )
+            self.is_authenticating = False
             self.show_loading_screen = False
             self.login_error = "Erro ao conectar com o servidor. Tente novamente."
             self.is_authenticated = False
@@ -2647,17 +2666,26 @@ class GlobalState(rx.State):
 
     async def select_obra_detail(self, label: str):
         """Navigate to obra detail view and trigger AI insight generation."""
+        self.obras_navigating = True
+        yield  # flush — overlay appears on list view immediately
+        await asyncio.sleep(0.5)  # keep overlay visible long enough to register
         self.obras_selected_contract = label
         self.obra_insight_text = ""
         self.obra_insight_loading = True
+        self.obras_navigating = False
+        yield  # flush — detail view appears, overlay gone
         yield GlobalState.load_weather_data
         yield GlobalState.generate_obra_insight_bg
 
-    def deselect_obra(self):
+    async def deselect_obra(self):
         """Return to obras list view."""
+        self.obras_navigating = True
+        yield  # flush — overlay appears on detail view
+        await asyncio.sleep(0.4)  # keep overlay visible
         self.obras_selected_contract = ""
         self.obra_insight_text = ""
         self.obra_insight_loading = False
+        self.obras_navigating = False
 
     @rx.event(background=True)
     async def generate_obra_insight_bg(self):

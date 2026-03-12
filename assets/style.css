@@ -112,9 +112,7 @@ h6 {
     }
 }
 
-.animate-enter {
-    animation: enter var(--ease-out-expo) 0.8s forwards;
-}
+/* animate-enter: canonical definition below in ENTERPRISE section — this is deprecated */
 
 .delay-100 {
     animation-delay: 100ms;
@@ -414,36 +412,6 @@ h6 {
     border-top: 1px solid rgba(201, 139, 42, 0.1);
 }
 
-/* ── Project Cards ──────────────────────────────────────────── */
-.project-card {
-    background: var(--bg-glass);
-    backdrop-filter: blur(12px);
-    border: 1px solid var(--border-subtle);
-    border-radius: 16px;
-    padding: 24px;
-    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
-    cursor: pointer;
-    transition: all 0.3s ease;
-    position: relative;
-    overflow: hidden;
-}
-
-.project-card:hover {
-    border-color: var(--copper-500) !important;
-}
-
-.project-card .arrow-icon {
-    opacity: 0;
-    transition: opacity 0.3s ease;
-    position: absolute;
-    top: 16px;
-    right: 16px;
-}
-
-.project-card:hover .arrow-icon {
-    opacity: 1;
-}
-
 /* ── Recharts Overrides ─────────────────────────────────────── */
 .recharts-default-tooltip {
     background-color: #081210 !important;
@@ -603,6 +571,14 @@ textarea::placeholder {
 
 .project-card:hover .arrow-icon {
     opacity: 1;
+}
+
+.project-card:active {
+    transform: scale(0.97);
+    opacity: 0.8;
+    border-color: var(--copper-500) !important;
+    box-shadow: 0 0 16px var(--copper-glow);
+    transition: transform 0.08s ease, opacity 0.08s ease;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -992,21 +968,7 @@ textarea {
 }
 
 /* ── Page Transition Enhanced ────────────────────────────── */
-.animate-enter {
-    animation: enterEnhanced 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
-}
-
-@keyframes enterEnhanced {
-    from {
-        opacity: 0;
-        transform: translateY(16px) scale(0.99);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
-}
+/* canonical animate-enter is in the ENTERPRISE section below */
 
 /* ── AI Dialog Scanner ────────────────────────────────────── */
 @keyframes aiScanLine {
@@ -1243,6 +1205,152 @@ canvas:focus {
     outline: none !important;
 }
 
+/* ═══════════════════════════════════════════════════════════
+   SKELETON LOADING SYSTEM
+   Copper-themed skeleton screens replacing generic spinners.
+   All keyframe animations centralised here.
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Shimmer wave ────────────────────────────────────────── */
+@keyframes skeletonShimmer {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(150%); }
+}
+
+.skel-shimmer {
+    position: relative !important;
+    overflow: hidden !important;
+}
+
+.skel-shimmer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(201, 139, 42, 0.07) 50%,
+        transparent 100%
+    );
+    animation: skeletonShimmer 1.8s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* ── Skeleton placeholder block ──────────────────────────── */
+.skel-block {
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+/* ── RDO Radar Sync Loader ───────────────────────────────── */
+@keyframes radarSpin {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes syncScanDown {
+    0%   { top: 0;    opacity: 1;   }
+    80%  {            opacity: 0.4; }
+    100% { top: 100%; opacity: 0;   }
+}
+
+@keyframes radarRingPulse {
+    0%, 100% { opacity: 0.18; }
+    50%       { opacity: 0.60; }
+}
+
+@keyframes syncCenterGlow {
+    0%, 100% { box-shadow: 0 0 12px rgba(201, 139, 42, 0.25); }
+    50%       { box-shadow: 0 0 28px rgba(201, 139, 42, 0.55), 0 0 0 4px rgba(201, 139, 42, 0.07); }
+}
+
+@keyframes stepReveal {
+    from { opacity: 0; transform: translateX(-10px); }
+    to   { opacity: 1; transform: translateX(0);     }
+}
+
+@keyframes stepIconSpin {
+    to { transform: rotate(360deg); }
+}
+
+/* Radar sweep conic rotation */
+.radar-sweep-anim {
+    animation: radarSpin 2.8s linear infinite;
+}
+
+/* Scan line (position: absolute relative to loader box) */
+.sync-scan-line {
+    position: absolute !important;
+    left: 0; right: 0; top: 0;
+    height: 2px;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        var(--copper-500) 20%,
+        var(--copper-400) 50%,
+        var(--copper-500) 80%,
+        transparent 100%
+    );
+    box-shadow: 0 0 12px var(--copper-500), 0 0 28px rgba(201, 139, 42, 0.3);
+    animation: syncScanDown 3.5s linear infinite;
+    z-index: 2;
+    pointer-events: none;
+}
+
+/* Radar concentric rings */
+.radar-ring-1 { animation: radarRingPulse 2.5s ease-in-out infinite 0.0s; }
+.radar-ring-2 { animation: radarRingPulse 2.5s ease-in-out infinite 0.5s; }
+.radar-ring-3 { animation: radarRingPulse 2.5s ease-in-out infinite 1.0s; }
+.radar-ring-4 { animation: radarRingPulse 2.5s ease-in-out infinite 1.5s; }
+
+/* Radar centre glow */
+.radar-center-glow {
+    animation: syncCenterGlow 2s ease-in-out infinite;
+}
+
+/* Step items — sequential CSS reveal (no JS/Python state needed) */
+.sync-step-item {
+    animation: stepReveal 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+    opacity: 0;
+}
+
+.sync-step-1 { animation-delay: 0.4s; }
+.sync-step-2 { animation-delay: 1.0s; }
+.sync-step-3 { animation-delay: 1.6s; }
+.sync-step-4 { animation-delay: 2.2s; }
+.sync-step-5 { animation-delay: 2.8s; }
+
+/* Spinning icon inside step */
+.step-icon-spin {
+    display: inline-block;
+    animation: stepIconSpin 1.2s linear infinite;
+    line-height: 1;
+}
+
+/* ── Chart Bar Skeleton Animation ────────────────────────── */
+@keyframes barSkelPulse {
+    0%, 100% { opacity: 0.45; }
+    50%       { opacity: 0.90; }
+}
+
+.skel-bar-1 { animation: barSkelPulse 1.8s ease-in-out infinite 0.00s; }
+.skel-bar-2 { animation: barSkelPulse 1.8s ease-in-out infinite 0.12s; }
+.skel-bar-3 { animation: barSkelPulse 1.8s ease-in-out infinite 0.24s; }
+.skel-bar-4 { animation: barSkelPulse 1.8s ease-in-out infinite 0.36s; }
+.skel-bar-5 { animation: barSkelPulse 1.8s ease-in-out infinite 0.48s; }
+.skel-bar-6 { animation: barSkelPulse 1.8s ease-in-out infinite 0.60s; }
+.skel-bar-7 { animation: barSkelPulse 1.8s ease-in-out infinite 0.72s; }
+.skel-bar-8 { animation: barSkelPulse 1.8s ease-in-out infinite 0.84s; }
+
+/* ── Donut SVG arc animation ─────────────────────────────── */
+@keyframes donutArcPulse {
+    0%, 100% { opacity: 0.35; }
+    50%       { opacity: 0.85; }
+}
+
+.donut-arc-1 { animation: donutArcPulse 2.0s ease-in-out infinite 0.0s; }
+.donut-arc-2 { animation: donutArcPulse 2.0s ease-in-out infinite 0.5s; }
+
 /* ── Unsaved Changes Pulse (Salvar no Banco button) ──────────── */
 @keyframes unsavedPulse {
     0%, 100% {
@@ -1403,6 +1511,443 @@ body {
     [data-nextjs-scroll-focus-boundary] {
         overflow-x: hidden !important;
     }
+}
+
+/* ── Top Page Transition Loading Bar ────────────────────── */
+/* Slim copper progress stripe that runs across the viewport top during
+   global navigation loading (GlobalState.is_loading = True).           */
+@keyframes topBarProgress {
+    0%   { transform: scaleX(0);    opacity: 1; }
+    75%  { transform: scaleX(0.88); opacity: 1; }
+    95%  { transform: scaleX(0.97); opacity: 1; }
+    100% { transform: scaleX(1);    opacity: 0; }
+}
+
+.top-loading-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 3px;
+    transform-origin: left center;
+    background: linear-gradient(
+        90deg,
+        var(--copper-500) 0%,
+        var(--copper-400) 40%,
+        var(--patina-500) 100%
+    );
+    box-shadow: 0 0 10px var(--copper-500), 0 0 22px rgba(201, 139, 42, 0.4);
+    animation: topBarProgress 3s cubic-bezier(0.1, 0.5, 0.5, 1) forwards;
+    z-index: 10200;
+    pointer-events: none;
+    border-radius: 0 2px 2px 0;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ENTERPRISE REDESIGN ADDITIONS
+   Sharp radii, auth progress bar, loader steps, sidebar sections
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Auth button progress bar ────────────────────────────── */
+@keyframes authProgress {
+    0%   { width: 0%; }
+    70%  { width: 80%; }
+    100% { width: 94%; }
+}
+
+.auth-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--copper-500), var(--copper-400));
+    animation: authProgress 12s cubic-bezier(0.05, 0.5, 0.6, 1) forwards;
+    box-shadow: 0 0 8px rgba(201, 139, 42, 0.5);
+}
+
+/* ── Enterprise post-login loader progress bar ───────────── */
+@keyframes loaderProgress {
+    0%   { width: 0%; }
+    80%  { width: 88%; }
+    100% { width: 96%; }
+}
+
+.loader-progress-fill {
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        var(--copper-500) 0%,
+        var(--copper-400) 50%,
+        var(--patina-500) 100%
+    );
+    animation: loaderProgress 4.5s cubic-bezier(0.1, 0.5, 0.8, 1) forwards;
+    box-shadow: 0 0 10px rgba(201, 139, 42, 0.5);
+}
+
+/* ── Sidebar section label ───────────────────────────────── */
+.sidebar-section-label {
+    user-select: none;
+    pointer-events: none;
+}
+
+/* ── KPI card sharp radius update ────────────────────────── */
+.kpi-card {
+    border-radius: 6px !important;
+}
+
+.kpi-card::after {
+    border-radius: 6px !important;
+}
+
+/* ── Project card sharp radius update ────────────────────── */
+.project-card {
+    border-radius: 6px !important;
+}
+
+/* ── Mobile: suppress custom scrollbar (saves 6px of viewport width) ── */
+@media (max-width: 640px) {
+    ::-webkit-scrollbar {
+        width: 0 !important;
+        height: 0 !important;
+    }
+
+    * {
+        scrollbar-width: none !important;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ENTERPRISE DESIGN SYSTEM ENFORCEMENT
+   Overrides Radix radius="none" gaps + global token consistency
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Force 3px border-radius on ALL Radix buttons & controls ── */
+.rt-Button,
+.rt-IconButton,
+.rt-SelectTrigger,
+.rt-TextFieldRoot,
+.rt-TextFieldInput,
+.rt-Badge,
+.rt-TabsTrigger,
+button.rt-reset {
+    border-radius: 3px !important;
+}
+
+/* ── Force 6px on panels, cards, popovers, dialogs ─────────── */
+.rt-Card,
+.rt-PopoverContent,
+.rt-DropdownMenuContent,
+.rt-ContextMenuContent,
+.rt-HoverCardContent {
+    border-radius: 6px !important;
+}
+
+/* ── Sidebar nav items — enforce Rajdhani via class ─────────── */
+.font-tech,
+.sidebar-nav-text {
+    font-family: 'Rajdhani', sans-serif !important;
+    font-weight: 700 !important;
+}
+
+/* ── Ensure all sidebar text uses Rajdhani ──────────────────── */
+/* Target the sidebar container + all text descendants */
+[data-radix-scroll-area-viewport] .rt-Text,
+.no-scrollbar .rt-Text {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+}
+
+/* ── Inline spinner for page-level loading (world class) ─────── */
+/* Replace plain rx.spinner with a themed copper variant          */
+.rt-Spinner {
+    color: var(--copper-500) !important;
+}
+
+/* ── Page fade-in (used by animate-enter) ───────────────────── */
+@keyframes pageFadeUp {
+    from {
+        opacity: 0;
+        transform: translateY(12px) scale(0.995);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* ── Canonical animate-enter + page-fade-in ─────────────────
+   Single source of truth. fill-mode: both ensures the element
+   stays at opacity:0 before animation and opacity:1 after.    */
+.page-fade-in,
+.animate-enter {
+    animation: pageFadeUp 0.42s cubic-bezier(0.16, 1, 0.3, 1) both !important;
+}
+
+/* ── KPI Popup Table Row Hover ──────────────────────────────── */
+/* Makes rows feel interactive and data-dense like Stripe/Linear */
+.rt-DialogContent table tr:hover td {
+    background: rgba(201, 139, 42, 0.04) !important;
+}
+
+/* ── Header banner enterprise style ──────────────────────────── */
+/* The glass-panel within the index page gets a subtle gradient top-to-bottom */
+.glass-panel.animate-enter {
+    border-top: 1px solid rgba(201, 139, 42, 0.15) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   ENTERPRISE KPI POPUP TABLE
+   ══════════════════════════════════════════════════════════════ */
+
+.enterprise-kpi-table tbody tr {
+    transition: background 0.12s ease;
+}
+.enterprise-kpi-table tbody tr:hover {
+    background: rgba(201, 139, 42, 0.04) !important;
+}
+/* Alternating row tint for readability */
+.enterprise-kpi-table tbody tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.015);
+}
+/* Remove last-row bottom border */
+.enterprise-kpi-table tbody tr:last-child td {
+    border-bottom: none !important;
+}
+/* Remove last-col right border */
+.enterprise-kpi-table th:last-child,
+.enterprise-kpi-table td:last-child {
+    border-right: none !important;
+}
+/* Copper top accent line on the whole table */
+.enterprise-kpi-table {
+    border-top: 2px solid rgba(201, 139, 42, 0.4) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   USUARIO TABLE ROWS — ensure contrast on dark bg
+   ══════════════════════════════════════════════════════════════ */
+
+/* Radix Table with variant=surface needs stronger row dividers on our theme */
+.rt-TableRow {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+    transition: background 0.12s ease;
+}
+.rt-TableRow:hover {
+    background: rgba(201, 139, 42, 0.04) !important;
+}
+/* Column headers on dark backgrounds */
+.rt-TableColumnHeaderCell {
+    color: rgba(136, 153, 153, 0.8) !important;
+    font-size: 10px !important;
+    letter-spacing: 0.14em !important;
+    text-transform: uppercase !important;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   MOBILE RESPONSIVE OVERRIDES
+   ══════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+    /* Main content: remove left/right overflow that causes x-scroll */
+    .reflex-main-content {
+        overflow-x: hidden !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
+
+    /* KPI grid becomes single column on small screens */
+    .kpi-card {
+        min-width: 100% !important;
+        flex: 0 0 100% !important;
+    }
+
+    /* Obra cards: full width on mobile */
+    .project-card {
+        min-width: 100% !important;
+    }
+
+    /* Charts: readable height on small screens */
+    .recharts-responsive-container {
+        min-height: 200px;
+    }
+
+    /* Sidebar: hide completely (handled by Reflex display: none at breakpoint) */
+    /* Dialog: full width on mobile */
+    .rt-DialogContent {
+        max-width: 95vw !important;
+        padding: 20px 16px !important;
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   TABS — ensure copper underline active state is visible
+   ══════════════════════════════════════════════════════════════ */
+
+/* Active tab indicator: copper underline */
+.rt-TabsTrigger[data-state="active"] {
+    color: #C98B2A !important;
+    border-bottom: 2px solid #C98B2A !important;
+}
+.rt-TabsTrigger {
+    font-family: 'Rajdhani', sans-serif !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.06em !important;
+    color: rgba(136, 153, 153, 0.7) !important;
+    transition: color 0.2s ease !important;
+}
+.rt-TabsTrigger:hover {
+    color: #E0E0E0 !important;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   GLOBAL INPUT & SELECT REFINEMENTS
+   ══════════════════════════════════════════════════════════════ */
+
+/* Input focus ring matches copper, not Radix blue */
+.rt-TextFieldInput:focus-within,
+.rt-TextFieldInput:focus {
+    outline-color: rgba(201, 139, 42, 0.5) !important;
+    box-shadow: 0 0 0 2px rgba(201, 139, 42, 0.18) !important;
+}
+
+/* Select trigger border consistent with theme */
+.rt-SelectTrigger {
+    border-color: rgba(255, 255, 255, 0.08) !important;
+    background: rgba(255, 255, 255, 0.03) !important;
+}
+.rt-SelectTrigger:hover {
+    border-color: rgba(201, 139, 42, 0.3) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   SCROLLBAR — thin copper-tinted
+   ══════════════════════════════════════════════════════════════ */
+
+::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+}
+::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.03);
+}
+::-webkit-scrollbar-thumb {
+    background: rgba(201, 139, 42, 0.25);
+    border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(201, 139, 42, 0.45);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   GLASS DIALOG / MODAL — enforce sharp radius
+   ══════════════════════════════════════════════════════════════ */
+
+.rt-DialogContent,
+.rt-AlertDialogContent {
+    border-radius: 6px !important;
+    border: 1px solid rgba(201, 139, 42, 0.2) !important;
+    background: #142420 !important;
+    box-shadow: 0 32px 72px -12px rgba(0, 0, 0, 0.75) !important;
+}
+
+/* ── Chart Panel Entry Animation ────────────────────────────── */
+/* Staggered CSS fade-up for chart boxes: prevents stutter by relying
+   on CSS transforms (GPU) instead of Recharts JS animation             */
+@keyframes chartEnter {
+    from {
+        opacity: 0;
+        transform: translateY(14px) scale(0.993);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.chart-enter {
+    animation: chartEnter 0.48s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Stagger delays for children within a chart grid/flex */
+.chart-enter:nth-child(1) { animation-delay: 0ms; }
+.chart-enter:nth-child(2) { animation-delay: 80ms; }
+.chart-enter:nth-child(3) { animation-delay: 160ms; }
+.chart-enter:nth-child(4) { animation-delay: 240ms; }
+.chart-enter:nth-child(5) { animation-delay: 320ms; }
+
+/* Recharts: suppress layout-induced paint flashes.
+   Recharts SVG elements should never overflow their container */
+.recharts-wrapper,
+.recharts-surface {
+    overflow: visible;
+    /* Use will-change to move SVG rendering to GPU compositor layer.
+       This prevents main-thread JS repaints from causing visual stutter */
+    will-change: transform;
+}
+
+/* Recharts responsive container: prevent height collapse during re-render */
+.recharts-responsive-container {
+    min-height: 40px;
+}
+
+/* ── Skeleton shimmer class alias ──────────────────────────── */
+.skeleton-shimmer {
+    position: relative !important;
+    overflow: hidden !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+}
+.skeleton-shimmer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(201,139,42,0.07), transparent);
+    animation: skeletonShimmer 1.8s ease-in-out infinite;
+    pointer-events: none;
+}
+
+/* ── Page-centered generic spinner (replaces rx.center+rx.spinner) */
+.page-loading-center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 40vh;
+    gap: 12px;
+    flex-direction: column;
+}
+
+/* ── Radix tabs — sharp, copper active indicator ───────────── */
+.rt-TabsList {
+    border-radius: 6px !important;
+    border: 1px solid var(--border-subtle) !important;
+    background: rgba(255,255,255,0.02) !important;
+    padding: 4px !important;
+}
+
+.rt-TabsTrigger[data-state="active"] {
+    background: rgba(201, 139, 42, 0.12) !important;
+    color: var(--copper-500) !important;
+    border-radius: 3px !important;
+}
+
+.rt-TabsTrigger {
+    font-family: 'Rajdhani', sans-serif !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.06em !important;
+    border-radius: 3px !important;
+}
+
+/* ── Avatar — square (enterprise style) ────────────────────── */
+.rt-AvatarRoot {
+    border-radius: 3px !important;
+}
+
+/* ── Callout — sharp corners ────────────────────────────────── */
+.rt-CalloutRoot {
+    border-radius: 3px !important;
+}
+
+/* ── Checkbox — sharp ───────────────────────────────────────── */
+.rt-CheckboxRoot,
+.rt-CheckboxIndicator {
+    border-radius: 2px !important;
 }
 
 /* ── Mobile Dialog Size Fix ──────────────────────────────── */

@@ -5,6 +5,7 @@ from bomtempo.components.charts import (
     dark_cartesian_grid,
     radar_chart_dual,
 )
+from bomtempo.components.skeletons import page_loading_skeleton
 from bomtempo.core import styles as S
 from bomtempo.state.global_state import GlobalState
 
@@ -229,7 +230,7 @@ def analytics_page() -> rx.Component:
         _em_construcao_banner(),
         rx.cond(
             GlobalState.is_loading,
-            rx.center(rx.spinner(size="3"), width="100%", height="50vh"),
+            page_loading_skeleton(),
             rx.vstack(
                 analytics_kpi_grid(),
                 rx.grid(

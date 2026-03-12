@@ -5,252 +5,480 @@ from bomtempo.core import styles as S
 from bomtempo.state.global_state import GlobalState
 
 
-def login_page() -> rx.Component:
-    """Modern Login Page with Glassmorphism"""
+# ─────────────────────────────────────────────────────────────
+# Left Brand Panel — matches enterprise-preview.html
+# ─────────────────────────────────────────────────────────────
+
+def _stat_item(label: str, value: str, color: str) -> rx.Component:
+    """Single stat cell in the 2×2 grid."""
+    return rx.vstack(
+        rx.text(
+            label,
+            font_size="9px",
+            font_weight="700",
+            letter_spacing="0.18em",
+            color=S.TEXT_MUTED,
+            text_transform="uppercase",
+            font_family=S.FONT_MONO,
+        ),
+        rx.text(
+            value,
+            font_family=S.FONT_TECH,
+            font_size="1.75rem",
+            font_weight="900",
+            color=color,
+            line_height="1",
+        ),
+        spacing="1",
+        padding="16px",
+        bg="rgba(255,255,255,0.02)",
+        border=f"1px solid {S.BORDER_SUBTLE}",
+        border_radius=S.R_CONTROL,
+        align="start",
+        width="100%",
+    )
+
+
+def _brand_panel() -> rx.Component:
+    """Left decorative brand + stats panel (hidden on mobile)."""
     return rx.box(
-        # Background gradient overlay
+        # Grid background (decorative)
         rx.box(
             position="absolute",
-            top="0",
-            left="0",
-            width="100%",
-            height="100%",
-            bg=f"radial-gradient(circle at 30% 20%, {S.COPPER}15, transparent 50%), radial-gradient(circle at 70% 80%, {S.PATINA}10, transparent 50%)",
-            z_index="1",
+            top="0", left="0", right="0", bottom="0",
+            opacity="0.04",
+            background_image=(
+                "linear-gradient(rgba(201,139,42,0.6) 1px, transparent 1px),"
+                " linear-gradient(90deg, rgba(201,139,42,0.6) 1px, transparent 1px)"
+            ),
+            background_size="48px 48px",
+            pointer_events="none",
         ),
-        # Login Card Container
+        # Copper glow orb — top left
+        rx.box(
+            position="absolute",
+            top="-80px", left="-80px",
+            width="320px", height="320px",
+            border_radius="50%",
+            bg="rgba(201, 139, 42, 0.06)",
+            filter="blur(80px)",
+            pointer_events="none",
+        ),
+        # Patina glow orb — bottom right
+        rx.box(
+            position="absolute",
+            bottom="-60px", right="-60px",
+            width="250px", height="250px",
+            border_radius="50%",
+            bg="rgba(42, 157, 143, 0.05)",
+            filter="blur(70px)",
+            pointer_events="none",
+        ),
+        # Right border accent
+        rx.box(
+            position="absolute",
+            top="0", right="0",
+            width="1px", height="100%",
+            bg="linear-gradient(180deg, transparent, rgba(201,139,42,0.3) 30%, rgba(201,139,42,0.3) 70%, transparent)",
+        ),
+        # ── Panel content ────────────────────────────────────────
+        rx.vstack(
+            # Section label
+            rx.hstack(
+                rx.box(width="24px", height="1px", bg=S.PATINA),
+                rx.text(
+                    "PLATAFORMA OPERACIONAL",
+                    font_size="9px",
+                    font_weight="700",
+                    letter_spacing="0.22em",
+                    color=S.PATINA,
+                    text_transform="uppercase",
+                    font_family=S.FONT_MONO,
+                ),
+                spacing="3",
+                align="center",
+            ),
+            # Brand hero — large BOMTEMPO / INTELIGÊNCIA
+            rx.vstack(
+                rx.text(
+                    "BOMTEMPO",
+                    font_family=S.FONT_TECH,
+                    font_size="clamp(2.8rem, 6vw, 4.5rem)",
+                    font_weight="900",
+                    color="white",
+                    letter_spacing="-0.02em",
+                    line_height="0.9",
+                ),
+                rx.text(
+                    "INTELLIGENCE",
+                    font_family=S.FONT_TECH,
+                    font_size="clamp(2.8rem, 6vw, 4.5rem)",
+                    font_weight="900",
+                    color=S.COPPER,
+                    letter_spacing="-0.02em",
+                    line_height="0.9",
+                ),
+                spacing="1",
+                align="start",
+            ),
+            # Subtitle
+            rx.text(
+                "Intelligence Platform v2.0",
+                font_size="0.72rem",
+                letter_spacing="0.18em",
+                color=S.TEXT_MUTED,
+                font_family=S.FONT_MONO,
+            ),
+            # Description
+            rx.text(
+                "Plataforma centralizada de dados operacionais, controle financeiro e analytics preditivo para gestão de obras e contratos de engenharia.",
+                font_size="0.85rem",
+                color="rgba(255,255,255,0.45)",
+                line_height="1.6",
+                max_width="340px",
+            ),
+            # Typewriter tagline
+            rx.hstack(
+                rx.text(
+                    "Transformando dados em",
+                    font_size="0.8rem",
+                    color="rgba(255, 255, 255, 0.3)",
+                    font_family=S.FONT_BODY,
+                ),
+                rx.box(
+                    typewriter(
+                        options={
+                            "strings": [
+                                "resultados.",
+                                "inovação.",
+                                "previsibilidade.",
+                                "engenharia pura.",
+                                "excelência.",
+                            ],
+                            "autoStart": True,
+                            "loop": True,
+                            "delay": 50,
+                            "deleteSpeed": 30,
+                            "cursor": "|",
+                        }
+                    ),
+                    font_size="0.9rem",
+                    font_weight="700",
+                    color=S.COPPER,
+                    font_family=S.FONT_TECH,
+                ),
+                spacing="2",
+                align="center",
+            ),
+            # Stats grid 2×2
+            rx.grid(
+                _stat_item("CONTRATOS ATIVOS", "147", S.COPPER),
+                _stat_item("RDOS PROCESSADOS", "8.4k", S.PATINA),
+                _stat_item("VOLUME GERENCIADO", "R$ 2.1B", S.COPPER),
+                _stat_item("UPTIME", "99.97%", S.PATINA),
+                columns="2",
+                spacing="3",
+                width="100%",
+            ),
+            rx.spacer(),
+            # Bottom status ticker
+            rx.hstack(
+                rx.box(
+                    width="6px", height="6px",
+                    border_radius="50%",
+                    bg=S.PATINA,
+                    flex_shrink="0",
+                    class_name="animate-pulse",
+                ),
+                rx.text(
+                    "SISTEMAS OPERACIONAIS  ·  INFRAESTRUTURA OK  ·  UTC-3 BRT",
+                    font_size="10px",
+                    color=S.TEXT_MUTED,
+                    font_family=S.FONT_MONO,
+                    letter_spacing="0.08em",
+                    opacity="0.55",
+                ),
+                spacing="2",
+                align="center",
+            ),
+            spacing="5",
+            height="100%",
+            padding="48px 40px",
+            position="relative",
+            z_index="1",
+            align="start",
+            justify="start",
+        ),
+        position="relative",
+        overflow="hidden",
+        bg=S.BG_DEPTH,
+        width="50%",
+        height="100%",
+        display=["none", "none", "flex"],
+        flex_direction="column",
+    )
+
+
+# ─────────────────────────────────────────────────────────────
+# Right Auth Panel
+# ─────────────────────────────────────────────────────────────
+
+def _auth_panel() -> rx.Component:
+    """Right side authentication form panel."""
+    return rx.box(
         rx.center(
             rx.vstack(
-                # Logo Section with Icon
-                rx.vstack(
-                    rx.center(
-                        rx.icon(
-                            tag="zap",
-                            size=56,
-                            color=S.COPPER,
-                        ),
-                        width="100px",
-                        height="100px",
-                        border_radius="50%",
-                        bg=f"{S.COPPER_GLOW}",
-                        border=f"2px solid {S.COPPER}",
-                        box_shadow=f"0 0 40px {S.COPPER}40, 0 0 80px {S.COPPER}20",
-                        margin_bottom="24px",
-                    ),
-                    rx.text(
-                        "BOMTEMPO",
-                        font_size="3.2rem",
-                        font_weight="900",
-                        font_family=S.FONT_TECH,
-                        letter_spacing="0.1em",
-                        color=S.COPPER,
-                        line_height="1",
-                    ),
-                    rx.text(
-                        "INTELLIGENCE",
-                        font_size="1.2rem",
-                        font_weight="700",
-                        font_family=S.FONT_TECH,
-                        letter_spacing="0.3em",
-                        color=S.PATINA,
-                        margin_top="8px",
-                    ),
-                    rx.vstack(
+                # Mobile-only logo badge
+                rx.box(
+                    rx.hstack(
+                        rx.icon(tag="zap", size=16, color=S.COPPER),
                         rx.text(
-                            "Transformando dados em",
-                            font_size="1rem",
-                            color="rgba(255, 255, 255, 0.4)",
-                            font_family=S.FONT_BODY,
-                            white_space="nowrap",
-                        ),
-                        rx.box(
-                            typewriter(
-                                options={
-                                    "strings": [
-                                        "resultados.",
-                                        "inovação.",
-                                        "previsibilidade.",
-                                        "engenharia pura.",
-                                        "excelência.",
-                                        "performance.",
-                                    ],
-                                    "autoStart": True,
-                                    "loop": True,
-                                    "delay": 50,
-                                    "deleteSpeed": 30,
-                                    "cursor": "|",
-                                }
-                            ),
-                            font_size="1.5rem",
-                            font_weight="bold",
-                            color=S.COPPER,
+                            "BOMTEMPO",
                             font_family=S.FONT_TECH,
+                            font_size="1rem",
+                            font_weight="900",
+                            color=S.COPPER,
+                            letter_spacing="0.1em",
                         ),
-                        spacing="0",
+                        spacing="2",
                         align="center",
-                        justify="center",
-                        margin_top="24px",
                     ),
-                    spacing="0",
-                    align="center",
+                    display=["flex", "flex", "none"],
                     margin_bottom="32px",
                 ),
-                # Login Card
-                rx.box(
-                    rx.vstack(
-                        rx.text(
-                            "Acesso à Plataforma",
-                            font_size="1.5rem",
-                            color="white",
-                            font_weight="700",
-                            font_family=S.FONT_TECH,
-                            text_align="center",
-                            margin_bottom="32px",
-                        ),
-                        # Username Input
-                        rx.vstack(
-                            rx.text(
-                                "Usuário",
-                                font_size="0.75rem",
-                                color=S.TEXT_MUTED,
-                                text_transform="uppercase",
-                                letter_spacing="0.1em",
-                                font_weight="600",
-                            ),
-                            rx.input(
-                                placeholder="Digite seu usuário",
-                                value=GlobalState.username_input,
-                                on_change=GlobalState.set_username_input,
-                                bg="rgba(255, 255, 255, 0.05)",
-                                border=f"1px solid {S.BORDER_SUBTLE}",
-                                color="white",
-                                width="100%",
-                                height="48px",
-                                padding_x="16px",
-                                border_radius="12px",
-                                transition="all 0.2s ease",
-                            ),
-                            spacing="2",
-                            align="start",
-                            width="100%",
-                        ),
-                        # Password Input
-                        rx.vstack(
-                            rx.text(
-                                "Senha",
-                                font_size="0.75rem",
-                                color=S.TEXT_MUTED,
-                                text_transform="uppercase",
-                                letter_spacing="0.1em",
-                                font_weight="600",
-                            ),
-                            rx.input(
-                                placeholder="Digite sua senha",
-                                type="password",
-                                value=GlobalState.password_input,
-                                on_change=GlobalState.set_password_input,
-                                bg="rgba(255, 255, 255, 0.05)",
-                                border=f"1px solid {S.BORDER_SUBTLE}",
-                                color="white",
-                                width="100%",
-                                height="48px",
-                                padding_x="16px",
-                                border_radius="12px",
-                                on_key_down=GlobalState.check_login_on_enter,
-                                transition="all 0.2s ease",
-                            ),
-                            spacing="2",
-                            align="start",
-                            width="100%",
-                        ),
-                        # Error Message
-                        rx.cond(
+                # Section label
+                rx.text(
+                    "ACESSO SEGURO",
+                    font_size="9px",
+                    font_weight="700",
+                    letter_spacing="0.22em",
+                    color=S.PATINA,
+                    text_transform="uppercase",
+                    font_family=S.FONT_MONO,
+                ),
+                # Title
+                rx.text(
+                    "Autentique-se",
+                    font_family=S.FONT_BODY,
+                    font_size="2rem",
+                    font_weight="700",
+                    color="white",
+                    line_height="1.1",
+                    margin_top="-4px",
+                ),
+                # Username input
+                rx.vstack(
+                    rx.text(
+                        "USUÁRIO",
+                        font_size="9px",
+                        font_weight="700",
+                        letter_spacing="0.18em",
+                        color=S.TEXT_MUTED,
+                        text_transform="uppercase",
+                        font_family=S.FONT_MONO,
+                    ),
+                    rx.input(
+                        placeholder="Digite seu usuário",
+                        value=GlobalState.username_input,
+                        on_change=GlobalState.set_username_input,
+                        bg="rgba(255, 255, 255, 0.04)",
+                        border=f"1px solid {S.BORDER_SUBTLE}",
+                        color="white",
+                        width="100%",
+                        height="44px",
+                        padding_x="14px",
+                        border_radius=S.R_CONTROL,
+                        font_family=S.FONT_MONO,
+                        font_size="13px",
+                        transition="border-color 0.15s ease",
+                        is_disabled=GlobalState.is_authenticating,
+                    ),
+                    spacing="2",
+                    align="start",
+                    width="100%",
+                ),
+                # Password input
+                rx.vstack(
+                    rx.text(
+                        "SENHA",
+                        font_size="9px",
+                        font_weight="700",
+                        letter_spacing="0.18em",
+                        color=S.TEXT_MUTED,
+                        text_transform="uppercase",
+                        font_family=S.FONT_MONO,
+                    ),
+                    rx.input(
+                        placeholder="••••••••",
+                        type="password",
+                        value=GlobalState.password_input,
+                        on_change=GlobalState.set_password_input,
+                        bg="rgba(255, 255, 255, 0.04)",
+                        border=rx.cond(
                             GlobalState.login_error != "",
-                            rx.box(
-                                rx.hstack(
-                                    rx.icon(tag="alert-circle", size=16, color="#EF4444"),
-                                    rx.text(
-                                        GlobalState.login_error,
-                                        color="#EF4444",
-                                        font_size="0.875rem",
-                                        font_weight="500",
-                                    ),
-                                    spacing="2",
-                                    align="center",
-                                ),
-                                padding="12px 16px",
-                                bg="rgba(239, 68, 68, 0.1)",
-                                border="1px solid rgba(239, 68, 68, 0.3)",
-                                border_radius="8px",
-                                width="100%",
-                            ),
+                            "1px solid rgba(239, 68, 68, 0.5)",
+                            f"1px solid {S.BORDER_SUBTLE}",
                         ),
-                        # Login Button
-                        rx.button(
+                        color="white",
+                        width="100%",
+                        height="44px",
+                        padding_x="14px",
+                        border_radius=S.R_CONTROL,
+                        font_family=S.FONT_MONO,
+                        font_size="13px",
+                        on_key_down=GlobalState.check_login_on_enter,
+                        transition="border-color 0.15s ease",
+                        is_disabled=GlobalState.is_authenticating,
+                    ),
+                    spacing="2",
+                    align="start",
+                    width="100%",
+                ),
+                # Login button + progress bar
+                rx.vstack(
+                    rx.button(
+                        rx.cond(
+                            GlobalState.is_authenticating,
                             rx.hstack(
-                                rx.icon(tag="log-in", size=20),
-                                rx.text("ENTRAR", font_weight="700", letter_spacing="0.1em"),
-                                spacing="2",
+                                rx.spinner(size="1", color="inherit"),
+                                rx.text(
+                                    "VERIFICANDO CREDENCIAIS...",
+                                    font_family=S.FONT_TECH,
+                                    font_weight="700",
+                                    font_size="13px",
+                                    letter_spacing="0.08em",
+                                ),
+                                spacing="3",
                                 align="center",
                                 justify="center",
                             ),
-                            on_click=GlobalState.check_login,
-                            bg=f"linear-gradient(135deg, {S.COPPER}, {S.COPPER_LIGHT})",
-                            color="#0A1F1A",
+                            rx.hstack(
+                                rx.icon(tag="log-in", size=16),
+                                rx.text(
+                                    rx.cond(
+                                        GlobalState.login_error != "",
+                                        "TENTAR NOVAMENTE",
+                                        "ENTRAR",
+                                    ),
+                                    font_family=S.FONT_TECH,
+                                    font_weight="700",
+                                    font_size="14px",
+                                    letter_spacing="0.1em",
+                                ),
+                                spacing="3",
+                                align="center",
+                                justify="center",
+                            ),
+                        ),
+                        on_click=GlobalState.check_login,
+                        bg=rx.cond(
+                            GlobalState.is_authenticating,
+                            "rgba(201, 139, 42, 0.15)",
+                            f"linear-gradient(135deg, {S.COPPER}, {S.COPPER_LIGHT})",
+                        ),
+                        color=rx.cond(GlobalState.is_authenticating, S.COPPER, "#0A1F1A"),
+                        border=rx.cond(
+                            GlobalState.is_authenticating,
+                            f"1px solid {S.COPPER}",
+                            "1px solid transparent",
+                        ),
+                        width="100%",
+                        height="48px",
+                        border_radius=S.R_CONTROL,
+                        cursor=rx.cond(GlobalState.is_authenticating, "not-allowed", "pointer"),
+                        is_disabled=GlobalState.is_authenticating,
+                        transition="all 0.2s ease",
+                        _hover=rx.cond(
+                            GlobalState.is_authenticating,
+                            {},
+                            {"opacity": "0.92", "transform": "translateY(-1px)"},
+                        ),
+                    ),
+                    # Auth progress bar — visible only while authenticating
+                    rx.cond(
+                        GlobalState.is_authenticating,
+                        rx.box(
+                            rx.box(class_name="auth-progress-fill"),
                             width="100%",
-                            height="56px",
-                            border_radius="12px",
-                            _hover={
-                                "bg": f"linear-gradient(135deg, {S.COPPER_LIGHT}, {S.COPPER})",
-                                "transform": "translateY(-2px)",
-                                "boxShadow": f"0 8px 24px {S.COPPER}40",
-                            },
-                            transition="all 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
-                            cursor="pointer",
+                            height="2px",
+                            bg="rgba(255,255,255,0.05)",
+                            border_radius="0",
+                            overflow="hidden",
                         ),
-                        # Footer Info
+                        rx.box(height="2px"),
+                    ),
+                    spacing="0",
+                    width="100%",
+                    gap="6px",
+                ),
+                # Error message — below button, red bordered
+                rx.cond(
+                    GlobalState.login_error != "",
+                    rx.hstack(
+                        rx.icon(tag="circle-alert", size=13, color="#EF4444"),
                         rx.text(
-                            "Plataforma de Gestão Integrada • v2.0",
-                            font_size="0.75rem",
-                            color=S.TEXT_MUTED,
-                            text_align="center",
-                            margin_top="24px",
+                            GlobalState.login_error,
+                            color="#EF4444",
+                            font_size="12px",
                             font_weight="500",
+                            font_family=S.FONT_MONO,
                         ),
-                        spacing="5",
+                        spacing="2",
+                        align="center",
+                        padding="10px 14px",
+                        bg="rgba(239, 68, 68, 0.06)",
+                        border=f"1px solid rgba(239, 68, 68, 0.25)",
+                        border_radius=S.R_CONTROL,
                         width="100%",
                     ),
-                    padding=["24px", "48px"],  # Responsive padding
-                    bg=S.BG_ELEVATED,
-                    border=f"1px solid {S.BORDER_SUBTLE}",
-                    border_radius="16px",
-                    width="100%",
-                    max_width=["90%", "460px"],  # Responsive max-width
-                    box_shadow=f"0 20px 60px rgba(0, 0, 0, 0.5), 0 0 0 1px {S.BORDER_ACCENT}",
-                    backdrop_filter="blur(20px)",
-                    class_name="glass-reveal",  # Animation from animations.css
                 ),
-                align="center",
-                justify="center",
+                # Footer note
+                rx.text(
+                    "BOMTEMPO ENGENHARIA  ·  PLATAFORMA RESTRITA  ·  ACESSO MONITORADO",
+                    font_size="9px",
+                    color=S.TEXT_MUTED,
+                    text_align="center",
+                    font_family=S.FONT_MONO,
+                    letter_spacing="0.1em",
+                    opacity="0.4",
+                    margin_top="8px",
+                ),
+                spacing="5",
                 width="100%",
-                max_width="500px",
-                padding="24px",
-                # Zoom-out effect to ensure fit
-                transform="scale(0.9)",
-                transform_origin="center center",
+                max_width="400px",
+                class_name="glass-reveal",
             ),
             width="100%",
-            height="100vh",  # Changed back to height to lock the viewport
-            z_index="2",
-            position="relative",
-            display="flex",
-            align_items="center",
-            justify_content="center",
+            height="100%",
+            padding="48px 40px",
         ),
-        # Base background
+        flex="1",
+        bg=S.BG_ELEVATED,
+        height="100%",
+        border_left=f"1px solid {S.BORDER_SUBTLE}",
+        display="flex",
+        align_items="center",
+        justify_content="center",
+    )
+
+
+# ─────────────────────────────────────────────────────────────
+# Page
+# ─────────────────────────────────────────────────────────────
+
+def login_page() -> rx.Component:
+    """Enterprise split-screen login — brand panel left, auth panel right."""
+    return rx.box(
+        rx.flex(
+            _brand_panel(),
+            _auth_panel(),
+            direction="row",
+            width="100%",
+            height="100vh",
+        ),
         position="relative",
         width="100%",
         height="100vh",
         bg=S.BG_VOID,
-        overflow="hidden",  # No scrollbars for login
+        overflow="hidden",
     )

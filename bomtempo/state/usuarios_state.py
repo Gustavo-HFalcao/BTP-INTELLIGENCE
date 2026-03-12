@@ -78,7 +78,7 @@ class UsuariosState(rx.State):
 
     # ── Usuários ──────────────────────────────────────────────────
     users_list: List[Dict[str, str]] = []
-    users_loading: bool = False
+    users_loading: bool = True
     show_user_dialog: bool = False
     is_editing_user: bool = False
 
@@ -92,7 +92,7 @@ class UsuariosState(rx.State):
     # ── Perfis (roles) ────────────────────────────────────────────
     # NOTE: Dict[str, str] for Reflex type inference; 'modules' field is list[str] in practice (accessed only in Python handlers)
     roles_list: List[Dict[str, str]] = []
-    roles_loading: bool = False
+    roles_loading: bool = True
     show_role_dialog: bool = False
     is_editing_role: bool = False
 

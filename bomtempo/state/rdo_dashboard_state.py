@@ -57,17 +57,13 @@ class RDODashboardState(rx.State):
     # Lista de contratos disponíveis para filtro
     contratos_disponiveis: list[str] = ["Todos"]
 
-    # Loading
-    is_loading: bool = False
+    # Loading — default True prevents flash before on_mount fires
+    is_loading: bool = True
 
     async def load_dashboard(self):
         """Carrega e calcula todos os dados do dashboard (5 tabelas)"""
         self.is_loading = True
         yield
-
-        import asyncio
-
-        await asyncio.sleep(1)  # Sincronismo visual forçado / UX
 
         try:
             # ── 1. rdo_cabecalho ──────────────────────────────────

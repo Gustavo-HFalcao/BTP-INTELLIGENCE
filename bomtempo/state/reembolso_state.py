@@ -66,7 +66,7 @@ class ReembolsoState(rx.State):
     dash_media_kml: float = 0.0
     dash_media_custo_km: float = 0.0
     dash_total_registros: int = 0
-    dash_is_loading: bool = False
+    dash_is_loading: bool = True
     # Dados para gráficos
     dash_chart_mensal: List[Dict[str, Any]] = []  # [{mes, total}, ...]
     dash_chart_combustivel: List[Dict[str, Any]] = []  # [{name, value}, ...]

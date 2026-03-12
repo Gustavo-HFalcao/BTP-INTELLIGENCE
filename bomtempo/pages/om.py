@@ -4,6 +4,7 @@ from bomtempo.components.charts import (
     composed_chart_om,
     kpi_card,
 )
+from bomtempo.components.skeletons import page_loading_skeleton
 from bomtempo.core import styles as S
 from bomtempo.state.global_state import GlobalState
 
@@ -345,7 +346,7 @@ def om_page() -> rx.Component:
         om_header(),
         rx.cond(
             GlobalState.is_loading,
-            rx.center(rx.spinner(size="3"), width="100%", height="50vh"),
+            page_loading_skeleton(),
             rx.vstack(
                 om_kpi_grid(),
                 om_chart(),

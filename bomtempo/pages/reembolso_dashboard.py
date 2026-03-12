@@ -6,6 +6,7 @@ Padrão visual idêntico ao rdo_dashboard.py (benchmark).
 
 import reflex as rx
 
+from bomtempo.components.skeletons import page_centered_loader, page_loading_skeleton, table_skeleton
 from bomtempo.core import styles as S
 from bomtempo.state.reembolso_state import ReembolsoState
 
@@ -488,18 +489,9 @@ def _tabela_reembolsos() -> rx.Component:
                 width="100%",
             ),
             # Loading / Empty / Table
-            rx.cond(
-                ReembolsoState.dash_is_loading,
-                rx.center(
-                    rx.vstack(
-                        rx.spinner(size="3", color=S.COPPER),
-                        rx.text("Carregando...", font_size="12px", color=S.TEXT_MUTED),
-                        spacing="2",
-                        align="center",
-                    ),
-                    padding_y="40px",
-                    width="100%",
-                ),
+        rx.cond(
+            ReembolsoState.dash_is_loading,
+            table_skeleton(rows=5),
                 rx.cond(
                     ReembolsoState.reembolsos_list,
                     rx.box(
@@ -761,22 +753,7 @@ def _grafico_combustivel() -> rx.Component:
 def _tab_visao_geral() -> rx.Component:
     return rx.cond(
         ReembolsoState.dash_is_loading,
-        rx.center(
-            rx.vstack(
-                rx.icon(tag="zap", size=48, color=S.COPPER, class_name="animate-pulse"),
-                rx.text(
-                    "Sincronizando dados...",
-                    font_size="14px",
-                    color=S.TEXT_MUTED,
-                    font_family=S.FONT_TECH,
-                    class_name="animate-pulse",
-                ),
-                align="center",
-                spacing="4",
-            ),
-            width="100%",
-            height="50vh",
-        ),
+        page_loading_skeleton(),
         rx.vstack(
             # ── KPI Cards ───────────────────────────────────────────────────────
             rx.flex(
@@ -973,7 +950,18 @@ def reembolso_dashboard_page() -> rx.Component:
                         "--tabs-trigger-color": S.TEXT_MUTED,
                     },
                 ),
-                rx.tabs.content(_tab_visao_geral(), value="geral"),
+                rx.tabs.content(
+                    rx.cond(
+                        ReembolsoState.dash_is_loading,
+                        page_centered_loader(
+                            "CARREGANDO REEMBOLSOS",
+                            "Verificando solicitações e status financeiro...",
+                            "receipt",
+                        ),
+                        _tab_visao_geral(),
+                    ),
+                    value="geral",
+                ),
                 rx.tabs.content(_tab_emails(), value="emails"),
                 default_value="geral",
                 width="100%",

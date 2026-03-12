@@ -1,5 +1,6 @@
 import reflex as rx
 
+from bomtempo.components.skeletons import page_centered_loader, page_loading_skeleton
 from bomtempo.components.weather_widget import weather_widget
 from bomtempo.core import styles as S
 from bomtempo.state.global_state import GlobalState
@@ -28,17 +29,20 @@ def obras_header() -> rx.Component:
         rx.cond(
             GlobalState.obras_selected_contract != "",
             rx.button(
-                rx.icon(tag="arrow-left", size=16),
-                rx.text("Todas as Obras", font_size="13px", font_weight="700"),
+                rx.cond(
+                    GlobalState.obras_navigating,
+                    rx.hstack(rx.spinner(size="1", color=S.COPPER), rx.text("Voltando...", font_size="13px", font_weight="700"), spacing="2", align="center"),
+                    rx.hstack(rx.icon(tag="arrow-left", size=14), rx.text("Todas as Obras", font_size="13px", font_weight="700"), spacing="2", align="center"),
+                ),
                 color=S.COPPER,
                 variant="ghost",
                 cursor="pointer",
                 on_click=GlobalState.deselect_obra,
-                _hover={"opacity": "0.8"},
+                _hover={"opacity": "0.8", "bg": S.COPPER_GLOW},
                 padding="8px 16px",
                 border=f"1px solid {S.BORDER_ACCENT}",
-                border_radius="12px",
-                gap="8px",
+                border_radius=S.R_CONTROL,
+                transition="all 0.2s ease",
             ),
         ),
         width="100%",
@@ -214,28 +218,49 @@ def obra_card(item: dict) -> rx.Component:
 
 
 def obras_list_view() -> rx.Component:
-    return rx.vstack(
+    return rx.box(
+        # Navigation loading overlay — shown while card click is processing
         rx.cond(
-            GlobalState.obras_cards_list,
-            rx.grid(
-                rx.foreach(GlobalState.obras_cards_list, obra_card),
-                columns=rx.breakpoints(initial="1", md="2", lg="3"),
-                spacing="6",
-                width="100%",
-            ),
-            rx.center(
-                rx.vstack(
-                    rx.icon(tag="hard-hat", size=48, color=S.BORDER_SUBTLE),
-                    rx.text("Nenhuma obra encontrada", font_size="1rem", color=S.TEXT_MUTED),
-                    spacing="4",
-                    align="center",
-                ),
-                height="40vh",
-                width="100%",
+            GlobalState.obras_navigating,
+            page_centered_loader(
+                "CARREGANDO OBRA",
+                "Buscando dados operacionais e análise de risco",
+                "hard-hat",
+                position="absolute",
+                top="0", left="0", right="0", bottom="0",
+                z_index="20",
+                border_radius=S.R_CARD,
+                min_height="unset",
+                height="100%",
+                padding="0",
             ),
         ),
+        rx.vstack(
+            rx.cond(
+                GlobalState.obras_cards_list,
+                rx.grid(
+                    rx.foreach(GlobalState.obras_cards_list, obra_card),
+                    columns=rx.breakpoints(initial="1", md="2", lg="3"),
+                    spacing="6",
+                    width="100%",
+                ),
+                rx.center(
+                    rx.vstack(
+                        rx.icon(tag="hard-hat", size=48, color=S.BORDER_SUBTLE),
+                        rx.text("Nenhuma obra encontrada", font_size="1rem", color=S.TEXT_MUTED),
+                        spacing="4",
+                        align="center",
+                    ),
+                    height="40vh",
+                    width="100%",
+                ),
+            ),
+            width="100%",
+            class_name="animate-enter",
+        ),
+        position="relative",
         width="100%",
-        class_name="animate-enter",
+        min_height="200px",
     )
 
 
@@ -1013,7 +1038,23 @@ def obra_detail_view() -> rx.Component:
     3. Discipline semi-gauges (full width)
     4. Budget (full width, alone)
     """
-    return rx.vstack(
+    return rx.box(
+     rx.cond(
+         GlobalState.obras_navigating,
+         page_centered_loader(
+             "RETORNANDO",
+             "Voltando para lista de obras",
+             "arrow-left",
+             position="absolute",
+             top="0", left="0", right="0", bottom="0",
+             z_index="20",
+             border_radius=S.R_CARD,
+             min_height="unset",
+             height="100%",
+             padding="0",
+         ),
+     ),
+     rx.vstack(
         # 1 — Status strip
         _obra_status_strip(),
         # 2 — Left: info bar + AI insight | Right: weather
@@ -1043,6 +1084,9 @@ def obra_detail_view() -> rx.Component:
         width="100%",
         spacing="6",
         class_name="animate-enter",
+     ),
+     position="relative",
+     width="100%",
     )
 
 
@@ -1056,7 +1100,7 @@ def obras_page() -> rx.Component:
         obras_header(),
         rx.cond(
             GlobalState.is_loading,
-            rx.center(rx.spinner(size="3"), width="100%", height="50vh"),
+            page_loading_skeleton(),
             rx.cond(
                 GlobalState.obras_selected_contract != "",
                 obra_detail_view(),

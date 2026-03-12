@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import reflex as rx
 
+from bomtempo.components.skeletons import page_centered_loader, table_skeleton
 from bomtempo.core import styles as S
 from bomtempo.core.audit_logger import (
     ALL_CATEGORIES,
@@ -514,20 +515,14 @@ def _logs_table() -> rx.Component:
             # Rows
             rx.cond(
                 LogsState.is_loading,
-                rx.center(
-                    rx.vstack(
-                        rx.spinner(size="3", color=S.COPPER),
-                        rx.text(
-                            "Carregando logs...",
-                            font_family=S.FONT_BODY,
-                            font_size="0.9rem",
-                            color=S.TEXT_MUTED,
-                        ),
-                        spacing="3",
-                        align="center",
-                    ),
-                    padding_y="60px",
-                    width="100%",
+                page_centered_loader(
+                    "CARREGANDO LOGS",
+                    "Verificando registros e eventos de auditoria...",
+                    "shield-check",
+                    border="none",
+                    border_radius="0",
+                    background="transparent",
+                    min_height="280px",
                 ),
                 rx.cond(
                     LogsState.logs.length() == 0,

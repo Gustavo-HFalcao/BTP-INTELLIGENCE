@@ -65,7 +65,7 @@ def _fab_ai_insight() -> rx.Component:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _popup_table_header(*cols: str) -> rx.Component:
-    """Renders a styled header row for the detail popup table."""
+    """Enterprise table header — copper accent stripe on top."""
     return rx.el.tr(
         *[
             rx.el.th(
@@ -75,13 +75,14 @@ def _popup_table_header(*cols: str) -> rx.Component:
                     "textAlign": "left",
                     "fontWeight": "700",
                     "color": S.COPPER_LIGHT,
-                    "backgroundColor": "rgba(201, 139, 42, 0.07)",
-                    "borderRight": f"1px solid {S.BORDER_SUBTLE}",
-                    "borderBottom": f"1px solid {S.BORDER_ACCENT}",
-                    "fontSize": "11px",
-                    "letterSpacing": "0.08em",
+                    "backgroundColor": "rgba(201,139,42,0.06)",
+                    "borderRight": f"1px solid rgba(255,255,255,0.04)",
+                    "borderBottom": f"2px solid rgba(201,139,42,0.25)",
+                    "fontSize": "10px",
+                    "letterSpacing": "0.14em",
                     "textTransform": "uppercase",
                     "whiteSpace": "nowrap",
+                    "fontFamily": "'Rajdhani', sans-serif",
                 },
             )
             for col in cols
@@ -89,18 +90,41 @@ def _popup_table_header(*cols: str) -> rx.Component:
     )
 
 
-def _popup_cell(value, highlight: bool = False) -> rx.Component:
+def _popup_cell(value, highlight: bool = False, badge_color: str = "") -> rx.Component:
+    """Table cell — optionally highlighted (copper) or pill-badged."""
+    if badge_color:
+        content = rx.el.span(
+            value,
+            style={
+                "display": "inline-flex",
+                "alignItems": "center",
+                "gap": "5px",
+                "padding": "2px 8px",
+                "borderRadius": "3px",
+                "fontSize": "11px",
+                "fontWeight": "700",
+                "letterSpacing": "0.05em",
+                "background": f"rgba{badge_color}0.1)",
+                "border": f"1px solid rgba{badge_color}0.3)",
+                "color": f"rgb{badge_color}",
+                "fontFamily": S.FONT_TECH,
+            },
+        )
+    else:
+        content = value
     return rx.el.td(
-        value,
+        content,
         style={
             "padding": "10px 16px",
             "color": S.COPPER_LIGHT if highlight else S.TEXT_PRIMARY,
-            "borderRight": f"1px solid {S.BORDER_SUBTLE}",
+            "borderRight": f"1px solid rgba(255,255,255,0.04)",
             "borderBottom": f"1px solid rgba(255,255,255,0.04)",
             "fontSize": "13px",
-            "fontFamily": S.FONT_MONO if highlight else "inherit",
+            "fontFamily": "'JetBrains Mono', monospace" if highlight else "inherit",
             "fontWeight": "600" if highlight else "400",
             "whiteSpace": "nowrap",
+            "transition": "background 0.12s ease",
+            "background": "transparent",
         },
     )
 
@@ -131,11 +155,12 @@ def _kpi_detail_contrato_table() -> rx.Component:
                     ),
                 )
             ),
+            class_name="enterprise-kpi-table",
             style={
                 "width": "100%",
                 "borderCollapse": "collapse",
-                "border": f"1px solid {S.BORDER_ACCENT}",
-                "borderRadius": "8px",
+                "border": "1px solid rgba(201,139,42,0.18)",
+                "borderRadius": "6px",
                 "overflow": "hidden",
             },
         ),
@@ -169,11 +194,12 @@ def _kpi_detail_medido_table() -> rx.Component:
                     ),
                 )
             ),
+            class_name="enterprise-kpi-table",
             style={
                 "width": "100%",
                 "borderCollapse": "collapse",
-                "border": f"1px solid {S.BORDER_ACCENT}",
-                "borderRadius": "8px",
+                "border": "1px solid rgba(201,139,42,0.18)",
+                "borderRadius": "6px",
                 "overflow": "hidden",
             },
         ),
@@ -208,11 +234,12 @@ def _kpi_detail_saldo_table() -> rx.Component:
                     ),
                 )
             ),
+            class_name="enterprise-kpi-table",
             style={
                 "width": "100%",
                 "borderCollapse": "collapse",
-                "border": f"1px solid {S.BORDER_ACCENT}",
-                "borderRadius": "8px",
+                "border": "1px solid rgba(201,139,42,0.18)",
+                "borderRadius": "6px",
                 "overflow": "hidden",
             },
         ),
@@ -241,16 +268,52 @@ def _kpi_detail_contratos_ativos_table() -> rx.Component:
                     lambda row: rx.el.tr(
                         _popup_cell(row["contrato"]),
                         _popup_cell(row["cliente"]),
-                        _popup_cell(row["status"]),
+                        # Status cell — green dot pill
+                        rx.el.td(
+                            rx.el.span(
+                                rx.el.span(
+                                    style={
+                                        "display": "inline-block",
+                                        "width": "6px",
+                                        "height": "6px",
+                                        "borderRadius": "50%",
+                                        "background": "#2A9D8F",
+                                        "marginRight": "6px",
+                                        "verticalAlign": "middle",
+                                    }
+                                ),
+                                row["status"],
+                                style={
+                                    "display": "inline-flex",
+                                    "alignItems": "center",
+                                    "padding": "2px 8px",
+                                    "borderRadius": "3px",
+                                    "fontSize": "11px",
+                                    "fontWeight": "600",
+                                    "background": "rgba(42,157,143,0.08)",
+                                    "border": "1px solid rgba(42,157,143,0.25)",
+                                    "color": "#2A9D8F",
+                                    "fontFamily": "'Rajdhani', sans-serif",
+                                    "letterSpacing": "0.04em",
+                                    "whiteSpace": "nowrap",
+                                },
+                            ),
+                            style={
+                                "padding": "10px 16px",
+                                "borderRight": "1px solid rgba(255,255,255,0.04)",
+                                "borderBottom": "1px solid rgba(255,255,255,0.04)",
+                            },
+                        ),
                         _popup_cell(row["valor_fmt"], highlight=True),
                     ),
                 )
             ),
+            class_name="enterprise-kpi-table",
             style={
                 "width": "100%",
                 "borderCollapse": "collapse",
-                "border": f"1px solid {S.BORDER_ACCENT}",
-                "borderRadius": "8px",
+                "border": "1px solid rgba(201,139,42,0.18)",
+                "borderRadius": "6px",
                 "overflow": "hidden",
             },
         ),
@@ -332,7 +395,7 @@ def _avatar_modal() -> rx.Component:
                     display="flex", align_items="center", justify_content="center",
                 ),
                 rx.avatar(
-                    fallback=GlobalState.current_user_name.to_string()[0].upper(),
+                    fallback=GlobalState.avatar_fallback,
                     size="3", radius="full", variant="soft", color_scheme="bronze",
                 ),
             ),
@@ -513,7 +576,7 @@ def _kpi_detail_dialog() -> rx.Component:
                 rx.icon(tag="table-2", size=22, color=S.COPPER),
                 width="44px",
                 height="44px",
-                border_radius="12px",
+                border_radius=S.R_CONTROL,
                 bg="rgba(201, 139, 42, 0.1)",
                 border=f"1px solid {S.BORDER_ACCENT}",
                 flex_shrink="0",
@@ -611,14 +674,14 @@ def _kpi_detail_dialog() -> rx.Component:
                 width="100%",
                 spacing="0",
             ),
-            bg="rgba(10, 31, 26, 0.97)",
-            backdrop_filter="blur(20px)",
+            bg="rgba(10, 31, 26, 0.98)",
+            backdrop_filter="blur(24px)",
             border=f"1px solid {S.BORDER_ACCENT}",
             max_width="860px",
             width="95vw",
-            border_radius="20px",
+            border_radius=S.R_CARD,
             padding="32px",
-            box_shadow="0 25px 60px -12px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(201,139,42,0.1)",
+            box_shadow="0 32px 72px -12px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(201,139,42,0.12)",
         ),
         open=GlobalState.show_kpi_detail != "",
         on_open_change=GlobalState.handle_detail_open_change,
@@ -629,6 +692,11 @@ def default_layout(content: rx.Component) -> rx.Component:
     """Default layout matching React reference: sidebar + content (Mobile Responsive)"""
 
     return rx.box(
+        # ── Top progress bar — appears on every navigation (copper stripe) ──────
+        rx.cond(
+            GlobalState.is_loading,
+            rx.box(class_name="top-loading-bar"),
+        ),
         # ── Loading overlay GLOBAL ──────────────────────────────────────────────
         # Fora do rx.cond(is_authenticated): cobre login → redirect → página destino
         # sem flash. check_login faz yield antes de autenticar, então o overlay
@@ -711,10 +779,10 @@ def default_layout(content: rx.Component) -> rx.Component:
                                     ),
                                     rx.vstack(
                                         rx.dialog.title(
-                                            "BOMTEMPO INTELLIGENCE",
+                                            "PLATAFORMA DE INTELIGÊNCIA OPERACIONAL",
                                             color=S.COPPER,
                                             font_family=S.FONT_TECH,
-                                            font_size="1rem",
+                                            font_size="0.85rem",
                                             margin="0",
                                         ),
                                         rx.text(

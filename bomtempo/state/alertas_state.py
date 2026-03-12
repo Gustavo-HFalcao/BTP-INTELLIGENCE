@@ -102,7 +102,7 @@ class AlertasState(rx.State):
     new_email: str = ""
 
     # UI feedback
-    is_loading: bool = False
+    is_loading: bool = True
     is_adding: bool = False
     form_message: str = ""
     form_is_error: bool = False

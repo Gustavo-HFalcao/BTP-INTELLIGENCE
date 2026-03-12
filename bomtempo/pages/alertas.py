@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import reflex as rx
 
+from bomtempo.components.skeletons import page_centered_loader
 from bomtempo.core import styles as S
 from bomtempo.core.alert_service import ALERT_TYPES
 from bomtempo.state.alertas_state import AlertasState
@@ -49,102 +50,136 @@ def _alert_card(alert_type: str) -> rx.Component:
     is_running = AlertasState.sweep_running_type == alert_type
 
     return rx.box(
+        # Left color stripe — strong visual anchor
+        rx.box(
+            position="absolute",
+            left="0", top="0", bottom="0",
+            width="3px",
+            bg=color,
+            border_radius=f"{S.R_CARD} 0 0 {S.R_CARD}",
+        ),
         rx.vstack(
-            # Header row
+            # ── Header ─────────────────────────────────────────
             rx.hstack(
-                rx.hstack(
-                    rx.icon(tag=icon, size=15, color=color),
-                    rx.text(label, font_family=S.FONT_TECH, font_weight="700",
-                            font_size="0.88rem", color=S.TEXT_PRIMARY, letter_spacing="0.02em"),
-                    spacing="2", align="center",
+                rx.center(
+                    rx.icon(tag=icon, size=14, color=color),
+                    width="28px", height="28px",
+                    border_radius=S.R_CONTROL,
+                    bg=f"rgba(0,0,0,0.2)",
+                    border=f"1px solid {color}30",
+                    flex_shrink="0",
                 ),
-                rx.spacer(),
-                # Subtle trigger with tooltip
+                rx.text(
+                    label,
+                    font_family=S.FONT_TECH,
+                    font_weight="700",
+                    font_size="0.9rem",
+                    color="white",
+                    letter_spacing="0.04em",
+                    flex="1",
+                ),
+                # Manual trigger button — prominent but subtle
                 rx.cond(
                     is_running,
-                    rx.spinner(size="1", color=color),
+                    rx.center(
+                        rx.spinner(size="1", color=color),
+                        width="28px", height="28px",
+                        border_radius=S.R_CONTROL,
+                        bg=f"{color}15",
+                    ),
                     rx.tooltip(
-                        rx.icon(
-                            tag="zap",
-                            size=14,
-                            color=color,
+                        rx.center(
+                            rx.icon(tag="zap", size=13, color=color),
+                            width="28px", height="28px",
+                            border_radius=S.R_CONTROL,
+                            bg=f"{color}10",
+                            border=f"1px solid {color}25",
                             cursor="pointer",
-                            opacity="0.45",
                             on_click=AlertasState.open_confirm_sweep(alert_type),
-                            _hover={"opacity": "1"},
-                            transition="opacity 0.15s ease",
+                            transition="all 0.15s ease",
+                            _hover={"bg": f"{color}25", "border_color": f"{color}60"},
                         ),
-                        content="Disparar manualmente — envia emails agora para os destinatários cadastrados",
+                        content="Disparar manualmente — envia e-mails agora",
                     ),
                 ),
                 align="center",
+                spacing="2",
                 width="100%",
             ),
-            # Description — fixed height so all cards are uniform
+            # ── Description ─────────────────────────────────────
             rx.text(
                 desc,
                 font_size="0.72rem",
                 color=S.TEXT_MUTED,
-                line_height="1.5",
+                line_height="1.55",
                 flex="1",
             ),
-            # Footer
+            # ── Footer strip ─────────────────────────────────────
             rx.hstack(
                 rx.hstack(
-                    rx.icon(tag="clock", size=11, color=S.TEXT_MUTED),
-                    rx.text(schedule, font_size="0.67rem", color=S.TEXT_MUTED),
+                    rx.icon(tag="clock", size=10, color=S.TEXT_MUTED),
+                    rx.text(schedule, font_size="0.65rem", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                     spacing="1", align="center",
                 ),
                 rx.spacer(),
                 rx.cond(
                     count,
                     rx.hstack(
-                        rx.icon(tag="mail", size=11, color=color),
+                        rx.icon(tag="mail", size=10, color=color),
                         rx.text(
                             rx.cond(count == 1, "1 dest.", count.to_string() + " dest."),
-                            font_size="0.67rem", color=color, font_weight="600",
+                            font_size="0.65rem", color=color, font_weight="700",
+                            font_family=S.FONT_MONO,
                         ),
                         spacing="1", align="center",
+                        bg=f"{color}12",
+                        border=f"1px solid {color}30",
+                        border_radius=S.R_CONTROL,
+                        padding="2px 7px",
                     ),
-                    rx.text("Sem destinatários", font_size="0.67rem", color=S.TEXT_MUTED),
+                    rx.text("Sem dest.", font_size="0.65rem", color="rgba(136,153,153,0.5)", font_family=S.FONT_MONO),
                 ),
                 align="center",
                 width="100%",
+                padding_top="8px",
+                border_top=f"1px solid rgba(255,255,255,0.05)",
             ),
-            # Inline sweep result
+            # ── Sweep result inline ──────────────────────────────
             rx.cond(
                 AlertasState.sweep_results.get(alert_type, "") != "",
                 rx.hstack(
-                    rx.icon(tag="check-circle", size=12, color=S.PATINA),
+                    rx.icon(tag="check-circle", size=11, color=S.PATINA),
                     rx.text(
                         AlertasState.sweep_results.get(alert_type, ""),
-                        font_size="0.68rem", color=S.PATINA, flex="1",
+                        font_size="0.67rem", color=S.PATINA, flex="1",
+                        font_family=S.FONT_MONO,
                     ),
                     rx.icon(
-                        tag="x", size=11, color=S.TEXT_MUTED, cursor="pointer",
+                        tag="x", size=10, color=S.TEXT_MUTED, cursor="pointer",
                         on_click=AlertasState.clear_type_sweep_result(alert_type),
                         _hover={"color": S.TEXT_PRIMARY},
                     ),
                     spacing="2", align="center",
-                    bg="rgba(42,157,143,0.08)",
-                    border=f"1px solid {S.PATINA}30",
-                    border_radius="8px",
-                    padding="5px 9px",
+                    bg="rgba(42,157,143,0.07)",
+                    border=f"1px solid {S.PATINA}25",
+                    border_radius=S.R_CONTROL,
+                    padding="4px 9px",
                     width="100%",
                 ),
             ),
             spacing="2",
             width="100%",
             height="100%",
-            justify="between",
         ),
-        bg="rgba(14,26,23,0.55)",
-        border=f"1px solid {color}25",
-        border_radius="12px",
-        padding="14px",
-        min_height="120px",
-        transition="border-color 0.2s ease",
-        _hover={"border_color": f"{color}50"},
+        bg="rgba(8,18,16,0.6)",
+        border=f"1px solid {color}20",
+        border_left="none",
+        border_radius=S.R_CARD,
+        padding="12px 14px 12px 17px",
+        position="relative",
+        overflow="hidden",
+        transition="border-color 0.18s ease, background 0.18s ease",
+        _hover={"border_color": f"{color}45", "bg": "rgba(14,26,23,0.8)"},
         display="flex",
         flex_direction="column",
     )
@@ -152,23 +187,55 @@ def _alert_card(alert_type: str) -> rx.Component:
 
 # ── Left panel — Cronológicos ─────────────────────────────────────────────────
 
+def _panel_section_header(icon_tag: str, title: str, subtitle: str, color: str) -> rx.Component:
+    """Reusable enterprise section header for alert panels."""
+    return rx.vstack(
+        rx.hstack(
+            rx.center(
+                rx.icon(tag=icon_tag, size=14, color=color),
+                width="30px", height="30px",
+                border_radius=S.R_CONTROL,
+                bg=f"rgba(0,0,0,0.25)",
+                border=f"1px solid {color}30",
+                flex_shrink="0",
+            ),
+            rx.vstack(
+                rx.text(
+                    title,
+                    font_family=S.FONT_TECH,
+                    font_weight="700",
+                    font_size="0.82rem",
+                    color="white",
+                    text_transform="uppercase",
+                    letter_spacing="0.12em",
+                ),
+                rx.text(subtitle, font_size="0.68rem", color=S.TEXT_MUTED, line_height="1.4"),
+                spacing="0",
+                align="start",
+            ),
+            spacing="2",
+            align="center",
+        ),
+        rx.box(height="1px", width="100%", bg=f"linear-gradient(90deg, {color}40, transparent)"),
+        spacing="2",
+        width="100%",
+        margin_bottom="4px",
+    )
+
+
 def _panel_cronologico() -> rx.Component:
     return rx.box(
         rx.vstack(
-            rx.hstack(
-                rx.icon(tag="calendar-clock", size=16, color=S.PATINA),
-                rx.text("Cronológicos", font_family=S.FONT_TECH, font_weight="700",
-                        font_size="0.9rem", color=S.TEXT_PRIMARY, text_transform="uppercase",
-                        letter_spacing="0.1em"),
-                spacing="2", align="center",
+            _panel_section_header(
+                "calendar-clock", "Cronológicos",
+                "Disparos agendados em horário fixo, independente de gatilho.",
+                S.PATINA,
             ),
-            rx.text("Disparos agendados em horário fixo, independente de gatilho.",
-                    font_size="0.72rem", color=S.TEXT_MUTED, margin_bottom="2px"),
             *[_alert_card(at) for at in ("daily", "weekly", "monthly")],
             spacing="2",
             width="100%",
         ),
-        **{**S.GLASS_CARD_NO_HOVER, "padding": "18px", "border_radius": "16px"},
+        **{**S.GLASS_CARD_NO_HOVER, "padding": "18px"},
         flex="1",
     )
 
@@ -178,20 +245,16 @@ def _panel_cronologico() -> rx.Component:
 def _panel_reativo() -> rx.Component:
     return rx.box(
         rx.vstack(
-            rx.hstack(
-                rx.icon(tag="radar", size=16, color=S.COPPER),
-                rx.text("Reativos", font_family=S.FONT_TECH, font_weight="700",
-                        font_size="0.9rem", color=S.TEXT_PRIMARY, text_transform="uppercase",
-                        letter_spacing="0.1em"),
-                spacing="2", align="center",
+            _panel_section_header(
+                "radar", "Reativos",
+                "Disparo automático ao detectar condição crítica na obra.",
+                S.COPPER,
             ),
-            rx.text("Disparo automático ao detectar condição crítica na obra.",
-                    font_size="0.72rem", color=S.TEXT_MUTED, margin_bottom="2px"),
             *[_alert_card(at) for at in ("risk_high", "budget_overage", "rdo_pending")],
             spacing="2",
             width="100%",
         ),
-        **{**S.GLASS_CARD_NO_HOVER, "padding": "18px", "border_radius": "16px"},
+        **{**S.GLASS_CARD_NO_HOVER, "padding": "18px"},
         flex="1",
     )
 
@@ -226,7 +289,7 @@ def _confirm_dialog() -> rx.Component:
                         ),
                         bg=S.COPPER_GLOW,
                         border=f"1px solid {S.COPPER}40",
-                        border_radius="8px",
+                        border_radius=S.R_CONTROL,
                         padding="8px 16px",
                         display="inline-block",
                     ),
@@ -267,7 +330,7 @@ def _confirm_dialog() -> rx.Component:
             ),
             bg=S.BG_ELEVATED,
             border=f"1px solid {S.BORDER_SUBTLE}",
-            border_radius="16px",
+            border_radius=S.R_CARD,
             padding="28px",
             max_width="440px",
         ),
@@ -300,7 +363,7 @@ def _form_message() -> rx.Component:
                 "1px solid rgba(239,68,68,0.3)",
                 "1px solid rgba(42,157,143,0.3)",
             ),
-            border_radius="10px",
+            border_radius=S.R_CONTROL,
             padding="10px 14px",
             width="100%",
         ),
@@ -318,7 +381,7 @@ def _registration_form() -> rx.Component:
     input_style = {
         "bg": S.BG_INPUT,
         "border": f"1px solid {S.BORDER_SUBTLE}",
-        "border_radius": "10px",
+        "border_radius": S.R_CONTROL,
         "color": S.TEXT_PRIMARY,
         "font_family": S.FONT_BODY,
         "font_size": "0.85rem",
@@ -418,7 +481,7 @@ def _registration_form() -> rx.Component:
                         disabled=AlertasState.is_adding,
                         bg=S.COPPER,
                         color="#000",
-                        border_radius="10px",
+                        border_radius=S.R_CONTROL,
                         padding_x="20px",
                         height="38px",
                         cursor="pointer",
@@ -437,7 +500,7 @@ def _registration_form() -> rx.Component:
             spacing="4",
             width="100%",
         ),
-        **{**S.GLASS_CARD_NO_HOVER, "padding": "24px", "border_radius": "18px"},
+        **{**S.GLASS_CARD_NO_HOVER, "padding": "24px"},
         width="100%",
     )
 
@@ -509,7 +572,7 @@ def _subscription_row(sub) -> rx.Component:
         ),
         bg="rgba(14,26,23,0.45)",
         border="1px solid rgba(255,255,255,0.055)",
-        border_radius="10px",
+        border_radius=S.R_CONTROL,
         padding="10px 14px",
         width="100%",
         _hover={"bg": "rgba(14,26,23,0.75)"},
@@ -599,7 +662,7 @@ def _subscriptions_panel() -> rx.Component:
             spacing="3",
             width="100%",
         ),
-        **{**S.GLASS_CARD_NO_HOVER, "padding": "22px", "border_radius": "18px"},
+        **{**S.GLASS_CARD_NO_HOVER, "padding": "22px"},
         width="100%",
     )
 
@@ -736,7 +799,7 @@ def _history_panel() -> rx.Component:
             spacing="0",
             width="100%",
         ),
-        **{**S.GLASS_CARD_NO_HOVER, "padding": "22px", "border_radius": "18px"},
+        **{**S.GLASS_CARD_NO_HOVER, "padding": "22px"},
         width="100%",
     )
 
@@ -829,26 +892,41 @@ def alertas_page() -> rx.Component:
         _confirm_dialog(),
         rx.vstack(
             _page_header(),
-            # Split-screen panels
-            rx.flex(
-                _panel_cronologico(),
-                _panel_reativo(),
-                gap="14px",
-                flex_wrap=["wrap", "wrap", "nowrap"],
-                width="100%",
-                align="stretch",
+            # ── Loading skeleton covers data-dependent panels ──────────────────
+            rx.cond(
+                AlertasState.is_loading,
+                page_centered_loader(
+                    "CARREGANDO ALERTAS",
+                    "Verificando subscrições e histórico de disparos…",
+                    "bell-ring",
+                ),
+                # ── Real content ──────────────────────────────────────────────
+                rx.vstack(
+                    # Split-screen panels
+                    rx.flex(
+                        rx.box(_panel_cronologico(), class_name="chart-enter", flex="1"),
+                        rx.box(_panel_reativo(), class_name="chart-enter delay-100", flex="1"),
+                        gap="14px",
+                        flex_wrap=["wrap", "wrap", "nowrap"],
+                        width="100%",
+                        align="stretch",
+                        min_width="0",
+                    ),
+                    # Registration form
+                    _registration_form(),
+                    # Active subscriptions
+                    _subscriptions_panel(),
+                    # History
+                    _history_panel(),
+                    spacing="4",
+                    width="100%",
+                    class_name="animate-enter",
+                ),
             ),
-            # Registration form
-            _registration_form(),
-            # Active subscriptions
-            _subscriptions_panel(),
-            # History
-            _history_panel(),
             spacing="4",
             width="100%",
         ),
-        padding=["12px", "16px", "22px"],
-        max_width="1320px",
-        margin="0 auto",
+        padding_y=["12px", "16px", "24px"],
         width="100%",
+        on_mount=AlertasState.load_page,
     )

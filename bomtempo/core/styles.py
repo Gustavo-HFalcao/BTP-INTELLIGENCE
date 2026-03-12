@@ -76,11 +76,9 @@ SIDEBAR_WIDTH = "288px"
 SIDEBAR_STYLE = {
     "width": SIDEBAR_WIDTH,
     "min_width": SIDEBAR_WIDTH,
-    "height": "calc(100vh - 2rem)",
-    "margin": "1rem 0 1rem 1rem",
-    "border_radius": "16px",
+    "height": "100vh",
     "position": "sticky",
-    "top": "1rem",
+    "top": "0",
     "z_index": "50",
     "overflow": "hidden",
     "display": "flex",
@@ -92,15 +90,22 @@ MAIN_CONTENT_STYLE = {
     "flex": "1",
     "min_width": "0",
     "overflow_x": "hidden",
-    "padding": "1.5rem 2rem 1.5rem 1.5rem",
+    # Horizontal padding lives in the inner content box (padding_x),
+    # keeping it here caused double-padding and asymmetric black edges.
+    "padding_top": "1.5rem",
+    "padding_bottom": "1.5rem",
 }
+
+# ── Border Radius (Enterprise Sharp System) ──────────────────
+R_CARD = "6px"      # panels, cards, modals
+R_CONTROL = "3px"   # inputs, buttons, badges
 
 # ── Glass Card ───────────────────────────────────────────────
 GLASS_CARD = {
     "background": BG_GLASS,
     "backdrop_filter": "blur(12px)",
     "border": f"1px solid {BORDER_SUBTLE}",
-    "border_radius": "24px",
+    "border_radius": R_CARD,
     "padding": "32px",
     "box_shadow": "0 4px 30px rgba(0, 0, 0, 0.3)",
     "transition": "all 0.5s ease",
@@ -113,7 +118,7 @@ GLASS_CARD_NO_HOVER = {
     "background": BG_GLASS,
     "backdrop_filter": "blur(12px)",
     "border": f"1px solid {BORDER_SUBTLE}",
-    "border_radius": "24px",
+    "border_radius": R_CARD,
     "padding": "32px",
     "box_shadow": "0 4px 30px rgba(0, 0, 0, 0.3)",
 }

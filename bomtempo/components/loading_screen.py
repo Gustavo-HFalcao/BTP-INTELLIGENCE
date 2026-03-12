@@ -1,5 +1,5 @@
 """
-Elegant loading screen component with smooth animations
+Loading screen components — BOMTEMPO Enterprise UX
 """
 
 import reflex as rx
@@ -7,225 +7,214 @@ import reflex as rx
 from bomtempo.core import styles as S
 
 
+# ─────────────────────────────────────────────────────────────
+# Enterprise Post-Login Loader (replaces old generic spinner)
+# ─────────────────────────────────────────────────────────────
+
 def loading_screen() -> rx.Component:
-    """Full-screen loading with animated progress"""
+    """
+    Full-screen enterprise initialization sequence.
+    Shows 5 sequential steps with CSS-driven reveal animations.
+    Requires .sync-step-* and .loader-progress-fill in style.css.
+    """
+    steps = [
+        ("shield-check", "Autenticando sessão"),
+        ("database", "Conectando ao Supabase"),
+        ("layout-grid", "Carregando módulos"),
+        ("bar-chart-3", "Preparando dados operacionais"),
+        ("zap", "Iniciando plataforma"),
+    ]
+
     return rx.box(
-        rx.vstack(
-            # Logo/Brand section
-            rx.center(
-                rx.icon(
-                    tag="zap",
-                    size=48,
-                    color=S.COPPER,
-                ),
-                width="80px",
-                height="80px",
-                border_radius="50%",
-                bg=f"{S.COPPER_GLOW}",
-                border=f"2px solid {S.COPPER}",
-                box_shadow=f"0 0 40px {S.COPPER}40, 0 0 80px {S.COPPER}20",
-                class_name="pulse-slow",
+        # Scan line
+        rx.box(class_name="sync-scan-line"),
+        # Grid background (decorative)
+        rx.box(
+            position="absolute",
+            top="0", left="0", right="0", bottom="0",
+            opacity="0.04",
+            background_image=(
+                "linear-gradient(var(--copper-500) 1px, transparent 1px),"
+                " linear-gradient(90deg, var(--copper-500) 1px, transparent 1px)"
             ),
-            # Company name
-            rx.vstack(
-                rx.text(
-                    "BOMTEMPO",
-                    font_family=S.FONT_TECH,
-                    font_size="2rem",
-                    font_weight="900",
-                    color="white",
-                    letter_spacing="0.3em",
-                ),
-                rx.text(
-                    "INTELLIGENCE",
-                    font_family=S.FONT_TECH,
-                    font_size="1.5rem",
-                    font_weight="700",
-                    color=S.COPPER,
-                    letter_spacing="0.1em",
-                ),
-                margin_top="32px",
-                spacing="0",  # Remove default spacing between the two texts
-                align="center",
-            ),
-            # Loading bar
-            rx.box(
-                rx.box(
-                    width="100%",
-                    height="100%",
-                    bg=f"linear-gradient(90deg, {S.PATINA}, {S.COPPER}, {S.PATINA})",
-                    border_radius="9999px",
-                    class_name="shimmer",
-                ),
-                width="200px",
-                height="4px",
-                bg="rgba(255, 255, 255, 0.1)",
-                border_radius="9999px",
-                overflow="hidden",
-                margin_top="24px",
-            ),
-            # Status text
-            rx.text(
-                "Carregando dados do dashboard...",
-                font_size="14px",
-                color=S.TEXT_MUTED,
-                font_weight="500",
-                margin_top="16px",
-                class_name="fade-in-out",
-            ),
-            align="center",
-            justify="center",
-            spacing="0",
+            background_size="48px 48px",
+            pointer_events="none",
         ),
+        # Copper glow orb
+        rx.box(
+            position="absolute",
+            top="-100px", left="50%",
+            width="400px", height="400px",
+            border_radius="50%",
+            bg="rgba(201, 139, 42, 0.05)",
+            filter="blur(100px)",
+            pointer_events="none",
+            style={"transform": "translateX(-50%)"},
+        ),
+        # Content
+        rx.center(
+            rx.vstack(
+                # Brand lockup
+                rx.vstack(
+                    rx.center(
+                        rx.icon(tag="zap", size=24, color=S.COPPER),
+                        width="52px", height="52px",
+                        border_radius=S.R_CONTROL,
+                        bg="rgba(201,139,42,0.12)",
+                        border=f"1px solid {S.COPPER}",
+                        box_shadow="0 0 28px rgba(201,139,42,0.35)",
+                        class_name="radar-center-glow",
+                    ),
+                    rx.text(
+                        "BOMTEMPO",
+                        font_family=S.FONT_TECH,
+                        font_size="1.5rem",
+                        font_weight="900",
+                        color="white",
+                        letter_spacing="0.18em",
+                    ),
+                    rx.text(
+                        "INICIANDO PLATAFORMA",
+                        font_family=S.FONT_TECH,
+                        font_size="0.65rem",
+                        font_weight="700",
+                        color=S.COPPER,
+                        letter_spacing="0.28em",
+                        opacity="0.75",
+                    ),
+                    spacing="3",
+                    align="center",
+                ),
+                # Progress bar
+                rx.box(
+                    rx.box(class_name="loader-progress-fill"),
+                    width="300px",
+                    height="2px",
+                    bg="rgba(255,255,255,0.06)",
+                    overflow="hidden",
+                ),
+                # Step list
+                rx.vstack(
+                    *[
+                        rx.hstack(
+                            rx.box(
+                                rx.text(
+                                    str(i + 1),
+                                    font_family=S.FONT_MONO,
+                                    font_size="9px",
+                                    color=S.COPPER,
+                                    font_weight="700",
+                                ),
+                                width="20px", height="20px",
+                                border_radius=S.R_CONTROL,
+                                bg="rgba(201,139,42,0.1)",
+                                border="1px solid rgba(201,139,42,0.3)",
+                                display="flex",
+                                align_items="center",
+                                justify_content="center",
+                                flex_shrink="0",
+                            ),
+                            rx.icon(tag=icon_tag, size=12, color=S.TEXT_MUTED),
+                            rx.text(
+                                label,
+                                font_size="12px",
+                                color=S.TEXT_MUTED,
+                                font_family=S.FONT_BODY,
+                            ),
+                            rx.spacer(),
+                            rx.box(
+                                width="5px", height="5px",
+                                border_radius="50%",
+                                bg=S.COPPER,
+                                opacity="0.6",
+                                class_name="animate-pulse",
+                            ),
+                            class_name=f"sync-step-item sync-step-{i + 1}",
+                            spacing="3",
+                            align="center",
+                            width="100%",
+                            padding="9px 14px",
+                            bg="rgba(255,255,255,0.02)",
+                            border=f"1px solid rgba(255,255,255,0.04)",
+                            border_radius=S.R_CONTROL,
+                        )
+                        for i, (icon_tag, label) in enumerate(steps)
+                    ],
+                    spacing="2",
+                    width="100%",
+                    max_width="340px",
+                ),
+                spacing="5",
+                align="center",
+                position="relative",
+                z_index="1",
+                max_width="400px",
+            ),
+            width="100%",
+            height="100%",
+            position="relative",
+            z_index="1",
+        ),
+        # Outer wrapper
         position="fixed",
-        top="0",
-        left="0",
-        width="100vw",
-        height="100vh",
+        top="0", left="0",
+        width="100vw", height="100vh",
         bg=S.BG_VOID,
         z_index="9999",
+        overflow="hidden",
         display="flex",
         align_items="center",
         justify_content="center",
     )
 
 
+# ─────────────────────────────────────────────────────────────
+# Skeleton helpers (used by default.py layout)
+# ─────────────────────────────────────────────────────────────
+
 def page_transition_wrapper(content: rx.Component, page_name: str = "") -> rx.Component:
-    """Wraps page content with fade-in animation"""
-    return rx.box(
-        content,
-        class_name="page-fade-in",
-        animation_delay="0.1s",
-    )
-
-
-def skeleton_card() -> rx.Component:
-    """Skeleton loader for cards during data loading"""
-    return rx.box(
-        rx.vstack(
-            # Header skeleton
-            rx.hstack(
-                rx.box(
-                    width="40px",
-                    height="40px",
-                    border_radius="50%",
-                    bg="rgba(255, 255, 255, 0.05)",
-                    class_name="skeleton-shimmer",
-                ),
-                rx.vstack(
-                    rx.box(
-                        width="120px",
-                        height="12px",
-                        border_radius="6px",
-                        bg="rgba(255, 255, 255, 0.05)",
-                        class_name="skeleton-shimmer",
-                    ),
-                    rx.box(
-                        width="80px",
-                        height="8px",
-                        border_radius="4px",
-                        bg="rgba(255, 255, 255, 0.03)",
-                        class_name="skeleton-shimmer",
-                    ),
-                    spacing="2",
-                    align="start",
-                ),
-                spacing="3",
-                margin_bottom="16px",
-            ),
-            # Content skeletons
-            rx.box(
-                width="100%",
-                height="60px",
-                border_radius="8px",
-                bg="rgba(255, 255, 255, 0.05)",
-                class_name="skeleton-shimmer",
-                margin_bottom="12px",
-            ),
-            rx.box(
-                width="80%",
-                height="12px",
-                border_radius="6px",
-                bg="rgba(255, 255, 255, 0.03)",
-                class_name="skeleton-shimmer",
-            ),
-            width="100%",
-            spacing="0",
-        ),
-        **S.GLASS_CARD,
-        min_height="200px",
-    )
-
-
-def inline_spinner(text: str = "Processando...") -> rx.Component:
-    """Inline loading indicator for buttons/actions"""
-    return rx.hstack(
-        rx.spinner(
-            size="1",
-            color=S.COPPER,
-        ),
-        rx.text(
-            text,
-            font_size="12px",
-            color=S.TEXT_MUTED,
-            font_weight="500",
-        ),
-        spacing="2",
-        align="center",
-    )
-
-
-# ── Enterprise UX — New Components ────────────────────────────────────────────
+    return rx.box(content, class_name="page-fade-in", animation_delay="0.1s")
 
 
 def skeleton_line(width: str = "100%", height: str = "12px", radius: str = "6px") -> rx.Component:
-    """Single shimmer skeleton line — parametric width/height."""
     return rx.box(
-        width=width,
-        height=height,
-        border_radius=radius,
+        width=width, height=height, border_radius=radius,
         bg="rgba(255, 255, 255, 0.05)",
         class_name="skeleton-shimmer",
     )
 
 
 def skeleton_block(width: str = "100%", height: str = "60px", radius: str = "8px") -> rx.Component:
-    """Shimmer skeleton block for chart/image placeholders."""
     return rx.box(
-        width=width,
-        height=height,
-        border_radius=radius,
+        width=width, height=height, border_radius=radius,
         bg="rgba(255, 255, 255, 0.05)",
         class_name="skeleton-shimmer",
     )
 
 
 def skeleton_kpi() -> rx.Component:
-    """Skeleton for a single KPI card — matches kpi_card() layout."""
     return rx.box(
         rx.vstack(
             rx.hstack(
-                skeleton_block(width="44px", height="44px", radius="12px"),
+                skeleton_block(width="44px", height="44px", radius="4px"),
                 rx.spacer(),
                 skeleton_line(width="60px", height="22px"),
                 width="100%",
             ),
             skeleton_line(width="80px", height="36px"),
             skeleton_line(width="120px", height="10px"),
-            spacing="4",
-            width="100%",
+            spacing="4", width="100%",
         ),
         background=S.BG_GLASS,
         backdrop_filter="blur(12px)",
         border=f"1px solid {S.BORDER_SUBTLE}",
-        border_radius="16px",
+        border_radius=S.R_CARD,
         padding="24px",
         min_height="130px",
     )
 
 
 def skeleton_chart(height: str = "300px") -> rx.Component:
-    """Skeleton for a chart with glass card wrapper."""
     return rx.box(
         rx.vstack(
             rx.hstack(
@@ -234,21 +223,19 @@ def skeleton_chart(height: str = "300px") -> rx.Component:
                 skeleton_line(width="80px", height="12px"),
                 width="100%",
             ),
-            skeleton_block(width="100%", height=height, radius="12px"),
-            spacing="4",
-            width="100%",
+            skeleton_block(width="100%", height=height, radius="4px"),
+            spacing="4", width="100%",
         ),
         background=S.BG_GLASS,
         backdrop_filter="blur(12px)",
         border=f"1px solid {S.BORDER_SUBTLE}",
-        border_radius="24px",
+        border_radius=S.R_CARD,
         padding="32px",
         width="100%",
     )
 
 
 def skeleton_kpi_grid() -> rx.Component:
-    """4-column KPI skeleton grid — mirrors the real kpi_grid()."""
     return rx.grid(
         skeleton_kpi(),
         skeleton_kpi(),
@@ -260,16 +247,7 @@ def skeleton_kpi_grid() -> rx.Component:
     )
 
 
-def loading_wrapper(
-    is_loading,
-    skeleton_layout: rx.Component,
-    content: rx.Component,
-) -> rx.Component:
-    """
-    Universal anti-flicker loading wrapper.
-    Shows skeleton while loading, fades in content when done.
-    Never renders zero-values mid-load.
-    """
+def loading_wrapper(is_loading, skeleton_layout: rx.Component, content: rx.Component) -> rx.Component:
     return rx.cond(
         is_loading,
         skeleton_layout,
@@ -282,16 +260,9 @@ def empty_state(
     subtitle: str = "Os dados aparecerão aqui quando disponíveis.",
     icon: str = "inbox",
 ) -> rx.Component:
-    """
-    Standard empty state component.
-    Use when a list/table has no items — never leave an isolated empty grid.
-    """
     return rx.center(
         rx.vstack(
-            rx.box(
-                rx.icon(tag=icon, size=48, color=S.TEXT_MUTED),
-                class_name="empty-state-icon",
-            ),
+            rx.box(rx.icon(tag=icon, size=48, color=S.TEXT_MUTED), class_name="empty-state-icon"),
             rx.text(title, class_name="empty-state-title"),
             rx.text(subtitle, class_name="empty-state-subtitle"),
             class_name="empty-state",
@@ -300,4 +271,13 @@ def empty_state(
         ),
         width="100%",
         min_height="200px",
+    )
+
+
+def inline_spinner(text: str = "Processando...") -> rx.Component:
+    return rx.hstack(
+        rx.spinner(size="1", color=S.COPPER),
+        rx.text(text, font_size="12px", color=S.TEXT_MUTED, font_weight="500"),
+        spacing="2",
+        align="center",
     )
