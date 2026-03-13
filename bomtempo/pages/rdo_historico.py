@@ -4,11 +4,47 @@ Página de Histórico de RDOs
 
 import reflex as rx
 
+from bomtempo.components.loading_screen import skeleton_block, skeleton_line
 from bomtempo.core import styles as S
 from bomtempo.core.logging_utils import get_logger
 from bomtempo.core.rdo_service import RDOService
 from bomtempo.core.supabase_client import sb_delete, sb_insert, sb_select
 from bomtempo.state.global_state import GlobalState
+
+
+def _rdo_tab_nav_hist() -> rx.Component:
+    """Tab bar de navegação — variante ativa em 'historico'."""
+    def _tab(label: str, icon: str, route: str, is_active: bool) -> rx.Component:
+        return rx.button(
+            rx.hstack(
+                rx.icon(tag=icon, size=15),
+                rx.text(label, font_size="13px", font_weight="600", font_family=S.FONT_BODY),
+                spacing="2",
+                align="center",
+            ),
+            on_click=rx.redirect(route),
+            bg=rx.cond(is_active, S.COPPER, "transparent"),
+            color=rx.cond(is_active, "#0A1F1A", S.TEXT_MUTED),
+            border=rx.cond(
+                is_active,
+                f"1px solid {S.COPPER}",
+                f"1px solid {S.BORDER_SUBTLE}",
+            ),
+            border_radius="8px",
+            height="36px",
+            padding_x="14px",
+            cursor="pointer",
+            flex="1",
+            _hover={"opacity": "0.85"},
+        )
+
+    return rx.hstack(
+        _tab("Preencher RDO", "clipboard-pen", "/rdo-form", False),
+        _tab("Meus RDOs", "file-text", "/rdo-historico", True),
+        spacing="2",
+        width="100%",
+        margin_bottom="16px",
+    )
 
 logger = get_logger(__name__)
 
@@ -17,6 +53,7 @@ class RDOHistoricoState(rx.State):
     """Estado da página de histórico"""
 
     rdos_list: list[dict] = []
+    is_loading: bool = False
 
     # ── Email Config Dialog ──────────────────────────────────
     show_email_config: bool = False
@@ -27,6 +64,8 @@ class RDOHistoricoState(rx.State):
 
     async def load_rdos(self):
         """Carrega RDOs conforme role e contrato do usuário"""
+        self.is_loading = True
+        yield
         global_state = await self.get_state(GlobalState)
         current_role = str(global_state.current_user_role)
         current_contrato = str(global_state.current_user_contrato)
@@ -42,6 +81,7 @@ class RDOHistoricoState(rx.State):
             self.rdos_list = RDOService.get_rdos_by_contract(current_contrato.strip(), limit=50)
         else:
             self.rdos_list = []
+        self.is_loading = False
 
     # ── Email Config Methods ─────────────────────────────────
 
@@ -398,13 +438,45 @@ def rdo_historico_page() -> rx.Component:
             ),
             spacing="4",
             width="100%",
-            margin_bottom="24px",
+            margin_bottom="12px",
             align="center",
         ),
+        # Tab nav
+        _rdo_tab_nav_hist(),
         # Lista de RDOs
         rx.box(
             rx.cond(
-                RDOHistoricoState.rdos_list,
+                RDOHistoricoState.is_loading,
+                # Skeleton enquanto carrega
+                rx.vstack(
+                    *[
+                        rx.box(
+                            rx.hstack(
+                                skeleton_block(width="44px", height="44px", radius="8px"),
+                                rx.vstack(
+                                    skeleton_line(width="180px", height="14px"),
+                                    skeleton_line(width="120px", height="11px"),
+                                    spacing="2",
+                                ),
+                                rx.spacer(),
+                                skeleton_line(width="60px", height="30px"),
+                                spacing="3",
+                                align="center",
+                                width="100%",
+                            ),
+                            padding="16px",
+                            bg="rgba(255,255,255,0.02)",
+                            border=f"1px solid rgba(255,255,255,0.05)",
+                            border_radius="10px",
+                            width="100%",
+                        )
+                        for _ in range(4)
+                    ],
+                    spacing="3",
+                    width="100%",
+                ),
+                rx.cond(
+                    RDOHistoricoState.rdos_list,
                 rx.vstack(
                     # Cabeçalho da lista
                     rx.hstack(
@@ -463,6 +535,7 @@ def rdo_historico_page() -> rx.Component:
                     padding="64px",
                 ),
             ),
+            ),  # End rx.cond(is_loading)
             **S.GLASS_CARD,
             max_width="1000px",
             margin="0 auto",

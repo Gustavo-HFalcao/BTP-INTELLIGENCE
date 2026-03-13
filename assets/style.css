@@ -1372,8 +1372,20 @@ canvas:focus {
    Desktop layout is never modified — all overrides are ≤640px only.
    ═══════════════════════════════════════════════════════════ */
 
+/* ── Login brand panel — scale to fill available height ─────────────────── */
+/* The outer panel has overflow:hidden. The inner vstack here just fills
+   the full panel height and scales its contents proportionally via CSS zoom,
+   so ALL elements are always visible — they just get smaller, never hidden. */
+.login-brand-inner {
+    height: 100%;
+    /* CSS zoom scales ALL children proportionally — simplest reliable approach */
+    zoom: clamp(0.6, calc(100vh / 900px), 1);
+}
+
 /* ── Safe Area Insets (notch / home-indicator support) ────── */
 body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
 }

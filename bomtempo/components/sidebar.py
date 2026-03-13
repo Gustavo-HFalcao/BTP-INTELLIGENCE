@@ -110,52 +110,26 @@ def sidebar_content() -> rx.Component:
         rx.box(
             rx.cond(
                 GlobalState.sidebar_open,
-                rx.hstack(
+                rx.image(
+                    src="/banner.png",
+                    width="100%",
+                    height="auto",
+                    object_fit="contain",
+                    object_position="left center",
+                ),
+                rx.center(
                     rx.image(
                         src="/icon.png",
                         width="32px",
                         height="32px",
                         border_radius=S.R_CONTROL,
                         object_fit="cover",
-                        flex_shrink="0",
-                    ),
-                    rx.vstack(
-                        rx.text(
-                            "BOMTEMPO",
-                            font_size="1.05rem",
-                            font_weight="900",
-                            font_family=S.FONT_TECH,
-                            letter_spacing="0.08em",
-                            color=S.COPPER,
-                            line_height="1",
-                        ),
-                        rx.text(
-                            "INTELLIGENCE",
-                            font_size="0.55rem",
-                            font_weight="700",
-                            font_family=S.FONT_TECH,
-                            letter_spacing="0.25em",
-                            color=S.PATINA,
-                        ),
-                        spacing="0",
-                        align="start",
-                    ),
-                    spacing="3",
-                    align="center",
-                ),
-                rx.center(
-                    rx.text(
-                        "B",
-                        font_size="1.4rem",
-                        font_weight="900",
-                        font_family=S.FONT_TECH,
-                        color=S.COPPER,
                     ),
                 ),
             ),
             width="100%",
             padding_x=rx.cond(GlobalState.sidebar_open, "16px", "8px"),
-            padding_y="20px",
+            padding_y="14px",
             border_bottom=f"1px solid {S.BORDER_SUBTLE}",
         ),
         # ── Navigation ─────────────────────────────────────────────────

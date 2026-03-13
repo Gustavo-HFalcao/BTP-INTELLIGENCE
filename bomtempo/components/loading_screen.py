@@ -57,21 +57,10 @@ def loading_screen() -> rx.Component:
                 # Brand lockup
                 rx.vstack(
                     rx.image(
-                        src="/icon.png",
-                        width="52px",
-                        height="52px",
-                        border_radius=S.R_CONTROL,
-                        object_fit="cover",
-                        box_shadow="0 0 28px rgba(201,139,42,0.35)",
-                        class_name="radar-center-glow",
-                    ),
-                    rx.text(
-                        "BOMTEMPO",
-                        font_family=S.FONT_TECH,
-                        font_size="1.5rem",
-                        font_weight="900",
-                        color="white",
-                        letter_spacing="0.18em",
+                        src="/banner.png",
+                        width="220px",
+                        object_fit="contain",
+                        style={"filter": "drop-shadow(0 0 8px rgba(201,139,42,0.12))"},
                     ),
                     rx.text(
                         "INICIANDO PLATAFORMA",

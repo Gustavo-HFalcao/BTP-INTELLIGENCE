@@ -294,43 +294,12 @@ def app_mobile_page() -> rx.Component:
 
                 # ── Hero ────────────────────────────────────────────────────
                 rx.vstack(
-                    # Logo + título
-                    rx.hstack(
-                        rx.box(
-                            rx.image(
-                                src="/icon.png",
-                                width="56px",
-                                height="56px",
-                                border_radius="14px",
-                                object_fit="cover",
-                            ),
-                            border_radius="14px",
-                            overflow="hidden",
-                            box_shadow="0 8px 24px rgba(201, 139, 42, 0.25)",
-                            flex_shrink="0",
-                        ),
-                        rx.vstack(
-                            rx.text(
-                                "BOMTEMPO",
-                                font_family=S.FONT_TECH,
-                                font_weight="800",
-                                font_size=["22px", "26px"],
-                                color="white",
-                                letter_spacing="0.08em",
-                            ),
-                            rx.text(
-                                "Dashboard Mobile",
-                                font_family=S.FONT_TECH,
-                                font_weight="600",
-                                font_size="13px",
-                                color=S.COPPER,
-                                letter_spacing="0.06em",
-                            ),
-                            spacing="0",
-                            align="start",
-                        ),
-                        spacing="4",
-                        align="center",
+                    # Banner
+                    rx.image(
+                        src="/banner.png",
+                        max_width=["260px", "320px"],
+                        width="100%",
+                        object_fit="contain",
                     ),
 
                     rx.text(

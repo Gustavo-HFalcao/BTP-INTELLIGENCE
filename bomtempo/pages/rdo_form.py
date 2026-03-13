@@ -904,6 +904,45 @@ def _preview_section() -> rx.Component:
 # ══════════════════════════════════════════════════════════════
 # PÁGINA PRINCIPAL
 # ══════════════════════════════════════════════════════════════
+def _generating_preview_overlay() -> rx.Component:
+    """Full-screen overlay shown while generating PDF preview"""
+    return rx.cond(
+        RDOState.is_generating_preview,
+        rx.box(
+            rx.vstack(
+                rx.spinner(size="3", color=S.COPPER),
+                rx.text(
+                    "Gerando Preview...",
+                    color=S.COPPER,
+                    font_weight="700",
+                    font_size="18px",
+                    font_family=S.FONT_TECH,
+                    letter_spacing="0.06em",
+                ),
+                rx.text(
+                    "Montando o PDF para revisão. Aguarde.",
+                    color=S.TEXT_MUTED,
+                    font_size="13px",
+                    text_align="center",
+                ),
+                spacing="4",
+                align="center",
+            ),
+            position="fixed",
+            top="0",
+            left="0",
+            right="0",
+            bottom="0",
+            z_index="9999",
+            bg="rgba(3, 5, 4, 0.85)",
+            display="flex",
+            align_items="center",
+            justify_content="center",
+            backdrop_filter="blur(4px)",
+        ),
+    )
+
+
 def _submitting_overlay() -> rx.Component:
     """Full-screen overlay shown while submitting the RDO"""
     return rx.cond(
@@ -942,9 +981,45 @@ def _submitting_overlay() -> rx.Component:
     )
 
 
+def _rdo_tab_nav(active: str) -> rx.Component:
+    """Tab bar de navegação entre Preencher RDO e Meus RDOs."""
+    def _tab(label: str, icon: str, route: str, is_active: bool) -> rx.Component:
+        return rx.button(
+            rx.hstack(
+                rx.icon(tag=icon, size=15),
+                rx.text(label, font_size="13px", font_weight="600", font_family=S.FONT_BODY),
+                spacing="2",
+                align="center",
+            ),
+            on_click=rx.redirect(route),
+            bg=rx.cond(is_active, S.COPPER, "transparent"),
+            color=rx.cond(is_active, "#0A1F1A", S.TEXT_MUTED),
+            border=rx.cond(
+                is_active,
+                f"1px solid {S.COPPER}",
+                f"1px solid {S.BORDER_SUBTLE}",
+            ),
+            border_radius="8px",
+            height="36px",
+            padding_x="14px",
+            cursor="pointer",
+            flex="1",
+            _hover={"opacity": "0.85"},
+        )
+
+    return rx.hstack(
+        _tab("Preencher RDO", "clipboard-pen", "/rdo-form", active == "form"),
+        _tab("Meus RDOs", "file-text", "/rdo-historico", active == "historico"),
+        spacing="2",
+        width="100%",
+        margin_bottom="16px",
+    )
+
+
 def rdo_form_page() -> rx.Component:
     return rx.vstack(
-        # Submitting overlay (fixed, full-screen)
+        # Overlays (fixed, full-screen)
+        _generating_preview_overlay(),
         _submitting_overlay(),
         # Header
         rx.hstack(
@@ -962,8 +1037,10 @@ def rdo_form_page() -> rx.Component:
             ),
             spacing="3",
             width="100%",
-            margin_bottom="16px",
+            margin_bottom="12px",
         ),
+        # Tab nav
+        _rdo_tab_nav("form"),
         # Card principal
         rx.box(
             rx.vstack(

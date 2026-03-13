@@ -14,9 +14,9 @@ def _stat_item(label: str, value: str, color: str) -> rx.Component:
     return rx.vstack(
         rx.text(
             label,
-            font_size="9px",
+            font_size="clamp(8px, 0.7vw, 9px)",
             font_weight="700",
-            letter_spacing="0.18em",
+            letter_spacing="0.15em",
             color=S.TEXT_MUTED,
             text_transform="uppercase",
             font_family=S.FONT_MONO,
@@ -24,13 +24,13 @@ def _stat_item(label: str, value: str, color: str) -> rx.Component:
         rx.text(
             value,
             font_family=S.FONT_TECH,
-            font_size="1.75rem",
+            font_size="clamp(1.1rem, 2vw, 1.75rem)",
             font_weight="900",
             color=color,
             line_height="1",
         ),
         spacing="1",
-        padding="16px",
+        padding="clamp(10px, 1.2vw, 16px)",
         bg="rgba(255,255,255,0.02)",
         border=f"1px solid {S.BORDER_SUBTLE}",
         border_radius=S.R_CONTROL,
@@ -101,16 +101,16 @@ def _brand_panel() -> rx.Component:
             # Brand hero — banner da nova identidade visual
             rx.image(
                 src="/banner.png",
-                max_width="360px",
+                max_width="min(360px, 80%)",
+                max_height="clamp(80px, 22vh, 200px)",
                 width="100%",
-                border_radius="8px",
                 object_fit="contain",
                 opacity="0.95",
             ),
             # Subtitle
             rx.text(
                 "Intelligence Platform v2.0",
-                font_size="0.72rem",
+                font_size="clamp(0.6rem, 1vw, 0.72rem)",
                 letter_spacing="0.18em",
                 color=S.TEXT_MUTED,
                 font_family=S.FONT_MONO,
@@ -118,10 +118,10 @@ def _brand_panel() -> rx.Component:
             # Description
             rx.text(
                 "Plataforma centralizada de dados operacionais, controle financeiro e analytics preditivo para gestão de obras e contratos de engenharia.",
-                font_size="0.85rem",
+                font_size="clamp(0.75rem, 1.1vw, 0.85rem)",
                 color="rgba(255,255,255,0.45)",
                 line_height="1.6",
-                max_width="340px",
+                width="100%",
             ),
             # Typewriter tagline
             rx.hstack(
@@ -187,20 +187,20 @@ def _brand_panel() -> rx.Component:
                 spacing="2",
                 align="center",
             ),
-            spacing="5",
-            height="100%",
-            padding="48px 40px",
+            spacing="3",
+            padding=["24px 20px", "28px 24px", "32px 28px", "48px 40px"],
             position="relative",
             z_index="1",
             align="start",
             justify="start",
+            class_name="login-brand-inner",
         ),
         position="relative",
         overflow="hidden",
         bg=S.BG_DEPTH,
         width="50%",
         height="100%",
-        display=["none", "none", "flex"],
+        display=["none", "none", "none", "flex"],
         flex_direction="column",
     )
 
@@ -419,7 +419,7 @@ def _auth_panel() -> rx.Component:
                 ),
                 spacing="5",
                 width="100%",
-                max_width="400px",
+                max_width="460px",
                 class_name="glass-reveal",
             ),
             width="100%",

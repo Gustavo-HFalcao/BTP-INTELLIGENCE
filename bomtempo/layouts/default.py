@@ -692,13 +692,13 @@ def default_layout(content: rx.Component) -> rx.Component:
     """Default layout matching React reference: sidebar + content (Mobile Responsive)"""
 
     return rx.box(
-        # ── PWA Init (manifest + SW + install prompt + viewport fix + favicon) ──
+        # ── PWA Init (manifest + SW + install prompt + viewport fix + favicon + iOS) ──
         rx.script("""
 (function () {
-  // Viewport: previne zoom em inputs no mobile (comportamento de app nativo)
+  // Viewport: viewport-fit=cover para notch iOS + previne zoom em inputs
   (function() {
     var vp = document.querySelector('meta[name="viewport"]');
-    var c = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+    var c = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover';
     if (vp) { vp.content = c; }
     else {
       var m = document.createElement('meta');
@@ -723,6 +723,34 @@ def default_layout(content: rx.Component) -> rx.Component:
     var meta = document.createElement('meta');
     meta.name = 'theme-color'; meta.content = '#030504';
     document.head.appendChild(meta);
+  }
+  // Android PWA capable
+  if (!document.querySelector('meta[name="mobile-web-app-capable"]')) {
+    var m = document.createElement('meta');
+    m.name = 'mobile-web-app-capable'; m.content = 'yes';
+    document.head.appendChild(m);
+  }
+  // iOS — standalone mode + status bar translucente
+  if (!document.querySelector('meta[name="apple-mobile-web-app-capable"]')) {
+    var m = document.createElement('meta');
+    m.name = 'apple-mobile-web-app-capable'; m.content = 'yes';
+    document.head.appendChild(m);
+  }
+  if (!document.querySelector('meta[name="apple-mobile-web-app-title"]')) {
+    var m = document.createElement('meta');
+    m.name = 'apple-mobile-web-app-title'; m.content = 'Bomtempo';
+    document.head.appendChild(m);
+  }
+  if (!document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]')) {
+    var m = document.createElement('meta');
+    m.name = 'apple-mobile-web-app-status-bar-style'; m.content = 'black-translucent';
+    document.head.appendChild(m);
+  }
+  // Apple touch icon
+  if (!document.querySelector('link[rel="apple-touch-icon"]')) {
+    var l = document.createElement('link');
+    l.rel = 'apple-touch-icon'; l.href = '/icon.png';
+    document.head.appendChild(l);
   }
   // Service Worker
   if ('serviceWorker' in navigator) {
