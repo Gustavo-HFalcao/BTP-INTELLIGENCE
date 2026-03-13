@@ -1378,8 +1378,22 @@ canvas:focus {
    so ALL elements are always visible — they just get smaller, never hidden. */
 .login-brand-inner {
     height: 100%;
-    /* CSS zoom scales ALL children proportionally — simplest reliable approach */
-    zoom: clamp(0.6, calc(100vh / 900px), 1);
+    /* CSS zoom scales ALL children proportionally — simplest reliable approach.
+       Combined with justify-content:space-between (set via Reflex justify="between"),
+       all 7 elements distribute evenly, no empty gap at any viewport height. */
+    zoom: clamp(0.55, calc(100vh / 900px), 1);
+}
+
+/* ── Sidebar logo images — prevent flicker on page navigation ──────────── */
+/* rx.cond unmounts/remounts <img> when state rehydrates after navigation.
+   A short fade-in hides the blank frame while the decoded image is restored. */
+.sidebar-logo-img img,
+.sidebar-logo-img {
+    animation: logo-fade-in 0.18s ease forwards;
+}
+@keyframes logo-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
 }
 
 /* ── Safe Area Insets (notch / home-indicator support) ────── */

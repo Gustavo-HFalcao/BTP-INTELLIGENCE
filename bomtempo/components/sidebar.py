@@ -116,6 +116,7 @@ def sidebar_content() -> rx.Component:
                     height="auto",
                     object_fit="contain",
                     object_position="left center",
+                    class_name="sidebar-logo-img",
                 ),
                 rx.center(
                     rx.image(
@@ -124,6 +125,7 @@ def sidebar_content() -> rx.Component:
                         height="32px",
                         border_radius=S.R_CONTROL,
                         object_fit="cover",
+                        class_name="sidebar-logo-img",
                     ),
                 ),
             ),

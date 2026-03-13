@@ -81,7 +81,7 @@ def _brand_panel() -> rx.Component:
             width="1px", height="100%",
             bg="linear-gradient(180deg, transparent, rgba(201,139,42,0.3) 30%, rgba(201,139,42,0.3) 70%, transparent)",
         ),
-        # ── Panel content ────────────────────────────────────────
+        # ── Panel content — vertically centered block ───────────
         rx.vstack(
             # Section label
             rx.hstack(
@@ -98,14 +98,14 @@ def _brand_panel() -> rx.Component:
                 spacing="3",
                 align="center",
             ),
-            # Brand hero — banner da nova identidade visual
+            # Brand hero image — width-driven (image is square 640×640)
             rx.image(
                 src="/banner.png",
-                max_width="min(360px, 80%)",
-                max_height="clamp(80px, 22vh, 200px)",
-                width="100%",
+                width="clamp(180px, 38%, 380px)",
+                height="auto",
                 object_fit="contain",
                 opacity="0.95",
+                class_name="sidebar-logo-img",
             ),
             # Subtitle
             rx.text(
@@ -166,34 +166,40 @@ def _brand_panel() -> rx.Component:
                 spacing="3",
                 width="100%",
             ),
-            rx.spacer(),
-            # Bottom status ticker
-            rx.hstack(
-                rx.box(
-                    width="6px", height="6px",
-                    border_radius="50%",
-                    bg=S.PATINA,
-                    flex_shrink="0",
-                    class_name="animate-pulse",
-                ),
-                rx.text(
-                    "SISTEMAS OPERACIONAIS  ·  INFRAESTRUTURA OK  ·  UTC-3 BRT",
-                    font_size="10px",
-                    color=S.TEXT_MUTED,
-                    font_family=S.FONT_MONO,
-                    letter_spacing="0.08em",
-                    opacity="0.55",
-                ),
-                spacing="2",
-                align="center",
-            ),
-            spacing="3",
+            spacing="5",
             padding=["24px 20px", "28px 24px", "32px 28px", "48px 40px"],
+            padding_bottom="60px",
             position="relative",
             z_index="1",
             align="start",
-            justify="start",
+            justify="center",
+            height="100%",
             class_name="login-brand-inner",
+        ),
+        # Bottom status ticker — pinned to bottom
+        rx.hstack(
+            rx.box(
+                width="6px", height="6px",
+                border_radius="50%",
+                bg=S.PATINA,
+                flex_shrink="0",
+                class_name="animate-pulse",
+            ),
+            rx.text(
+                "SISTEMAS OPERACIONAIS  ·  INFRAESTRUTURA OK  ·  UTC-3 BRT",
+                font_size="10px",
+                color=S.TEXT_MUTED,
+                font_family=S.FONT_MONO,
+                letter_spacing="0.08em",
+                opacity="0.55",
+            ),
+            spacing="2",
+            align="center",
+            position="absolute",
+            bottom="0",
+            left="0",
+            padding=["16px 20px", "20px 24px", "24px 28px", "24px 40px"],
+            z_index="2",
         ),
         position="relative",
         overflow="hidden",

@@ -60,6 +60,7 @@ def loading_screen() -> rx.Component:
                         src="/banner.png",
                         width="220px",
                         object_fit="contain",
+                        class_name="sidebar-logo-img",
                         style={"filter": "drop-shadow(0 0 8px rgba(201,139,42,0.12))"},
                     ),
                     rx.text(
