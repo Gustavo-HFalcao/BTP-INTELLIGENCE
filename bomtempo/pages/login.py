@@ -98,28 +98,14 @@ def _brand_panel() -> rx.Component:
                 spacing="3",
                 align="center",
             ),
-            # Brand hero — large BOMTEMPO / INTELIGÊNCIA
-            rx.vstack(
-                rx.text(
-                    "BOMTEMPO",
-                    font_family=S.FONT_TECH,
-                    font_size="clamp(2.8rem, 6vw, 4.5rem)",
-                    font_weight="900",
-                    color="white",
-                    letter_spacing="-0.02em",
-                    line_height="0.9",
-                ),
-                rx.text(
-                    "INTELLIGENCE",
-                    font_family=S.FONT_TECH,
-                    font_size="clamp(2.8rem, 6vw, 4.5rem)",
-                    font_weight="900",
-                    color=S.COPPER,
-                    letter_spacing="-0.02em",
-                    line_height="0.9",
-                ),
-                spacing="1",
-                align="start",
+            # Brand hero — banner da nova identidade visual
+            rx.image(
+                src="/banner.png",
+                max_width="360px",
+                width="100%",
+                border_radius="8px",
+                object_fit="contain",
+                opacity="0.95",
             ),
             # Subtitle
             rx.text(
@@ -337,38 +323,26 @@ def _auth_panel() -> rx.Component:
                 # Login button + progress bar
                 rx.vstack(
                     rx.button(
-                        rx.cond(
-                            GlobalState.is_authenticating,
-                            rx.hstack(
+                        rx.hstack(
+                            rx.cond(
+                                GlobalState.is_authenticating,
                                 rx.spinner(size="1", color="inherit"),
-                                rx.text(
-                                    "VERIFICANDO CREDENCIAIS...",
-                                    font_family=S.FONT_TECH,
-                                    font_weight="700",
-                                    font_size="13px",
-                                    letter_spacing="0.08em",
-                                ),
-                                spacing="3",
-                                align="center",
-                                justify="center",
-                            ),
-                            rx.hstack(
                                 rx.icon(tag="log-in", size=16),
-                                rx.text(
-                                    rx.cond(
-                                        GlobalState.login_error != "",
-                                        "TENTAR NOVAMENTE",
-                                        "ENTRAR",
-                                    ),
-                                    font_family=S.FONT_TECH,
-                                    font_weight="700",
-                                    font_size="14px",
-                                    letter_spacing="0.1em",
-                                ),
-                                spacing="3",
-                                align="center",
-                                justify="center",
                             ),
+                            rx.text(
+                                rx.cond(
+                                    GlobalState.login_error != "",
+                                    "TENTAR NOVAMENTE",
+                                    "ENTRAR",
+                                ),
+                                font_family=S.FONT_TECH,
+                                font_weight="700",
+                                font_size="14px",
+                                letter_spacing="0.1em",
+                            ),
+                            spacing="3",
+                            align="center",
+                            justify="center",
                         ),
                         on_click=GlobalState.check_login,
                         bg=rx.cond(
@@ -434,7 +408,7 @@ def _auth_panel() -> rx.Component:
                 ),
                 # Footer note
                 rx.text(
-                    "BOMTEMPO ENGENHARIA  ·  PLATAFORMA RESTRITA  ·  ACESSO MONITORADO",
+                    "BOMTEMPO INTELLIGENCE  ·  PLATAFORMA RESTRITA  ·  ACESSO MONITORADO",
                     font_size="9px",
                     color=S.TEXT_MUTED,
                     text_align="center",

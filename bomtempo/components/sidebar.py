@@ -111,15 +111,12 @@ def sidebar_content() -> rx.Component:
             rx.cond(
                 GlobalState.sidebar_open,
                 rx.hstack(
-                    rx.box(
-                        rx.icon(tag="zap", size=16, color=S.COPPER),
-                        width="32px", height="32px",
+                    rx.image(
+                        src="/icon.png",
+                        width="32px",
+                        height="32px",
                         border_radius=S.R_CONTROL,
-                        bg="rgba(201,139,42,0.12)",
-                        border=f"1px solid rgba(201,139,42,0.3)",
-                        display="flex",
-                        align_items="center",
-                        justify_content="center",
+                        object_fit="cover",
                         flex_shrink="0",
                     ),
                     rx.vstack(
@@ -340,6 +337,21 @@ def sidebar_content() -> rx.Component:
                         border_radius=S.R_CONTROL,
                         cursor="pointer",
                         on_click=GlobalState.open_avatar_modal,
+                        _hover={"bg": "rgba(255,255,255,0.05)"},
+                    ),
+                    # App Mobile
+                    rx.box(
+                        rx.hstack(
+                            rx.icon(tag="smartphone", size=14, color=S.PATINA),
+                            rx.text("App Mobile", font_size="13px", color="white"),
+                            spacing="3",
+                            align="center",
+                        ),
+                        width="100%",
+                        padding="8px 12px",
+                        border_radius=S.R_CONTROL,
+                        cursor="pointer",
+                        on_click=rx.redirect("/app-mobile"),
                         _hover={"bg": "rgba(255,255,255,0.05)"},
                     ),
                     rx.separator(width="100%", color=S.BORDER_SUBTLE),

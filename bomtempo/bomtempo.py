@@ -34,6 +34,7 @@ from bomtempo.pages.logs_auditoria import logs_auditoria_page
 from bomtempo.state.logs_state import LogsState
 from bomtempo.pages.usuarios import usuarios_page
 from bomtempo.state.usuarios_state import UsuariosState
+from bomtempo.pages.app_mobile import app_mobile_page
 
 # Start proactive alerts background scheduler
 start_alert_scheduler()
@@ -227,6 +228,18 @@ app.add_page(
     route="/admin/usuarios",
     title="BOMTEMPO | Gerenciar Usuários",
     on_load=[GlobalState.load_data, UsuariosState.load_page],
+)
+
+
+def app_mobile():
+    return default_layout(app_mobile_page())
+
+
+app.add_page(
+    app_mobile,
+    route="/app-mobile",
+    title="BOMTEMPO | App Mobile",
+    on_load=GlobalState.load_data,
 )
 
 from bomtempo.pages.voice_chat_page import voice_chat_page

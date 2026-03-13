@@ -304,37 +304,66 @@ def section_nota_fiscal() -> rx.Component:
     return _card(
         _section_title("receipt", "Nota Fiscal"),
         rx.vstack(
-            # Upload area
-            rx.upload(
-                rx.vstack(
-                    rx.icon(tag="camera", size=28, color=S.COPPER),
-                    rx.text(
-                        "Foto ou arquivo da NF",
-                        font_size="14px",
-                        font_weight="600",
-                        color=S.TEXT_PRIMARY,
+            # Upload area — com loading overlay enquanto processa
+            rx.box(
+                rx.upload(
+                    rx.vstack(
+                        rx.icon(tag="camera", size=28, color=S.COPPER),
+                        rx.text(
+                            "Foto ou arquivo da NF",
+                            font_size="14px",
+                            font_weight="600",
+                            color=S.TEXT_PRIMARY,
+                        ),
+                        rx.text(
+                            "JPG, PNG, HEIC — máx. 10MB",
+                            font_size="12px",
+                            color=S.TEXT_MUTED,
+                        ),
+                        align="center",
+                        spacing="1",
+                        padding_y="20px",
                     ),
-                    rx.text(
-                        "JPG, PNG, HEIC — máx. 10MB",
-                        font_size="12px",
-                        color=S.TEXT_MUTED,
-                    ),
-                    align="center",
-                    spacing="1",
-                    padding_y="20px",
+                    id="nf_upload",
+                    accept={"image/*": [".jpg", ".jpeg", ".png", ".heic", ".webp"]},
+                    max_files=1,
+                    max_size=10 * 1024 * 1024,
+                    on_drop=ReembolsoState.handle_nf_upload(rx.upload_files(upload_id="nf_upload")),
+                    border=f"2px dashed {S.BORDER_ACCENT}",
+                    border_radius="12px",
+                    bg=S.COPPER_GLOW,
+                    cursor="pointer",
+                    width="100%",
+                    _hover={"border_color": S.COPPER, "bg": "rgba(201,139,42,0.12)"},
+                    transition="all 0.2s ease",
                 ),
-                id="nf_upload",
-                accept={"image/*": [".jpg", ".jpeg", ".png", ".heic", ".webp"]},
-                max_files=1,
-                max_size=10 * 1024 * 1024,
-                on_drop=ReembolsoState.handle_nf_upload(rx.upload_files(upload_id="nf_upload")),
-                border=f"2px dashed {S.BORDER_ACCENT}",
-                border_radius="12px",
-                bg=S.COPPER_GLOW,
-                cursor="pointer",
+                # Overlay de loading enquanto a imagem é processada
+                rx.cond(
+                    ReembolsoState.is_uploading_nf,
+                    rx.box(
+                        rx.vstack(
+                            rx.spinner(size="3", color=S.COPPER),
+                            rx.text(
+                                "Processando imagem...",
+                                font_size="13px",
+                                color=S.TEXT_PRIMARY,
+                                font_weight="600",
+                            ),
+                            spacing="3",
+                            align="center",
+                        ),
+                        position="absolute",
+                        top="0", left="0", right="0", bottom="0",
+                        bg="rgba(3,5,4,0.82)",
+                        border_radius="12px",
+                        display="flex",
+                        align_items="center",
+                        justify_content="center",
+                        z_index="10",
+                    ),
+                ),
+                position="relative",
                 width="100%",
-                _hover={"border_color": S.COPPER, "bg": "rgba(201,139,42,0.12)"},
-                transition="all 0.2s ease",
             ),
             # Preview da imagem e bloco da IA
             rx.cond(
@@ -555,9 +584,8 @@ def _tab_nova_solicitacao() -> rx.Component:
                     align="center",
                 ),
             ),
-            on_click=ReembolsoState.submit_reembolso,
-            disabled=ReembolsoState.is_submitting
-            | ~(ReembolsoState.ai_verified | ReembolsoState.ai_override),
+            on_click=ReembolsoState.try_submit,
+            disabled=ReembolsoState.is_submitting,
             bg=S.COPPER,
             color="white",
             height="54px",

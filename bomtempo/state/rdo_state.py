@@ -60,6 +60,7 @@ class RDOState(rx.State):
     preview_pdf_path: str = ""
     preview_pdf_url: str = ""  # data: URL (base64) para iframe
     form_errors: Dict[str, str] = {}
+    is_generating_preview: bool = False
 
     # ── Helpers ───────────────────────────────────────────────
 
@@ -204,18 +205,26 @@ class RDOState(rx.State):
 
     # ── Preview ───────────────────────────────────────────────
 
+    @rx.event(background=True)
     async def generate_preview(self):
-        """Gera preview do PDF como data URL base64 para iframe"""
-        if not self.validate_form():
-            yield rx.toast("⚠️ Preencha os campos obrigatórios", position="top-center")
+        """Gera preview do PDF — background event para não travar a UI."""
+        import asyncio
+        import base64
+
+        # Fase 1: validar + capturar dados dentro do lock
+        rdo_data = None
+        async with self:
+            if self.validate_form():
+                self.is_generating_preview = True
+                rdo_data = self._build_rdo_data()
+
+        if rdo_data is None:
+            yield rx.toast("⚠️ Preencha os campos obrigatórios (Contrato e Data)", position="top-center")
             return
 
+        # Fase 2: gerar PDF FORA do lock (I/O bloqueante)
         try:
-            import asyncio
-            import base64
-
-            rdo_data = self._build_rdo_data()
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             pdf_path, pdf_url = await loop.run_in_executor(
                 None,
                 lambda: RDOService.generate_pdf(rdo_data, is_preview=True),
@@ -224,22 +233,26 @@ class RDOState(rx.State):
             if pdf_path:
                 with open(pdf_path, "rb") as f:
                     b64 = base64.b64encode(f.read()).decode("utf-8")
-                self.preview_pdf_path = pdf_path
-                # Armazena como data URL para que o iframe funcione sem depender do servidor de arquivos
-                self.preview_pdf_url = f"data:application/pdf;base64,{b64}"
-                self.is_preview = True
-                yield rx.toast("✅ Preview gerado!", position="top-center")
+                async with self:
+                    self.preview_pdf_path = pdf_path
+                    self.preview_pdf_url = f"data:application/pdf;base64,{b64}"
+                    self.is_preview = True
+                    self.is_generating_preview = False
             else:
-                yield rx.toast("❌ Erro ao gerar preview", position="top-center")
+                async with self:
+                    self.is_generating_preview = False
+                yield rx.toast("❌ Erro ao gerar preview do PDF", position="top-center")
 
         except Exception as e:
             logger.error(f"Erro ao gerar preview: {e}")
-            yield rx.toast(f"❌ Erro: {str(e)}", position="top-center")
+            async with self:
+                self.is_generating_preview = False
+            yield rx.toast(f"❌ Erro: {str(e)[:120]}", position="top-center")
 
     def edit_form(self):
-        """Volta para o formulário mantendo dados"""
+        """Volta para o formulário mantendo dados — retorna ao step 5 (último preenchido)"""
         self.is_preview = False
-        self.current_step = 1
+        self.current_step = 5
 
     # ── Submit ────────────────────────────────────────────────
     # Versão: 2026-02-23T13:44 — Two-handler chain pattern.

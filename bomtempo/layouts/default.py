@@ -692,6 +692,60 @@ def default_layout(content: rx.Component) -> rx.Component:
     """Default layout matching React reference: sidebar + content (Mobile Responsive)"""
 
     return rx.box(
+        # ── PWA Init (manifest + SW + install prompt + viewport fix + favicon) ──
+        rx.script("""
+(function () {
+  // Viewport: previne zoom em inputs no mobile (comportamento de app nativo)
+  (function() {
+    var vp = document.querySelector('meta[name="viewport"]');
+    var c = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+    if (vp) { vp.content = c; }
+    else {
+      var m = document.createElement('meta');
+      m.name = 'viewport'; m.content = c;
+      document.head.insertBefore(m, document.head.firstChild);
+    }
+  })();
+  // Favicon
+  if (!document.querySelector('link[rel="icon"]')) {
+    var fav = document.createElement('link');
+    fav.rel = 'icon'; fav.href = '/icon.png'; fav.type = 'image/png';
+    document.head.appendChild(fav);
+  }
+  // Manifest
+  if (!document.querySelector('link[rel="manifest"]')) {
+    var link = document.createElement('link');
+    link.rel = 'manifest'; link.href = '/manifest.json';
+    document.head.appendChild(link);
+  }
+  // Theme color
+  if (!document.querySelector('meta[name="theme-color"]')) {
+    var meta = document.createElement('meta');
+    meta.name = 'theme-color'; meta.content = '#030504';
+    document.head.appendChild(meta);
+  }
+  // Service Worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(function () {});
+  }
+  // Install prompt
+  window._btpDeferredPrompt = window._btpDeferredPrompt || null;
+  if (!window._btpInstallListenerAdded) {
+    window._btpInstallListenerAdded = true;
+    window.addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault();
+      window._btpDeferredPrompt = e;
+      window.dispatchEvent(new Event('_btpPromptReady'));
+    });
+    window._btpInstall = async function () {
+      if (!window._btpDeferredPrompt) return;
+      window._btpDeferredPrompt.prompt();
+      await window._btpDeferredPrompt.userChoice;
+      window._btpDeferredPrompt = null;
+    };
+  }
+})();
+"""),
         # ── Top progress bar — appears on every navigation (copper stripe) ──────
         rx.cond(
             GlobalState.is_loading,

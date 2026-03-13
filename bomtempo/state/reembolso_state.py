@@ -50,6 +50,9 @@ class ReembolsoState(rx.State):
     ai_attempt_count: int = 0  # quantas análises foram feitas
     ai_override: bool = False  # usuário decidiu enviar mesmo com divergência
 
+    # ── Upload NF ──────────────────────────────────────────────────────────────
+    is_uploading_nf: bool = False
+
     # ── Submit ─────────────────────────────────────────────────────────────────
     is_submitting: bool = False
     submit_success: bool = False
@@ -234,11 +237,14 @@ class ReembolsoState(rx.State):
         """Recebe imagem da NF via rx.upload."""
         if not files:
             return
-        file = files[0]
-        data = await file.read()
+        # Mostra loading imediatamente antes de processar
+        self.is_uploading_nf = True
+        yield  # flush para o cliente mostrar o spinner
 
         import base64
 
+        file = files[0]
+        data = await file.read()
         b64 = base64.b64encode(data).decode("utf-8")
 
         ext = file.filename.split(".")[-1].lower() if "." in file.filename else "jpeg"
@@ -261,7 +267,8 @@ class ReembolsoState(rx.State):
         self.validation_errors = []
         self.validation_warnings = []
         self.ai_verified = False
-        yield rx.toast("Imagem carregada! Clique em 'Analisar com IA'.", position="top-center")
+        self.is_uploading_nf = False
+        yield rx.toast("📎 Imagem carregada! Clique em 'Analisar com IA'.", position="top-center")
 
     # ── Análise IA ─────────────────────────────────────────────────────────────
 
@@ -360,7 +367,32 @@ class ReembolsoState(rx.State):
             else:
                 yield rx.toast("ℹ️ Análise concluída. Verifique os avisos.", position="top-center")
 
-    # ── Submit ─────────────────────────────────────────────────────────────────
+    # ── Submit (com validação guiada) ──────────────────────────────────────────
+
+    async def try_submit(self):
+        """Valida pré-condições e guia o usuário, depois dispara submit."""
+        if not self.image_data_url:
+            yield rx.toast(
+                "📎 Anexe a foto da nota fiscal antes de enviar.",
+                position="top-center",
+                duration=5000,
+            )
+            return
+        if not self.analysis_done:
+            yield rx.toast(
+                "🤖 Clique em 'Extrair Dados com IA' para validar a nota antes de enviar.",
+                position="top-center",
+                duration=5000,
+            )
+            return
+        if not (self.ai_verified or self.ai_override):
+            yield rx.toast(
+                "⚠️ Há divergências na nota. Corrija os dados ou aprove o envio com divergência (após 3 tentativas).",
+                position="top-center",
+                duration=6000,
+            )
+            return
+        yield ReembolsoState.submit_reembolso
 
     @rx.event(background=True)
     async def submit_reembolso(self):

@@ -56,12 +56,12 @@ def loading_screen() -> rx.Component:
             rx.vstack(
                 # Brand lockup
                 rx.vstack(
-                    rx.center(
-                        rx.icon(tag="zap", size=24, color=S.COPPER),
-                        width="52px", height="52px",
+                    rx.image(
+                        src="/icon.png",
+                        width="52px",
+                        height="52px",
                         border_radius=S.R_CONTROL,
-                        bg="rgba(201,139,42,0.12)",
-                        border=f"1px solid {S.COPPER}",
+                        object_fit="cover",
                         box_shadow="0 0 28px rgba(201,139,42,0.35)",
                         class_name="radar-center-glow",
                     ),

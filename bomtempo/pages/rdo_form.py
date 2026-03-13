@@ -183,7 +183,7 @@ def _nav_buttons(
             min_width="140px",
             font_weight="700",
             _hover={"opacity": "0.9"},
-            is_loading=RDOState.is_submitting if is_last else False,
+            is_loading=(RDOState.is_generating_preview | RDOState.is_submitting) if is_last else False,
         ),
         width="100%",
         padding_top="16px",
