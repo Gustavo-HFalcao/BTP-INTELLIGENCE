@@ -619,6 +619,14 @@ class GlobalState(rx.State):
             self.is_streaming = False
             self.is_analyzing = False
 
+    # ── Navigation / Loading Computed Vars ──────────────────────────────────────
+
+    @rx.var
+    def show_progress_bar(self) -> bool:
+        """True quando está navegando entre páginas OU carregando dados.
+        Usado no layout para exibir a top-loading-bar de forma null-safe."""
+        return self.is_loading or self.is_navigating
+
     # ── KPI Detail Popup Computed Vars ──────────────────────────────────────────
 
     @rx.var
@@ -1222,11 +1230,11 @@ class GlobalState(rx.State):
     def toggle_sidebar(self):
         self.sidebar_open = not self.sidebar_open
 
-    def navigate_to(self, url: str):
-        """Navegação com feedback visual imediato: seta is_navigating antes do redirect."""
+    def set_navigating(self):
+        """Seta is_navigating=True para exibir top-bar imediatamente ao clicar na sidebar.
+        A navegação SPA em si é feita pelo rx.link(href=...) — não usamos redirect aqui
+        para evitar full page reload e o null-state error no frontend."""
         self.is_navigating = True
-        yield
-        yield rx.redirect(url)
 
     def check_mobile_access(self):
         """Redireciona se não tiver permissão mobile"""
@@ -1455,23 +1463,40 @@ class GlobalState(rx.State):
         yield GlobalState.load_data
 
     async def load_initial_data_smooth(self):
-        """Loads initial data with smooth UX and loading screen (2s minimum)"""
-        import asyncio
+        """Loading screen pós-login com duração mínima garantida pela animação CSS.
 
-        # Show loading screen
+        Fluxo:
+        - Carrega dados do Supabase enquanto a animação roda (pré-aquece o cache)
+        - Aguarda no mínimo ANIMATION_DURATION + BUFFER (5.0s) antes de esconder
+        - Se dados demorarem mais que a animação (raro), aguarda os dados + BUFFER
+        - Quando on_load disparar na página destino, bate no cache e retorna instantaneamente
+        """
+        import asyncio
+        import time
+
+        ANIMATION_DURATION = 4.5  # deve coincidir com loaderProgress em style.css
+        BUFFER = 0.5               # tempo extra após animação completar
+        MIN_DISPLAY = ANIMATION_DURATION + BUFFER  # 5.0s mínimo total
+
         self.initial_loading = True
         self.show_loading_screen = True
         yield
 
-        # Load data if not already loaded (in parallel with timer)
+        start = time.monotonic()
+
+        # Executa load_data inline (itera o generator) para pré-carregar o cache
+        # Assim quando on_load disparar na página destino, já bate no cache
         if not self.contratos_list:
-            self.load_data()
+            for _ in self.load_data():
+                pass  # consome os yields do generator sem enviar deltas parciais
 
-        # Fixed 0.8s timer (Optimized) to ensure smooth visual experience
-        # Allows data to load and user to see the loading animation without sluggishness
-        await asyncio.sleep(0.8)
+        data_elapsed = time.monotonic() - start
 
-        # Hide loading screen smoothly
+        # Aguarda o tempo restante para completar animação + buffer.
+        # Se dados demoraram mais que a animação, aguarda só o buffer mínimo.
+        remaining = max(MIN_DISPLAY - data_elapsed, BUFFER)
+        await asyncio.sleep(remaining)
+
         self.initial_loading = False
         self.show_loading_screen = False
 

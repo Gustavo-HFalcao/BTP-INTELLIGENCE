@@ -1410,11 +1410,20 @@ body {
    this behaviour WITHOUT locking maximum-scale in the viewport
    meta tag, so pinch-to-zoom still works normally.            */
 input,
+input[type="text"],
+input[type="password"],
+input[type="email"],
+input[type="number"],
+input[type="tel"],
+input[type="search"],
 textarea,
 select,
 .rt-TextFieldInput,
-.rt-TextFieldRoot input {
+.rt-TextFieldRoot input,
+.rt-reset[type="text"],
+.rt-reset[type="password"] {
     font-size: 16px !important;
+    -webkit-text-size-adjust: 100%;
 }
 
 /* ── Radix Popover — force above mobile drawer ───────────── */

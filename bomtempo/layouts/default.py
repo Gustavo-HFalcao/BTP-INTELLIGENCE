@@ -695,7 +695,7 @@ def default_layout(content: rx.Component) -> rx.Component:
         # ── PWA Init (manifest + SW + install prompt + viewport fix + favicon + iOS) ──
         rx.script("""
 (function () {
-  // Viewport: viewport-fit=cover para notch iOS + previne zoom em inputs
+  // Viewport: viewport-fit=cover para notch iOS; zoom permitido (inputs ≥ 16px previnem auto-zoom)
   (function() {
     var vp = document.querySelector('meta[name="viewport"]');
     var c = 'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover';
@@ -709,7 +709,7 @@ def default_layout(content: rx.Component) -> rx.Component:
   // Favicon
   if (!document.querySelector('link[rel="icon"]')) {
     var fav = document.createElement('link');
-    fav.rel = 'icon'; fav.href = '/icon.png'; fav.type = 'image/png';
+    fav.rel = 'icon'; fav.href = '/pwa-icon.png'; fav.type = 'image/png';
     document.head.appendChild(fav);
   }
   // Manifest
@@ -749,7 +749,7 @@ def default_layout(content: rx.Component) -> rx.Component:
   // Apple touch icon
   if (!document.querySelector('link[rel="apple-touch-icon"]')) {
     var l = document.createElement('link');
-    l.rel = 'apple-touch-icon'; l.href = '/icon.png';
+    l.rel = 'apple-touch-icon'; l.href = '/pwa-icon.png';
     document.head.appendChild(l);
   }
   // Service Worker
@@ -776,7 +776,7 @@ def default_layout(content: rx.Component) -> rx.Component:
 """),
         # ── Top progress bar — aparece ao navegar (is_navigating) e ao carregar dados (is_loading) ──
         rx.cond(
-            GlobalState.is_loading | GlobalState.is_navigating,
+            GlobalState.show_progress_bar,
             rx.box(class_name="top-loading-bar"),
         ),
         # ── Loading overlay GLOBAL ──────────────────────────────────────────────

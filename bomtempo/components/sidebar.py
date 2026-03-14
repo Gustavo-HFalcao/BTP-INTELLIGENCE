@@ -57,7 +57,7 @@ def sidebar_item(text: str, icon: str, url: str) -> rx.Component:
     is_path_match = (current == url) | (current == f"{url}/")
     is_active = rx.cond(url == "/", is_root_path, is_path_match)
 
-    return rx.box(
+    return rx.link(
         rx.hstack(
             rx.icon(
                 tag=icon, size=17,
@@ -93,9 +93,9 @@ def sidebar_item(text: str, icon: str, url: str) -> rx.Component:
                 "borderLeftColor": f"rgba(201,139,42,0.3)",
             },
         ),
-        on_click=GlobalState.navigate_to(url),
+        href=url,
+        on_click=GlobalState.set_navigating,
         width="100%",
-        cursor="pointer",
         style={"text_decoration": "none"},
     )
 
