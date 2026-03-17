@@ -1,13 +1,48 @@
 # ruff: noqa: E402
 import reflex as rx
 
+# Install global error hooks BEFORE any app code — captures unhandled exceptions in production
+from bomtempo.core.error_logger import install_global_handler
+install_global_handler()
+
+# Patch Reflex state event processing to log handler exceptions to app_errors.
+# Reflex catches exceptions in _process_event internally (never reaches sys.excepthook).
+# This patch runs BEFORE the Reflex app is created, so it wraps all event handlers.
+try:
+    import reflex.state as _rx_state
+    import traceback as _tb
+
+    _orig_process = _rx_state.State._process_event
+
+    async def _patched_process_event(self, **kwargs):
+        try:
+            async for update in _orig_process(self, **kwargs):
+                yield update
+        except Exception as _exc:
+            try:
+                from bomtempo.core.error_logger import _write_async as _log
+                _tb_str = "".join(_tb.format_exception(type(_exc), _exc, _exc.__traceback__))[:5000]
+                fn = kwargs.get("handler") or kwargs.get("fn")
+                _log(
+                    severity="error",
+                    error_type=type(_exc).__name__[:100],
+                    module=getattr(fn, "__module__", "reflex.state")[:200],
+                    function_name=getattr(fn, "__name__", "event_handler")[:100],
+                    error_message=str(_exc)[:2000],
+                    traceback=_tb_str,
+                    username="",
+                )
+            except Exception:
+                pass
+            raise  # re-raise so Reflex shows the error normally in the UI
+
+    _rx_state.State._process_event = _patched_process_event
+except Exception:
+    pass  # Never break startup due to patch failure
+
 from bomtempo.core import styles as S
-from bomtempo.core.rdo_service import RDOService
 from bomtempo.layouts.default import default_layout
 from bomtempo.state.global_state import GlobalState
-
-# Inicializar SQLite RDO
-RDOService.init_database()
 from bomtempo.pages.analytics import analytics_page
 from bomtempo.pages.chat_ia import chat_ia_page
 from bomtempo.pages.financeiro import financeiro_page
@@ -20,6 +55,8 @@ from bomtempo.pages.rdo_dashboard import rdo_dashboard_page
 from bomtempo.state.rdo_dashboard_state import RDODashboardState
 from bomtempo.pages.rdo_form import rdo_form_page
 from bomtempo.pages.rdo_historico import RDOHistoricoState, rdo_historico_page
+from bomtempo.pages.rdo_view import rdo_view_page, RDOViewState
+from bomtempo.state.rdo_state import RDOState
 from bomtempo.pages.reembolso_dashboard import reembolso_dashboard_page
 from bomtempo.pages.reembolso_form import reembolso_form_page
 from bomtempo.state.reembolso_state import ReembolsoState
@@ -112,6 +149,13 @@ app = rx.App(
         accent_color="amber",
         radius="none",
     ),
+    # Favicon server-rendered — SVG com fundo escuro, sem branco-no-branco na aba do browser.
+    # head_components é injetado no HTML pelo servidor antes de qualquer JS/hidratação,
+    # então não depende de MutationObserver nem de timing de script.
+    head_components=[
+        rx.el.link(rel="icon", type="image/svg+xml", href="/favicon-badge.svg"),
+        rx.el.link(rel="shortcut icon", href="/favicon-badge.svg"),
+    ],
 )
 
 app.add_page(index, route="/", title="BOMTEMPO | Visão Geral", on_load=GlobalState.guard_index_page)
@@ -144,7 +188,10 @@ app.add_page(
 
 # RDO Pages
 app.add_page(
-    rdo_form, route="/rdo-form", title="BOMTEMPO | RDO Diário", on_load=GlobalState.load_data
+    rdo_form,
+    route="/rdo-form",
+    title="BOMTEMPO | RDO Diário",
+    on_load=[GlobalState.load_data, RDOState.init_page, RDOState.check_for_draft],
 )
 app.add_page(
     rdo_historico,
@@ -157,6 +204,12 @@ app.add_page(
     route="/rdo-dashboard",
     title="BOMTEMPO | RDO Analytics",
     on_load=[GlobalState.load_data, RDODashboardState.load_dashboard],
+)
+app.add_page(
+    rdo_view_page,
+    route="/rdo-view/[token]",
+    title="BOMTEMPO | Visualizar RDO",
+    on_load=RDOViewState.load_rdo,
 )
 
 # Reembolso Pages

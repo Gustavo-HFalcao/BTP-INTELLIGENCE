@@ -1396,6 +1396,7 @@ canvas:focus {
     to   { opacity: 1; }
 }
 
+
 /* ── Safe Area Insets (notch / home-indicator support) ────── */
 body {
     padding-top: env(safe-area-inset-top);

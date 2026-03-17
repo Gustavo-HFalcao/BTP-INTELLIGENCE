@@ -386,6 +386,11 @@ class GlobalState(rx.State):
     om_project_filter: str = ""  # "" means "Todos"
     fin_project_filter: str = ""  # "" means "Todos"
 
+    # ── Financeiro chart cache — calculado só ao mudar dados/filtro ──────────
+    # Substitui @rx.var com groupby+cumsum que rodavam em CADA render
+    financeiro_cockpit_chart: List[Dict[str, Any]] = []
+    financeiro_scurve_chart: List[Dict[str, Any]] = []
+
     # Weather State
     weather_data: Dict[str, Any] = {}
     weather_loading: bool = False
@@ -509,7 +514,7 @@ class GlobalState(rx.State):
                 data = {
                     "Total de RDOs Emitidos": len(rdos),
                     "Obras Operando": len(
-                        set(r.get("Contrato") for r in rdos if r.get("Contrato"))
+                        set(r.get("contrato") for r in rdos if r.get("contrato"))
                     ),
                     "Profissionais em Campo": sum(int(r.get("Quantidade", 0) or 0) for r in mo),
                     "Registros de Equipamentos": len(eq),
@@ -946,7 +951,7 @@ class GlobalState(rx.State):
         try:
             sb_update(
                 "login",
-                filters={"user": self.current_user_name},
+                filters={"username": self.current_user_name},
                 data={
                     "avatar_icon": self.avatar_edit_icon,
                     "avatar_type": self.avatar_edit_type,
@@ -985,7 +990,7 @@ class GlobalState(rx.State):
 
         from bomtempo.core.supabase_client import sb_select, sb_update
         try:
-            rows = sb_select("login", filters={"user": self.current_user_name})
+            rows = sb_select("login", filters={"username": self.current_user_name})
             if not rows:
                 self.pw_error = "Usuário não encontrado."
                 return
@@ -995,7 +1000,7 @@ class GlobalState(rx.State):
                 return
             sb_update(
                 "login",
-                filters={"user": self.current_user_name},
+                filters={"username": self.current_user_name},
                 data={"password": self.pw_new.strip()},
             )
             self.pw_current = ""
@@ -1038,8 +1043,66 @@ class GlobalState(rx.State):
     def set_om_project_filter(self, value: str):
         self.om_project_filter = value
 
+    def _recompute_fin_charts(self):
+        """Recalcula os gráficos financeiros pesados e armazena em state vars.
+        Chamado apenas ao carregar dados ou mudar filtro — nunca em cada render.
+        """
+        data = self.financeiro_list
+        if self.fin_project_filter and self.fin_project_filter != "Todos":
+            data = [f for f in data if f.get("contrato") == self.fin_project_filter]
+
+        if not data:
+            self.financeiro_cockpit_chart = []
+            self.financeiro_scurve_chart = []
+            return
+
+        df = pd.DataFrame(data)
+        if "cockpit" not in df.columns:
+            self.financeiro_cockpit_chart = []
+            self.financeiro_scurve_chart = []
+            return
+
+        money_cols = ["servico_contratado", "material_contratado", "servico_realizado", "material_realizado"]
+        for col in money_cols:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+
+        grouped = (
+            df.groupby("cockpit")
+            .agg({c: "sum" for c in money_cols if c in df.columns})
+            .reset_index()
+        )
+        grouped["total_contratado"] = (
+            grouped.get("servico_contratado", 0) + grouped.get("material_contratado", 0)
+        )
+        grouped["total_realizado"] = (
+            grouped.get("servico_realizado", 0) + grouped.get("material_realizado", 0)
+        )
+        grouped["margem"] = grouped["total_contratado"] - grouped["total_realizado"]
+        grouped["margem_pct"] = (
+            (grouped["margem"] / grouped["total_contratado"].replace(0, float("nan")) * 100)
+            .fillna(0).round(1)
+        )
+        grouped["total_contratado"] = grouped["total_contratado"].round(2)
+        grouped["total_realizado"] = grouped["total_realizado"].round(2)
+        grouped["formatted_total"] = grouped["total_contratado"].apply(
+            lambda x: (
+                f"R$ {x/1_000_000:.1f}M".replace(".", ",")
+                if x >= 1_000_000
+                else (f"R$ {x/1_000:.0f}k".replace(".", ",") if x >= 1_000 else f"R$ {x:.0f}")
+            )
+        )
+        self.financeiro_cockpit_chart = grouped.to_dict("records")
+
+        # S-Curve
+        g2 = grouped.copy().sort_values("total_contratado")
+        g2["cumulative_planned"] = g2["total_contratado"].cumsum().round(0)
+        g2["cumulative_actual"] = g2["total_realizado"].cumsum().round(0)
+        self.financeiro_scurve_chart = g2[["cockpit", "cumulative_planned", "cumulative_actual"]].to_dict("records")
+
     def set_fin_project_filter(self, value: str):
         self.fin_project_filter = value
+        self._recompute_fin_charts()
 
     def load_data(self):
         """Carrega dados iniciais"""
@@ -1145,6 +1208,20 @@ class GlobalState(rx.State):
             # (check_login usa Supabase diretamente como primário + hardcoded fallback)
 
             # RDO dados agora são lidos do Supabase diretamente (rdo_service.py / rdo_historico.py)
+
+            # Recalcula gráficos financeiros pesados uma única vez após carga
+            self._recompute_fin_charts()
+
+            # ── #12: Guard de tamanho — aviso se listas excederem threshold ──
+            # financeiro_list é serializada ao browser; mais de 500 linhas é sinal
+            # de que a tabela cresceu além do esperado (dados históricos acumulados)
+            _FIN_WARN = 500
+            if len(self.financeiro_list) > _FIN_WARN:
+                logger.warning(
+                    f"⚠️ financeiro_list tem {len(self.financeiro_list)} linhas → "
+                    f"considere paginar no Supabase (limit + filtro por ano/contrato)"
+                )
+
             self.is_loading = False
             logger.info("✅ Estado global atualizado com sucesso")
 
@@ -1236,6 +1313,29 @@ class GlobalState(rx.State):
         para evitar full page reload e o null-state error no frontend."""
         self.is_navigating = True
 
+    def prefetch_route(self, route: str):
+        """Aquece conexão HTTP ao passar o mouse sobre item do sidebar (#14).
+        Dispara em daemon thread para não bloquear — o pool httpx já mantém
+        o socket aberto, reduzindo latência do primeiro request ao navegar.
+        """
+        import threading as _t
+
+        def _warm():
+            try:
+                from bomtempo.core.supabase_client import sb_select
+                if route in ("/alertas",):
+                    sb_select("alert_subscriptions", limit=1)
+                elif route in ("/logs-auditoria",):
+                    sb_select("system_logs", limit=1)
+                elif route in ("/rdo-dashboard",):
+                    sb_select("rdo_master", limit=1)
+                elif route in ("/reembolso-dash",):
+                    sb_select("fuel_requests", limit=1)
+            except Exception:
+                pass
+
+        _t.Thread(target=_warm, daemon=True).start()
+
     def check_mobile_access(self):
         """Redireciona se não tiver permissão mobile"""
         if self.current_user_role != "Gestão-Mobile":
@@ -1302,25 +1402,9 @@ class GlobalState(rx.State):
 
             from bomtempo.core.supabase_client import sb_select
 
-            all_users = sb_select("login")
-            logger.info(f"Supabase login: {len(all_users)} usuário(s) carregado(s)")
-
-            if not all_users:
-                logger.error("Supabase SELECT login: 0 linhas. Verifique RLS.")
-                self.show_loading_screen = False
-                self.login_error = "Erro ao acessar base de usuários. Contate o administrador."
-                self.is_authenticated = False
-                return
-
-            first = all_users[0]
-            logger.info(f"Supabase login campos: {list(first.keys())}")
-
-            def _get_user_field(row: dict) -> str:
-                for key in ("user", "username", "login", "email"):
-                    val = row.get(key)
-                    if val is not None:
-                        return str(val).strip().lower()
-                return ""
+            # Busca apenas o usuário específico — não carrega tabela inteira
+            user_rows = sb_select("login", filters={"username": username}, limit=1)
+            logger.info(f"Supabase login: query filtrada p/ '{username}' → {len(user_rows)} linha(s)")
 
             def _get_password_field(row: dict) -> str:
                 for key in ("password", "senha", "pass", "pwd"):
@@ -1336,17 +1420,10 @@ class GlobalState(rx.State):
                         return str(val).strip()
                 return "Visitante"
 
-            matched = None
-            for u in all_users:
-                if _get_user_field(u) == username:
-                    matched = u
-                    break
+            matched = user_rows[0] if user_rows else None
 
             if matched is None:
-                logger.warning(
-                    f"Usuário '{username}' não encontrado. "
-                    f"Disponíveis: {[_get_user_field(u) for u in all_users]}"
-                )
+                logger.warning(f"Usuário '{username}' não encontrado no Supabase.")
                 audit_log(
                     category=AuditCategory.LOGIN,
                     action=f"Tentativa de login falhou — usuário '{username}' não encontrado",
@@ -1464,7 +1541,7 @@ class GlobalState(rx.State):
 
     async def load_initial_data_smooth(self):
         """Loading screen pós-login com duração mínima garantida pela animação CSS.
-
+        
         Fluxo:
         - Carrega dados do Supabase enquanto a animação roda (pré-aquece o cache)
         - Aguarda no mínimo ANIMATION_DURATION + BUFFER (5.0s) antes de esconder
@@ -1489,6 +1566,26 @@ class GlobalState(rx.State):
         if not self.contratos_list:
             for _ in self.load_data():
                 pass  # consome os yields do generator sem enviar deltas parciais
+
+        # Aquece connection pool para módulos pesados em background durante a animação
+        # Enquanto a tela de loading exibe os 4.5s de animação, preparamos as conexões
+        import threading as _threading
+        _role = self.current_user_role
+
+        def _warm_module_connections():
+            """Pré-aquece HTTP keep-alive para tabelas dos módulos secundários."""
+            try:
+                from bomtempo.core.supabase_client import sb_select
+                # Todos os roles beneficiam de alertas pré-aquecidos
+                sb_select("alert_subscriptions", limit=1)
+                # Admin/Gestão: pré-aquece logs e RDO
+                if _role in ("Administrador", "admin", "Gestão-Mobile"):
+                    sb_select("system_logs", limit=1)
+                    sb_select("rdo_master", limit=1)
+            except Exception:
+                pass  # falha silenciosa — é só aquecimento
+
+        _threading.Thread(target=_warm_module_connections, daemon=True).start()
 
         data_elapsed = time.monotonic() - start
 
@@ -1882,98 +1979,9 @@ class GlobalState(rx.State):
             return round((self.margem_bruta / self.total_financeiro_contratado) * 100, 1)
         return 0.0
 
-    @rx.var
-    def financeiro_cockpit_chart(self) -> List[Dict[str, Any]]:
-        # Optimization: Use stored DF directly if filter matches, else use filtered list
-        # For now, using filtered list convert to DF is fine as it's filtered.
-        # But let's check if we can use _data['financeiro']
-        data = self._financeiro_filtered
-        if not data:
-            return []
-        df = pd.DataFrame(data)
-        if "cockpit" not in df.columns:
-            return []
-        # Coerce money cols to numeric — guards against str values from state serialization
-        money_cols = ["servico_contratado", "material_contratado", "servico_realizado", "material_realizado"]
-        for col in money_cols:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
-        grouped = (
-            df.groupby("cockpit")
-            .agg(
-                {
-                    "servico_contratado": "sum",
-                    "material_contratado": "sum",
-                    "servico_realizado": "sum",
-                    "material_realizado": "sum",
-                }
-            )
-            .reset_index()
-        )
-        grouped["total_contratado"] = grouped["servico_contratado"] + grouped["material_contratado"]
-        grouped["total_realizado"] = grouped["servico_realizado"] + grouped["material_realizado"]
-        grouped["margem"] = grouped["total_contratado"] - grouped["total_realizado"]
-        grouped["margem_pct"] = (
-            (grouped["margem"] / grouped["total_contratado"] * 100).fillna(0).round(1)
-        )
-        grouped["total_contratado"] = grouped["total_contratado"].round(2)
-        grouped["total_realizado"] = grouped["total_realizado"].round(2)
-        # Pre-format for charts
-        grouped["formatted_total"] = grouped["total_contratado"].apply(
-            lambda x: (
-                f"R$ {x/1_000_000:.1f}M".replace(".", ",")
-                if x >= 1_000_000
-                else (f"R$ {x/1_000:.0f}k".replace(".", ",") if x >= 1_000 else f"R$ {x:.0f}")
-            )
-        )
-        return grouped.to_dict("records")
-
-    @rx.var
-    def financeiro_scurve_chart(self) -> List[Dict[str, Any]]:
-        """S-Curve: Cumulative planned vs actual spending by milestone/date"""
-        data = self._financeiro_filtered
-        if not data:
-            return []
-
-        df = pd.DataFrame(data)
-
-        # Group by cockpit milestone and calculate cumulative
-        if "cockpit" in df.columns:
-            money_cols = ["servico_contratado", "material_contratado", "servico_realizado", "material_realizado"]
-            for col in money_cols:
-                if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
-            # Sort by cockpit to show progression
-            grouped = (
-                df.groupby("cockpit")
-                .agg(
-                    {
-                        "servico_contratado": "sum",
-                        "material_contratado": "sum",
-                        "servico_realizado": "sum",
-                        "material_realizado": "sum",
-                    }
-                )
-                .reset_index()
-            )
-
-            grouped["contratado"] = grouped["servico_contratado"] + grouped["material_contratado"]
-            grouped["realizado"] = grouped["servico_realizado"] + grouped["material_realizado"]
-
-            # Calculate cumulative sums for S-curve
-            grouped = grouped.sort_values("contratado")  # Sort by magnitude
-            grouped["cumulative_planned"] = grouped["contratado"].cumsum()
-            grouped["cumulative_actual"] = grouped["realizado"].cumsum()
-
-            # Round for display
-            grouped["cumulative_planned"] = grouped["cumulative_planned"].round(0)
-            grouped["cumulative_actual"] = grouped["cumulative_actual"].round(0)
-
-            return grouped[["cockpit", "cumulative_planned", "cumulative_actual"]].to_dict(
-                "records"
-            )
-
-        return []
+    # financeiro_cockpit_chart e financeiro_scurve_chart são agora state vars
+    # (declaradas no bloco de vars acima) — calculadas em _recompute_fin_charts()
+    # chamado em load_data() e set_fin_project_filter(). Não rodam mais em cada render.
 
     def _fmt_money(self, value: float) -> str:
         """Format money values in Brazilian format"""

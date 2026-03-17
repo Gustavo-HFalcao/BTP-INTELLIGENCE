@@ -507,15 +507,14 @@ class EmailService:
                 logger.error("[AlertEmail] RDO_EMAIL_PASSWORD não configurado.")
                 return False
 
-            avanco = (obra_data.get("Realizado (%)") or obra_data.get("avanco_fisico") or
-                      obra_data.get("avanço_fisico") or "—")
+            avanco = (obra_data.get("avanco_realizado_pct") or obra_data.get("realizado_pct") or
+                      obra_data.get("Realizado (%)") or obra_data.get("avanco_fisico") or "—")
             risco_val = obra_data.get("risco_geral_score") or "—"
             budget_p = obra_data.get("budget_planejado") or "—"
             budget_r = obra_data.get("budget_realizado") or "—"
-            projeto = obra_data.get("Projeto") or obra_data.get("projeto") or "—"
-            cliente = obra_data.get("Cliente") or obra_data.get("cliente") or "—"
-            localizacao = (obra_data.get("Localização") or obra_data.get("Localizacao") or
-                           obra_data.get("localizacao") or obra_data.get("localização") or "—")
+            projeto = obra_data.get("projeto") or "—"
+            cliente = obra_data.get("cliente") or "—"
+            localizacao = obra_data.get("localizacao") or "—"
 
             try:
                 risco_num = float(str(risco_val).replace(",", "."))
@@ -627,6 +626,109 @@ class EmailService:
             return False
         except Exception as exc:
             logger.error(f"[AlertEmail] Erro: {exc}")
+            return False
+
+    @staticmethod
+    def send_rdo2_email(
+        recipients: List[str],
+        rdo_data: dict,
+        pdf_path: str,
+        view_url: str,
+        ai_text: str = "",
+    ) -> bool:
+        """Email RDO v2 com link de visualização online + PDF anexado."""
+        try:
+            if not recipients:
+                return False
+            if not Config.RDO_EMAIL_PASSWORD:
+                logger.error("❌ RDO_EMAIL_PASSWORD não configurado")
+                return False
+
+            contrato = rdo_data.get("contrato", "—")
+            data_rdo = rdo_data.get("data", "—")
+            projeto  = rdo_data.get("projeto", "—") or "—"
+            clima    = rdo_data.get("condicao_climatica", rdo_data.get("clima", "—"))
+            mestre   = rdo_data.get("mestre_id", "—") or "—"
+            n_labor  = len(rdo_data.get("mao_obra", []))
+            n_acts   = len(rdo_data.get("atividades", []))
+
+            view_btn = (
+                f'<a href="{view_url}" style="display:inline-block;background:linear-gradient(135deg,#C98B2A,#9B6820);'
+                f'color:#fff;font-weight:700;font-size:13px;text-decoration:none;padding:12px 28px;'
+                f'border-radius:8px;letter-spacing:0.05em;text-transform:uppercase;margin-top:8px;">Ver RDO Online</a>'
+                if view_url else ""
+            )
+
+            ai_section = (
+                f'<div style="background:rgba(42,157,143,0.07);border-left:3px solid #2A9D8F;'
+                f'padding:16px 20px;border-radius:0 8px 8px 0;margin:0 32px 28px;">'
+                f'<p style="margin:0 0 8px;color:#2A9D8F;font-size:12px;font-weight:700;text-transform:uppercase;">🤖 Análise BTP Intelligence</p>'
+                f'<div style="color:#C8D8D4;font-size:13px;line-height:1.7;">{_md_to_html(ai_text)}</div>'
+                f'</div>'
+                if ai_text else ""
+            )
+
+            body_html = f"""<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#030504;font-family:'Segoe UI',Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#030504;">
+  <tr><td align="center" style="padding:32px 16px;">
+    <table width="600" cellpadding="0" cellspacing="0"
+      style="max-width:600px;width:100%;background:#0e1a17;border-radius:16px;overflow:hidden;border:1px solid rgba(201,139,42,0.2);">
+      <tr><td style="background:linear-gradient(135deg,#1a0e00,#C98B2A 60%,#2A9D8F);padding:28px 32px;text-align:center;">
+        <p style="margin:0 0 4px;color:rgba(255,255,255,0.7);font-size:11px;letter-spacing:0.15em;text-transform:uppercase;">BOMTEMPO INTELLIGENCE</p>
+        <h1 style="margin:0 0 8px;color:#fff;font-size:22px;font-weight:700;">Relatório Diário de Obra — v2</h1>
+        <p style="margin:0;background:rgba(0,0,0,0.25);display:inline-block;padding:6px 16px;border-radius:20px;color:#fff;font-size:14px;">{contrato} &nbsp;·&nbsp; {data_rdo}</p>
+      </td></tr>
+      <tr><td style="padding:24px 32px 0;">
+        <table style="width:100%;border-collapse:collapse;">
+          <tr style="background:rgba(201,139,42,0.06);">
+            <td style="padding:9px 12px;color:#889999;font-size:13px;width:40%;">Projeto</td>
+            <td style="padding:9px 12px;color:#E0E0E0;font-size:13px;">{projeto}</td>
+          </tr>
+          <tr><td style="padding:9px 12px;color:#889999;font-size:13px;">Clima</td>
+              <td style="padding:9px 12px;color:#E0E0E0;font-size:13px;">{clima}</td></tr>
+          <tr style="background:rgba(201,139,42,0.06);">
+            <td style="padding:9px 12px;color:#889999;font-size:13px;">Mestre</td>
+            <td style="padding:9px 12px;color:#E0E0E0;font-size:13px;">{mestre}</td>
+          </tr>
+          <tr><td style="padding:9px 12px;color:#889999;font-size:13px;">Equipe</td>
+              <td style="padding:9px 12px;color:#C98B2A;font-size:13px;font-weight:700;">{n_labor} tipo(s) · {n_acts} atividade(s)</td></tr>
+        </table>
+      </td></tr>
+      <tr><td style="padding:24px 32px;text-align:center;">
+        {view_btn}
+        <p style="margin:12px 0 0;color:#889999;font-size:12px;">📎 O PDF completo está anexado a este email.</p>
+      </td></tr>
+      {f'<tr><td>{ai_section}</td></tr>' if ai_section else ''}
+      <tr><td style="background:#081210;padding:16px 32px;border-top:1px solid rgba(255,255,255,0.06);text-align:center;">
+        <p style="margin:0;color:#4a5a58;font-size:11px;">Gerado automaticamente · BOMTEMPO Dashboard · Não responda este email.</p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table></body></html>"""
+
+            msg = MIMEMultipart("mixed")
+            msg["From"]    = Config.RDO_EMAIL_USER
+            msg["To"]      = ", ".join(recipients)
+            msg["Subject"] = f"📋 RDO v2 | {contrato} | {data_rdo} | BOMTEMPO"
+            msg.attach(MIMEText(body_html, "html", "utf-8"))
+
+            if pdf_path and Path(pdf_path).exists():
+                with open(pdf_path, "rb") as f:
+                    att = MIMEApplication(f.read(), _subtype="pdf")
+                    att.add_header("Content-Disposition", "attachment", filename=Path(pdf_path).name)
+                    msg.attach(att)
+
+            with smtplib.SMTP(Config.RDO_SMTP_SERVER, Config.RDO_SMTP_PORT) as server:
+                server.starttls()
+                server.login(Config.RDO_EMAIL_USER, Config.RDO_EMAIL_PASSWORD)
+                server.send_message(msg)
+
+            logger.info(f"✅ RDO2 email enviado → {recipients}")
+            return True
+        except Exception as e:
+            logger.error(f"❌ send_rdo2_email: {e}")
             return False
 
     @staticmethod

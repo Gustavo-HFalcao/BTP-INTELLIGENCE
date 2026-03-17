@@ -133,19 +133,19 @@ class LogsState(rx.State):
     # ── Event Handlers ────────────────────────────────────────────────────────
 
     async def load_page(self):
-        """Carrega logs + stats ao entrar na página."""
+        """Carrega logs + stats em paralelo ao entrar na página."""
         self.is_loading = True
         yield
-        await self._fetch_logs()
-        await self._fetch_stats()
+        import asyncio
+        await asyncio.gather(self._fetch_logs(), self._fetch_stats())
         self.is_loading = False
 
     async def refresh(self):
         """Reload atual sem resetar filtros."""
         self.is_loading = True
         yield
-        await self._fetch_logs()
-        await self._fetch_stats()
+        import asyncio
+        await asyncio.gather(self._fetch_logs(), self._fetch_stats())
         self.is_loading = False
 
     def set_filter_category(self, val: str):
@@ -293,41 +293,38 @@ class LogsState(rx.State):
         self.total_count = total
 
     async def _fetch_stats(self):
-        """Conta eventos de hoje para os KPI cards."""
-        import asyncio
-        loop = asyncio.get_running_loop()
+        """Conta eventos de hoje — 4 queries em paralelo via ThreadPoolExecutor."""
+        from concurrent.futures import ThreadPoolExecutor
 
-        def _query():
-            from bomtempo.core.supabase_client import REST_BASE, _headers
-            import httpx
-
+        def _count(extra_params: dict) -> int:
+            from bomtempo.core.supabase_client import REST_BASE, _get_client, _headers
             today = date.today().isoformat()
+            h = _headers()
+            h["Prefer"] = "count=exact"
+            h["Range"] = "0-0"
+            params = {"select": "id", "created_at": f"gte.{today}T00:00:00"}
+            params.update(extra_params)
+            try:
+                r = _get_client().get(f"{REST_BASE}/system_logs", headers=h, params=params)
+                cr = r.headers.get("Content-Range", "")
+                if "/" in cr:
+                    return int(cr.split("/")[1])
+            except Exception:
+                pass
+            return 0
 
-            def _count(extra_params: dict) -> int:
-                h = _headers()
-                h["Prefer"] = "count=exact"
-                h["Range"] = "0-0"
-                params = {
-                    "select": "id",
-                    "created_at": f"gte.{today}T00:00:00",
-                }
-                params.update(extra_params)
-                try:
-                    r = httpx.get(f"{REST_BASE}/system_logs", headers=h, params=params, timeout=10)
-                    cr = r.headers.get("Content-Range", "")
-                    if "/" in cr:
-                        return int(cr.split("/")[1])
-                except Exception:
-                    pass
-                return 0
+        # Dispara os 4 counts em paralelo — de ~1200ms sequencial para ~300ms
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            f_total = pool.submit(_count, {})
+            f_logins = pool.submit(_count, {"action_category": "eq.LOGIN"})
+            f_edits = pool.submit(_count, {
+                "action_category": f"in.({AuditCategory.DATA_EDIT},{AuditCategory.DATA_SAVE},{AuditCategory.DATA_DELETE})"
+            })
+            f_errors = pool.submit(_count, {"status": "eq.error"})
+            total, logins, edits, errors = (
+                f_total.result(), f_logins.result(), f_edits.result(), f_errors.result()
+            )
 
-            total = _count({})
-            logins = _count({"action_category": "eq.LOGIN"})
-            edits = _count({"action_category": f"in.({AuditCategory.DATA_EDIT},{AuditCategory.DATA_SAVE},{AuditCategory.DATA_DELETE})"})
-            errors = _count({"status": "eq.error"})
-            return total, logins, edits, errors
-
-        total, logins, edits, errors = await loop.run_in_executor(None, _query)
         self.stat_total_today = total
         self.stat_logins_today = logins
         self.stat_edits_today = edits

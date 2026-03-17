@@ -181,6 +181,7 @@ def _user_form_dialog() -> rx.Component:
                         rx.cond(UsuariosState.is_editing_user, "Salvar", "Criar Usuário"),
                         on_click=UsuariosState.save_user,
                         color_scheme="amber",
+                        is_loading=UsuariosState.is_saving_user,
                     ),
                     spacing="3",
                     justify="end",
@@ -446,7 +447,7 @@ def _user_row(user: dict) -> rx.Component:
                 # Monochrome avatar — just the letter, no color branding
                 rx.center(
                     rx.text(
-                        user["user"][0].upper(),
+                        user["username"][0].upper(),
                         font_family=S.FONT_TECH,
                         font_weight="700",
                         font_size="13px",
@@ -461,7 +462,7 @@ def _user_row(user: dict) -> rx.Component:
                 ),
                 # Role icon inline — small, muted
                 rx.icon(tag=role_icon, size=13, color="rgba(136,153,153,0.6)"),
-                rx.text(user["user"], font_weight="600", color=S.TEXT_PRIMARY, font_size="14px"),
+                rx.text(user["username"], font_weight="600", color=S.TEXT_PRIMARY, font_size="14px"),
                 spacing="2",
                 align="center",
             )
@@ -489,7 +490,7 @@ def _user_row(user: dict) -> rx.Component:
                 ),
                 rx.icon_button(
                     rx.icon(tag="trash-2", size=13),
-                    on_click=UsuariosState.delete_user(user["id"]),
+                    on_click=UsuariosState.request_delete_user(user["id"]),
                     variant="ghost",
                     color_scheme="red",
                     size="2",
@@ -732,6 +733,49 @@ def usuarios_page() -> rx.Component:
         rx.vstack(
             _user_form_dialog(),
             _role_form_dialog(),
+            # ── Dialog de confirmação de exclusão (#13) ──────────────
+            rx.alert_dialog.root(
+                rx.alert_dialog.content(
+                    rx.alert_dialog.title("Confirmar Exclusão"),
+                    rx.alert_dialog.description(
+                        rx.text(
+                            "Tem certeza que deseja excluir o usuário ",
+                            rx.text.span(
+                                UsuariosState.pending_delete_name,
+                                font_weight="700",
+                                color="white",
+                            ),
+                            "? Esta ação não pode ser desfeita.",
+                            color=S.TEXT_MUTED,
+                            font_size="14px",
+                        )
+                    ),
+                    rx.hstack(
+                        rx.alert_dialog.cancel(
+                            rx.button(
+                                "Cancelar",
+                                on_click=UsuariosState.cancel_delete_user,
+                                variant="soft",
+                                color_scheme="gray",
+                            ),
+                        ),
+                        rx.alert_dialog.action(
+                            rx.button(
+                                rx.icon(tag="trash-2", size=14),
+                                "Excluir",
+                                on_click=UsuariosState.delete_user(UsuariosState.pending_delete_id),
+                                color_scheme="red",
+                                variant="solid",
+                            ),
+                        ),
+                        spacing="3",
+                        justify="end",
+                        margin_top="16px",
+                    ),
+                    style={"background": S.BG_SURFACE, "border": f"1px solid {S.BORDER_SUBTLE}"},
+                ),
+                open=UsuariosState.show_delete_confirm,
+            ),
             # Header
             rx.hstack(
                 rx.vstack(

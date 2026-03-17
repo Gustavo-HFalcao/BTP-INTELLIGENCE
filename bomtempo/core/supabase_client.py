@@ -7,6 +7,7 @@ Nunca é exposta ao browser (Reflex roda Python no servidor).
 """
 
 import os
+import threading
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -20,7 +21,7 @@ logger = get_logger(__name__)
 
 # ── Credentials ────────────────────────────────────────────────────────────────
 # Service role key lida do .env — bypassa RLS com segurança (server-side only).
-SUPABASE_URL = "https://nychzaapchxdlsffotcq.supabase.co"
+SUPABASE_URL = "https://zobukgyldeiparlwczga.supabase.co"
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
 REST_BASE = f"{SUPABASE_URL}/rest/v1"
 
@@ -29,6 +30,30 @@ if not SUPABASE_KEY:
         "SUPABASE_SERVICE_KEY não encontrada no .env. "
         "Adicione: SUPABASE_SERVICE_KEY=sb_secret_..."
     )
+
+# ── Connection Pool ────────────────────────────────────────────────────────────
+# Singleton httpx.Client com keep-alive e connection pooling.
+# Evita abrir um novo TCP a cada request (era o principal gargalo de latência).
+_client_lock = threading.Lock()
+_http_client: Optional[httpx.Client] = None
+
+_LIMITS = httpx.Limits(
+    max_connections=30,
+    max_keepalive_connections=15,
+    keepalive_expiry=30,
+)
+_TIMEOUT = httpx.Timeout(timeout=10.0, connect=5.0)
+
+
+def _get_client() -> httpx.Client:
+    """Retorna o httpx.Client singleton thread-safe, criando se necessário."""
+    global _http_client
+    if _http_client is None or _http_client.is_closed:
+        with _client_lock:
+            if _http_client is None or _http_client.is_closed:
+                _http_client = httpx.Client(limits=_LIMITS, timeout=_TIMEOUT)
+                logger.info("🔌 HTTP connection pool criado (max_conn=30, keepalive=15)")
+    return _http_client
 
 
 def _headers(prefer_return: bool = False) -> Dict[str, str]:
@@ -76,11 +101,10 @@ def sb_select_paginated(
         for k, v in (ilike_filters or {}).items():
             params[k] = f"ilike.*{v}*"
 
-        resp = httpx.get(
+        resp = _get_client().get(
             f"{REST_BASE}/{table}",
             headers=h,
             params=params,
-            timeout=15,
         )
         if resp.status_code in (200, 206):
             rows = resp.json()
@@ -117,11 +141,10 @@ def sb_select(
             params["order"] = order
         params["limit"] = str(limit)
 
-        resp = httpx.get(
+        resp = _get_client().get(
             f"{REST_BASE}/{table}",
             headers=_headers(),
             params=params,
-            timeout=15,
         )
         if resp.status_code == 200:
             result = resp.json()
@@ -145,11 +168,10 @@ def sb_select(
 def sb_insert(table: str, data: Dict[str, Any]) -> Optional[Dict]:
     """INSERT a row; returns the inserted record or None on failure."""
     try:
-        resp = httpx.post(
+        resp = _get_client().post(
             f"{REST_BASE}/{table}",
             headers=_headers(prefer_return=True),
             json=data,
-            timeout=15,
         )
         if resp.status_code in (200, 201):
             result = resp.json()
@@ -178,12 +200,11 @@ def sb_upsert(
     try:
         h = _headers()
         h["Prefer"] = "return=representation,resolution=merge-duplicates"
-        resp = httpx.post(
+        resp = _get_client().post(
             f"{REST_BASE}/{table}",
             headers=h,
             params={"on_conflict": on_conflict},
             json=record,
-            timeout=15,
         )
         if resp.status_code in (200, 201):
             return {"upserted": 1}
@@ -203,12 +224,11 @@ def sb_update(
     """PATCH rows matching filters with data."""
     try:
         params = {k: f"eq.{v}" for k, v in filters.items()}
-        resp = httpx.patch(
+        resp = _get_client().patch(
             f"{REST_BASE}/{table}",
             headers=_headers(),
             params=params,
             json=data,
-            timeout=15,
         )
         if resp.status_code not in (200, 204):
             err_msg = f"Supabase UPDATE {table} → {resp.status_code}: {resp.text[:400]}"
@@ -245,7 +265,7 @@ def sb_storage_upload(
             "Content-Type": content_type,
             "x-upsert": "true",  # sobrescreve se já existir
         }
-        resp = httpx.post(upload_url, headers=headers, content=file_bytes, timeout=60)
+        resp = _get_client().post(upload_url, headers=headers, content=file_bytes, timeout=60)
         if resp.status_code in (200, 201):
             public_url = f"{SUPABASE_URL}/storage/v1/object/public/{bucket}/{path}"
             logger.info(f"✅ Storage upload: {bucket}/{path} → {public_url}")
@@ -261,11 +281,10 @@ def sb_delete(table: str, filters: Dict[str, Any]) -> bool:
     """DELETE rows matching filters."""
     try:
         params = {k: f"eq.{v}" for k, v in filters.items()}
-        resp = httpx.delete(
+        resp = _get_client().delete(
             f"{REST_BASE}/{table}",
             headers=_headers(),
             params=params,
-            timeout=15,
         )
         return resp.status_code in (200, 204)
     except Exception as e:

@@ -65,7 +65,12 @@
       "Bash(py -0p)",
       "Bash(py -m pip show python-dotenv)",
       "Bash(py -m pip install python-dotenv)",
-      "Bash(py -m pip install httpx)"
+      "Bash(py -m pip install httpx)",
+      "Bash(find /c/Users/Gustavo/bomtempo-dashboard -type f \\\\\\(-name *rdo* -o -name *RDO* \\\\\\))",
+      "Bash(pip show:*)",
+      "Bash(head -10 grep -n \"is_loading\\\\|skeleton\\\\|page_centered\" c:/Users/Gustavo/bomtempo-dashboard/bomtempo/pages/usuarios.py)",
+      "Bash(where psql:*)",
+      "Bash(psql --version)"
     ]
   }
 }

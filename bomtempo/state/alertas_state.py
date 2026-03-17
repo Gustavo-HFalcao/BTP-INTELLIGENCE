@@ -184,17 +184,17 @@ class AlertasState(rx.State):
 
         loop = asyncio.get_running_loop()
         try:
-            raw = await loop.run_in_executor(None, AlertService.get_email_subscriptions)
+            # Busca subscriptions e histórico em paralelo — 2 requests simultâneas
+            raw, (rows, total) = await asyncio.gather(
+                loop.run_in_executor(None, AlertService.get_email_subscriptions),
+                loop.run_in_executor(None, lambda: AlertService.get_history(page=1, per_page=30)),
+            )
 
             counts: dict = {k: 0 for k in ALERT_TYPES}
             for g in raw:
                 at = g.get("alert_type", "")
                 if at in counts:
                     counts[at] += len(g.get("email_chips", []))
-
-            rows, total = await loop.run_in_executor(
-                None, lambda: AlertService.get_history(page=1, per_page=30)
-            )
 
             async with self:
                 self.subscriptions = [_norm_group(g) for g in raw]
@@ -289,23 +289,31 @@ class AlertasState(rx.State):
 
     # ── Delete email chip ─────────────────────────────────────────────────────
 
-    def delete_email_chip(self, row_id: str):
-        AlertService.delete_email_subscription(row_id)
-        audit_log(
-            category=AuditCategory.ALERT_CONFIG,
-            action=f"Assinatura de alerta removida — id '{row_id}'",
-            entity_type="alert_subscriptions",
-            entity_id=row_id,
-            status="success",
-        )
-        raw = AlertService.get_email_subscriptions()
-        self.subscriptions = [_norm_group(g) for g in raw]
-        counts: dict = {k: 0 for k in ALERT_TYPES}
-        for g in raw:
-            at = g.get("alert_type", "")
-            if at in counts:
-                counts[at] += len(g.get("email_chips", []))
-        self.subscription_counts = counts
+    @rx.event(background=True)
+    async def delete_email_chip(self, row_id: str):
+        """Remove assinatura — I/O em executor para não bloquear event loop."""
+        loop = asyncio.get_running_loop()
+        try:
+            # Delete + reload subscriptions em paralelo (delete primeiro, depois fetch)
+            await loop.run_in_executor(None, AlertService.delete_email_subscription, row_id)
+            audit_log(
+                category=AuditCategory.ALERT_CONFIG,
+                action=f"Assinatura de alerta removida — id '{row_id}'",
+                entity_type="alert_subscriptions",
+                entity_id=row_id,
+                status="success",
+            )
+            raw = await loop.run_in_executor(None, AlertService.get_email_subscriptions)
+            counts: dict = {k: 0 for k in ALERT_TYPES}
+            for g in raw:
+                at = g.get("alert_type", "")
+                if at in counts:
+                    counts[at] += len(g.get("email_chips", []))
+            async with self:
+                self.subscriptions = [_norm_group(g) for g in raw]
+                self.subscription_counts = counts
+        except Exception as exc:
+            logger.error(f"[delete_email_chip] {exc}")
 
     # ── Manual sweep trigger ──────────────────────────────────────────────────
 

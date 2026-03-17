@@ -114,10 +114,10 @@ class EditState(rx.State):
             # Filtro cascata a partir dos dados já carregados — sem round-trip ao BD
             rows = self.raw_data
             if val:
-                rows = [r for r in rows if str(r.get("Projeto", "")) == val]
-            if rows and "Contrato" in rows[0]:
+                rows = [r for r in rows if str(r.get("projeto", "")) == val]
+            if rows and "contrato" in rows[0]:
                 self.contratos = sorted(list(set(
-                    str(r["Contrato"]) for r in rows if r.get("Contrato")
+                    str(r["contrato"]) for r in rows if r.get("contrato")
                 )))
         else:
             # Pré-load: consulta BD para montar o dropdown
@@ -185,7 +185,7 @@ class EditState(rx.State):
 
             # Projetos agora é carregado dos metadados ativos na tabela de mestre contratos
             res = sb_select("contratos", limit=500) or []
-            self.projetos = sorted(list(set([str(r.get("Projeto", "")) for r in res if r.get("Projeto")])))
+            self.projetos = sorted(list(set([str(r.get("projeto", "")) for r in res if r.get("projeto")])))
         except Exception as e:
             logger.error(f"Erro load_projetos: {e}")
 
@@ -193,9 +193,9 @@ class EditState(rx.State):
         try:
             filters = {}
             if self.selected_projeto:
-                filters["Projeto"] = self.selected_projeto
+                filters["projeto"] = self.selected_projeto
             res = sb_select("contratos", filters=filters, limit=500) or []
-            self.contratos = sorted(list(set([str(r.get("Contrato", "")) for r in res if r.get("Contrato")])))
+            self.contratos = sorted(list(set([str(r.get("contrato", "")) for r in res if r.get("contrato")])))
         except Exception as e:
             logger.error(f"Erro load_contratos: {e}")
 
@@ -221,13 +221,13 @@ class EditState(rx.State):
                 existing_cols: set = set(schema_sample[0].keys()) if schema_sample else set()
 
                 filters: Dict[str, Any] = {}
-                if selected_contrato and "Contrato" in existing_cols:
-                    filters["Contrato"] = selected_contrato
-                if selected_projeto and "Projeto" in existing_cols:
-                    filters["Projeto"] = selected_projeto
+                if selected_contrato and "contrato" in existing_cols:
+                    filters["contrato"] = selected_contrato
+                if selected_projeto and "projeto" in existing_cols:
+                    filters["projeto"] = selected_projeto
 
                 result["data"] = sb_select(
-                    selected_tabela, filters=filters, limit=limit, order="ID.desc"
+                    selected_tabela, filters=filters, limit=limit, order="id.desc"
                 ) or []
             except Exception as e:
                 result["error"] = str(e)
@@ -249,13 +249,13 @@ class EditState(rx.State):
                 # os valores reais existentes nela, não a master table fixa.
                 if data:
                     first = data[0]
-                    if "Projeto" in first:
+                    if "projeto" in first:
                         self.projetos = sorted(list(set(
-                            str(r["Projeto"]) for r in data if r.get("Projeto")
+                            str(r["projeto"]) for r in data if r.get("projeto")
                         )))
-                    if "Contrato" in first:
+                    if "contrato" in first:
                         self.contratos = sorted(list(set(
-                            str(r["Contrato"]) for r in data if r.get("Contrato")
+                            str(r["contrato"]) for r in data if r.get("contrato")
                         )))
 
                 self._undo_reset_vars()
@@ -431,12 +431,12 @@ class EditState(rx.State):
         if idx < 0 or idx >= len(self.raw_data):
             yield rx.toast("Clique em uma célula para selecionar a linha antes de deletar.", position="top-right")
             return
-        row_id = self.raw_data[idx].get("ID")
-        label = self.raw_data[idx].get("Projeto") or self.raw_data[idx].get("Contrato") or f"linha {idx + 1}"
+        row_id = self.raw_data[idx].get("id")
+        label = self.raw_data[idx].get("projeto") or self.raw_data[idx].get("contrato") or f"linha {idx + 1}"
         tabela = self.selected_tabela
         if row_id:
             try:
-                sb_delete(tabela, {"ID": row_id})
+                sb_delete(tabela, {"id": row_id})
                 new_data = [r for i, r in enumerate(self.raw_data) if i != idx]
                 self.raw_data = new_data
                 self.selected_row_idx = -1
@@ -485,7 +485,7 @@ class EditState(rx.State):
             # Espelha as colunas do primeiro registro com valores None
             new_row: Dict[str, Any] = {key: None for key in self.raw_data[0].keys()}
             if self.selected_contrato:
-                new_row["Contrato"] = self.selected_contrato
+                new_row["contrato"] = self.selected_contrato
 
             # Linha nova no topo — mais fácil de localizar e preencher
             self.raw_data = [new_row] + list(self.raw_data)
@@ -592,7 +592,7 @@ class EditState(rx.State):
                 clean_records.append(clean_rec)
 
             # Trava 3 (aviso): IDs duplicados dentro do próprio arquivo
-            ids = [str(r.get("ID")) for r in clean_records if r.get("ID")]
+            ids = [str(r.get("id")) for r in clean_records if r.get("id")]
             dup_count = len(ids) - len(set(ids))
 
             # Monta stats enriquecido para o dialog de preview
@@ -640,13 +640,13 @@ class EditState(rx.State):
         self.preview_data = []
         if data:
             first = data[0]
-            if "Projeto" in first:
+            if "projeto" in first:
                 self.projetos = sorted(list(set(
-                    str(r["Projeto"]) for r in data if r.get("Projeto")
+                    str(r["projeto"]) for r in data if r.get("projeto")
                 )))
-            if "Contrato" in first:
+            if "contrato" in first:
                 self.contratos = sorted(list(set(
-                    str(r["Contrato"]) for r in data if r.get("Contrato")
+                    str(r["contrato"]) for r in data if r.get("contrato")
                 )))
 
         return rx.toast("Arquivo absorvido no grid. Clique em 'Salvar no Banco' para efetivar.", position="bottom-right")
@@ -687,8 +687,8 @@ class EditState(rx.State):
             valid_cols = _get_valid_columns()
 
             for rec in raw_data:
-                row_id = rec.get("ID")
-                label = rec.get('Projeto') or rec.get('Contrato') or str(row_id or '?')
+                row_id = rec.get("id")
+                label = rec.get('projeto') or rec.get('contrato') or str(row_id or '?')
 
                 # Filtra colunas que não existem na tabela (evita 400 por schema mismatch)
                 if valid_cols:
@@ -698,11 +698,11 @@ class EditState(rx.State):
                     # Só vai para upsert se o ID for um UUID válido
                     # Placeholders como "NOVO", "1", "linha X" → insert puro (banco gera UUID)
                     if row_id and _UUID_RE.match(str(row_id).strip()):
-                        sb_upsert(selected_tabela, rec, on_conflict="ID")
+                        sb_upsert(selected_tabela, rec, on_conflict="id")
                         result["upserted"] += 1
                     else:
                         # Sem ID ou ID inválido: insert puro, banco gera UUID
-                        clean_rec = {k: v for k, v in rec.items() if k != "ID"}
+                        clean_rec = {k: v for k, v in rec.items() if k != "id"}
                         sb_insert(selected_tabela, clean_rec)
                         result["inserted"] += 1
                 except Exception as ex:
@@ -722,13 +722,8 @@ class EditState(rx.State):
         needs_global_refresh = selected_tabela in ("contratos", "projetos", "obras", "financeiro", "om")
         if needs_global_refresh:
             try:
-                import os
-                from bomtempo.core.data_loader import CACHE_FILE
-                if os.path.exists(CACHE_FILE):
-                    os.remove(CACHE_FILE)
-                    logger.info("🗑️ Cache invalidado após commit no editor")
-
                 from bomtempo.core.data_loader import DataLoader
+                DataLoader.invalidate_cache()
                 fresh_data = await loop.run_in_executor(None, DataLoader().load_all)
                 logger.info("📦 Dados frescos carregados para refresh")
             except Exception as e:

@@ -357,7 +357,7 @@ body { font-family: 'IBM Plex Sans', sans-serif; background: #fff; color: #1a1a1
         - submitted_by → user_id (UUID determinístico via uuid5)
         - combustivel   → fuel_type
         - litros        → liters
-        - valor_litro   → pricer_per_liter  (TYPO na coluna — mantido)
+        - valor_litro   → price_per_liter
         - valor_total   → total_value
         - data_abastecimento → created_at
         - cidade        → city
@@ -381,7 +381,7 @@ body { font-family: 'IBM Plex Sans', sans-serif; background: #fff; color: #1a1a1
                 "status": now,  # submitted_at
                 "fuel_type": data.get("combustivel", ""),
                 "liters": _to_float(data.get("litros")) or None,
-                "pricer_per_liter": _to_float(data.get("valor_litro")) or None,
+                "price_per_liter": _to_float(data.get("valor_litro")) or None,
                 "total_value": _to_float(data.get("valor_total")) or None,
                 "km_start": _to_float(data.get("km_inicial")) or None,
                 "km_end": _to_float(data.get("km_final")) or None,

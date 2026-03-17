@@ -291,12 +291,12 @@ class AlertService:
     def _build_message(contract: str, obra: Dict, alert_type: str) -> str:
         meta = ALERT_TYPES.get(alert_type, {})
         label = meta.get("label", alert_type)
-        avanco = (obra.get("Realizado (%)") or obra.get("avanco_fisico") or
-                  obra.get("avanço_fisico") or "—")
+        avanco = (obra.get("avanco_realizado_pct") or obra.get("realizado_pct") or
+                  obra.get("Realizado (%)") or obra.get("avanco_fisico") or "—")
         risco = obra.get("risco_geral_score") or "—"
         budget_p = obra.get("budget_planejado") or "—"
         budget_r = obra.get("budget_realizado") or "—"
-        projeto = obra.get("Projeto") or obra.get("projeto") or "—"
+        projeto = obra.get("projeto") or "—"
         return (
             f"[{label}] {contract} | {projeto} | "
             f"Avanço: {avanco}% | Risco: {risco} | Exec: {budget_r}/{budget_p}"

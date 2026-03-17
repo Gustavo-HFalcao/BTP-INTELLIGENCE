@@ -95,6 +95,7 @@ def sidebar_item(text: str, icon: str, url: str) -> rx.Component:
         ),
         href=url,
         on_click=GlobalState.set_navigating,
+        on_mouse_enter=GlobalState.prefetch_route(url),
         width="100%",
         style={"text_decoration": "none"},
     )

@@ -79,8 +79,14 @@ class UsuariosState(rx.State):
     # ── Usuários ──────────────────────────────────────────────────
     users_list: List[Dict[str, str]] = []
     users_loading: bool = True
+    is_saving_user: bool = False          # feedback imediato no botão Salvar
     show_user_dialog: bool = False
     is_editing_user: bool = False
+
+    # Confirmação de exclusão (#13)
+    pending_delete_id: str = ""           # ID do usuário aguardando confirmação
+    pending_delete_name: str = ""         # Nome exibido no dialog de confirmação
+    show_delete_confirm: bool = False     # Controla dialog de confirmação
 
     edit_user_id: str = ""
     edit_user_login: str = ""
@@ -139,13 +145,15 @@ class UsuariosState(rx.State):
             self.users_list = [
                 {
                     "id": str(r.get("id", "")),
-                    "user": str(r.get("user", "")),
+                    "username": str(r.get("username", r.get("user", ""))),
                     "user_role": str(r.get("user_role", "")),
                     "project": str(r.get("project", "") or ""),
                 }
                 for r in rows
             ]
         except Exception as e:
+            from bomtempo.core.error_logger import log_error
+            log_error(e, module=__name__, function_name="load_users")
             logger.error(f"Erro ao carregar usuários: {e}")
         finally:
             self.users_loading = False
@@ -189,7 +197,7 @@ class UsuariosState(rx.State):
         self.user_form_error = ""
         for u in self.users_list:
             if u["id"] == user_id:
-                self.edit_user_login = u["user"]
+                self.edit_user_login = u["username"]
                 self.edit_user_password = ""
                 self.edit_user_role = u["user_role"]
                 self.edit_user_project = u["project"]
@@ -212,7 +220,8 @@ class UsuariosState(rx.State):
         # "__none__" sentinel used by Select.Item (empty string is disallowed as item value)
         self.edit_user_project = "" if val == "__none__" else val
 
-    def save_user(self):
+    async def save_user(self):
+        """Salva usuário com feedback imediato no botão (#6)."""
         self.user_form_error = ""
         username = self.edit_user_login.strip()
         password = self.edit_user_password.strip()
@@ -227,13 +236,16 @@ class UsuariosState(rx.State):
             self.user_form_error = "Perfil é obrigatório."
             return
 
+        self.is_saving_user = True
+        yield
+
         try:
             if self.is_editing_user:
                 # Determine what changed for audit metadata
                 old_user = next((u for u in self.users_list if u["id"] == self.edit_user_id), {})
                 changed: Dict[str, Any] = {}
-                if old_user.get("user") != username:
-                    changed["login"] = {"de": old_user.get("user"), "para": username}
+                if old_user.get("username") != username:
+                    changed["login"] = {"de": old_user.get("username"), "para": username}
                 if old_user.get("user_role") != self.edit_user_role:
                     changed["role"] = {"de": old_user.get("user_role"), "para": self.edit_user_role}
                 if old_user.get("project") != self.edit_user_project.strip():
@@ -242,7 +254,7 @@ class UsuariosState(rx.State):
                     changed["senha"] = "alterada"
 
                 data: Dict[str, Any] = {
-                    "user": username,
+                    "username": username,
                     "user_role": self.edit_user_role,
                     "project": self.edit_user_project.strip(),
                 }
@@ -263,7 +275,7 @@ class UsuariosState(rx.State):
 
             else:
                 result = sb_insert("login", {
-                    "user": username,
+                    "username": username,
                     "password": password,
                     "user_role": self.edit_user_role,
                     "project": self.edit_user_project.strip(),
@@ -296,10 +308,27 @@ class UsuariosState(rx.State):
                 error=e,
             )
             self.user_form_error = f"Erro ao salvar: {e}"
+        finally:
+            self.is_saving_user = False
+
+    # ── Delete com confirmação (#13) ──────────────────────────────
+
+    def request_delete_user(self, user_id: str):
+        """Abre dialog de confirmação antes de excluir (#13)."""
+        target = next((u for u in self.users_list if u["id"] == user_id), {})
+        self.pending_delete_id = user_id
+        self.pending_delete_name = target.get("username", user_id)
+        self.show_delete_confirm = True
+
+    def cancel_delete_user(self):
+        self.pending_delete_id = ""
+        self.pending_delete_name = ""
+        self.show_delete_confirm = False
 
     def delete_user(self, user_id: str):
+        self.show_delete_confirm = False
         target = next((u for u in self.users_list if u["id"] == user_id), {})
-        target_name = target.get("user", user_id)
+        target_name = target.get("username", user_id)
         try:
             sb_delete("login", filters={"id": user_id})
             audit_log(

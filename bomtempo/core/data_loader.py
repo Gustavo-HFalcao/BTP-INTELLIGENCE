@@ -4,18 +4,17 @@ Carregamento e normalização de dados — Usando APENAS dados reais da planilha
 
 import os
 import pickle
+import tempfile
 import time
 import unicodedata
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pandas as pd
 
-from bomtempo.core.config import Config
 from bomtempo.core.logging_utils import get_logger
 from bomtempo.core.supabase_client import sb_select
 
 logger = get_logger(__name__)
-
-import tempfile
 
 # Cache absoluto completamente FORA do diretório do projeto 
 # Isso garante 100% que o Reflex (watchfiles) não vai dar hot-reload ao deletar/salvar o cache
@@ -71,27 +70,38 @@ class DataLoader:
             logger.info("✅ Dados carregados do Cache (< 1h)")
             return cached
 
-        # 2. Carregar do Supabase
-        logger.info("Carregando dados do Supabase...")
-        tables = ["contratos", "projetos", "obras", "financeiro", "om"]
+        # 2. Carregar do Supabase em paralelo
+        logger.info("Carregando dados do Supabase em paralelo...")
+        # (table_name_in_db, state_key)
+        TABLE_MAP = [
+            ("contratos", "contratos"),
+            ("projetos",  "projeto"),
+            ("obras",     "obras"),
+            ("financeiro","financeiro"),
+            ("om",        "om"),
+        ]
         sucesso = False
-        
-        for table in tables:
-            try:
-                # 'projeto' is named 'projetos' in DB
-                key = "projeto" if table == "projetos" else table
-                
-                rows = sb_select(table)
-                if rows:
-                    data[key] = pd.DataFrame(rows)
-                    logger.info(f"  {key}: {len(rows)} linhas (Supabase)")
-                    sucesso = True
-                else:
-                    data[key] = pd.DataFrame()
-                    logger.warning(f"  {key}: tabela vazia no Supabase")
-            except Exception as e:
-                logger.error(f"Erro ao carregar {table} do Supabase: {e}")
-                data[key] = pd.DataFrame()
+
+        def _fetch(table: str, key: str):
+            rows = sb_select(table)
+            return key, rows
+
+        with ThreadPoolExecutor(max_workers=5) as pool:
+            futures = {pool.submit(_fetch, t, k): (t, k) for t, k in TABLE_MAP}
+            for future in as_completed(futures):
+                t, k = futures[future]
+                try:
+                    key, rows = future.result()
+                    if rows:
+                        data[key] = pd.DataFrame(rows)
+                        logger.info(f"  {key}: {len(rows)} linhas (Supabase)")
+                        sucesso = True
+                    else:
+                        data[key] = pd.DataFrame()
+                        logger.warning(f"  {key}: tabela vazia no Supabase")
+                except Exception as e:
+                    logger.error(f"Erro ao carregar {t} do Supabase: {e}")
+                    data[k] = pd.DataFrame()
 
         # Fallbacks antigos foram removidos conforme instrução.
 
@@ -106,6 +116,16 @@ class DataLoader:
         return data
 
     # ── Helpers ───────────────────────────────────────────────────
+
+    @staticmethod
+    def invalidate_cache():
+        """Remove o arquivo de cache forçando recarga do Supabase na próxima requisição."""
+        try:
+            if os.path.exists(CACHE_FILE):
+                os.remove(CACHE_FILE)
+                logger.info("🗑️ Cache invalidado")
+        except Exception as e:
+            logger.warning(f"Falha ao invalidar cache: {e}")
 
     def _try_load_cache(self, fresh_only: bool = True):
         if not os.path.exists(CACHE_FILE):
@@ -179,11 +199,11 @@ class DataLoader:
                     rename[col] = "atividade"
                 elif cl == "critico":
                     rename[col] = "critico"
-                elif cl == "inicio":
+                elif cl in ("inicio", "data_inicio"):
                     rename[col] = "inicio_previsto"
-                elif cl == "termino":
+                elif cl in ("termino", "data_termino"):
                     rename[col] = "termino_previsto"
-                elif "conclusao" in cl and "%" in cl:
+                elif "conclusao" in cl:
                     rename[col] = "conclusao_pct"
                 elif cl == "dependencia":
                     rename[col] = "dependencia"
@@ -211,7 +231,7 @@ class DataLoader:
             rename = {}
             for col in df.columns:
                 cl = _strip_accents(col).lower()
-                if cl == "data":
+                if cl in ("data", "data_referencia"):
                     rename[col] = "data"
                 elif cl == "contrato":
                     rename[col] = "contrato"
@@ -223,9 +243,9 @@ class DataLoader:
                     rename[col] = "terceirizado"
                 elif cl == "categoria":
                     rename[col] = "categoria"
-                elif "previsto" in cl and "%" in cl:
+                elif "previsto" in cl and ("%" in cl or "pct" in cl):
                     rename[col] = "previsto_pct"
-                elif "realizado" in cl and "%" in cl:
+                elif "realizado" in cl and ("%" in cl or "pct" in cl):
                     rename[col] = "realizado_pct"
                 elif cl == "tipo":
                     rename[col] = "tipo"
@@ -233,11 +253,11 @@ class DataLoader:
                     rename[col] = "marco"
                 elif "localiza" in cl:
                     rename[col] = "localizacao"
-                elif cl == "inicio":
+                elif cl in ("inicio", "data_inicio"):
                     rename[col] = "inicio"
                 elif "termino" in cl:
                     rename[col] = "termino"
-                elif "ordem" in cl:
+                elif "ordem" in cl or cl in ("os", "os_number"):
                     rename[col] = "os"
                 elif "potencia" in cl:
                     rename[col] = "potencia_kwp"
@@ -278,7 +298,7 @@ class DataLoader:
             rename = {}
             for col in df.columns:
                 cl = _strip_accents(col).lower()
-                if cl == "data":
+                if cl in ("data", "data_referencia"):
                     rename[col] = "data"
                 elif cl == "contrato":
                     rename[col] = "contrato"
@@ -310,9 +330,9 @@ class DataLoader:
                         rename[col] = "material_contratado"
                     elif "realizado" in cl:
                         rename[col] = "material_realizado"
-                elif "inicio" in cl and "projeto" in cl:
+                elif "inicio" in cl:
                     rename[col] = "inicio_projeto"
-                elif "termino" in cl and "projeto" in cl:
+                elif "termino" in cl:
                     rename[col] = "termino_projeto"
             df = df.rename(columns=rename)
 
@@ -336,7 +356,7 @@ class DataLoader:
             rename = {}
             for col in df.columns:
                 cl = _strip_accents(col).lower()
-                if cl == "data":
+                if cl in ("data", "data_referencia"):
                     rename[col] = "data"
                 elif cl == "contrato":
                     rename[col] = "contrato"
@@ -358,7 +378,7 @@ class DataLoader:
                     rename[col] = "acumulado_kwh"
                 elif "valor" in cl and "faturado" in cl:
                     rename[col] = "valor_faturado"
-                elif cl.startswith("gest"):
+                elif "gest" in cl:
                     rename[col] = "gestao"
                 elif ("liquido" in cl) or ("fat" in cl and "liq" in cl):
                     rename[col] = "faturamento_liquido"

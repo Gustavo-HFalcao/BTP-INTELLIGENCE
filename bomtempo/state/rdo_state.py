@@ -1,388 +1,786 @@
 """
-RDO State - Formulário e Wizard
+RDO v2 State — Formulário unificado (sem wizard), com draft auto-save e GPS.
 """
 
+import asyncio
+import math
 from datetime import datetime
 from typing import Any, Dict, List
 
 import reflex as rx
 
-from bomtempo.core.email_service import EmailService
 from bomtempo.core.logging_utils import get_logger
-from bomtempo.core.rdo_service import RDOService
-from bomtempo.core.audit_logger import audit_log, audit_error, AuditCategory
+from bomtempo.core.rdo_service import RDOService, _haversine, _reverse_geocode
 
 logger = get_logger(__name__)
 
 
+def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    """Haversine distance in km between two GPS points."""
+    R = 6_371.0
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlam = math.radians(lng2 - lng1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlam / 2) ** 2
+    return 2 * R * math.asin(math.sqrt(a))
+
+
 class RDOState(rx.State):
-    """Estado do formulário RDO"""
+    # ── Draft / session ────────────────────────────────────────
+    draft_id_rdo: str = ""          # ID do rascunho ativo
+    draft_saved_at: str = ""        # "hh:mm" — última vez salvo
+    is_draft_saving: bool = False
+    draft_resumed: bool = False     # mostra banner "rascunho retomado"
+    has_draft_to_resume: bool = False  # banner de oferta de retomar
 
-    # ── Wizard Control ────────────────────────────────────────
-    current_step: int = 1  # 1-5 (Cabeçalho → Materiais)
-    is_preview: bool = False
-    is_submitting: bool = False
-
-    # ── Cabeçalho (Step 1) ────────────────────────────────────
-    rdo_data: str = datetime.now().strftime("%Y-%m-%d")
+    # ── Cabeçalho ─────────────────────────────────────────────
+    rdo_data: str = ""
     rdo_contrato: str = ""
     rdo_projeto: str = ""
     rdo_cliente: str = ""
     rdo_localizacao: str = ""
     rdo_clima: str = "Ensolarado"
     rdo_turno: str = "Diurno"
-    rdo_hora_inicio: str = "07:00"
-    rdo_hora_termino: str = "17:00"
+    rdo_tipo_tarefa: str = "Diário de Obra"
+    rdo_orientacao: str = ""
+    rdo_km_percorrido: str = ""       # manual override; auto-calc shown as badge
     rdo_houve_interrupcao: bool = False
     rdo_motivo_interrupcao: str = ""
     rdo_observacoes: str = ""
 
-    # ── Listas Dinâmicas (Steps 2-5) ─────────────────────────
-    mao_obra_items: List[Dict[str, Any]] = []
-    equipamentos_items: List[Dict[str, Any]] = []
-    atividades_items: List[Dict[str, Any]] = []
-    materiais_items: List[Dict[str, Any]] = []
+    # ── GPS Check-in ──────────────────────────────────────────
+    checkin_lat: float = 0.0
+    checkin_lng: float = 0.0
+    checkin_endereco: str = ""
+    checkin_timestamp: str = ""
+    checkin_distancia_obra: float = 0.0   # metros até a obra
+    is_getting_checkin: bool = False
 
-    # ── Temp Input Vars (Steps 2-5) ──────────────────────────
-    mo_funcao: str = ""
-    mo_qtd: str = ""
-    mo_obs: str = ""
-    eq_desc: str = ""
-    eq_qtd: str = ""
-    eq_status: str = "Operando"
+    # ── GPS Check-out ─────────────────────────────────────────
+    checkout_lat: float = 0.0
+    checkout_lng: float = 0.0
+    checkout_endereco: str = ""
+    checkout_timestamp: str = ""
+    is_getting_checkout: bool = False
+
+    # ── Evidências (fotos do dia) ─────────────────────────────
+    evidencias_items: List[Dict[str, str]] = []
+    ev_legenda: str = ""
+    is_uploading_evidence: bool = False
+
+    # ── Foto EPIs ─────────────────────────────────────────────
+    epi_foto_items: List[Dict[str, str]] = []
+    is_uploading_epi: bool = False
+
+    # ── Foto Ferramentas ──────────────────────────────────────
+    ferramentas_foto_items: List[Dict[str, str]] = []
+    is_uploading_ferramentas: bool = False
+
+    # ── Atividades ────────────────────────────────────────────
+    atividades_items: List[Dict[str, Any]] = []
+
+    # ── Temp inputs: Atividades ───────────────────────────────
     at_desc: str = ""
     at_pct: str = "100"
-    mt_desc: str = ""
-    mt_qtd: str = ""
-    mt_unid: str = "un"
+    at_status: str = "Em andamento"
 
-    # ── Preview & Submit ──────────────────────────────────────
-    preview_pdf_path: str = ""
-    preview_pdf_url: str = ""  # data: URL (base64) para iframe
-    form_errors: Dict[str, str] = {}
-    is_generating_preview: bool = False
+    # ── Assinatura ────────────────────────────────────────────
+    signatory_name: str = ""
+    signatory_doc: str = ""
+    signatory_sig_b64: str = ""
 
-    # ── Helpers ───────────────────────────────────────────────
+    # ── Submit ────────────────────────────────────────────────
+    is_submitting: bool = False
+    submit_error: str = ""
+    submit_status: str = ""
+    show_confirm_dialog: bool = False
 
-    def next_step(self):
-        """Avança wizard"""
-        if self.current_step < 5:
-            self.current_step += 1
+    # ── UI toggles ────────────────────────────────────────────
+    section_atividades_open: bool = True
+    section_observacoes_open: bool = True
 
-    def prev_step(self):
-        """Retorna wizard"""
-        if self.current_step > 1:
-            self.current_step -= 1
+    # ── Options ───────────────────────────────────────────────
+    clima_options: List[str] = ["Ensolarado", "Parcialmente Nublado", "Nublado", "Chuvoso", "Chuvoso Forte", "Nevando"]
+    turno_options: List[str] = ["Diurno", "Noturno", "Integral"]
+    at_status_options: List[str] = ["Não iniciado", "Em andamento", "Concluído", "Bloqueado"]
 
-    def go_to_step(self, step: int):
-        """Vai para step específico"""
-        if 1 <= step <= 5:
-            self.current_step = step
+    # ── Computed ──────────────────────────────────────────────
 
-    # ── Mão de Obra ───────────────────────────────────────────
+    @rx.var
+    def checkin_done(self) -> bool:
+        return self.checkin_lat != 0.0 or bool(self.checkin_endereco)
 
-    def add_mo(self):
-        """Adiciona mão de obra a partir dos campos temporários"""
-        if self.mo_funcao.strip():
-            # Reatribuição completa garante detecção de mudança pelo Reflex
-            self.mao_obra_items = [
-                *self.mao_obra_items,
-                {
-                    "funcao": self.mo_funcao.strip(),
-                    "quantidade": self.mo_qtd.strip(),
-                    "obs": self.mo_obs.strip(),
-                },
-            ]
-            self.mo_funcao = ""
-            self.mo_qtd = ""
-            self.mo_obs = ""
+    @rx.var
+    def checkout_done(self) -> bool:
+        return self.checkout_lat != 0.0 or bool(self.checkout_endereco)
 
-    def remove_mao_obra(self, index: int):
-        """Remove item da lista"""
-        self.mao_obra_items = [item for i, item in enumerate(self.mao_obra_items) if i != index]
+    @rx.var
+    def form_valid(self) -> bool:
+        return bool(self.rdo_contrato.strip()) and bool(self.rdo_data)
 
-    # ── Equipamentos ──────────────────────────────────────────
+    @rx.var
+    def checkin_distancia_str(self) -> str:
+        d = self.checkin_distancia_obra
+        if d <= 0:
+            return ""
+        if d < 1000:
+            return f"{d:.0f}m da obra"
+        return f"{d / 1000:.1f}km da obra"
 
-    def add_eq(self):
-        """Adiciona equipamento a partir dos campos temporários"""
-        if self.eq_desc.strip():
-            self.equipamentos_items = [
-                *self.equipamentos_items,
-                {
-                    "descricao": self.eq_desc.strip(),
-                    "quantidade": self.eq_qtd.strip(),
-                    "status": self.eq_status,
-                },
-            ]
-            self.eq_desc = ""
-            self.eq_qtd = ""
-            self.eq_status = "Operando"
+    @rx.var
+    def checkin_distancia_color(self) -> str:
+        """Color code: green ≤100m, amber ≤300m, red >300m."""
+        d = self.checkin_distancia_obra
+        if d <= 0:
+            return "#6B9090"
+        if d <= 100:
+            return "#2A9D8F"
+        if d <= 300:
+            return "#C98B2A"
+        return "#E05252"
 
-    def remove_equipamento(self, index: int):
-        """Remove equipamento"""
-        self.equipamentos_items = [
-            item for i, item in enumerate(self.equipamentos_items) if i != index
-        ]
+    @rx.var
+    def checkin_hora_str(self) -> str:
+        """Extract HH:MM from checkin_timestamp ISO string."""
+        ts = self.checkin_timestamp
+        if not ts:
+            return ""
+        try:
+            dt = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+            return dt.strftime("%H:%M")
+        except Exception:
+            return ts[:5] if len(ts) >= 5 else ts
+
+    @rx.var
+    def checkout_hora_str(self) -> str:
+        """Extract HH:MM from checkout_timestamp ISO string."""
+        ts = self.checkout_timestamp
+        if not ts:
+            return ""
+        try:
+            dt = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+            return dt.strftime("%H:%M")
+        except Exception:
+            return ts[:5] if len(ts) >= 5 else ts
+
+    @rx.var
+    def km_percorrido_calc(self) -> str:
+        """Auto-calculate km from GPS checkin/checkout using haversine. Returns formatted string."""
+        if self.checkin_lat and self.checkout_lat and self.checkin_lng and self.checkout_lng:
+            km = _haversine_km(
+                self.checkin_lat, self.checkin_lng,
+                self.checkout_lat, self.checkout_lng,
+            )
+            if km > 0:
+                return f"{km:.1f} km"
+        return ""
+
+    @rx.var
+    def epi_foto_url(self) -> str:
+        """URL of the first EPI photo (stored in bucket)."""
+        if self.epi_foto_items:
+            return self.epi_foto_items[0].get("foto_url", "")
+        return ""
+
+    @rx.var
+    def ferramentas_foto_url(self) -> str:
+        """URL of the first ferramentas photo (stored in bucket)."""
+        if self.ferramentas_foto_items:
+            return self.ferramentas_foto_items[0].get("foto_url", "")
+        return ""
+
+    # ── Page Init ─────────────────────────────────────────────
+
+    async def init_page(self):
+        """Chamado no on_load de /rdo-form."""
+        from bomtempo.state.global_state import GlobalState
+        gs = await self.get_state(GlobalState)
+        user = str(gs.current_user_name)
+        contrato = str(gs.current_user_contrato).strip()
+
+        # Defaults
+        if not self.rdo_data:
+            self.rdo_data = datetime.now().strftime("%Y-%m-%d")
+        if not self.rdo_contrato and contrato and contrato not in ("nan", "None", ""):
+            self.rdo_contrato = contrato
+
+        # Pre-fill projeto/cliente/localizacao do GlobalState
+        if self.rdo_contrato and not self.rdo_projeto:
+            for c in (gs.contratos_list or []):
+                if str(c.get("contrato", "")).strip() == self.rdo_contrato:
+                    self.rdo_projeto   = str(c.get("projeto", "") or c.get("nome_projeto", "") or "")
+                    self.rdo_cliente   = str(c.get("cliente", "") or c.get("nome_cliente", "") or "")
+                    self.rdo_localizacao = str(c.get("cidade", "") or c.get("localizacao", "") or "")
+                    break
+
+        # Verificar rascunho ativo (não bloqueia UI — só seta flag)
+        if user and not self.draft_id_rdo:
+            self.has_draft_to_resume = False  # reset; bg event vai verificar
+
+    @rx.event(background=True)
+    async def check_for_draft(self):
+        """Verifica se há rascunho ativo no banco para este mestre."""
+        from bomtempo.state.global_state import GlobalState
+        async with self:
+            gs = await self.get_state(GlobalState)
+            user = str(gs.current_user_name)
+            contrato = str(gs.current_user_contrato).strip()
+
+        if not user:
+            return
+
+        loop = asyncio.get_running_loop()
+        draft = await loop.run_in_executor(
+            None,
+            lambda: RDOService.get_active_draft(user, contrato if contrato not in ("nan","None","") else ""),
+        )
+        if draft and not self.draft_id_rdo:
+            async with self:
+                self.has_draft_to_resume = True
+                self._pending_draft_id = draft.get("id_rdo", "")  # type: ignore[attr-defined]
+
+    async def resume_draft(self):
+        """Chamado quando usuário clica em 'Retomar Rascunho'."""
+        draft_id = getattr(self, "_pending_draft_id", "")
+        if not draft_id:
+            return
+        yield RDOState.load_draft_by_id(draft_id)
+
+    @rx.event(background=True)
+    async def load_draft_by_id(self, id_rdo: str):
+        loop = asyncio.get_running_loop()
+        data = await loop.run_in_executor(None, lambda: RDOService.get_full_rdo(id_rdo))
+        if not data:
+            return
+        async with self:
+            self.draft_id_rdo         = data.get("id_rdo", "")
+            self.rdo_data             = str(data.get("data") or "")
+            self.rdo_contrato         = data.get("contrato") or ""
+            self.rdo_projeto          = data.get("projeto") or ""
+            self.rdo_cliente          = data.get("cliente") or ""
+            self.rdo_localizacao      = data.get("localizacao") or ""
+            self.rdo_tipo_tarefa      = data.get("tipo_tarefa") or "Diário de Obra"
+            self.rdo_orientacao       = data.get("orientacao") or ""
+            self.rdo_km_percorrido    = str(data.get("km_percorrido") or "")
+            self.rdo_clima            = data.get("condicao_climatica") or "Ensolarado"
+            self.rdo_turno            = data.get("turno") or "Diurno"
+            self.rdo_houve_interrupcao = bool(data.get("houve_interrupcao"))
+            self.rdo_motivo_interrupcao = data.get("motivo_interrupcao") or ""
+            self.rdo_observacoes      = data.get("observacoes") or ""
+            # GPS
+            self.checkin_lat          = float(data.get("checkin_lat") or 0.0)
+            self.checkin_lng          = float(data.get("checkin_lng") or 0.0)
+            self.checkin_endereco     = data.get("checkin_endereco") or ""
+            self.checkin_timestamp    = data.get("checkin_timestamp") or ""
+            self.checkout_lat         = float(data.get("checkout_lat") or 0.0)
+            self.checkout_lng         = float(data.get("checkout_lng") or 0.0)
+            self.checkout_endereco    = data.get("checkout_endereco") or ""
+            self.checkout_timestamp   = data.get("checkout_timestamp") or ""
+            # Signatory
+            self.signatory_name       = data.get("signatory_name") or ""
+            self.signatory_doc        = data.get("signatory_doc") or ""
+            self.signatory_sig_b64    = data.get("signatory_sig_b64") or ""
+            # Sub-items
+            self.atividades_items     = list(data.get("atividades", []))
+            self.evidencias_items     = list(data.get("evidencias", []))
+            # EPI / ferramentas — try to restore from url stored in master
+            epi_url = data.get("epi_foto_url") or ""
+            ferramentas_url = data.get("ferramentas_foto_url") or ""
+            self.epi_foto_items = [{"foto_url": epi_url}] if epi_url else []
+            self.ferramentas_foto_items = [{"foto_url": ferramentas_url}] if ferramentas_url else []
+            self.has_draft_to_resume  = False
+            self.draft_resumed        = True
+            self.draft_saved_at       = datetime.now().strftime("%H:%M")
+        yield rx.toast("📂 Rascunho retomado!", position="top-center")
+
+    def discard_draft_offer(self):
+        self.has_draft_to_resume = False
+
+    # ── GPS ───────────────────────────────────────────────────
+
+    def do_checkin(self):
+        """Dispara JS para capturar GPS de check-in."""
+        self.is_getting_checkin = True
+        return rx.call_script(
+            """
+            new Promise(resolve => {
+                if (!navigator.geolocation) { resolve({lat:0,lng:0,ok:false}); return; }
+                navigator.geolocation.getCurrentPosition(
+                    p => resolve({lat:p.coords.latitude, lng:p.coords.longitude, ok:true}),
+                    () => resolve({lat:0,lng:0,ok:false}),
+                    {enableHighAccuracy:true,timeout:10000}
+                );
+            })
+            """,
+            callback=RDOState.receive_checkin_gps,
+        )
+
+    def do_checkout(self):
+        """Dispara JS para capturar GPS de check-out."""
+        self.is_getting_checkout = True
+        return rx.call_script(
+            """
+            new Promise(resolve => {
+                if (!navigator.geolocation) { resolve({lat:0,lng:0,ok:false}); return; }
+                navigator.geolocation.getCurrentPosition(
+                    p => resolve({lat:p.coords.latitude, lng:p.coords.longitude, ok:true}),
+                    () => resolve({lat:0,lng:0,ok:false}),
+                    {enableHighAccuracy:true,timeout:10000}
+                );
+            })
+            """,
+            callback=RDOState.receive_checkout_gps,
+        )
+
+    @rx.event(background=True)
+    async def receive_checkin_gps(self, result: dict):
+        lat = float(result.get("lat") or 0.0)
+        lng = float(result.get("lng") or 0.0)
+        ok  = bool(result.get("ok"))
+        endereco = ""
+        distancia = 0.0
+
+        # Read contrato before I/O
+        async with self:
+            contrato = str(self.rdo_contrato)
+
+        if ok and lat:
+            loop = asyncio.get_running_loop()
+            endereco = await loop.run_in_executor(None, lambda: _reverse_geocode(lat, lng))
+            # Haversine distance to obra
+            obra_lat, obra_lng = await loop.run_in_executor(
+                None, lambda: RDOService.get_obra_coords(contrato)
+            )
+            if obra_lat and obra_lng:
+                distancia = _haversine(lat, lng, obra_lat, obra_lng)
+
+        async with self:
+            self.checkin_lat             = lat
+            self.checkin_lng             = lng
+            self.checkin_endereco        = endereco
+            self.checkin_timestamp       = datetime.now().isoformat()
+            self.checkin_distancia_obra  = distancia
+            self.is_getting_checkin      = False
+
+        if ok and lat:
+            dist_str = f" · {distancia:.0f}m da obra" if distancia > 0 else ""
+            yield rx.toast(
+                f"📍 Check-in: {endereco or f'{lat:.4f}, {lng:.4f}'}{dist_str}",
+                position="top-center",
+            )
+        else:
+            yield rx.toast("⚠️ Não foi possível obter localização", position="top-center")
+
+    @rx.event(background=True)
+    async def receive_checkout_gps(self, result: dict):
+        lat = float(result.get("lat") or 0.0)
+        lng = float(result.get("lng") or 0.0)
+        ok  = bool(result.get("ok"))
+        endereco = ""
+
+        if ok and lat:
+            loop = asyncio.get_running_loop()
+            endereco = await loop.run_in_executor(None, lambda: _reverse_geocode(lat, lng))
+
+        async with self:
+            self.checkout_lat       = lat
+            self.checkout_lng       = lng
+            self.checkout_endereco  = endereco
+            self.checkout_timestamp = datetime.now().isoformat()
+            self.is_getting_checkout = False
+
+        if ok and lat:
+            yield rx.toast(f"📍 Check-out registrado: {endereco or f'{lat:.4f}, {lng:.4f}'}", position="top-center")
+        else:
+            yield rx.toast("⚠️ Não foi possível obter localização", position="top-center")
+
+    def clear_checkin(self):
+        self.checkin_lat = 0.0
+        self.checkin_lng = 0.0
+        self.checkin_endereco = ""
+        self.checkin_timestamp = ""
+        self.checkin_distancia_obra = 0.0
+
+    # ── Evidências ────────────────────────────────────────────
+    # NOTE: upload handlers CANNOT be @rx.event(background=True) — Reflex restriction.
+    # They are regular async handlers; blocking I/O runs via run_in_executor.
+
+    async def upload_evidence_files(self, files: list):
+        """Recebe arquivos do rx.upload, aplica EXIF + watermark + upload + DB."""
+        if not files:
+            return
+
+        self.is_uploading_evidence = True
+        yield
+
+        from bomtempo.state.global_state import GlobalState
+        gs = await self.get_state(GlobalState)
+        user     = str(gs.current_user_name)
+        contrato = str(self.rdo_contrato)
+        data     = str(self.rdo_data)
+        legenda  = str(self.ev_legenda)
+        id_rdo   = str(self.draft_id_rdo)
+
+        loop = asyncio.get_event_loop()
+
+        # Auto-save to get an id_rdo if form not yet persisted
+        if not id_rdo and contrato.strip():
+            rdo_data = self._build_rdo_data()
+            id_rdo = await loop.run_in_executor(
+                None,
+                lambda: RDOService.upsert_draft(rdo_data, mestre_id=user),
+            )
+            self.draft_id_rdo = id_rdo
+
+        if not id_rdo:
+            self.is_uploading_evidence = False
+            yield rx.toast("⚠️ Preencha o contrato antes de adicionar fotos", position="top-center")
+            return
+
+        new_items = []
+        for f in files:
+            try:
+                file_bytes = await f.read()
+                _name = getattr(f, "filename", "foto.jpg")
+                _ct   = getattr(f, "content_type", None) or "image/jpeg"
+                _b, _n, _c = file_bytes, _name, _ct
+                result = await loop.run_in_executor(
+                    None,
+                    lambda: RDOService.process_evidence(
+                        id_rdo=id_rdo,
+                        file_bytes=_b,
+                        filename=_n,
+                        content_type=_c,
+                        legenda=legenda,
+                        mestre=user,
+                        contrato=contrato,
+                        data=data,
+                    ),
+                )
+                if result.get("foto_url"):
+                    new_items.append(result)
+            except Exception as e:
+                logger.error(f"upload_evidence_files: {e}")
+
+        self.evidencias_items     = [*self.evidencias_items, *new_items]
+        self.ev_legenda           = ""
+        self.is_uploading_evidence = False
+
+        if new_items:
+            yield rx.toast(f"✅ {len(new_items)} foto(s) adicionada(s)", position="top-center")
+        else:
+            yield rx.toast("⚠️ Nenhuma foto foi processada", position="top-center")
+
+    async def upload_epi_files(self, files: list):
+        """Upload EPI photo — watermark + Supabase Storage."""
+        if not files:
+            return
+
+        self.is_uploading_epi = True
+        yield
+
+        from bomtempo.state.global_state import GlobalState
+        gs = await self.get_state(GlobalState)
+        user     = str(gs.current_user_name)
+        contrato = str(self.rdo_contrato)
+        data     = str(self.rdo_data)
+        id_rdo   = str(self.draft_id_rdo)
+
+        loop = asyncio.get_event_loop()
+
+        if not id_rdo and contrato.strip():
+            rdo_data = self._build_rdo_data()
+            id_rdo = await loop.run_in_executor(
+                None,
+                lambda: RDOService.upsert_draft(rdo_data, mestre_id=user),
+            )
+            self.draft_id_rdo = id_rdo
+
+        if not id_rdo:
+            self.is_uploading_epi = False
+            yield rx.toast("⚠️ Preencha o contrato antes de adicionar fotos", position="top-center")
+            return
+
+        new_items = []
+        for f in files[:1]:  # Only keep the latest EPI photo
+            try:
+                file_bytes = await f.read()
+                _name = getattr(f, "filename", "epi.jpg")
+                _ct   = getattr(f, "content_type", None) or "image/jpeg"
+                _b, _n, _c = file_bytes, _name, _ct
+                result = await loop.run_in_executor(
+                    None,
+                    lambda: RDOService.process_evidence(
+                        id_rdo=id_rdo,
+                        file_bytes=_b,
+                        filename=f"epi_{_n}",
+                        content_type=_c,
+                        legenda="Equipe com EPIs",
+                        mestre=user,
+                        contrato=contrato,
+                        data=data,
+                    ),
+                )
+                if result.get("foto_url"):
+                    new_items.append(result)
+            except Exception as e:
+                logger.error(f"upload_epi_files: {e}")
+
+        if new_items:
+            self.epi_foto_items = new_items
+        self.is_uploading_epi = False
+
+        if new_items:
+            yield rx.toast("✅ Foto EPI adicionada", position="top-center")
+        else:
+            yield rx.toast("⚠️ Nenhuma foto foi processada", position="top-center")
+
+    async def upload_ferramentas_files(self, files: list):
+        """Upload ferramentas photo — watermark + Supabase Storage."""
+        if not files:
+            return
+
+        self.is_uploading_ferramentas = True
+        yield
+
+        from bomtempo.state.global_state import GlobalState
+        gs = await self.get_state(GlobalState)
+        user     = str(gs.current_user_name)
+        contrato = str(self.rdo_contrato)
+        data     = str(self.rdo_data)
+        id_rdo   = str(self.draft_id_rdo)
+
+        loop = asyncio.get_event_loop()
+
+        if not id_rdo and contrato.strip():
+            rdo_data = self._build_rdo_data()
+            id_rdo = await loop.run_in_executor(
+                None,
+                lambda: RDOService.upsert_draft(rdo_data, mestre_id=user),
+            )
+            self.draft_id_rdo = id_rdo
+
+        if not id_rdo:
+            self.is_uploading_ferramentas = False
+            yield rx.toast("⚠️ Preencha o contrato antes de adicionar fotos", position="top-center")
+            return
+
+        new_items = []
+        for f in files[:1]:
+            try:
+                file_bytes = await f.read()
+                _name = getattr(f, "filename", "ferramentas.jpg")
+                _ct   = getattr(f, "content_type", None) or "image/jpeg"
+                _b, _n, _c = file_bytes, _name, _ct
+                result = await loop.run_in_executor(
+                    None,
+                    lambda: RDOService.process_evidence(
+                        id_rdo=id_rdo,
+                        file_bytes=_b,
+                        filename=f"ferramentas_{_n}",
+                        content_type=_c,
+                        legenda="Ferramentas Limpas e Organizadas",
+                        mestre=user,
+                        contrato=contrato,
+                        data=data,
+                    ),
+                )
+                if result.get("foto_url"):
+                    new_items.append(result)
+            except Exception as e:
+                logger.error(f"upload_ferramentas_files: {e}")
+
+        if new_items:
+            self.ferramentas_foto_items = new_items
+        self.is_uploading_ferramentas = False
+
+        if new_items:
+            yield rx.toast("✅ Foto de ferramentas adicionada", position="top-center")
+        else:
+            yield rx.toast("⚠️ Nenhuma foto foi processada", position="top-center")
+
+    # ── Assinatura ────────────────────────────────────────────
+
+    def receive_sig_b64(self, data: dict):
+        """Callback from rx.call_script — receives canvas toDataURL."""
+        self.signatory_sig_b64 = data.get("sig", "")
 
     # ── Atividades ────────────────────────────────────────────
 
     def add_at(self):
-        """Adiciona atividade a partir dos campos temporários"""
         if self.at_desc.strip():
-            self.atividades_items = [
-                *self.atividades_items,
-                {
-                    "atividade": self.at_desc.strip(),
-                    "percentual": self.at_pct.strip(),
-                },
-            ]
+            self.atividades_items = [*self.atividades_items, {
+                "atividade":            self.at_desc.strip(),
+                "progresso_percentual": self.at_pct.strip() or "0",
+                "status":               self.at_status,
+            }]
             self.at_desc = ""
             self.at_pct = "100"
+            self.at_status = "Em andamento"
 
-    def remove_atividade(self, index: int):
-        """Remove atividade"""
-        self.atividades_items = [item for i, item in enumerate(self.atividades_items) if i != index]
+    def remove_at(self, index: int):
+        self.atividades_items = [it for i, it in enumerate(self.atividades_items) if i != index]
 
-    # ── Materiais ─────────────────────────────────────────────
-
-    def add_mt(self):
-        """Adiciona material a partir dos campos temporários"""
-        if self.mt_desc.strip():
-            self.materiais_items = [
-                *self.materiais_items,
-                {
-                    "descricao": self.mt_desc.strip(),
-                    "quantidade": self.mt_qtd.strip(),
-                    "unidade": self.mt_unid,
-                },
-            ]
-            self.mt_desc = ""
-            self.mt_qtd = ""
-            self.mt_unid = "un"
-
-    def remove_material(self, index: int):
-        """Remove material"""
-        self.materiais_items = [item for i, item in enumerate(self.materiais_items) if i != index]
-
-    # ── Validação ─────────────────────────────────────────────
-
-    def validate_form(self) -> bool:
-        """Valida campos obrigatórios"""
-        errors = {}
-
-        if not self.rdo_contrato.strip():
-            errors["contrato"] = "Contrato é obrigatório"
-        if not self.rdo_data:
-            errors["data"] = "Data é obrigatória"
-
-        self.form_errors = errors
-        return len(errors) == 0
-
-    # ── Build RDO Data ────────────────────────────────────────
-
-    def _build_rdo_data(self) -> Dict[str, Any]:
-        """Compila todos os dados do formulário - converte Vars para valores reais"""
-        return {
-            # Cabeçalho - converter Vars para strings
-            "data": str(self.rdo_data),
-            "contrato": str(self.rdo_contrato),
-            "projeto": str(self.rdo_projeto),
-            "cliente": str(self.rdo_cliente),
-            "localizacao": str(self.rdo_localizacao),
-            "clima": str(self.rdo_clima),
-            "turno": str(self.rdo_turno),
-            "hora_inicio": str(self.rdo_hora_inicio),
-            "hora_termino": str(self.rdo_hora_termino),
-            "houve_interrupcao": bool(self.rdo_houve_interrupcao),
-            "motivo_interrupcao": str(self.rdo_motivo_interrupcao),
-            "observacoes": str(self.rdo_observacoes),
-            # Listas - já são listas Python normais
-            "mao_obra": list(self.mao_obra_items),
-            "equipamentos": list(self.equipamentos_items),
-            "atividades": list(self.atividades_items),
-            "materiais": list(self.materiais_items),
-        }
-
-    # ── Preview ───────────────────────────────────────────────
+    # ── Draft Save ────────────────────────────────────────────
 
     @rx.event(background=True)
-    async def generate_preview(self):
-        """Gera preview do PDF — background event para não travar a UI."""
-        import asyncio
-        import base64
-
-        # Fase 1: validar + capturar dados dentro do lock
-        rdo_data = None
+    async def save_draft(self):
+        """Salva rascunho manualmente (botão) ou acionado por mudanças."""
         async with self:
-            if self.validate_form():
-                self.is_generating_preview = True
-                rdo_data = self._build_rdo_data()
+            if self.is_draft_saving:
+                return
+            if not self.rdo_contrato.strip():
+                return
+            self.is_draft_saving = True
+            gs = await self.get_state(__import__("bomtempo.state.global_state", fromlist=["GlobalState"]).GlobalState)
+            user = str(gs.current_user_name)
+            rdo_data = self._build_rdo_data()
 
-        if rdo_data is None:
-            yield rx.toast("⚠️ Preencha os campos obrigatórios (Contrato e Data)", position="top-center")
-            return
-
-        # Fase 2: gerar PDF FORA do lock (I/O bloqueante)
+        loop = asyncio.get_running_loop()
         try:
-            loop = asyncio.get_running_loop()
-            pdf_path, pdf_url = await loop.run_in_executor(
+            id_rdo = await loop.run_in_executor(
                 None,
-                lambda: RDOService.generate_pdf(rdo_data, is_preview=True),
+                lambda: RDOService.upsert_draft(rdo_data, mestre_id=user),
             )
-
-            if pdf_path:
-                with open(pdf_path, "rb") as f:
-                    b64 = base64.b64encode(f.read()).decode("utf-8")
-                async with self:
-                    self.preview_pdf_path = pdf_path
-                    self.preview_pdf_url = f"data:application/pdf;base64,{b64}"
-                    self.is_preview = True
-                    self.is_generating_preview = False
-            else:
-                async with self:
-                    self.is_generating_preview = False
-                yield rx.toast("❌ Erro ao gerar preview do PDF", position="top-center")
-
-        except Exception as e:
-            logger.error(f"Erro ao gerar preview: {e}")
             async with self:
-                self.is_generating_preview = False
-            yield rx.toast(f"❌ Erro: {str(e)[:120]}", position="top-center")
-
-    def edit_form(self):
-        """Volta para o formulário mantendo dados — retorna ao step 5 (último preenchido)"""
-        self.is_preview = False
-        self.current_step = 5
+                self.draft_id_rdo   = id_rdo
+                self.draft_saved_at = datetime.now().strftime("%H:%M")
+                self.is_draft_saving = False
+        except Exception as e:
+            logger.error(f"❌ save_draft: {e}")
+            async with self:
+                self.is_draft_saving = False
+            yield rx.toast("⚠️ Erro ao salvar rascunho", position="top-center")
 
     # ── Submit ────────────────────────────────────────────────
-    # Versão: 2026-02-23T13:44 — Two-handler chain pattern.
-    # submit_rdo → sets is_submitting → yields execute_submit.
-    # Reflex sends state delta to client BEFORE running execute_submit.
+
+    def open_confirm(self):
+        if not self.rdo_contrato.strip():
+            return rx.toast("⚠️ Informe o Contrato antes de enviar", position="top-center")
+        if not self.rdo_data:
+            return rx.toast("⚠️ Informe a Data antes de enviar", position="top-center")
+        self.show_confirm_dialog = True
+
+    def close_confirm(self):
+        self.show_confirm_dialog = False
 
     async def submit_rdo(self):
-        """
-        Handler 1/2: Mostra loading IMEDIATAMENTE, depois dispara
-        execute_submit como evento separado.
-        """
         if self.is_submitting:
             return
         self.is_submitting = True
+        self.show_confirm_dialog = False
         yield RDOState.execute_submit
 
     @rx.event(background=True)
     async def execute_submit(self):
-        """
-        Handler 2/2: BACKGROUND event — loading já está visível.
-        Background é OBRIGATÓRIO para não bloquear o event loop do Reflex
-        e evitar websocket timeout. Usa 'async with self' para cada
-        mutação de estado.
-        """
-        import asyncio
         import threading
+        from bomtempo.core.audit_logger import audit_log, AuditCategory
 
-        logger.info("🚀 execute_submit INÍCIO (background)")
+        loop = asyncio.get_running_loop()
 
         try:
-            loop = asyncio.get_running_loop()
-
-            # Coletar dados (precisa de state lock)
             async with self:
                 from bomtempo.state.global_state import GlobalState
-
                 gs = await self.get_state(GlobalState)
                 user_name = str(gs.current_user_name)
-                rdo_data = self._build_rdo_data()
-            logger.info(f"📋 dados coletados, contrato={rdo_data.get('contrato')}")
+                rdo_data  = self._build_rdo_data()
+                contrato  = rdo_data.get("contrato", "")
+                self.submit_status = "💾 Salvando RDO…"
 
-            # Salvar no banco (executor — não bloqueia event loop)
+            # 1. Upsert draft / save to DB
             id_rdo = await loop.run_in_executor(
                 None,
-                lambda: RDOService.save_to_database(rdo_data, submitted_by=user_name),
+                lambda: RDOService.upsert_draft(rdo_data, mestre_id=user_name),
             )
-            logger.info(f"💾 DB → {id_rdo}")
-            if not id_rdo:
-                async with self:
-                    self.is_submitting = False
-                    yield rx.toast("❌ Erro ao salvar no banco", position="top-center")
-                return
+            logger.info(f"💾 RDO2 salvo: {id_rdo}")
 
-            # Gerar PDF (executor)
+            async with self:
+                self.submit_status = "📄 Gerando PDF…"
+
+            # 2. Generate PDF
             pdf_path = ""
             try:
-                result = await loop.run_in_executor(
+                pdf_result = await loop.run_in_executor(
                     None,
                     lambda: RDOService.generate_pdf(rdo_data, is_preview=False, id_rdo=id_rdo),
                 )
-                pdf_path = result[0] if result and result[0] else ""
-                logger.info(f"📄 PDF → {pdf_path}")
+                pdf_path = pdf_result[0] if pdf_result else ""
             except Exception as e:
-                logger.error(f"⚠️ PDF falhou: {e}")
+                logger.error(f"⚠️ PDF: {e}")
 
-            # Upload para Storage (executor)
+            async with self:
+                self.submit_status = "☁️ Enviando PDF…"
+
+            # 3. Upload PDF
+            pdf_url = ""
             if pdf_path:
                 try:
-                    url = await loop.run_in_executor(
+                    pdf_url = await loop.run_in_executor(
                         None,
-                        lambda: RDOService.upload_pdf_to_storage(pdf_path, id_rdo),
+                        lambda: RDOService.upload_pdf(pdf_path, id_rdo),
                     )
-                    if url:
-                        await loop.run_in_executor(
-                            None,
-                            lambda: RDOService.update_pdf_info(id_rdo, url),
-                        )
-                        logger.info(f"☁️ Storage → {url}")
-                    else:
-                        logger.warning("⚠️ Storage retornou URL vazia")
                 except Exception as e:
-                    logger.warning(f"⚠️ Storage: {e}")
+                    logger.warning(f"⚠️ Upload PDF: {e}")
 
-            # Buscar destinatários (executor)
+            async with self:
+                self.submit_status = "✅ Finalizando…"
+
+            # 4. Finalize in DB
+            await loop.run_in_executor(
+                None,
+                lambda: RDOService.finalize_rdo(id_rdo, pdf_path, pdf_url, rdo_data),
+            )
+
+            # 5. Build view URL (public)
+            from bomtempo.core.supabase_client import sb_select
+            master_rows = await loop.run_in_executor(
+                None,
+                lambda: sb_select("rdo_master", filters={"id_rdo": id_rdo}),
+            )
+            view_token = (master_rows[0].get("view_token") or "") if master_rows else ""
+            view_url   = f"/rdo-view/{view_token}" if view_token else ""
+
+            # 6. Get email recipients
+            from bomtempo.core.supabase_client import sb_select as _sb_select
             recipients = []
             try:
-                from bomtempo.core.supabase_client import sb_select
-
-                contrato = rdo_data.get("contrato", "")
                 rows = await loop.run_in_executor(
                     None,
-                    lambda: sb_select("email_sender", filters={"contract": contrato}),
+                    lambda: _sb_select("email_sender", filters={"contract": contrato}),
                 )
-                recipients = [
-                    r.get("email", "").strip() for r in (rows or []) if r.get("email", "").strip()
-                ]
-                logger.info(f"📧 Recipients → {recipients}")
-            except Exception as e:
-                logger.error(f"⚠️ Recipients: {e}")
+                recipients = [r.get("email", "").strip() for r in (rows or []) if r.get("email", "").strip()]
+            except Exception:
+                pass
 
-            # Email (daemon thread — fire-and-forget)
-            if recipients and pdf_path:
-                _d, _p, _r = dict(rdo_data), str(pdf_path), list(recipients)
+            # 7. AI + Email (fire-and-forget)
+            _d, _p, _r, _vu = dict(rdo_data), str(pdf_path), list(recipients), str(view_url)
+            _id = str(id_rdo)
 
-                def _email():
+            def _async_tasks():
+                try:
+                    RDOService.analyze_with_ai(_d, _id)
+                except Exception as e:
+                    logger.error(f"AI: {e}")
+                if _r and _p:
                     try:
-                        ai = RDOService.analyze_with_ai(_d)
-                        ok = EmailService.send_rdo_email(_r, _d, _p, ai)
-                        logger.info(f"✅ Email {'OK' if ok else 'FALHOU'} → {_r}")
-                    except Exception as exc:
-                        logger.error(f"❌ Email: {exc}")
+                        RDOService.send_email(_r, _d, _p, _vu)
+                    except Exception as e:
+                        logger.error(f"Email: {e}")
 
-                threading.Thread(target=_email, daemon=True).start()
-                toast_msg = (
-                    f"✅ RDO salvo! Email enviando para {len(recipients)} destinatário(s)..."
-                )
-            else:
-                toast_msg = "✅ RDO salvo com sucesso!"
+            threading.Thread(target=_async_tasks, daemon=True).start()
 
-            # Sucesso — reset + redirect
-            logger.info(f"🎯 COMPLETO: {id_rdo}")
+            # Audit
             audit_log(
                 category=AuditCategory.RDO_CREATE,
-                action=f"RDO criado — contrato '{rdo_data.get('contrato', '')}' por '{user_name}'",
+                action=f"RDO2 criado — contrato '{contrato}'",
                 username=user_name,
-                entity_type="rdo",
-                entity_id=str(id_rdo),
-                metadata={"contrato": rdo_data.get("contrato", ""), "data": rdo_data.get("data", "")},
+                entity_type="rdo2",
+                entity_id=id_rdo,
+                metadata={"contrato": contrato, "data": rdo_data.get("data", "")},
                 status="success",
             )
+
+            toast_msg = f"✅ RDO enviado! {f'Email para {len(recipients)} destinatário(s).' if recipients else ''}"
             async with self:
                 self._reset_form()
                 self.is_submitting = False
@@ -390,128 +788,92 @@ class RDOState(rx.State):
                 yield rx.redirect("/rdo-historico")
 
         except Exception as e:
-            logger.error(f"❌ execute_submit ERRO: {e}", exc_info=True)
-            audit_error(
-                action=f"Falha ao submeter RDO",
-                username=user_name if "user_name" in dir() else "unknown",
-                entity_type="rdo",
-                error=e,
-            )
+            logger.error(f"❌ execute_submit: {e}", exc_info=True)
             async with self:
                 self.is_submitting = False
+                self.submit_status = ""
+                self.submit_error = str(e)[:100]
                 yield rx.toast(f"❌ Erro: {str(e)[:80]}", position="top-center")
 
-    # ── Pre-fill from user profile ────────────────────────────
+    # ── Helpers ───────────────────────────────────────────────
 
-    async def init_from_user_profile(self):
-        """
-        Pré-preenche campos com dados do contrato associado ao usuário logado.
-        Estratégia de fallback:
-          1. Preenche rdo_contrato de current_user_contrato
-          2. Tenta encontrar detalhes em contratos_list (se já carregou)
-          3. Fallback: busca último RDO deste contrato no Supabase rdo_cabecalho
-        """
-        from bomtempo.state.global_state import GlobalState
-
-        gs = await self.get_state(GlobalState)
-        contrato = str(gs.current_user_contrato).strip()
-
-        if not contrato or contrato in ("nan", "None"):
-            logger.info("⚠️ init_from_user_profile: sem contrato no perfil do usuário")
-            return
-
-        # Só pré-preenche se o form está vazio (evita sobrescrever edição manual)
-        if self.rdo_contrato.strip():
-            return
-
-        self.rdo_contrato = contrato
-        filled = False
-
-        # Estratégia 1: contratos_list já carregada
-        for c in gs.contratos_list or []:
-            ctr = str(c.get("contrato", "")).strip()
-            if ctr == contrato:
-                projeto = str(c.get("projeto", "") or c.get("nome_projeto", "") or "")
-                cliente = str(c.get("cliente", "") or c.get("nome_cliente", "") or "")
-                loc = str(
-                    c.get("cidade", "") or c.get("localizacao", "") or c.get("endereco", "") or ""
-                )
-                if projeto and projeto != "nan":
-                    self.rdo_projeto = projeto
-                if cliente and cliente != "nan":
-                    self.rdo_cliente = cliente
-                if loc and loc != "nan":
-                    self.rdo_localizacao = loc
-                filled = True
-                logger.info(f"✅ RDO pré-preenchido via contratos_list: {contrato}")
-                break
-
-        # Estratégia 2 (fallback): buscar último RDO deste contrato no Supabase
-        if not filled:
-            try:
-                from bomtempo.core.supabase_client import sb_select
-
-                rdos = sb_select(
-                    "rdo_cabecalho",
-                    filters={"Contrato": contrato},
-                    order="ID_RDO.desc",
-                    limit=1,
-                )
-                if rdos:
-                    last = rdos[0]
-                    projeto = str(last.get("Projeto", "") or "")
-                    cliente = str(last.get("Cliente", "") or "")
-                    loc = str(last.get("Localizacao", "") or "")
-                    if projeto and projeto != "nan":
-                        self.rdo_projeto = projeto
-                    if cliente and cliente != "nan":
-                        self.rdo_cliente = cliente
-                    if loc and loc != "nan":
-                        self.rdo_localizacao = loc
-                    logger.info(f"✅ RDO pré-preenchido via último RDO Supabase: {contrato}")
-                else:
-                    logger.info(f"⚠️ Nenhum RDO anterior encontrado para contrato={contrato}")
-            except Exception as e:
-                logger.warning(f"⚠️ Fallback Supabase para auto-fill falhou: {e}")
+    def _build_rdo_data(self) -> Dict[str, Any]:
+        return {
+            "id_rdo":               str(self.draft_id_rdo),
+            "data":                 str(self.rdo_data),
+            "contrato":             str(self.rdo_contrato),
+            "projeto":              str(self.rdo_projeto),
+            "cliente":              str(self.rdo_cliente),
+            "localizacao":          str(self.rdo_localizacao),
+            "condicao_climatica":   str(self.rdo_clima),
+            "turno":                str(self.rdo_turno),
+            "houve_interrupcao":    bool(self.rdo_houve_interrupcao),
+            "motivo_interrupcao":   str(self.rdo_motivo_interrupcao),
+            "tipo_tarefa":          str(self.rdo_tipo_tarefa),
+            "orientacao":           str(self.rdo_orientacao),
+            "km_percorrido":        float(self.rdo_km_percorrido) if self.rdo_km_percorrido else None,
+            "observacoes":          str(self.rdo_observacoes),
+            # GPS
+            "checkin_lat":          float(self.checkin_lat),
+            "checkin_lng":          float(self.checkin_lng),
+            "checkin_endereco":     str(self.checkin_endereco),
+            "checkin_timestamp":    str(self.checkin_timestamp) if self.checkin_timestamp else None,
+            "checkout_lat":         float(self.checkout_lat),
+            "checkout_lng":         float(self.checkout_lng),
+            "checkout_endereco":    str(self.checkout_endereco),
+            "checkout_timestamp":   str(self.checkout_timestamp) if self.checkout_timestamp else None,
+            # Signatory
+            "signatory_name":       str(self.signatory_name),
+            "signatory_doc":        str(self.signatory_doc),
+            "signatory_sig_b64":    str(self.signatory_sig_b64),
+            # Photos
+            "epi_foto_url":         self.epi_foto_items[0].get("foto_url", "") if self.epi_foto_items else "",
+            "ferramentas_foto_url": self.ferramentas_foto_items[0].get("foto_url", "") if self.ferramentas_foto_items else "",
+            # Lists
+            "atividades":   list(self.atividades_items),
+            "evidencias":   list(self.evidencias_items),
+        }
 
     def _reset_form(self):
-        """Limpa formulário completo após envio"""
-        from datetime import datetime
-
-        # Wizard
-        self.current_step = 1
-        self.is_preview = False
-        self.form_errors = {}
-        # Cabeçalho (Step 1)
-        self.rdo_data = datetime.now().strftime("%Y-%m-%d")
-        self.rdo_contrato = ""
-        self.rdo_projeto = ""
-        self.rdo_cliente = ""
-        self.rdo_localizacao = ""
-        self.rdo_clima = "Ensolarado"
-        self.rdo_turno = "Diurno"
-        self.rdo_hora_inicio = "07:00"
-        self.rdo_hora_termino = "17:00"
+        self.draft_id_rdo          = ""
+        self.draft_saved_at        = ""
+        self.draft_resumed         = False
+        self.rdo_data              = datetime.now().strftime("%Y-%m-%d")
+        self.rdo_contrato          = ""
+        self.rdo_projeto           = ""
+        self.rdo_cliente           = ""
+        self.rdo_localizacao       = ""
+        self.rdo_tipo_tarefa       = "Diário de Obra"
+        self.rdo_orientacao        = ""
+        self.rdo_km_percorrido     = ""
+        self.rdo_clima             = "Ensolarado"
+        self.rdo_turno             = "Diurno"
         self.rdo_houve_interrupcao = False
-        self.rdo_motivo_interrupcao = ""
-        self.rdo_observacoes = ""
-        # Listas
-        self.mao_obra_items = []
-        self.equipamentos_items = []
-        self.atividades_items = []
-        self.materiais_items = []
-        # PDF
-        self.preview_pdf_path = ""
-        self.preview_pdf_url = ""
-        # Temp inputs
-        self.mo_funcao = ""
-        self.mo_qtd = ""
-        self.mo_obs = ""
-        self.eq_desc = ""
-        self.eq_qtd = ""
-        self.eq_status = "Operando"
+        self.rdo_motivo_interrupcao= ""
+        self.rdo_observacoes       = ""
+        self.checkin_lat           = 0.0
+        self.checkin_lng           = 0.0
+        self.checkin_endereco      = ""
+        self.checkin_timestamp     = ""
+        self.checkout_lat          = 0.0
+        self.checkout_lng          = 0.0
+        self.checkout_endereco     = ""
+        self.checkout_timestamp    = ""
+        self.atividades_items      = []
         self.at_desc = ""
         self.at_pct = "100"
-        self.mt_desc = ""
-        self.mt_qtd = ""
-        self.mt_unid = "un"
+        self.at_status = "Em andamento"
+        self.evidencias_items      = []
+        self.ev_legenda            = ""
+        self.is_uploading_evidence = False
+        self.epi_foto_items        = []
+        self.is_uploading_epi      = False
+        self.ferramentas_foto_items = []
+        self.is_uploading_ferramentas = False
+        self.signatory_name        = ""
+        self.signatory_doc         = ""
+        self.signatory_sig_b64     = ""
+        self.checkin_distancia_obra = 0.0
+        self.show_confirm_dialog   = False
+        self.submit_error          = ""
+        self.submit_status         = ""

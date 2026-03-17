@@ -390,14 +390,15 @@ def _auth_panel() -> rx.Component:
                 # Mobile-only logo badge (hidden since whole panel is desktop-only)
                 rx.box(
                     rx.hstack(
-                        rx.icon(tag="zap", size=16, color=S.COPPER),
+                        rx.box(width="20px", height="1px", bg=S.PATINA),
                         rx.text(
-                            "BOMTEMPO",
-                            font_family=S.FONT_TECH,
-                            font_size="1rem",
-                            font_weight="900",
-                            color=S.COPPER,
-                            letter_spacing="0.1em",
+                            "PLATAFORMA OPERACIONAL",
+                            font_size="8px",
+                            font_weight="700",
+                            letter_spacing="0.2em",
+                            color=S.PATINA,
+                            text_transform="uppercase",
+                            font_family=S.FONT_MONO,
                         ),
                         spacing="2",
                         align="center",
