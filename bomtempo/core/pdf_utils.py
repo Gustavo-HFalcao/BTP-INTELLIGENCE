@@ -31,10 +31,18 @@ def html_to_pdf(html: str, path: Path) -> None:
     errors: list = []
 
     async def _render() -> None:
+        import sys
         from playwright.async_api import async_playwright
 
         async with async_playwright() as p:
-            browser = await p.chromium.launch(channel="msedge")
+            # Windows: use pre-installed Edge; Linux/production: fall back to Chromium
+            if sys.platform == "win32":
+                try:
+                    browser = await p.chromium.launch(channel="msedge")
+                except Exception:
+                    browser = await p.chromium.launch()
+            else:
+                browser = await p.chromium.launch()
             try:
                 page = await browser.new_page()
                 # wait_until="networkidle" ensures Google Fonts load before rendering

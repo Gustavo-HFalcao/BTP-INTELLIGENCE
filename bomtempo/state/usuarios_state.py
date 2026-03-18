@@ -90,6 +90,7 @@ class UsuariosState(rx.State):
 
     edit_user_id: str = ""
     edit_user_login: str = ""
+    edit_user_old_login: str = ""   # original username — used as filter fallback
     edit_user_password: str = ""
     edit_user_role: str = ""
     edit_user_project: str = ""
@@ -110,6 +111,18 @@ class UsuariosState(rx.State):
 
     # ── Module metadata (read-only reference for UI) ──────────────
     module_slugs: list[str] = MODULE_SLUGS
+
+    # ── Computed ──────────────────────────────────────────────────
+
+    @rx.var
+    def role_names_list(self) -> List[str]:
+        """Role name strings for the simplified rx.select items list."""
+        return [r["name"] for r in self.roles_list]
+
+    @rx.var
+    def edit_user_project_display(self) -> str:
+        """Maps empty project to 'Nenhum' so the select shows the right option."""
+        return self.edit_user_project if self.edit_user_project else "Nenhum"
 
     # ─────────────────────────────────────────────────────────────
     # Helpers
@@ -185,6 +198,7 @@ class UsuariosState(rx.State):
         self.is_editing_user = False
         self.edit_user_id = ""
         self.edit_user_login = ""
+        self.edit_user_old_login = ""
         self.edit_user_password = ""
         self.edit_user_role = self.roles_list[0]["name"] if self.roles_list else ""
         self.edit_user_project = ""
@@ -198,6 +212,7 @@ class UsuariosState(rx.State):
         for u in self.users_list:
             if u["id"] == user_id:
                 self.edit_user_login = u["username"]
+                self.edit_user_old_login = u["username"]  # capture for filter
                 self.edit_user_password = ""
                 self.edit_user_role = u["user_role"]
                 self.edit_user_project = u["project"]
@@ -217,8 +232,8 @@ class UsuariosState(rx.State):
         self.edit_user_role = val
 
     def set_edit_user_project(self, val: str):
-        # "__none__" sentinel used by Select.Item (empty string is disallowed as item value)
-        self.edit_user_project = "" if val == "__none__" else val
+        # "__none__" / "Nenhum" sentinel → store empty string (no contract)
+        self.edit_user_project = "" if val in ("__none__", "Nenhum") else val
 
     async def save_user(self):
         """Salva usuário com feedback imediato no botão (#6)."""
@@ -261,7 +276,13 @@ class UsuariosState(rx.State):
                 if password:
                     data["password"] = password
 
-                sb_update("login", filters={"id": self.edit_user_id}, data=data)
+                # Use id filter if available, otherwise fall back to old username
+                if self.edit_user_id:
+                    sb_update("login", filters={"id": self.edit_user_id}, data=data)
+                elif self.edit_user_old_login:
+                    sb_update("login", filters={"username": self.edit_user_old_login}, data=data)
+                else:
+                    raise ValueError("Não foi possível identificar o usuário para atualização.")
 
                 audit_log(
                     category=AuditCategory.USER_MGMT,
@@ -308,6 +329,7 @@ class UsuariosState(rx.State):
                 error=e,
             )
             self.user_form_error = f"Erro ao salvar: {e}"
+            yield rx.toast(f"❌ Erro ao salvar: {str(e)[:80]}", position="top-center")
         finally:
             self.is_saving_user = False
 

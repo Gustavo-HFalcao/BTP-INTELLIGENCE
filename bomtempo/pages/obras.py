@@ -111,11 +111,21 @@ def obra_card(item: dict) -> rx.Component:
             ),
             # Location
             rx.hstack(
-                rx.icon(tag="map-pin", size=12, color=S.TEXT_MUTED),
-                rx.text(item.get("localizacao", "—"), font_size="12px", color=S.TEXT_MUTED),
+                rx.icon(tag="map-pin", size=12, color=S.TEXT_MUTED, flex_shrink="0"),
+                rx.text(
+                    item.get("localizacao", "—"),
+                    font_size="12px",
+                    color=S.TEXT_MUTED,
+                    white_space="nowrap",
+                    overflow="hidden",
+                    text_overflow="ellipsis",
+                    min_width="0",
+                ),
                 align="center",
                 spacing="2",
                 margin_top="8px",
+                overflow="hidden",
+                width="100%",
             ),
             # Avanço físico bar
             rx.box(
@@ -573,8 +583,9 @@ def _obra_compact_info() -> rx.Component:
                 width="100%",
             ),
             display="grid",
-            grid_template_columns=["repeat(2, 1fr)", "repeat(3, 1fr)", "repeat(6, 1fr)"],
+            grid_template_columns=["repeat(2, minmax(0,1fr))", "repeat(3, minmax(0,1fr))", "repeat(6, minmax(0,1fr))"],
             width="100%",
+            overflow="hidden",
             align_items="center",
         ),
         **S.GLASS_CARD,

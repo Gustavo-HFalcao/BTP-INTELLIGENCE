@@ -390,6 +390,11 @@ class RelatoriosState(rx.State):
     async def copy_ai_text(self):
         yield rx.set_clipboard(self.ai_report_text)
 
+    def open_pdf_url(self, url: str):
+        """Abre PDF em nova aba via JS — bypassa SPA/PWA router."""
+        if url and url.startswith("http"):
+            return rx.call_script(f"window.open({repr(url)}, '_blank', 'noopener,noreferrer')")
+
     # ── Internal: Streaming Helper ────────────────────────────────────────────
 
     async def _stream_ai_text(self, messages: list[dict]) -> str:

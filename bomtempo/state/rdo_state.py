@@ -32,6 +32,7 @@ class RDOState(rx.State):
     is_draft_saving: bool = False
     draft_resumed: bool = False     # mostra banner "rascunho retomado"
     has_draft_to_resume: bool = False  # banner de oferta de retomar
+    pending_draft_id: str = ""      # ID do rascunho pendente de retomada
 
     # ── Cabeçalho ─────────────────────────────────────────────
     rdo_data: str = ""
@@ -105,6 +106,18 @@ class RDOState(rx.State):
     at_status_options: List[str] = ["Não iniciado", "Em andamento", "Concluído", "Bloqueado"]
 
     # ── Computed ──────────────────────────────────────────────
+
+    @rx.var
+    def rdo_data_display(self) -> str:
+        """Data formatada para exibição: DD/MM/YYYY."""
+        v = str(self.rdo_data or "")
+        if len(v) == 10 and v[4] == "-":
+            try:
+                p = v.split("-")
+                return f"{p[2]}/{p[1]}/{p[0]}"
+            except Exception:
+                pass
+        return v
 
     @rx.var
     def checkin_done(self) -> bool:
@@ -219,12 +232,16 @@ class RDOState(rx.State):
 
     @rx.event(background=True)
     async def check_for_draft(self):
-        """Verifica se há rascunho ativo no banco para este mestre."""
+        """Verifica se há rascunho ativo no banco para este mestre.
+        Se o formulário estiver vazio, carrega o rascunho automaticamente.
+        Caso contrário, exibe o banner de retomada."""
         from bomtempo.state.global_state import GlobalState
         async with self:
             gs = await self.get_state(GlobalState)
             user = str(gs.current_user_name)
             contrato = str(gs.current_user_contrato).strip()
+            current_draft_id = str(self.draft_id_rdo)
+            form_has_data = bool(self.rdo_contrato.strip())
 
         if not user:
             return
@@ -234,14 +251,26 @@ class RDOState(rx.State):
             None,
             lambda: RDOService.get_active_draft(user, contrato if contrato not in ("nan","None","") else ""),
         )
-        if draft and not self.draft_id_rdo:
+        if not draft:
+            return
+
+        draft_id = draft.get("id_rdo", "")
+        if not draft_id:
+            return
+
+        if not form_has_data and not current_draft_id:
+            # Form vazio e sem rascunho ativo — auto-carrega silenciosamente
+            async with self:
+                yield RDOState.load_draft_by_id(draft_id)
+        elif not current_draft_id:
+            # Form tem dados mas sem ID de rascunho — mostra banner
             async with self:
                 self.has_draft_to_resume = True
-                self._pending_draft_id = draft.get("id_rdo", "")  # type: ignore[attr-defined]
+                self.pending_draft_id = draft_id
 
     async def resume_draft(self):
         """Chamado quando usuário clica em 'Retomar Rascunho'."""
-        draft_id = getattr(self, "_pending_draft_id", "")
+        draft_id = self.pending_draft_id
         if not draft_id:
             return
         yield RDOState.load_draft_by_id(draft_id)
@@ -405,7 +434,7 @@ class RDOState(rx.State):
     # NOTE: upload handlers CANNOT be @rx.event(background=True) — Reflex restriction.
     # They are regular async handlers; blocking I/O runs via run_in_executor.
 
-    async def upload_evidence_files(self, files: list):
+    async def upload_evidence_files(self, files: List[rx.UploadFile]):
         """Recebe arquivos do rx.upload, aplica EXIF + watermark + upload + DB."""
         if not files:
             return
@@ -471,7 +500,7 @@ class RDOState(rx.State):
         else:
             yield rx.toast("⚠️ Nenhuma foto foi processada", position="top-center")
 
-    async def upload_epi_files(self, files: list):
+    async def upload_epi_files(self, files: List[rx.UploadFile]):
         """Upload EPI photo — watermark + Supabase Storage."""
         if not files:
             return
@@ -535,7 +564,7 @@ class RDOState(rx.State):
         else:
             yield rx.toast("⚠️ Nenhuma foto foi processada", position="top-center")
 
-    async def upload_ferramentas_files(self, files: list):
+    async def upload_ferramentas_files(self, files: List[rx.UploadFile]):
         """Upload ferramentas photo — watermark + Supabase Storage."""
         if not files:
             return
@@ -601,9 +630,30 @@ class RDOState(rx.State):
 
     # ── Assinatura ────────────────────────────────────────────
 
-    def receive_sig_b64(self, data: dict):
+    def receive_sig_b64(self, data):
         """Callback from rx.call_script — receives canvas toDataURL."""
-        self.signatory_sig_b64 = data.get("sig", "")
+        if isinstance(data, dict):
+            self.signatory_sig_b64 = data.get("sig", "")
+        elif isinstance(data, str) and data.startswith("data:"):
+            self.signatory_sig_b64 = data
+
+    def capture_signature(self):
+        """Captura assinatura do canvas como JPEG 70% (payload reduzido ~10x vs PNG)."""
+        return rx.call_script(
+            """(function(){
+              var c=document.getElementById('sig-canvas');
+              if(!c) return {sig:''};
+              // Flatten transparent bg to white before JPEG encoding
+              var tmp=document.createElement('canvas');
+              tmp.width=c.width; tmp.height=c.height;
+              var ctx=tmp.getContext('2d');
+              ctx.fillStyle='#ffffff';
+              ctx.fillRect(0,0,tmp.width,tmp.height);
+              ctx.drawImage(c,0,0);
+              return {sig: tmp.toDataURL('image/jpeg', 0.70)};
+            })()""",
+            callback=RDOState.receive_sig_b64,
+        )
 
     # ── Atividades ────────────────────────────────────────────
 
@@ -659,6 +709,27 @@ class RDOState(rx.State):
             return rx.toast("⚠️ Informe o Contrato antes de enviar", position="top-center")
         if not self.rdo_data:
             return rx.toast("⚠️ Informe a Data antes de enviar", position="top-center")
+        # Captura assinatura do canvas ANTES de abrir dialog (JPEG 70% — sem erro de WS)
+        return rx.call_script(
+            """(function(){
+              var c=document.getElementById('sig-canvas');
+              if(!c) return {sig:'',open:true};
+              var tmp=document.createElement('canvas');
+              tmp.width=c.width;tmp.height=c.height;
+              var ctx=tmp.getContext('2d');
+              ctx.fillStyle='#ffffff';ctx.fillRect(0,0,tmp.width,tmp.height);
+              ctx.drawImage(c,0,0);
+              return {sig:tmp.toDataURL('image/jpeg',0.70),open:true};
+            })()""",
+            callback=RDOState.receive_sig_and_open,
+        )
+
+    def receive_sig_and_open(self, data):
+        """Callback do rx.call_script: salva assinatura e abre dialog de confirmação."""
+        if isinstance(data, dict):
+            sig = str(data.get("sig", ""))
+            if sig.startswith("data:image"):
+                self.signatory_sig_b64 = sig
         self.show_confirm_dialog = True
 
     def close_confirm(self):
@@ -877,3 +948,5 @@ class RDOState(rx.State):
         self.show_confirm_dialog   = False
         self.submit_error          = ""
         self.submit_status         = ""
+        self.pending_draft_id      = ""
+        self.has_draft_to_resume   = False

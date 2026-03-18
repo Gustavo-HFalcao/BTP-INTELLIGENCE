@@ -774,10 +774,13 @@ def default_layout(content: rx.Component) -> rx.Component:
   }
 })();
 """),
-        # ── Top progress bar — aparece ao navegar (is_navigating) e ao carregar dados (is_loading) ──
-        rx.cond(
-            GlobalState.show_progress_bar,
-            rx.box(class_name="top-loading-bar"),
+        # ── Top progress bar — sempre no DOM; classe controla visibilidade ──
+        rx.box(
+            class_name=rx.cond(
+                GlobalState.show_progress_bar,
+                "top-loading-bar top-bar-active",
+                "top-loading-bar top-bar-idle",
+            )
         ),
         # ── Loading overlay GLOBAL ──────────────────────────────────────────────
         # Fora do rx.cond(is_authenticated): cobre login → redirect → página destino

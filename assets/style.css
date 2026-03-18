@@ -1396,6 +1396,20 @@ canvas:focus {
     to   { opacity: 1; }
 }
 
+/* ── Logo sizing: generous on desktop, compact on mobile/PWA ───────────── */
+.sidebar-logo-img img {
+    max-height: 60px;   /* desktop — full banner height */
+    width: 100%;
+    object-fit: contain;
+    object-position: left center;
+}
+
+@media (max-width: 768px) {
+    .sidebar-logo-img img {
+        max-height: 36px;  /* mobile / PWA drawer — compact */
+    }
+}
+
 
 /* ── Safe Area Insets (notch / home-indicator support) ────── */
 body {
@@ -1560,16 +1574,32 @@ select,
     [data-nextjs-scroll-focus-boundary] {
         overflow-x: hidden !important;
     }
+
+    /* ── RDO form: prevent iOS input zoom (font-size ≥16px handles it,
+       but select/textarea need explicit enforcement)                   */
+    select, textarea {
+        font-size: 16px !important;
+    }
+
+    /* ── Radix Select trigger on mobile: full-height touch target ── */
+    [data-radix-select-trigger] {
+        min-height: 44px;
+    }
 }
 
 /* ── Top Page Transition Loading Bar ────────────────────── */
 /* Slim copper progress stripe that runs across the viewport top during
-   global navigation loading (GlobalState.is_loading = True).           */
+   global navigation loading (GlobalState.show_progress_bar = True).
+
+   Always in DOM — class toggling avoids mid-animation DOM removal snap.
+   .top-bar-active  → play fill animation
+   .top-bar-idle    → fade+shrink out smoothly in 0.35s              */
+
 @keyframes topBarProgress {
     0%   { transform: scaleX(0);    opacity: 1; }
     75%  { transform: scaleX(0.88); opacity: 1; }
     95%  { transform: scaleX(0.97); opacity: 1; }
-    100% { transform: scaleX(1);    opacity: 0; }
+    100% { transform: scaleX(1);    opacity: 1; }
 }
 
 .top-loading-bar {
@@ -1586,10 +1616,24 @@ select,
         var(--patina-500) 100%
     );
     box-shadow: 0 0 10px var(--copper-500), 0 0 22px rgba(201, 139, 42, 0.4);
-    animation: topBarProgress 3s cubic-bezier(0.1, 0.5, 0.5, 1) forwards;
     z-index: 10200;
     pointer-events: none;
     border-radius: 0 2px 2px 0;
+    /* default hidden — no animation class yet */
+    transform: scaleX(0);
+    opacity: 0;
+}
+
+.top-bar-active {
+    animation: topBarProgress 2.5s cubic-bezier(0.1, 0.5, 0.5, 1) forwards;
+    opacity: 1;
+}
+
+.top-bar-idle {
+    /* navigation finished — slide right and fade out gracefully */
+    transform: scaleX(1);
+    opacity: 0;
+    transition: opacity 0.35s ease, transform 0.35s ease;
 }
 
 /* ═══════════════════════════════════════════════════════════

@@ -26,7 +26,8 @@ class Config:
     RDO_PDF_DIR = Path(os.environ.get("RDO_PDF_DIR", str(Path.home() / ".bomtempo_pdfs")))
 
     # ── Supabase ──────────────────────────────────────────────────────────────
-    SUPABASE_URL = "https://nychzaapchxdlsffotcq.supabase.co"
+    SUPABASE_URL = os.getenv("SUPABASE_URL", "https://zobukgyldeiparlwczga.supabase.co")
+    SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
     SUPABASE_KEY = os.getenv("SUPABASE_KEY", "sb_publishable_hGsFo0P6OSkrFBPWbNLnCw_cn7ESLlx")
 
     # Gmail SMTP Configuration (via variáveis de ambiente)

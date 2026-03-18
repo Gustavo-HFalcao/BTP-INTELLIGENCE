@@ -1620,6 +1620,11 @@ class GlobalState(rx.State):
         return [str(c.get("contrato", "")) for c in self.contratos_list if c.get("contrato")]
 
     @rx.var
+    def contract_options_list(self) -> List[str]:
+        """Contract IDs prefixed with 'Nenhum' sentinel for user dialog select."""
+        return ["Nenhum"] + [str(c.get("contrato", "")) for c in self.contratos_list if c.get("contrato")]
+
+    @rx.var
     def obras_contract_options(self) -> List[str]:
         """List of contract identifiers for obras dropdown"""
         if not self.contratos_list:

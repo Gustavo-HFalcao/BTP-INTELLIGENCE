@@ -115,7 +115,6 @@ def sidebar_content() -> rx.Component:
                 rx.image(
                     src="/banner.png",
                     width="100%",
-                    height="auto",
                     object_fit="contain",
                     object_position="left center",
                     class_name="sidebar-logo-img",
@@ -133,7 +132,7 @@ def sidebar_content() -> rx.Component:
             ),
             width="100%",
             padding_x=rx.cond(GlobalState.sidebar_open, "16px", "8px"),
-            padding_y="14px",
+            padding_y="10px",
             border_bottom=f"1px solid {S.BORDER_SUBTLE}",
         ),
         # ── Navigation ─────────────────────────────────────────────────

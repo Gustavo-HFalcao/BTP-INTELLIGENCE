@@ -126,17 +126,12 @@ def _user_form_dialog() -> rx.Component:
                 # Role
                 rx.vstack(
                     rx.text("Perfil de Acesso", font_size="12px", font_weight="600", color=S.TEXT_MUTED),
-                    rx.select.root(
-                        rx.select.trigger(width="100%", color_scheme="amber"),
-                        rx.select.content(
-                            rx.foreach(
-                                UsuariosState.roles_list,
-                                lambda r: rx.select.item(r["name"], value=r["name"]),
-                            )
-                        ),
+                    rx.select(
+                        UsuariosState.role_names_list,
                         value=UsuariosState.edit_user_role,
                         on_change=UsuariosState.set_edit_user_role,
                         width="100%",
+                        color_scheme="amber",
                     ),
                     spacing="1",
                     width="100%",
@@ -149,22 +144,12 @@ def _user_form_dialog() -> rx.Component:
                         font_weight="600",
                         color=S.TEXT_MUTED,
                     ),
-                    rx.select.root(
-                        rx.select.trigger(
-                            placeholder="Selecionar contrato (opcional)",
-                            width="100%",
-                            color_scheme="amber",
-                        ),
-                        rx.select.content(
-                            rx.select.item("Nenhum", value="__none__"),
-                            rx.foreach(
-                                GlobalState.contract_ids_list,
-                                lambda c: rx.select.item(c, value=c),
-                            ),
-                        ),
-                        value=UsuariosState.edit_user_project,
+                    rx.select(
+                        GlobalState.contract_options_list,
+                        value=UsuariosState.edit_user_project_display,
                         on_change=UsuariosState.set_edit_user_project,
                         width="100%",
+                        color_scheme="amber",
                     ),
                     spacing="1",
                     width="100%",

@@ -47,8 +47,9 @@ def _input(
             "border": f"1px solid {_BORDER}",
             "border_radius": "6px",
             "color": _TEXT,
-            "padding": "8px 12px",
-            "font_size": "14px",
+            "padding": "10px 14px",
+            "font_size": "16px",  # ≥16px evita zoom no iOS
+            "min_height": "44px",  # touch target mínimo
             "_focus": {"border_color": _COPPER, "outline": "none"},
         },
     )
@@ -94,7 +95,7 @@ def _section_card(*children, title: str = "", icon: str = "", badge: str = "") -
     return rx.box(
         rx.hstack(*header_parts, spacing="2", margin_bottom="16px"),
         *children,
-        padding="20px",
+        padding=["14px", "20px"],
         background=_CARD,
         border=f"1px solid {_BORDER}",
         border_radius="12px",
@@ -107,13 +108,14 @@ def _add_btn(on_click, label: str = "Adicionar") -> rx.Component:
         rx.icon("plus", size=14),
         label,
         on_click=on_click,
-        size="2",
+        size="3",
         style={
             "background": "rgba(201,139,42,0.15)",
             "border": f"1px solid {_COPPER}",
             "color": _COPPER,
             "border_radius": "6px",
             "cursor": "pointer",
+            "min_height": "44px",
             "_hover": {"background": "rgba(201,139,42,0.25)"},
         },
     )
@@ -173,7 +175,7 @@ def _sticky_header() -> rx.Component:
                     rx.hstack(
                         rx.text(RDOState.rdo_contrato, size="3", weight="bold", color=_COPPER),
                         rx.text("·", color=_MUTED),
-                        rx.text(RDOState.rdo_data, size="3", color=_TEXT),
+                        rx.text(RDOState.rdo_data_display, size="3", color=_TEXT),
                         spacing="2",
                     ),
                     spacing="0",
@@ -185,54 +187,61 @@ def _sticky_header() -> rx.Component:
             rx.spacer(),
             # Submit status / save status
             rx.hstack(
-                rx.cond(
-                    RDOState.is_submitting,
-                    rx.hstack(
-                        rx.spinner(size="1"),
-                        rx.text(RDOState.submit_status, size="1", color=_COPPER),
-                        spacing="1",
-                    ),
+                # Status text — oculto no mobile, visível em tablet+
+                rx.box(
                     rx.cond(
-                        RDOState.is_draft_saving,
+                        RDOState.is_submitting,
                         rx.hstack(
                             rx.spinner(size="1"),
-                            rx.text("Salvando…", size="1", color=_MUTED),
+                            rx.text(RDOState.submit_status, size="1", color=_COPPER),
                             spacing="1",
                         ),
                         rx.cond(
-                            RDOState.draft_saved_at != "",
+                            RDOState.is_draft_saving,
                             rx.hstack(
-                                rx.icon("check", size=12, color=_PATINA),
-                                rx.text(
-                                    rx.text.span("Rascunho "),
-                                    rx.text.span(RDOState.draft_saved_at),
-                                    size="1",
-                                    color=_MUTED,
-                                ),
+                                rx.spinner(size="1"),
+                                rx.text("Salvando…", size="1", color=_MUTED),
                                 spacing="1",
                             ),
-                            rx.fragment(),
+                            rx.cond(
+                                RDOState.draft_saved_at != "",
+                                rx.hstack(
+                                    rx.icon("check", size=12, color=_PATINA),
+                                    rx.text(
+                                        rx.text.span("Rascunho "),
+                                        rx.text.span(RDOState.draft_saved_at),
+                                        size="1",
+                                        color=_MUTED,
+                                    ),
+                                    spacing="1",
+                                ),
+                                rx.fragment(),
+                            ),
                         ),
                     ),
+                    display=["none", "flex"],
+                    align_items="center",
                 ),
                 rx.button(
                     rx.icon("save", size=14),
-                    "Salvar",
+                    rx.text("Salvar", display=["none", "inline"]),
                     on_click=RDOState.save_draft,
-                    size="2",
+                    size="3",
                     style={
                         "background": _BTN_GHOST,
                         "border": f"1px solid {_BORDER}",
                         "color": _TEXT,
                         "border_radius": "6px",
                         "cursor": "pointer",
+                        "min_height": "44px",
+                        "padding": "0 12px",
                     },
                 ),
                 rx.button(
                     rx.icon("send", size=14),
-                    "Enviar RDO",
+                    "Enviar",
                     on_click=RDOState.open_confirm,
-                    size="2",
+                    size="3",
                     loading=RDOState.is_submitting,
                     style={
                         "background": _BTN_PRI,
@@ -240,6 +249,7 @@ def _sticky_header() -> rx.Component:
                         "border_radius": "6px",
                         "font_weight": "600",
                         "cursor": "pointer",
+                        "min_height": "44px",
                     },
                 ),
                 spacing="2",
@@ -253,7 +263,7 @@ def _sticky_header() -> rx.Component:
         z_index="50",
         background="rgba(11,26,21,0.95)",
         border_bottom=f"1px solid {_BORDER}",
-        padding="12px 24px",
+        padding=["10px 16px", "12px 24px"],
         style={"backdrop_filter": "blur(12px)"},
     )
 
@@ -304,8 +314,8 @@ def _section_header_info() -> rx.Component:
             _readonly_badge("Cliente", RDOState.rdo_cliente),
             _readonly_badge("Localização / Endereço da Obra", RDOState.rdo_localizacao),
             _readonly_badge("Tipo de Tarefa", RDOState.rdo_tipo_tarefa),
-            columns="2",
-            gap="16px",
+            columns={"initial": "1", "sm": "2"},
+            gap="12px",
             width="100%",
         ),
         rx.box(height="12px"),
@@ -329,8 +339,8 @@ def _section_header_info() -> rx.Component:
                 _select(RDOState.rdo_turno, RDOState.set_rdo_turno, RDOState.turno_options),
                 spacing="1",
             ),
-            columns="3",
-            gap="16px",
+            columns={"initial": "1", "sm": "3"},
+            gap="12px",
             width="100%",
         ),
         rx.box(height="12px"),
@@ -349,7 +359,7 @@ def _section_header_info() -> rx.Component:
                     "border_radius": "6px",
                     "color": _TEXT,
                     "padding": "10px 12px",
-                    "font_size": "14px",
+                    "font_size": "16px",
                     "_focus": {"border_color": _COPPER, "outline": "none"},
                     "resize": "vertical",
                 },
@@ -440,7 +450,7 @@ def _gps_tag(lat: rx.Var, lng: rx.Var, endereco: rx.Var, _ts: rx.Var, label: str
 
 def _section_gps() -> rx.Component:
     return _section_card(
-        rx.hstack(
+        rx.flex(
             # Check-in
             rx.vstack(
                 rx.hstack(
@@ -479,19 +489,22 @@ def _section_gps() -> rx.Component:
                     ),
                     on_click=RDOState.do_checkin,
                     disabled=RDOState.is_getting_checkin,
-                    size="2",
+                    size="3",
+                    width="100%",
                     style={
                         "background": rx.cond(RDOState.checkin_done, "rgba(42,157,143,0.15)", _BTN_GHOST),
                         "border": rx.cond(RDOState.checkin_done, "1px solid rgba(42,157,143,0.4)", f"1px solid {_BORDER}"),
                         "color": rx.cond(RDOState.checkin_done, _PATINA, _TEXT),
                         "border_radius": "6px",
+                        "min_height": "48px",
                     },
                 ),
                 spacing="2",
                 align="start",
                 flex="1",
+                width=["100%", "auto"],
             ),
-            # Divider + km badge
+            # Divider + km badge (oculto no mobile — layout vertical)
             rx.vstack(
                 rx.icon("arrow-right", size=20, color=_MUTED),
                 rx.cond(
@@ -509,6 +522,7 @@ def _section_gps() -> rx.Component:
                 align="center",
                 spacing="1",
                 padding_top="24px",
+                display=["none", "flex"],
             ),
             # Check-out
             rx.vstack(
@@ -547,19 +561,23 @@ def _section_gps() -> rx.Component:
                     ),
                     on_click=RDOState.do_checkout,
                     disabled=RDOState.is_getting_checkout,
-                    size="2",
+                    size="3",
+                    width="100%",
                     style={
                         "background": rx.cond(RDOState.checkout_done, "rgba(42,157,143,0.15)", _BTN_GHOST),
                         "border": rx.cond(RDOState.checkout_done, "1px solid rgba(42,157,143,0.4)", f"1px solid {_BORDER}"),
                         "color": rx.cond(RDOState.checkout_done, _PATINA, _TEXT),
                         "border_radius": "6px",
+                        "min_height": "48px",
                     },
                 ),
                 spacing="2",
                 align="start",
                 flex="1",
+                width=["100%", "auto"],
             ),
-            spacing="3",
+            direction={"initial": "column", "sm": "row"},
+            gap="16px",
             align="start",
             width="100%",
         ),
@@ -688,13 +706,24 @@ def _section_atividades() -> rx.Component:
             width="100%",
         ),
         rx.box(height="8px"),
-        rx.hstack(
+        rx.vstack(
+            # Linha 1: Descrição — largura total
             _input(RDOState.at_desc, RDOState.set_at_desc, "Descrição do serviço executado"),
-            _input(RDOState.at_pct, RDOState.set_at_pct, "% concluído", type_="number", width="120px"),
-            _select(RDOState.at_status, RDOState.set_at_status, RDOState.at_status_options, width="160px"),
-            _add_btn(RDOState.add_at, "Adicionar"),
+            # Linha 2: Controles — % + status + botão (wrappam em telas muito pequenas)
+            rx.flex(
+                _input(RDOState.at_pct, RDOState.set_at_pct, "% concluído", type_="number", width="90px"),
+                rx.box(
+                    _select(RDOState.at_status, RDOState.set_at_status, RDOState.at_status_options),
+                    flex="1",
+                    min_width="130px",
+                ),
+                _add_btn(RDOState.add_at, "Adicionar"),
+                gap="8px",
+                align="end",
+                wrap="wrap",
+                width="100%",
+            ),
             spacing="2",
-            align="end",
             width="100%",
         ),
         title="Serviços Executados",
@@ -743,7 +772,7 @@ def _section_evidencias() -> rx.Component:
             rx.box(
                 rx.grid(
                     rx.foreach(RDOState.evidencias_items, _ev_card),
-                    columns="3",
+                    columns={"initial": "2", "sm": "3"},
                     gap="12px",
                     width="100%",
                 ),
@@ -867,8 +896,8 @@ def _section_assinatura() -> rx.Component:
                        placeholder="000.000.000-00"),
                 spacing="1",
             ),
-            columns="2",
-            gap="16px",
+            columns={"initial": "1", "sm": "2"},
+            gap="12px",
             width="100%",
         ),
         rx.box(height="16px"),
@@ -882,7 +911,7 @@ def _section_assinatura() -> rx.Component:
     if(!c||c.dataset.sigInit)return;
     c.dataset.sigInit='1';
     var ctx=c.getContext('2d');
-    ctx.strokeStyle='#C98B2A';ctx.lineWidth=2.5;ctx.lineCap='round';ctx.lineJoin='round';
+    ctx.strokeStyle='#C98B2A';ctx.lineWidth=3;ctx.lineCap='round';ctx.lineJoin='round';
     var drawing=false;
     function getPos(e){
       var r=c.getBoundingClientRect();
@@ -896,53 +925,74 @@ def _section_assinatura() -> rx.Component:
     c.addEventListener('touchstart',function(e){e.preventDefault();drawing=true;var p=getPos(e);ctx.beginPath();ctx.moveTo(p.x,p.y);},{passive:false});
     c.addEventListener('touchmove',function(e){e.preventDefault();if(!drawing)return;var p=getPos(e);ctx.lineTo(p.x,p.y);ctx.stroke();},{passive:false});
     c.addEventListener('touchend',function(){drawing=false;});
-    var clr=document.getElementById('sig-clear');
-    if(clr)clr.addEventListener('click',function(){c.dataset.sigInit='';ctx.clearRect(0,0,c.width,c.height);_initSigCanvas();});
+    function _attachClear(){
+      var clr=document.getElementById('sig-clear');
+      if(clr&&!clr.dataset.sigClr){clr.dataset.sigClr='1';clr.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();c.dataset.sigInit='';ctx.clearRect(0,0,c.width,c.height);_initSigCanvas();});}
+    }
+    _attachClear();
+    setTimeout(_attachClear,300);
   }
   _initSigCanvas();
   if(!window._sigObs){
-    window._sigObs=new MutationObserver(_initSigCanvas);
+    window._sigObs=new MutationObserver(function(){_initSigCanvas();});
     window._sigObs.observe(document.body,{childList:true,subtree:true});
   }
 })();
 """),
         rx.vstack(
             _label("Assinatura Digital"),
-            rx.html("""<canvas id="sig-canvas" width="600" height="160"
-  style="border:1px solid rgba(255,255,255,0.15);border-radius:6px;background:rgba(255,255,255,0.04);width:100%;cursor:crosshair;touch-action:none;display:block;user-select:none;">
-</canvas>
-<div style="margin-top:8px;">
-  <button id="sig-clear"
-    style="background:rgba(224,82,82,0.10);border:1px solid rgba(224,82,82,0.3);color:#E05252;border-radius:6px;padding:5px 14px;cursor:pointer;font-size:12px;">
-    ✕ Limpar
-  </button>
-</div>"""),
-            rx.cond(
-                RDOState.signatory_sig_b64 != "",
-                rx.hstack(
-                    rx.icon("check-circle", size=14, color=_PATINA),
-                    rx.text("Assinatura capturada", size="1", color=_PATINA),
-                    spacing="1",
-                    margin_top="4px",
-                ),
+            rx.text(
+                "Assine com o dedo ou mouse abaixo. A assinatura é salva automaticamente ao enviar.",
+                size="1",
+                color=_MUTED,
+                margin_bottom="6px",
             ),
-            rx.box(height="8px"),
-            rx.button(
-                rx.icon("pen-line", size=14),
-                "Confirmar Assinatura",
-                on_click=rx.call_script(
-                    "JSON.stringify({sig: document.getElementById('sig-canvas') ? document.getElementById('sig-canvas').toDataURL() : ''})",
-                    callback=RDOState.receive_sig_b64,
+            rx.html("""<canvas id="sig-canvas" width="800" height="240"
+  style="border:1px solid rgba(255,255,255,0.15);border-radius:6px;background:rgba(255,255,255,0.04);width:100%;min-height:180px;cursor:crosshair;touch-action:none;display:block;user-select:none;">
+</canvas>"""),
+            rx.hstack(
+                rx.button(
+                    rx.icon("trash-2", size=13),
+                    "Limpar",
+                    id="sig-clear",
+                    size="1",
+                    style={
+                        "background": "rgba(224,82,82,0.10)",
+                        "border": "1px solid rgba(224,82,82,0.3)",
+                        "color": _DANGER,
+                        "border_radius": "6px",
+                        "cursor": "pointer",
+                        "padding": "5px 14px",
+                    },
                 ),
-                size="2",
-                style={
-                    "background": "rgba(42,157,143,0.15)",
-                    "border": "1px solid rgba(42,157,143,0.4)",
-                    "color": _PATINA,
-                    "border_radius": "6px",
-                    "cursor": "pointer",
-                    "_hover": {"background": "rgba(42,157,143,0.25)"},
-                },
+                rx.button(
+                    rx.icon("check", size=13),
+                    "Confirmar Assinatura",
+                    on_click=RDOState.capture_signature,
+                    size="1",
+                    style={
+                        "background": "rgba(42,157,143,0.12)",
+                        "border": "1px solid rgba(42,157,143,0.3)",
+                        "color": _PATINA,
+                        "border_radius": "6px",
+                        "cursor": "pointer",
+                        "padding": "5px 14px",
+                    },
+                ),
+                rx.cond(
+                    RDOState.signatory_sig_b64 != "",
+                    rx.hstack(
+                        rx.icon("check-circle", size=14, color=_PATINA),
+                        rx.text("Assinatura capturada ✓", size="1", color=_PATINA, weight="medium"),
+                        spacing="1",
+                        align="center",
+                    ),
+                    rx.text("Aguardando confirmação…", size="1", color=_MUTED),
+                ),
+                spacing="2",
+                align="center",
+                margin_top="8px",
+                flex_wrap="wrap",
             ),
             spacing="2",
             align="start",
@@ -971,7 +1021,7 @@ def _confirm_dialog() -> rx.Component:
                 ),
                 rx.hstack(
                     rx.icon("calendar", size=14, color=_MUTED),
-                    rx.text("Data: ", rx.text.span(RDOState.rdo_data), size="2"),
+                    rx.text("Data: ", rx.text.span(RDOState.rdo_data_display), size="2"),
                     spacing="2",
                 ),
                 rx.hstack(
@@ -1013,6 +1063,7 @@ def _confirm_dialog() -> rx.Component:
                 justify="end",
                 spacing="2",
             ),
+            style={"max_width": "min(480px, 96vw)", "width": "100%"},
         ),
         open=RDOState.show_confirm_dialog,
     )
@@ -1020,8 +1071,14 @@ def _confirm_dialog() -> rx.Component:
 
 # ── Page ─────────────────────────────────────────────────────────────────────
 
+def _sig_capture_init() -> rx.Component:
+    """Placeholder — captura de assinatura ocorre em open_confirm via rx.call_script."""
+    return rx.fragment()
+
+
 def rdo_form_page() -> rx.Component:
     return rx.box(
+        _sig_capture_init(),
         _sticky_header(),
         rx.box(
             _draft_banner(),
@@ -1048,36 +1105,34 @@ def rdo_form_page() -> rx.Component:
             rx.box(height="16px"),
             # 8. Assinatura
             _section_assinatura(),
-            rx.box(height="40px"),
-            # Bottom submit
-            rx.hstack(
-                rx.spacer(),
-                rx.button(
-                    rx.icon("send", size=16),
-                    "Finalizar e Enviar RDO",
-                    on_click=RDOState.open_confirm,
-                    size="3",
-                    loading=RDOState.is_submitting,
-                    style={
-                        "background": _BTN_PRI,
-                        "color": "#fff",
-                        "border_radius": "8px",
-                        "font_weight": "700",
-                        "font_size": "15px",
-                        "padding": "12px 28px",
-                        "cursor": "pointer",
-                        "_hover": {"opacity": "0.9"},
-                    },
-                ),
-                width="100%",
+            rx.box(height="32px"),
+            # Bottom submit — full-width on mobile, right-aligned on desktop
+            rx.button(
+                rx.icon("send", size=16),
+                "Finalizar e Enviar RDO",
+                on_click=RDOState.open_confirm,
+                size="3",
+                loading=RDOState.is_submitting,
+                width=["100%", "auto"],
+                style={
+                    "background": _BTN_PRI,
+                    "color": "#fff",
+                    "border_radius": "8px",
+                    "font_weight": "700",
+                    "font_size": "16px",
+                    "padding": "14px 28px",
+                    "min_height": "54px",
+                    "cursor": "pointer",
+                    "_hover": {"opacity": "0.9"},
+                    "align_self": ["stretch", "flex-end"],
+                },
             ),
-            rx.box(height="60px"),
-            padding="24px",
+            rx.box(height="40px"),
+            padding=["16px", "24px"],
             max_width="960px",
             margin="0 auto",
         ),
         _confirm_dialog(),
         min_height="100vh",
         background=_BG,
-        on_mount=[RDOState.init_page, RDOState.check_for_draft],
     )

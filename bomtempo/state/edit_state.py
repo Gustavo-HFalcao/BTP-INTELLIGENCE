@@ -9,6 +9,27 @@ _UUID_RE = re.compile(
     r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
     re.IGNORECASE
 )
+
+# Columns auto-managed by DB — excluded from upsert to avoid overwriting
+_READONLY_COLS = {"created_at", "updated_at"}
+
+
+def _iso_to_br(val: str) -> str:
+    """Convert ISO datetime string (YYYY-MM-DDThh:mm…) to BR display format DD/MM/YYYY HH:MM."""
+    v = val.strip()
+    if len(v) >= 10 and v[4:5] == "-" and v[7:8] == "-":
+        try:
+            parts = v[:10].split("-")
+            date_br = f"{parts[2]}/{parts[1]}/{parts[0]}"
+            if len(v) >= 16 and "T" in v:
+                time_part = v[11:16]
+                return f"{date_br} {time_part}"
+            return date_br
+        except Exception:
+            pass
+    return val
+
+
 from bomtempo.core.supabase_client import sb_select, sb_upsert, sb_insert, sb_delete
 from bomtempo.core.logging_utils import get_logger
 from bomtempo.core.audit_logger import audit_log, audit_error, AuditCategory
@@ -226,9 +247,15 @@ class EditState(rx.State):
                 if selected_projeto and "projeto" in existing_cols:
                     filters["projeto"] = selected_projeto
 
-                result["data"] = sb_select(
+                rows = sb_select(
                     selected_tabela, filters=filters, limit=limit, order="id.desc"
                 ) or []
+                # Normalize auto-managed timestamp columns to BR format for display
+                for row in rows:
+                    for col in _READONLY_COLS:
+                        if col in row and isinstance(row[col], str) and row[col]:
+                            row[col] = _iso_to_br(row[col])
+                result["data"] = rows
             except Exception as e:
                 result["error"] = str(e)
 
@@ -690,9 +717,9 @@ class EditState(rx.State):
                 row_id = rec.get("id")
                 label = rec.get('projeto') or rec.get('contrato') or str(row_id or '?')
 
-                # Filtra colunas que não existem na tabela (evita 400 por schema mismatch)
+                # Filtra colunas que não existem na tabela e colunas auto-geridas pelo DB
                 if valid_cols:
-                    rec = {k: v for k, v in rec.items() if k in valid_cols}
+                    rec = {k: v for k, v in rec.items() if k in valid_cols and k not in _READONLY_COLS}
 
                 try:
                     # Só vai para upsert se o ID for um UUID válido

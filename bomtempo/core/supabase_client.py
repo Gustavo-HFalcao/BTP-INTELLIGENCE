@@ -11,6 +11,7 @@ import threading
 from typing import Any, Dict, List, Optional
 
 import httpx
+from bomtempo.core.config import Config
 from dotenv import load_dotenv
 
 from bomtempo.core.logging_utils import get_logger
@@ -20,15 +21,15 @@ load_dotenv()
 logger = get_logger(__name__)
 
 # ── Credentials ────────────────────────────────────────────────────────────────
-# Service role key lida do .env — bypassa RLS com segurança (server-side only).
-SUPABASE_URL = "https://zobukgyldeiparlwczga.supabase.co"
-SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
+# Service role key lida via Config (que lê do .env) — bypassa RLS com segurança (server-side only).
+SUPABASE_URL = Config.SUPABASE_URL
+SUPABASE_KEY = Config.SUPABASE_SERVICE_KEY
 REST_BASE = f"{SUPABASE_URL}/rest/v1"
-
-if not SUPABASE_KEY:
+ 
+if not SUPABASE_URL or not SUPABASE_KEY:
     logger.error(
-        "SUPABASE_SERVICE_KEY não encontrada no .env. "
-        "Adicione: SUPABASE_SERVICE_KEY=sb_secret_..."
+        "SUPABASE_URL ou SUPABASE_SERVICE_KEY não encontradas no .env. "
+        "Verifique a configuração do projeto."
     )
 
 # ── Connection Pool ────────────────────────────────────────────────────────────

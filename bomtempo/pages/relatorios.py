@@ -385,22 +385,20 @@ def _preview_panel() -> rx.Component:
                 # Action buttons — only shown when content exists
                 rx.cond(
                     RelatoriosState.report_pdf_url != "",
-                    rx.link(
-                        rx.button(
-                            rx.hstack(
-                                rx.icon("download", size=14),
-                                rx.text("Download PDF", font_size="12px"),
-                                spacing="2",
-                                align="center",
-                            ),
-                            size="2",
-                            bg=S.COPPER,
-                            color="white",
-                            border_radius="8px",
-                            _hover={"opacity": "0.85"},
+                    rx.button(
+                        rx.hstack(
+                            rx.icon("download", size=14),
+                            rx.text("Download PDF", font_size="12px"),
+                            spacing="2",
+                            align="center",
                         ),
-                        href=RelatoriosState.report_pdf_url,
-                        is_external=True,
+                        on_click=RelatoriosState.open_pdf_url(RelatoriosState.report_pdf_url),
+                        size="2",
+                        bg=S.COPPER,
+                        color="white",
+                        border_radius="8px",
+                        cursor="pointer",
+                        _hover={"opacity": "0.85"},
                     ),
                 ),
                 rx.cond(
@@ -452,11 +450,15 @@ def _preview_panel() -> rx.Component:
             # Content area
             rx.cond(
                 RelatoriosState.report_html_preview != "",
-                # Static HTML: use iframe via dangerously_allow_html
+                # Static HTML preview — scroll horizontal on mobile (A4 layout)
                 rx.box(
-                    rx.html(RelatoriosState.report_html_preview),
+                    rx.box(
+                        rx.html(RelatoriosState.report_html_preview),
+                        min_width="800px",
+                    ),
                     width="100%",
                     max_height="600px",
+                    overflow_x="auto",
                     overflow_y="auto",
                     border_radius="12px",
                     border=f"1px solid {S.BORDER_SUBTLE}",
@@ -645,18 +647,16 @@ def _history_row(row: dict) -> rx.Component:
         rx.table.cell(
             rx.cond(
                 row["pdf_url"] != "",
-                rx.link(
-                    rx.button(
-                        rx.icon("download", size=12),
-                        size="1",
-                        variant="ghost",
-                        color=S.COPPER,
-                        border=f"1px solid {S.BORDER_ACCENT}",
-                        border_radius="6px",
-                        _hover={"bg": S.COPPER_GLOW},
-                    ),
-                    href=row["pdf_url"],
-                    is_external=True,
+                rx.button(
+                    rx.icon("download", size=12),
+                    on_click=RelatoriosState.open_pdf_url(row["pdf_url"]),
+                    size="1",
+                    variant="ghost",
+                    color=S.COPPER,
+                    border=f"1px solid {S.BORDER_ACCENT}",
+                    border_radius="6px",
+                    cursor="pointer",
+                    _hover={"bg": S.COPPER_GLOW},
                 ),
                 rx.text("—", font_size="11px", color=S.TEXT_MUTED),
             ),

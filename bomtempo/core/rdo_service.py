@@ -29,7 +29,7 @@ from bomtempo.core.supabase_client import (
 
 logger = get_logger(__name__)
 
-SUPABASE_URL = "https://nychzaapchxdlsffotcq.supabase.co"
+SUPABASE_URL = Config.SUPABASE_URL
 
 
 # ── Geo utilities ────────────────────────────────────────────────────────────
