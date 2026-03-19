@@ -407,6 +407,73 @@ def section_nota_fiscal() -> rx.Component:
     return _card(
         _section_title("receipt", "Nota Fiscal"),
         rx.vstack(
+            # SmartScan: feedback de qualidade da foto em tempo real
+            rx.html("""
+<script src="/js/smart_scan.js"></script>
+<div id="nf-scan-feedback" style="display:none;font-size:12px;font-weight:600;padding:6px 10px;border-radius:8px;margin-bottom:6px;background:rgba(255,255,255,0.06);transition:all 0.3s ease;"></div>
+<script>
+(function(){
+  var _scanner = null;
+  var _video   = null;
+  var _canvas  = null;
+
+  function _initSmartScan(){
+    var zone = document.getElementById('nf_upload');
+    if(!zone) return;
+    var inp = zone.querySelector('input[type="file"]');
+    if(!inp || inp._smartScanBound) return;
+    inp._smartScanBound = true;
+
+    inp.addEventListener('click', function(){
+      // Só inicia scanner se o dispositivo tiver câmera traseira (mobile)
+      if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+      var feedback = document.getElementById('nf-scan-feedback');
+
+      // Cria elementos de vídeo/canvas ocultos para análise de frame
+      if(!_video){
+        _video  = document.createElement('video');
+        _canvas = document.createElement('canvas');
+        _video.style.display  = 'none';
+        _canvas.style.display = 'none';
+        document.body.appendChild(_video);
+        document.body.appendChild(_canvas);
+      }
+
+      if(window.SmartScanPreview){
+        if(_scanner) _scanner.stopCamera();
+        // Substitui IDs por referências diretas
+        _scanner = new SmartScanPreview(null, null, null);
+        _scanner.video    = _video;
+        _scanner.canvas   = _canvas;
+        _scanner.ctx      = _canvas.getContext('2d');
+        _scanner.feedback = { textContent: '', style: {} };
+        _scanner.updateFeedback = function(msg, color){
+          if(!feedback) return;
+          feedback.textContent = msg;
+          feedback.style.color = color;
+          feedback.style.display = 'block';
+        };
+        _scanner.startCamera();
+      }
+    });
+
+    // Para câmera assim que o arquivo for selecionado
+    inp.addEventListener('change', function(){
+      if(_scanner){ _scanner.stopCamera(); _scanner = null; }
+      var feedback = document.getElementById('nf-scan-feedback');
+      if(feedback) feedback.style.display = 'none';
+    });
+  }
+
+  // Tenta inicializar assim que o DOM estiver pronto
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', _initSmartScan);
+  } else {
+    setTimeout(_initSmartScan, 800);
+  }
+})();
+</script>
+"""),
             # Upload area — com loading overlay enquanto processa
             rx.box(
                 rx.upload(

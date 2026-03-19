@@ -55,9 +55,24 @@ def chat_header() -> rx.Component:
             align="center",
             spacing="4",
         ),
-        rx.tooltip(
-            rx.icon(tag="info", size=18, color=S.TEXT_MUTED),
-            content="Pergunte sobre Contratos, Cronogramas e Financeiro. O assistente analisa os dados atuais do dashboard.",
+        rx.hstack(
+            rx.tooltip(
+                rx.box(
+                    rx.icon(tag="square-pen", size=16, color=S.TEXT_MUTED),
+                    on_click=GlobalState.new_conversation,
+                    cursor="pointer",
+                    padding="6px",
+                    border_radius="8px",
+                    _hover={"background": "rgba(255,255,255,0.08)", "color": "white"},
+                ),
+                content="Nova Conversa",
+            ),
+            rx.tooltip(
+                rx.icon(tag="info", size=18, color=S.TEXT_MUTED),
+                content="Pergunte sobre Contratos, Cronogramas e Financeiro.",
+            ),
+            spacing="2",
+            align="center",
         ),
         width="100%",
         padding="20px 24px",
@@ -213,6 +228,7 @@ def chat_ia_page() -> rx.Component:
         ),
         width="100%",
         on_mount=[
+            GlobalState.load_chat_history,
             GlobalState.ensure_data_loaded,
             rx.call_script(f"""
                 if (!window.startRecording) {{

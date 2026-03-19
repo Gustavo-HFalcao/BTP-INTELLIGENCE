@@ -1,4 +1,7 @@
+import json
+
 from bomtempo.core.ai_client import ai_client
+from bomtempo.core.ai_tools import AI_TOOLS, execute_tool
 from bomtempo.core.logging_utils import get_logger
 
 logger = get_logger(__name__)
@@ -114,8 +117,42 @@ REGRAS DE FORMATAÇÃO (INVIOLÁVEIS)
         ]
 
         try:
-            response = ai_client.query(messages)
-            return response
+            # Loop Agêntico para Análise Profunda
+            for i in range(3):
+                response = ai_client.query_agentic(messages, tools=AI_TOOLS)
+                
+                if isinstance(response, str):
+                    return response
+                    
+                tool_calls = response.tool_calls
+                messages.append({
+                    "role": "assistant",
+                    "content": response.content or "",
+                    "tool_calls": [
+                        {
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {
+                                "name": tc.function.name,
+                                "arguments": tc.function.arguments,
+                            },
+                        }
+                        for tc in tool_calls
+                    ],
+                })
+
+                for tool_call in tool_calls:
+                    name = tool_call.function.name
+                    args = json.loads(tool_call.function.arguments)
+                    result = execute_tool(name, args)
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "name": name,
+                        "content": result,
+                    })
+                    
+            return "Erro: O agente de análise excedeu o número máximo de iterações."
         except Exception as e:
             logger.error(f"Erro na análise de KPIs: {e}")
             return "Erro ao processar análise. Tente novamente."

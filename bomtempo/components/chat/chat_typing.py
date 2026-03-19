@@ -1,21 +1,17 @@
 """
-Chat Typing Indicator — Animated 3-dot bounce.
+Chat Typing Indicator — Animated 3-dot bounce + optional tool status label.
 Shown while GlobalState.is_processing_chat is True.
 """
 
 import reflex as rx
 
 from bomtempo.core import styles as S
+from bomtempo.state.global_state import GlobalState
 
 
 def typing_indicator() -> rx.Component:
-    """
-    Three animated dots in a chat bubble — enterprise-grade typing indicator.
-    Matches AI message alignment (left side).
-    """
     return rx.box(
         rx.hstack(
-            # Bot avatar
             rx.center(
                 rx.icon(tag="bot", size=14, color="#0A1F1A"),
                 width="32px",
@@ -25,12 +21,21 @@ def typing_indicator() -> rx.Component:
                 flex_shrink="0",
                 box_shadow=f"0 0 12px {S.COPPER_GLOW}",
             ),
-            # 3-dot bubble
             rx.box(
                 rx.hstack(
                     rx.box(class_name="typing-dot"),
                     rx.box(class_name="typing-dot"),
                     rx.box(class_name="typing-dot"),
+                    rx.cond(
+                        GlobalState.chat_tool_label != "",
+                        rx.text(
+                            GlobalState.chat_tool_label,
+                            font_size="11px",
+                            color=S.TEXT_MUTED,
+                            font_style="italic",
+                            margin_left="8px",
+                        ),
+                    ),
                     spacing="1",
                     align="center",
                     padding_y="2px",

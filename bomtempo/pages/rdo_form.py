@@ -598,7 +598,67 @@ def _upload_photo_zone(
     icon_name: str,
     on_remove=None,
 ) -> rx.Component:
+    feedback_id = f"{upload_id}_scan_feedback"
+    smart_scan_script = f"""
+<script src="/js/smart_scan.js"></script>
+<div id="{feedback_id}" style="display:none;font-size:12px;font-weight:600;padding:6px 10px;border-radius:8px;margin-bottom:6px;background:rgba(255,255,255,0.06);transition:all 0.3s ease;"></div>
+<script>
+(function(){{
+  var _scanner = null;
+  var _video   = null;
+  var _canvas  = null;
+
+  function _initSmartScan(){{
+    var zone = document.getElementById('{upload_id}');
+    if(!zone) return;
+    var inp = zone.querySelector('input[type="file"]');
+    if(!inp || inp._smartScanBound) return;
+    inp._smartScanBound = true;
+
+    inp.addEventListener('click', function(){{
+      if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+      var feedback = document.getElementById('{feedback_id}');
+      if(!_video){{
+        _video  = document.createElement('video');
+        _canvas = document.createElement('canvas');
+        _video.style.display  = 'none';
+        _canvas.style.display = 'none';
+        document.body.appendChild(_video);
+        document.body.appendChild(_canvas);
+      }}
+      if(window.SmartScanPreview){{
+        if(_scanner) _scanner.stopCamera();
+        _scanner = new SmartScanPreview(null, null, null);
+        _scanner.video    = _video;
+        _scanner.canvas   = _canvas;
+        _scanner.ctx      = _canvas.getContext('2d');
+        _scanner.updateFeedback = function(msg, color){{
+          if(!feedback) return;
+          feedback.textContent = msg;
+          feedback.style.color = color;
+          feedback.style.display = 'block';
+        }};
+        _scanner.startCamera();
+      }}
+    }});
+
+    inp.addEventListener('change', function(){{
+      if(_scanner){{ _scanner.stopCamera(); _scanner = null; }}
+      var feedback = document.getElementById('{feedback_id}');
+      if(feedback) feedback.style.display = 'none';
+    }});
+  }}
+
+  if(document.readyState === 'loading'){{
+    document.addEventListener('DOMContentLoaded', _initSmartScan);
+  }} else {{
+    setTimeout(_initSmartScan, 800);
+  }}
+}})();
+</script>
+"""
     return rx.vstack(
+        rx.html(smart_scan_script),
         # Existing photo preview with lightbox + X
         rx.cond(
             existing_url != "",

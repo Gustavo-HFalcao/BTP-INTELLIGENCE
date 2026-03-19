@@ -1,5 +1,6 @@
 import reflex as rx
 
+from bomtempo.components.chat.chat_bubble import chart_init_script
 from bomtempo.components.loading_screen import (
     loading_screen,
     skeleton_chart,
@@ -694,6 +695,8 @@ def default_layout(content: rx.Component) -> rx.Component:
     return rx.box(
         # ── Signature canvas binding (global — persists across SPA navigation) ──
         rx.script(src="/js/sig_canvas.js"),
+        # ── Chart.js global initializer (MutationObserver para gráficos do chat IA) ──
+        chart_init_script(),
         # ── PWA Init (manifest + SW + install prompt + viewport fix + favicon + iOS) ──
         rx.script("""
 (function () {

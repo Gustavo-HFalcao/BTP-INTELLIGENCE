@@ -1,10 +1,13 @@
+import json
 from datetime import datetime
 
 import reflex as rx
 
 from bomtempo.core.ai_client import ai_client
 from bomtempo.core.ai_context import AIContext
+from bomtempo.core.ai_tools import AI_TOOLS, execute_tool
 from bomtempo.core.data_loader import DataLoader
+from bomtempo.core.supabase_client import sb_rpc
 
 # from bomtempo.core.openai_service import get_openai_client # Deprecated for this use case
 
@@ -80,58 +83,84 @@ class VoiceChatState(rx.State):
         if status == "stopped":
             self.is_listening = False
 
-    async def process_transcript(self, text: str):
-        """Recebe texto, envia para GPT (KIMI) e mostra resposta"""
+    def process_transcript(self, text: str):
+        """Recebe texto transcrito — atualiza UI e dispara o loop agêntico em background."""
         if not text:
             return
-
         self.is_listening = False
         self.is_processing = True
         self.add_log(f"Usuário: {text}")
         self.messages.append({"role": "user", "content": text})
-        yield
+        yield VoiceChatState.run_agentic_loop
 
+    @rx.event(background=True)
+    async def run_agentic_loop(self):
+        """Loop agêntico em background — não bloqueia o event loop."""
         try:
-            # 1. Carregar Contexto do Dashboard (Cacheado)
-            loader = DataLoader()
-            data = loader.load_all()
-
-            # 2. Preparar Prompt do Sistema (Persona KIMI)
-            # Detectar se é mobile? Voice Chat page pode ser desktop ou mobile.
-            # Vamos assumir desktop/geral por enquanto ou criar um flag.
             system_prompt = AIContext.get_system_prompt(is_mobile=False)
-            dashboard_context = AIContext.get_dashboard_context(data)
+            schema_context = sb_rpc("get_schema_context")
 
-            # 3. Construir Mensagens com Contexto
-            # O AIClient espera uma lista de mensagens completa incluindo system
+            async with self:
+                recent_history = list(self.messages[-6:])
+
             context_messages = [
                 {
                     "role": "system",
-                    "content": f"{system_prompt}\n\nContexto Atual:\n{dashboard_context}",
+                    "content": f"{system_prompt}\n\nSCHEMA DISPONÍVEL:\n{schema_context}",
                 }
             ]
-
-            # Adicionar histórico recente (limitar para não estourar tokens)
-            # Pegar as últimas 6 mensagens do chat atual
-            recent_history = self.messages[-6:]
             context_messages.extend(recent_history)
 
-            # 4. Consultar AI Client
-            response_content = ai_client.query(context_messages)
+            max_iterations = 5
+            for i in range(max_iterations):
+                response = ai_client.query_agentic(context_messages, tools=AI_TOOLS, force_tool=(i == 0))
 
-            self.add_log(f"AI: {response_content[:30]}...")
-            self.messages.append({"role": "assistant", "content": response_content})
+                if isinstance(response, str):
+                    async with self:
+                        self.add_log(f"AI: {response[:30]}...")
+                        self.messages.append({"role": "assistant", "content": response})
+                        self.is_processing = False
+                    break
+
+                tool_calls = response.tool_calls
+                context_messages.append({
+                    "role": "assistant",
+                    "content": response.content or "",
+                    "tool_calls": [
+                        {
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {
+                                "name": tc.function.name,
+                                "arguments": tc.function.arguments,
+                            },
+                        }
+                        for tc in tool_calls
+                    ],
+                })
+
+                for tool_call in tool_calls:
+                    name = tool_call.function.name
+                    args = json.loads(tool_call.function.arguments)
+
+                    async with self:
+                        self.add_log(f"Consultando: {name}...")
+
+                    result = execute_tool(name, args)
+
+                    context_messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "name": name,
+                        "content": result,
+                    })
+            else:
+                async with self:
+                    self.messages.append({"role": "assistant", "content": "Não consegui concluir. Tente reformular."})
+                    self.is_processing = False
 
         except Exception as e:
-            error_msg = f"Erro ao processar: {str(e)}"
-            self.add_log(error_msg)
-            print(error_msg)
-            self.messages.append(
-                {
-                    "role": "assistant",
-                    "content": "Desculpe, estou com dificuldade para acessar os dados agora.",
-                }
-            )
-        finally:
-            self.is_processing = False
-            yield
+            async with self:
+                self.add_log(f"Erro: {str(e)}")
+                self.messages.append({"role": "assistant", "content": "Desculpe, erro ao acessar os dados."})
+                self.is_processing = False

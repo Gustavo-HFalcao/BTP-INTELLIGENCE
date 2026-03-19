@@ -9,10 +9,155 @@ import reflex as rx
 from bomtempo.core import styles as S
 
 
+# ── Chart.js renderer ────────────────────────────────────────────────────────
+# Abordagem: o canvas é renderizado pelo React normalmente.
+# O JSON do gráfico é passado via window.__btpCharts[id] antes do React montar.
+# Um MutationObserver global inicializa cada canvas novo que apareça com data-chart-id.
+
+CHART_INIT_SCRIPT = """
+window.__btpCharts = window.__btpCharts || {};
+
+function __btpBuildChart(canvas, def) {
+  if (canvas._btpChart) return;
+  var COPPER='#C98B2A', COPPER_A='rgba(201,139,42,0.18)';
+  var COLORS=['#C98B2A','#4ECDC4','#45B7D1','#96CEB4','#FFEAA7','#DDA0DD','#98D8C8','#F7DC6F'];
+  var labels = def.data.map(function(d){ return d.name; });
+  var values = def.data.map(function(d){ return Number(d.value)||0; });
+  var prefix = def.value_prefix||'', title=def.title||'', type=def.chart_type||'bar';
+  function fmt(v){
+    if(prefix==='R$') return 'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0});
+    if(prefix==='%') return v.toFixed(1)+'%';
+    return v.toLocaleString('pt-BR');
+  }
+  var dataset, options;
+  if(type==='pie'){
+    dataset={data:values,backgroundColor:COLORS,borderColor:'rgba(0,0,0,0.3)',borderWidth:1};
+    options={responsive:true,maintainAspectRatio:false,plugins:{
+      legend:{position:'right',labels:{color:'rgba(255,255,255,0.75)',font:{size:11},boxWidth:14}},
+      title:title?{display:true,text:title,color:'rgba(255,255,255,0.9)',font:{size:13,weight:'bold'},padding:{bottom:10}}:{display:false},
+      tooltip:{callbacks:{label:function(c){return ' '+c.label+': '+fmt(c.parsed);}}}
+    }};
+  } else {
+    var isArea=type==='area';
+    dataset={label:title||'Valor',data:values,
+      backgroundColor:isArea?COPPER_A:COLORS.slice(0,values.length),
+      borderColor:isArea?COPPER:COLORS.slice(0,values.length),
+      borderWidth:isArea?2:0,fill:isArea,tension:isArea?0.35:0,
+      pointBackgroundColor:isArea?COPPER:undefined,
+      pointRadius:isArea?4:0,borderRadius:isArea?0:6};
+    options={responsive:true,maintainAspectRatio:false,plugins:{
+      legend:{display:false},
+      title:title?{display:true,text:title,color:'rgba(255,255,255,0.9)',font:{size:13,weight:'bold'},padding:{bottom:10}}:{display:false},
+      tooltip:{callbacks:{label:function(c){return ' '+fmt(c.parsed.y);}}},
+      datalabels:{
+        display:true,
+        anchor:'end',align:'top',
+        color:'rgba(255,255,255,0.85)',
+        font:{size:10,weight:'600'},
+        formatter:function(v){ return fmt(v); },
+        clip:false
+      }
+    },scales:{
+      x:{ticks:{color:'rgba(255,255,255,0.55)',font:{size:11},maxRotation:35},grid:{color:'rgba(255,255,255,0.04)'}},
+      y:{ticks:{color:'rgba(255,255,255,0.55)',font:{size:11},
+           callback:function(v){return prefix==='R$'?'R$ '+v.toLocaleString('pt-BR'):v.toLocaleString('pt-BR');}},
+         grid:{color:'rgba(255,255,255,0.07)'}}
+    }};
+  }
+  canvas._btpChart = new Chart(canvas, {
+    type: type==='area'?'line':type,
+    data:{labels:labels,datasets:[dataset]},
+    options:options
+  });
+}
+
+function __btpInitCanvas(canvas) {
+  var id = canvas.getAttribute('data-chart-id');
+  if (!id || canvas._btpChart) return;
+  var def = window.__btpCharts[id];
+  if (!def || !def.__chart__ || !def.data || !def.data.length) return;
+  if (window.Chart) { __btpBuildChart(canvas, def); return; }
+  if (!window._btpChartJsLoading) {
+    window._btpChartJsLoading = true;
+    var s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
+    s.onload = function() {
+      // Carrega datalabels plugin depois do Chart.js
+      var dl = document.createElement('script');
+      dl.src = 'https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js';
+      dl.onload = function() {
+        Chart.register(ChartDataLabels);
+        window._btpChartJsLoading = false;
+        document.querySelectorAll('canvas[data-chart-id]').forEach(__btpInitCanvas);
+      };
+      document.head.appendChild(dl);
+    };
+    document.head.appendChild(s);
+  } else {
+    var t = setInterval(function(){ if(window.Chart){ clearInterval(t); __btpBuildChart(canvas, def); }}, 80);
+  }
+}
+
+// MutationObserver: inicializa qualquer canvas novo com data-chart-id
+if (!window._btpObserver) {
+  window._btpObserver = new MutationObserver(function(mutations) {
+    mutations.forEach(function(m) {
+      m.addedNodes.forEach(function(node) {
+        if (node.nodeType !== 1) return;
+        if (node.tagName === 'CANVAS' && node.getAttribute('data-chart-id')) {
+          setTimeout(function(){ __btpInitCanvas(node); }, 50);
+        }
+        node.querySelectorAll && node.querySelectorAll('canvas[data-chart-id]').forEach(function(c){
+          setTimeout(function(){ __btpInitCanvas(c); }, 50);
+        });
+      });
+    });
+  });
+  window._btpObserver.observe(document.body, {childList:true, subtree:true});
+}
+"""
+
+
+def chart_init_script() -> rx.Component:
+    """Injeta o script global de inicialização de gráficos uma vez no layout."""
+    return rx.script(CHART_INIT_SCRIPT)
+
+
+def _chart_bubble(chart_json_var, chart_id_var) -> rx.Component:
+    """
+    Renderiza um canvas placeholder. O React monta o canvas com data-chart-id;
+    o MutationObserver detecta e chama __btpInitCanvas com o JSON já em window.__btpCharts.
+    """
+    return rx.cond(
+        chart_json_var != "",
+        rx.box(
+            rx.el.canvas(
+                data_chart_id=chart_id_var,
+                style={"width": "100%", "height": "100%", "display": "block"},
+            ),
+            style={
+                "position": "relative",
+                "width": "100%",
+                "height": "300px",
+                "marginTop": "14px",
+                "borderRadius": "10px",
+                "background": "rgba(0,0,0,0.25)",
+                "border": f"1px solid {S.BORDER_ACCENT}",
+                "padding": "12px",
+                "boxSizing": "border-box",
+            },
+        ),
+        rx.fragment(),
+    )
+
+
+# ── Message Bubble ────────────────────────────────────────────────────────────
+
 def message_bubble(message: dict) -> rx.Component:
     """
     Premium glassmorphic chat bubble with hover lift.
     Skips system messages silently.
+    Renders inline Chart.js chart when message["chart_json"] is set.
     """
     is_user = message["role"] == "user"
 
@@ -157,6 +302,11 @@ def message_bubble(message: dict) -> rx.Component:
                                 **props,
                             ),
                         },
+                    ),
+                    # Gráfico inline (só em mensagens do assistente com chart_json)
+                    rx.cond(
+                        ~is_user,
+                        _chart_bubble(message["chart_json"], message["chart_id"]),
                     ),
                     bg=rx.cond(
                         is_user,

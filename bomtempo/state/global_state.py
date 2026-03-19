@@ -4,7 +4,9 @@ Global State Management
 
 import asyncio
 import base64
+import json
 import math
+import re
 import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -19,27 +21,31 @@ from bomtempo.core.analysis_service import AnalysisService
 from bomtempo.core.data_loader import DataLoader
 from bomtempo.core.logging_utils import get_logger
 from bomtempo.core.audit_logger import audit_log, audit_error, AuditCategory
+from bomtempo.core.supabase_client import sb_select, sb_insert, sb_rpc
+from bomtempo.core.ai_tools import AI_TOOLS, execute_tool
 
 logger = get_logger(__name__)
+
+
+def _msg(role: str, content: str, chart_json: str = "", chart_id: str = "") -> dict:
+    """Cria um dict de mensagem com todos os campos esperados pelo chat_bubble."""
+    return {"role": role, "content": content, "chart_json": chart_json, "chart_id": chart_id}
 
 
 class GlobalState(rx.State):
     """Estado global da aplicação"""
 
     # --- AI & Voice Chat State ---
-    chat_history: list[dict] = [
-        {
-            "role": "system",
-            "content": "Você é o assistente inteligente da Plataforma de Inteligência Operacional Bomtempo. Responda de forma concisa e profissional. Use markdown para tabelas e negrito para destacar valores.",
-        },
-        {
-            "role": "assistant",
-            "content": "👋 Olá! Sou o assistente da Plataforma de Inteligência Operacional Bomtempo. Posso te ajudar a extrair insights dos seus dados, explicar métricas, gerar planos de ação e muito mais. Qual sua necessidade hoje?",
-        },
-    ]
+    chat_history: list[dict] = []
     chat_input: str = ""
     current_question: str = ""
     is_processing_chat: bool = False
+    chat_tool_label: str = ""   # Status interno da tool em execução (exibido no typing indicator)
+    chat_session_id: str = ""
+
+    # Gráfico pendente — preenchido quando IA chama generate_chart_data
+    # Injetado como campo "chart_json" na mensagem final antes de limpar
+    _pending_chart_json: str = ""  # JSON serializado do gráfico
 
     # Conversation Mode (Hands-Free)
     is_recording: bool = False  # Legacy compatibility
@@ -84,7 +90,7 @@ class GlobalState(rx.State):
 
             response_content = ai_client.query(messages)
 
-            self.chat_history.append({"role": "assistant", "content": response_content})
+            self.chat_history.append(_msg("assistant", response_content))
 
             # Handle TTS if in Talking Mode
             if self.is_talking_mode:
@@ -110,12 +116,7 @@ class GlobalState(rx.State):
 
         except Exception as e:
             logger.error(f"Erro no chat: {e}")
-            self.chat_history.append(
-                {
-                    "role": "assistant",
-                    "content": "Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente.",
-                }
-            )
+            self.chat_history.append(_msg("assistant", "Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente."))
             yield rx.toast("Erro ao processar mensagem.", position="top-center")
         finally:
             self.is_processing_chat = False
@@ -128,119 +129,173 @@ class GlobalState(rx.State):
         if not question.strip():
             return
 
-        # 1. Update UI immediately — add user msg + empty AI placeholder
-        self.chat_history.append({"role": "user", "content": question})
-        self.chat_history.append({"role": "assistant", "content": ""})
+        self.chat_history.append(_msg("user", question))
         self.current_question = ""
         self.is_processing_chat = True
         yield rx.call_script("window.scrollToBottom('chat-container')")
-        yield
-
-        # 2. Trigger background streaming event
         yield GlobalState.stream_chat_bg
+
+    async def load_chat_history(self):
+        """Abre o chat sempre com sessão limpa. O banco existe só para contexto da IA."""
+        username = self.current_user_name or "anonymous"
+        # Sempre cria nova sessão ao entrar na página
+        new_sess = sb_insert("chat_sessions", {"title": "Conversa", "username": username})
+        if new_sess:
+            self.chat_session_id = new_sess["id"]
+        self.chat_history = [_msg("assistant", "👋 Olá! Sou o Bomtempo Intelligence. Como posso ajudar com seus dados hoje?")]
+        self.is_processing_chat = False
+        yield rx.call_script("setTimeout(function(){ window.scrollToBottom('chat-container'); }, 150);")
+
+    async def new_conversation(self):
+        """Inicia uma nova conversa — cria nova sessão no banco e limpa o histórico local."""
+        username = self.current_user_name or "anonymous"
+        new_sess = sb_insert("chat_sessions", {"title": "Conversa", "username": username})
+        if new_sess:
+            self.chat_session_id = new_sess["id"]
+        self.chat_history = [_msg("assistant", "👋 Conversa reiniciada! Como posso ajudar?")]
+        self.is_processing_chat = False
+        yield rx.call_script("window.scrollToBottom('chat-container')")
+
+    def save_chat_msg(self, role: str, content: str, tool_calls: any = None, tool_call_id: str = None):
+        """Salva uma mensagem no banco de dados de forma assíncrona (fire-and-forget)."""
+        if not self.chat_session_id: return
+        data = {
+            "session_id": self.chat_session_id,
+            "role": role,
+            "content": content,
+            "tool_calls": tool_calls,
+            "tool_call_id": tool_call_id
+        }
+        try:
+            sb_insert("chat_messages", data)
+            # Atualiza timestamp da sessão
+            sb_rpc("update_session_timestamp", {"sess_id": self.chat_session_id})
+        except: pass
 
     @rx.event(background=True)
     async def stream_chat_bg(self):
-        """Streams chatbot response via thread + asyncio.Queue — updates every 200ms."""
-        import threading
+        """Loop Agêntico com suporte a Tools e persistência."""
         import time
 
         async with self:
-            # chat_history[-1] is the empty placeholder — exclude it from AI context
-            history_for_ai = list(self.chat_history[:-1])
+            # A última mensagem do usuário é agora a última do histórico (sem placeholder)
+            question = self.chat_history[-1]["content"] if self.chat_history and self.chat_history[-1]["role"] == "user" else ""
             is_mobile = self.current_user_role == "Gestão-Mobile"
-            data = self._data
-
-        # Build messages (same logic as _perform_ai_query)
-        from bomtempo.core.ai_context import AIContext
-        dashboard_context = AIContext.get_dashboard_context(data)
+            self.save_chat_msg("user", question)
+            
         system_prompt = AIContext.get_system_prompt(is_mobile=is_mobile)
-        messages = [{"role": "system", "content": f"{system_prompt}\n\n{dashboard_context}"}]
-        history_msgs = [
-            {"role": m["role"], "content": m["content"]} for m in history_for_ai[-6:]
-        ]
-        messages.extend(history_msgs)
 
-        loop = asyncio.get_running_loop()
-        q: asyncio.Queue = asyncio.Queue()
-
-        def _run():
-            try:
-                for chunk in ai_client.query_stream(messages):
-                    asyncio.run_coroutine_threadsafe(q.put(chunk), loop)
-            except Exception as e:
-                asyncio.run_coroutine_threadsafe(q.put(f"__STREAM_ERROR__:{e}"), loop)
-            finally:
-                asyncio.run_coroutine_threadsafe(q.put(None), loop)
-
-        threading.Thread(target=_run, daemon=True).start()
-
-        full_text = ""
-        last_update = time.monotonic()
-        received_first = False
-
-        while True:
-            try:
-                chunk = await asyncio.wait_for(q.get(), timeout=90.0)
-            except asyncio.TimeoutError:
-                logger.error("Chat streaming timeout")
-                break
-
-            if chunk is None:
-                break
-
-            if isinstance(chunk, str) and chunk.startswith("__STREAM_ERROR__:"):
-                async with self:
-                    new_history = list(self.chat_history[:-1])
-                    new_history.append({
-                        "role": "assistant",
-                        "content": "Desculpe, ocorreu um erro. Tente novamente.",
-                    })
-                    self.chat_history = new_history
-                    self.is_processing_chat = False
-                return
-
-            full_text += chunk
-            now = time.monotonic()
-
-            if not received_first or (now - last_update >= 0.20):
-                async with self:
-                    new_history = list(self.chat_history[:-1])
-                    new_history.append({"role": "assistant", "content": full_text + "▌"})
-                    self.chat_history = new_history
-                    if not received_first:
-                        self.is_processing_chat = False  # Hide typing dots
-                        received_first = True
-                last_update = now
-
-        # Finalize: remove cursor, set final text, scroll to bottom
-        final_content = full_text or "Desculpe, não obtive resposta. Tente novamente."
+        # Injeta dados reais do painel (contexto do dashboard) + schema para o agente
+        # Os dados do painel dão awareness imediata; o schema permite queries precisas
         async with self:
-            new_history = list(self.chat_history[:-1])
-            new_history.append({"role": "assistant", "content": final_content})
-            self.chat_history = new_history
-            self.is_processing_chat = False
-            yield rx.call_script("window.scrollToBottom('chat-container')")
-            username = self.current_user_name
-        audit_log(
-            category=AuditCategory.AI_CHAT,
-            action=f"Chat IA — resposta gerada ({len(final_content)} chars)",
-            username=username,
-            status="success",
-        )
+            if not self._data:
+                loader = DataLoader()
+                self._data = loader.load_all()
+            data_snapshot = self._data  # lê dentro do lock
+
+        dashboard_context = AIContext.get_dashboard_context(data_snapshot)
+        schema_context = sb_rpc("get_schema_context")
+
+        messages = [{
+            "role": "system",
+            "content": (
+                system_prompt
+                + dashboard_context
+                + f"\n\n## SCHEMA DO BANCO (para queries SQL)\n{schema_context}"
+            ),
+        }]
+        
+        async with self:
+            history = [m for m in self.chat_history if m["content"]][-6:]
+        messages.extend(history)
+
+        # LOOP AGÊNTICO
+        max_iterations = 5
+        pending_chart_json = ""
+        pending_chart_id = ""
+        for i in range(max_iterations):
+            # force_tool=True na primeira iteração evita que a IA "anuncie" antes de agir
+            response = ai_client.query_agentic(messages, tools=AI_TOOLS, force_tool=(i == 0))
+
+            if isinstance(response, str):
+                final_content = re.sub(r'!\[.*?\]\(.*?\)', '', response).strip()
+                async with self:
+                    self.chat_history.append(_msg("assistant", final_content, chart_json=pending_chart_json, chart_id=pending_chart_id))
+                    self.save_chat_msg("assistant", final_content)
+                    self.is_processing_chat = False
+                    self.chat_tool_label = ""
+                    self._pending_chart_json = ""
+                    if pending_chart_json and pending_chart_id:
+                        safe_json = pending_chart_json.replace("`", "\\`")
+                        yield rx.call_script(
+                            f"window.__btpCharts = window.__btpCharts || {{}}; "
+                            f"window.__btpCharts['{pending_chart_id}'] = {safe_json};"
+                        )
+                    yield rx.call_script("window.scrollToBottom('chat-container')")
+                break
+
+            # tool_call — serializa como dict para a API
+            tool_calls = response.tool_calls
+            messages.append({
+                "role": "assistant",
+                "content": response.content or "",
+                "tool_calls": [
+                    {
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {
+                            "name": tc.function.name,
+                            "arguments": tc.function.arguments,
+                        },
+                    }
+                    for tc in tool_calls
+                ],
+            })
+
+            for tool_call in tool_calls:
+                name = tool_call.function.name
+                args = json.loads(tool_call.function.arguments)
+
+                # Atualiza label interno — exibido no typing_indicator, não no chat
+                async with self:
+                    self.chat_tool_label = "gerando gráfico..." if name == "generate_chart_data" else "consultando banco..."
+
+                result = execute_tool(name, args)
+
+                if name == "generate_chart_data":
+                    try:
+                        parsed = json.loads(result)
+                        if parsed.get("__chart__"):
+                            pending_chart_json = result
+                            pending_chart_id = f"chart_{tool_call.id.replace('-', '_')}"
+                    except Exception:
+                        pass
+
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "name": name,
+                    "content": result,
+                })
+        else:
+            fallback = "Não consegui concluir a análise. Tente reformular a pergunta."
+            async with self:
+                self.chat_history.append(_msg("assistant", fallback))
+                self.is_processing_chat = False
+                self.chat_tool_label = ""
+                self._pending_chart_json = ""
+                yield rx.call_script("window.scrollToBottom('chat-container')")
 
     async def process_voice_input(self, text: str):
-        """Receives transcribed text directly from the frontend."""
+        """Receives transcribed text — funnels through the same agentic pipeline as typed messages."""
         if not text:
             return
         self.is_recording = False
         self.is_recording_voice = False
-        self.chat_history.append({"role": "user", "content": text})
-        self.is_processing_chat = True
-        yield rx.call_script("window.scrollToBottom('chat-container')")
-        yield
-        async for _ in self._perform_ai_query(text):
-            yield
+        # Reutiliza exatamente o mesmo fluxo do send_message: agentic loop + tool calls + charts
+        self.current_question = text
+        async for ev in self.send_message():
+            yield ev
 
     async def process_audio_blob(self, base64_data: str):
         """Receives base64 audio and transcribes."""
@@ -315,9 +370,9 @@ class GlobalState(rx.State):
         Used to sync UI after JS-driven Audio/Text fetch.
         """
         if user_text:
-            self.chat_history.append({"role": "user", "content": user_text})
+            self.chat_history.append(_msg("user", user_text))
         if ai_text:
-            self.chat_history.append({"role": "assistant", "content": ai_text})
+            self.chat_history.append(_msg("assistant", ai_text))
             self.last_spoken_response = ai_text
 
         self.is_processing_chat = False
@@ -331,8 +386,6 @@ class GlobalState(rx.State):
         Wrapper for inject_conversation that parses JSON string.
         Bound to hidden input for JS-to-Python communication.
         """
-        import json
-
         try:
             data = json.loads(json_data)
             self.inject_conversation(data.get("user", ""), data.get("ai", ""))
@@ -898,6 +951,9 @@ class GlobalState(rx.State):
         self.pw_confirm = ""
         self.pw_error = ""
         self.pw_success = False
+        # Limpa sessão de chat para não vazar histórico entre usuários
+        self.chat_session_id = ""
+        self.chat_history = []
 
     def set_current_path(self, path: str):
         self.current_path = path

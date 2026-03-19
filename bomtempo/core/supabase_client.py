@@ -322,3 +322,21 @@ def sb_delete(table: str, filters: Dict[str, Any]) -> bool:
     except Exception as e:
         logger.error(f"Supabase DELETE {table} exception: {e}")
         return False
+
+
+def sb_rpc(fn_name: str, params: Dict[str, Any] = None) -> Any:
+    """Call a Supabase RPC (Stored Procedure)."""
+    try:
+        url = f"{SUPABASE_URL}/rest/v1/rpc/{fn_name}"
+        resp = _get_client().post(
+            url,
+            headers=_headers(),
+            json=params or {},
+        )
+        if resp.status_code == 200:
+            return resp.json()
+        logger.error(f"Supabase RPC {fn_name} → {resp.status_code}: {resp.text[:400]}")
+        return None
+    except Exception as e:
+        logger.error(f"Supabase RPC {fn_name} exception: {e}")
+        return None
