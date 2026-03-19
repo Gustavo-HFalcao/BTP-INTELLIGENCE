@@ -244,6 +244,37 @@ def sb_update(
 # ── Storage helpers ────────────────────────────────────────────────────────────
 
 
+def sb_storage_ensure_bucket(bucket: str, public: bool = True) -> bool:
+    """Create Storage bucket if it doesn't exist. Safe to call on every upload."""
+    try:
+        storage_headers = {
+            "apikey": SUPABASE_KEY,
+            "Authorization": f"Bearer {SUPABASE_KEY}",
+            "Content-Type": "application/json",
+        }
+        # Check existence first
+        resp = _get_client().get(
+            f"{SUPABASE_URL}/storage/v1/bucket/{bucket}",
+            headers=storage_headers,
+        )
+        if resp.status_code == 200:
+            return True
+        # Not found — create it
+        create = _get_client().post(
+            f"{SUPABASE_URL}/storage/v1/bucket",
+            headers=storage_headers,
+            json={"id": bucket, "name": bucket, "public": public},
+        )
+        if create.status_code in (200, 201):
+            logger.info(f"✅ Storage bucket criado: {bucket}")
+            return True
+        logger.error(f"sb_storage_ensure_bucket {bucket} → {create.status_code}: {create.text[:200]}")
+        return False
+    except Exception as e:
+        logger.error(f"sb_storage_ensure_bucket {bucket}: {e}")
+        return False
+
+
 def sb_storage_upload(
     bucket: str, path: str, file_bytes: bytes, content_type: str = "application/octet-stream"
 ) -> Optional[str]:

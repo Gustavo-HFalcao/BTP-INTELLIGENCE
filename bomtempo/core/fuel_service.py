@@ -398,6 +398,19 @@ body { font-family: 'IBM Plex Sans', sans-serif; background: #fff; color: #1a1a1
                 "ai_insight_text": data.get("ai_insight_text", "") or None,
                 "deviation_from_user_avg": deviations.get("deviation_from_user_avg"),
                 "deviation_from_fleet_avg": deviations.get("deviation_from_fleet_avg"),
+                # ── Novos campos ──────────────────────────────────────────────
+                "ai_score":            int(data.get("ai_score") or 0) or None,
+                "centro_custo":        data.get("centro_custo") or None,
+                "image_hash":          data.get("image_hash") or None,
+                "signature_b64":       data.get("signature_b64") or None,
+                "capacidade_tanque":   data.get("capacidade_tanque"),
+                "tank_overflow_alert": bool(data.get("tank_overflow_alert", False)),
+                # GPS check-in
+                "checkin_lat":             data.get("checkin_lat"),
+                "checkin_lng":             data.get("checkin_lng"),
+                "checkin_endereco":        data.get("checkin_endereco") or None,
+                "checkin_timestamp":       data.get("checkin_timestamp") or None,
+                "checkin_distancia_posto": data.get("checkin_distancia_posto"),
                 # receipt_image_url e pdf_report_url atualizados via UPDATE após upload
             }
 
@@ -456,6 +469,25 @@ body { font-family: 'IBM Plex Sans', sans-serif; background: #fff; color: #1a1a1
         except Exception as e:
             logger.error(f"❌ Erro ao fazer upload do PDF FR: {e}")
             return ""
+
+    # ── Duplicidade ───────────────────────────────────────────────────────────
+
+    @staticmethod
+    def check_duplicate_hash(image_hash: str) -> Optional[str]:
+        """
+        Verifica se já existe reembolso com o mesmo hash MD5 da imagem.
+        Retorna o ID do reembolso duplicado ou None.
+        """
+        if not image_hash:
+            return None
+        try:
+            rows = sb_select(_TABLE, filters={"image_hash": image_hash}, limit=1)
+            if rows:
+                return str(rows[0].get("id", ""))
+            return None
+        except Exception as e:
+            logger.warning(f"check_duplicate_hash: {e}")
+            return None
 
     # ── Queries ────────────────────────────────────────────────────────────────
 

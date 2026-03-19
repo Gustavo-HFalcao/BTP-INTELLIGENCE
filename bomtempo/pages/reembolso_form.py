@@ -9,6 +9,8 @@ from bomtempo.core import styles as S
 from bomtempo.state.global_state import GlobalState
 from bomtempo.state.reembolso_state import ReembolsoState
 
+# Capacidades de tanque comuns (litros)
+
 # ── Paleta local ────────────────────────────────────────────────────────────
 
 
@@ -219,6 +221,107 @@ def section_localizacao() -> rx.Component:
             width="100%",
         ),
         width="100%",
+    )
+
+
+# ── Seção 2b: GPS Check-in (feature flag: gps_validation) ────────────────────
+
+
+def section_gps_checkin() -> rx.Component:
+    """Captura de localização GPS do usuário no momento do preenchimento."""
+    return rx.cond(
+        ReembolsoState.feat_gps,
+        _card(
+            _section_title("map-pin", "Check-in GPS"),
+            rx.cond(
+                ReembolsoState.checkin_done,
+                # GPS já capturado
+                rx.vstack(
+                    rx.hstack(
+                        rx.icon(tag="map-pin", size=16, color=S.SUCCESS),
+                        rx.text(
+                            ReembolsoState.checkin_endereco,
+                            font_size="14px",
+                            font_weight="600",
+                            color=S.TEXT_PRIMARY,
+                        ),
+                        spacing="2",
+                        align="center",
+                    ),
+                    rx.cond(
+                        ReembolsoState.checkin_distancia_str != "",
+                        rx.hstack(
+                            rx.icon(tag="navigation", size=13, color=ReembolsoState.checkin_distancia_color),
+                            rx.text(
+                                ReembolsoState.checkin_distancia_str,
+                                font_size="12px",
+                                color=ReembolsoState.checkin_distancia_color,
+                                font_weight="600",
+                            ),
+                            spacing="1",
+                            align="center",
+                        ),
+                    ),
+                    rx.button(
+                        rx.icon(tag="x", size=14),
+                        "Limpar",
+                        on_click=ReembolsoState.clear_checkin,
+                        size="1",
+                        variant="ghost",
+                        color_scheme="red",
+                    ),
+                    spacing="2",
+                    align="start",
+                    width="100%",
+                ),
+                # GPS ainda não capturado
+                rx.vstack(
+                    rx.text(
+                        "Registre sua localização atual para validar o abastecimento.",
+                        font_size="13px",
+                        color=S.TEXT_MUTED,
+                        line_height="1.5",
+                    ),
+                    rx.button(
+                        rx.cond(
+                            ReembolsoState.is_getting_checkin,
+                            rx.hstack(rx.spinner(size="2"), rx.text("Obtendo localização..."), spacing="2", align="center"),
+                            rx.hstack(rx.icon(tag="map-pin", size=16), rx.text("Registrar Localização GPS"), spacing="2", align="center"),
+                        ),
+                        on_click=ReembolsoState.do_checkin,
+                        disabled=ReembolsoState.is_getting_checkin,
+                        bg=S.PATINA,
+                        color="white",
+                        width="100%",
+                        height="48px",
+                        border_radius="10px",
+                        font_size="15px",
+                        font_weight="600",
+                        _hover={"bg": S.SUCCESS},
+                        cursor="pointer",
+                    ),
+                    spacing="3",
+                    width="100%",
+                ),
+            ),
+            rx.cond(
+                ReembolsoState.duplicate_warning != "",
+                rx.hstack(
+                    rx.icon(tag="alert-triangle", size=14, color="#E05252"),
+                    rx.text(
+                        f"Nota: imagem já utilizada em outro reembolso.",
+                        font_size="12px",
+                        color="#E05252",
+                        font_weight="600",
+                    ),
+                    spacing="1",
+                    align="center",
+                    margin_top="8px",
+                ),
+            ),
+            width="100%",
+        ),
+        rx.fragment(),
     )
 
 
@@ -521,6 +624,169 @@ def section_nota_fiscal() -> rx.Component:
     )
 
 
+# ── Seção 6: AI Score Badge (feature flag: ai_score) ─────────────────────────
+
+
+def section_ai_score() -> rx.Component:
+    return rx.cond(
+        ReembolsoState.feat_score & ReembolsoState.analysis_done,
+        _card(
+            rx.hstack(
+                rx.vstack(
+                    _section_title("shield-check", "Score de Confiabilidade"),
+                    rx.text(
+                        "Calculado com base em GPS, verificação IA e histórico.",
+                        font_size="11px",
+                        color=S.TEXT_MUTED,
+                        margin_top="-10px",
+                    ),
+                    spacing="0",
+                    align="start",
+                ),
+                rx.spacer(),
+                rx.vstack(
+                    rx.text(
+                        ReembolsoState.ai_score.to_string(),
+                        font_size="40px",
+                        font_weight="900",
+                        color=ReembolsoState.ai_score_color,
+                        font_family=S.FONT_TECH,
+                        line_height="1",
+                    ),
+                    rx.badge(
+                        ReembolsoState.ai_score_label,
+                        color_scheme=rx.match(
+                            ReembolsoState.ai_score_label,
+                            ("Alto", "teal"),
+                            ("Médio", "amber"),
+                            ("Baixo", "red"),
+                            "gray",
+                        ),
+                        variant="soft",
+                        radius="full",
+                    ),
+                    align="center",
+                    spacing="1",
+                ),
+                align="center",
+                width="100%",
+            ),
+            width="100%",
+        ),
+        rx.fragment(),
+    )
+
+
+# ── Seção 7: Assinatura Digital (feature flag: digital_signature) ─────────────
+
+
+def section_assinatura() -> rx.Component:
+    return rx.cond(
+        ReembolsoState.feat_signature,
+        _card(
+            _section_title("pen-line", "Assinatura Digital"),
+            rx.vstack(
+                rx.text(
+                    "Assine com o dedo ou mouse abaixo para atestar a veracidade do reembolso.",
+                    font_size="12px",
+                    color=S.TEXT_MUTED,
+                    line_height="1.5",
+                    margin_bottom="4px",
+                ),
+                # Canvas de assinatura — script inline via rx.html para executar no corpo
+                rx.html("""
+<div id="fr-sig-init-hook" style="display:none"></div>
+<script>
+(function(){
+  if(window._frSigObs){window._frSigObs.disconnect();window._frSigObs=null;}
+  function _bind(){
+    var c=document.getElementById('fr-sig-canvas');
+    if(!c)return;
+    var ctx=c.getContext('2d');
+    ctx.strokeStyle='#C98B2A';ctx.lineWidth=3;ctx.lineCap='round';ctx.lineJoin='round';
+    var drawing=false;
+    function pos(e){
+      var r=c.getBoundingClientRect();var s=e.touches?e.touches[0]:e;
+      return{x:(s.clientX-r.left)*(c.width/r.width),y:(s.clientY-r.top)*(c.height/r.height)};
+    }
+    c.onmousedown=function(e){e.preventDefault();drawing=true;var p=pos(e);ctx.beginPath();ctx.moveTo(p.x,p.y);};
+    c.onmousemove=function(e){if(!drawing)return;var p=pos(e);ctx.lineTo(p.x,p.y);ctx.stroke();};
+    c.onmouseup=function(){drawing=false;};
+    c.onmouseleave=function(){drawing=false;};
+    c.ontouchstart=function(e){e.preventDefault();drawing=true;var p=pos(e);ctx.beginPath();ctx.moveTo(p.x,p.y);};
+    c.ontouchmove=function(e){e.preventDefault();if(!drawing)return;var p=pos(e);ctx.lineTo(p.x,p.y);ctx.stroke();};
+    c.ontouchend=function(){drawing=false;};
+  }
+  _bind();
+  [50,150,300,600,1000,2000].forEach(function(t){setTimeout(_bind,t);});
+  var _t;
+  window._frSigObs=new MutationObserver(function(){clearTimeout(_t);_t=setTimeout(_bind,80);});
+  window._frSigObs.observe(document.body,{childList:true,subtree:true,attributes:false});
+})();
+</script>
+"""),
+                rx.el.canvas(
+                    id="fr-sig-canvas",
+                    width="800",
+                    height="200",
+                    style={
+                        "border": "1px solid rgba(255,255,255,0.15)",
+                        "borderRadius": "8px",
+                        "background": "rgba(255,255,255,0.04)",
+                        "width": "100%",
+                        "minHeight": "160px",
+                        "cursor": "crosshair",
+                        "touchAction": "none",
+                        "display": "block",
+                        "userSelect": "none",
+                    },
+                ),
+                rx.hstack(
+                    rx.button(
+                        rx.icon(tag="eraser", size=14),
+                        "Limpar",
+                        on_click=ReembolsoState.clear_signature,
+                        size="1",
+                        variant="ghost",
+                        color_scheme="red",
+                    ),
+                    rx.button(
+                        rx.icon(tag="check", size=13),
+                        "Confirmar Assinatura",
+                        on_click=ReembolsoState.capture_signature,
+                        size="1",
+                        style={
+                            "background": "rgba(42,157,143,0.12)",
+                            "border": "1px solid rgba(42,157,143,0.3)",
+                            "color": S.PATINA,
+                            "cursor": "pointer",
+                            "border_radius": "6px",
+                            "padding": "5px 14px",
+                        },
+                    ),
+                    rx.cond(
+                        ReembolsoState.signature_b64 != "",
+                        rx.hstack(
+                            rx.icon(tag="check-circle", size=14, color=S.PATINA),
+                            rx.text("Assinatura capturada ✓", size="1", color=S.PATINA, weight="medium"),
+                            spacing="1",
+                            align="center",
+                        ),
+                    ),
+                    spacing="2",
+                    align="center",
+                    flex_wrap="wrap",
+                    margin_top="8px",
+                ),
+                spacing="3",
+                width="100%",
+            ),
+            width="100%",
+        ),
+        rx.fragment(),
+    )
+
+
 # ── Overlay de loading ───────────────────────────────────────────────────────
 
 
@@ -565,8 +831,11 @@ def _tab_nova_solicitacao() -> rx.Component:
     return rx.vstack(
         section_abastecimento(),
         section_localizacao(),
+        section_gps_checkin(),
         section_km(),
         section_nota_fiscal(),
+        section_ai_score(),
+        section_assinatura(),
         # Botão submit
         rx.button(
             rx.cond(

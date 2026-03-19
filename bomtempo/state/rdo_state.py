@@ -68,6 +68,13 @@ class RDOState(rx.State):
     evidencias_items: List[Dict[str, str]] = []
     ev_legenda: str = ""
     is_uploading_evidence: bool = False
+    # Client-side EXIF metadata (extracted by exifr.js before upload)
+    ev_exif_datetime: str = ""    # ISO string from EXIF DateTimeOriginal
+    ev_exif_lat: float = 0.0      # GPS latitude from EXIF
+    ev_exif_lng: float = 0.0      # GPS longitude from EXIF
+    ev_last_modified: str = ""    # File.lastModified as fallback
+    # Lightbox
+    photo_lightbox_url: str = ""   # URL da foto em fullscreen ("" = fechado)
 
     # ── Foto EPIs ─────────────────────────────────────────────
     epi_foto_items: List[Dict[str, str]] = []
@@ -96,6 +103,17 @@ class RDOState(rx.State):
     submit_status: str = ""
     show_confirm_dialog: bool = False
 
+    # ── Campos condicionais: Chuva ─────────────────────────────
+    rdo_houve_chuva: bool = False
+    rdo_quantidade_chuva: str = "Leve"      # "Leve", "Moderada", "Forte"
+
+    # ── Campos condicionais: Acidente ──────────────────────────
+    rdo_houve_acidente: bool = False
+    rdo_descricao_acidente: str = ""
+
+    # ── Feature Flags ──────────────────────────────────────────
+    rdo_active_features: List[str] = []
+
     # ── UI toggles ────────────────────────────────────────────
     section_atividades_open: bool = True
     section_observacoes_open: bool = True
@@ -104,6 +122,17 @@ class RDOState(rx.State):
     clima_options: List[str] = ["Ensolarado", "Parcialmente Nublado", "Nublado", "Chuvoso", "Chuvoso Forte", "Nevando"]
     turno_options: List[str] = ["Diurno", "Noturno", "Integral"]
     at_status_options: List[str] = ["Não iniciado", "Em andamento", "Concluído", "Bloqueado"]
+    chuva_options: List[str] = ["Leve", "Moderada", "Forte"]
+
+    # ── Feature computed vars ──────────────────────────────────
+
+    @rx.var
+    def feat_conditional_fields(self) -> bool:
+        return "conditional_fields" in self.rdo_active_features
+
+    @rx.var
+    def feat_auto_weather(self) -> bool:
+        return "auto_weather" in self.rdo_active_features
 
     # ── Computed ──────────────────────────────────────────────
 
@@ -210,6 +239,17 @@ class RDOState(rx.State):
         gs = await self.get_state(GlobalState)
         user = str(gs.current_user_name)
         contrato = str(gs.current_user_contrato).strip()
+
+        # Carregar feature flags direto do banco (sempre fresco, nunca stale do login)
+        try:
+            from bomtempo.core.feature_flags import FeatureFlagsService
+            _contrato = contrato or str(gs.current_user_contrato or "")
+            if _contrato and _contrato not in ("nan", "None", ""):
+                self.rdo_active_features = FeatureFlagsService.get_features_for_contract(_contrato)
+            else:
+                self.rdo_active_features = list(gs.active_features or [])
+        except Exception:
+            self.rdo_active_features = list(gs.active_features or [])
 
         # Defaults
         if not self.rdo_data:
@@ -383,6 +423,28 @@ class RDOState(rx.State):
             if obra_lat and obra_lng:
                 distancia = _haversine(lat, lng, obra_lat, obra_lng)
 
+        # Auto weather (se feature ativa)
+        auto_clima = ""
+        async with self:
+            _feat_weather = self.feat_auto_weather
+        if ok and lat and _feat_weather:
+            try:
+                from bomtempo.core import weather_api
+                forecast = await weather_api.get_forecast(lat, lng)
+                if forecast:
+                    code = int(forecast.get("code", 0))
+                    rain = float(forecast.get("rain", 0))
+                    if rain > 5 or code in range(61, 82):
+                        auto_clima = "Chuvoso Forte" if rain > 10 else "Chuvoso"
+                    elif rain > 0 or code in range(51, 61):
+                        auto_clima = "Nublado"
+                    elif code in range(1, 4):
+                        auto_clima = "Parcialmente Nublado"
+                    else:
+                        auto_clima = "Ensolarado"
+            except Exception as e:
+                logger.warning(f"auto_weather: {e}")
+
         async with self:
             self.checkin_lat             = lat
             self.checkin_lng             = lng
@@ -390,11 +452,14 @@ class RDOState(rx.State):
             self.checkin_timestamp       = datetime.now().isoformat()
             self.checkin_distancia_obra  = distancia
             self.is_getting_checkin      = False
+            if auto_clima:
+                self.rdo_clima = auto_clima
 
         if ok and lat:
             dist_str = f" · {distancia:.0f}m da obra" if distancia > 0 else ""
+            clima_str = f" · Clima: {auto_clima}" if auto_clima else ""
             yield rx.toast(
-                f"📍 Check-in: {endereco or f'{lat:.4f}, {lng:.4f}'}{dist_str}",
+                f"📍 Check-in: {endereco or f'{lat:.4f}, {lng:.4f}'}{dist_str}{clima_str}",
                 position="top-center",
             )
         else:
@@ -432,6 +497,27 @@ class RDOState(rx.State):
 
     # ── Evidências ────────────────────────────────────────────
     # NOTE: upload handlers CANNOT be @rx.event(background=True) — Reflex restriction.
+
+    def receive_exif_meta(self, data: dict):
+        """Called from JS (exifr) before upload fires — stores client-extracted EXIF."""
+        self.ev_exif_datetime = str(data.get("datetime", "") or "")
+        self.ev_exif_lat      = float(data.get("lat", 0.0) or 0.0)
+        self.ev_exif_lng      = float(data.get("lng", 0.0) or 0.0)
+        self.ev_last_modified = str(data.get("lastModified", "") or "")
+
+    def receive_exif_json(self, json_str: str):
+        """Bridge: hidden input on_change fires with JSON string from exifr JS."""
+        import json as _json
+        try:
+            data = _json.loads(json_str)
+            self.ev_exif_datetime = str(data.get("datetime", "") or "")
+            self.ev_exif_lat      = float(data.get("lat", 0.0) or 0.0)
+            self.ev_exif_lng      = float(data.get("lng", 0.0) or 0.0)
+            self.ev_last_modified = str(data.get("lastModified", "") or "")
+        except Exception:
+            pass
+
+    # NOTE: upload handlers CANNOT be @rx.event(background=True) — Reflex restriction.
     # They are regular async handlers; blocking I/O runs via run_in_executor.
 
     async def upload_evidence_files(self, files: List[rx.UploadFile]):
@@ -441,6 +527,10 @@ class RDOState(rx.State):
 
         self.is_uploading_evidence = True
         yield
+
+        # Small wait to allow receive_exif_json WebSocket round-trip to complete
+        # before reading ev_exif_* vars (exifr runs async in JS before on_drop fires)
+        await asyncio.sleep(0.4)
 
         from bomtempo.state.global_state import GlobalState
         gs = await self.get_state(GlobalState)
@@ -473,6 +563,13 @@ class RDOState(rx.State):
                 _name = getattr(f, "filename", "foto.jpg")
                 _ct   = getattr(f, "content_type", None) or "image/jpeg"
                 _b, _n, _c = file_bytes, _name, _ct
+                _ci_lat    = float(self.checkin_lat or 0.0)
+                _ci_lng    = float(self.checkin_lng or 0.0)
+                _ci_end    = str(self.checkin_endereco or "")
+                _ex_lat    = float(self.ev_exif_lat or 0.0)
+                _ex_lng    = float(self.ev_exif_lng or 0.0)
+                _ex_dt     = str(self.ev_exif_datetime or "")
+                _ex_lm     = str(self.ev_last_modified or "")
                 result = await loop.run_in_executor(
                     None,
                     lambda: RDOService.process_evidence(
@@ -484,6 +581,13 @@ class RDOState(rx.State):
                         mestre=user,
                         contrato=contrato,
                         data=data,
+                        checkin_lat=_ci_lat,
+                        checkin_lng=_ci_lng,
+                        checkin_endereco=_ci_end,
+                        client_exif_lat=_ex_lat,
+                        client_exif_lng=_ex_lng,
+                        client_exif_datetime=_ex_dt,
+                        client_last_modified=_ex_lm,
                     ),
                 )
                 if result.get("foto_url"):
@@ -493,12 +597,34 @@ class RDOState(rx.State):
 
         self.evidencias_items     = [*self.evidencias_items, *new_items]
         self.ev_legenda           = ""
+        self.ev_exif_datetime     = ""
+        self.ev_exif_lat          = 0.0
+        self.ev_exif_lng          = 0.0
+        self.ev_last_modified     = ""
         self.is_uploading_evidence = False
 
         if new_items:
             yield rx.toast(f"✅ {len(new_items)} foto(s) adicionada(s)", position="top-center")
         else:
             yield rx.toast("⚠️ Nenhuma foto foi processada", position="top-center")
+
+    def remove_evidence(self, foto_url: str):
+        """Remove foto da lista local (estado draft)."""
+        self.evidencias_items = [
+            e for e in self.evidencias_items if e.get("foto_url", "") != foto_url
+        ]
+
+    def remove_epi_photo(self):
+        self.epi_foto_items = []
+
+    def remove_ferramentas_photo(self):
+        self.ferramentas_foto_items = []
+
+    def open_lightbox(self, url: str):
+        self.photo_lightbox_url = url
+
+    def close_lightbox(self):
+        self.photo_lightbox_url = ""
 
     async def upload_epi_files(self, files: List[rx.UploadFile]):
         """Upload EPI photo — watermark + Supabase Storage."""
@@ -636,6 +762,13 @@ class RDOState(rx.State):
             self.signatory_sig_b64 = data.get("sig", "")
         elif isinstance(data, str) and data.startswith("data:"):
             self.signatory_sig_b64 = data
+
+    def clear_signature_canvas(self):
+        """Limpa o canvas de assinatura via JS e reseta o state."""
+        self.signatory_sig_b64 = ""
+        return rx.call_script(
+            "var c=document.getElementById('sig-canvas');if(c){var ctx=c.getContext('2d');ctx.clearRect(0,0,c.width,c.height);}"
+        )
 
     def capture_signature(self):
         """Captura assinatura do canvas como JPEG 70% (payload reduzido ~10x vs PNG)."""
@@ -884,6 +1017,11 @@ class RDOState(rx.State):
             "orientacao":           str(self.rdo_orientacao),
             "km_percorrido":        float(self.rdo_km_percorrido) if self.rdo_km_percorrido else None,
             "observacoes":          str(self.rdo_observacoes),
+            # Campos condicionais
+            "houve_chuva":          bool(self.rdo_houve_chuva),
+            "quantidade_chuva":     str(self.rdo_quantidade_chuva) if self.rdo_houve_chuva else None,
+            "houve_acidente":       bool(self.rdo_houve_acidente),
+            "descricao_acidente":   str(self.rdo_descricao_acidente) if self.rdo_houve_acidente else None,
             # GPS
             "checkin_lat":          float(self.checkin_lat),
             "checkin_lng":          float(self.checkin_lng),
@@ -922,6 +1060,10 @@ class RDOState(rx.State):
         self.rdo_houve_interrupcao = False
         self.rdo_motivo_interrupcao= ""
         self.rdo_observacoes       = ""
+        self.rdo_houve_chuva       = False
+        self.rdo_quantidade_chuva  = "Leve"
+        self.rdo_houve_acidente    = False
+        self.rdo_descricao_acidente = ""
         self.checkin_lat           = 0.0
         self.checkin_lng           = 0.0
         self.checkin_endereco      = ""

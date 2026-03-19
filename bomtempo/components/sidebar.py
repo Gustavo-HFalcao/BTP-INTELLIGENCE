@@ -217,6 +217,10 @@ def sidebar_content() -> rx.Component:
                 sidebar_item("USUÁRIOS", "users", "/admin/usuarios"),
             ),
             rx.cond(
+                GlobalState.allowed_modules.contains("gerenciar_usuarios"),
+                sidebar_item("FEATURE FLAGS", "toggle-right", "/admin/contract-features"),
+            ),
+            rx.cond(
                 GlobalState.allowed_modules.contains("editar_dados"),
                 sidebar_item("EDITAR DADOS", "database", "/admin/editar_dados"),
             ),

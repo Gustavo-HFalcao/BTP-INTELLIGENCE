@@ -692,6 +692,8 @@ def default_layout(content: rx.Component) -> rx.Component:
     """Default layout matching React reference: sidebar + content (Mobile Responsive)"""
 
     return rx.box(
+        # ── Signature canvas binding (global — persists across SPA navigation) ──
+        rx.script(src="/js/sig_canvas.js"),
         # ── PWA Init (manifest + SW + install prompt + viewport fix + favicon + iOS) ──
         rx.script("""
 (function () {

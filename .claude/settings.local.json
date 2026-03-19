@@ -70,7 +70,27 @@
       "Bash(pip show:*)",
       "Bash(head -10 grep -n \"is_loading\\\\|skeleton\\\\|page_centered\" c:/Users/Gustavo/bomtempo-dashboard/bomtempo/pages/usuarios.py)",
       "Bash(where psql:*)",
-      "Bash(psql --version)"
+      "Bash(psql --version)",
+      "WebFetch(domain:exifreader.app)",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:pillow.readthedocs.io)",
+      "WebFetch(domain:www.awaresystems.be)",
+      "WebFetch(domain:caniuse.com)",
+      "WebFetch(domain:www.reddit.com)",
+      "WebFetch(domain:bugs.webkit.org)",
+      "WebFetch(domain:trac.webkit.org)",
+      "WebFetch(domain:webkit.org)",
+      "WebFetch(domain:photo.stackexchange.com)",
+      "WebFetch(domain:www.exif.org)",
+      "WebFetch(domain:medium.com)",
+      "WebFetch(domain:css-tricks.com)",
+      "WebFetch(domain:www.smashingmagazine.com)",
+      "WebFetch(domain:www.w3.org)",
+      "WebFetch(domain:exiftool.org)",
+      "WebFetch(domain:developers.google.com)",
+      "WebFetch(domain:cordova.apache.org)",
+      "WebFetch(domain:issues.chromium.org)"
     ]
   }
 }

@@ -414,26 +414,46 @@ def _row(r: dict) -> rx.Component:
         rx.table.cell(
             rx.text(r.get("city", "—"), font_size="12px", color=S.TEXT_MUTED),
         ),
-        # IA Verified
+        # IA Verified + Score
         rx.table.cell(
-            rx.cond(
-                r.get("ai_verified", False),
-                rx.badge(
-                    "IA ✓",
-                    color_scheme="teal",
-                    variant="solid",
-                    high_contrast=True,
-                    radius="full",
-                    font_size="10px",
+            rx.hstack(
+                rx.cond(
+                    r.get("ai_verified", False),
+                    rx.badge("IA ✓", color_scheme="teal", variant="solid", high_contrast=True, radius="full", font_size="10px"),
+                    rx.badge("Manual", color_scheme="gray", variant="solid", high_contrast=True, radius="full", font_size="10px"),
                 ),
-                rx.badge(
-                    "Manual",
-                    color_scheme="gray",
-                    variant="solid",
-                    high_contrast=True,
-                    radius="full",
-                    font_size="10px",
+                rx.cond(
+                    ReembolsoState.dash_active_features.contains("ai_score"),
+                    rx.cond(
+                        r.get("ai_score", "—") != "—",
+                        rx.badge(
+                            r.get("ai_score", ""),
+                            color_scheme=rx.match(
+                                r.get("ai_score", "0"),
+                                ("100", "teal"), ("99", "teal"), ("98", "teal"), ("97", "teal"),
+                                ("96", "teal"), ("95", "teal"), ("90", "teal"), ("80", "teal"),
+                                "amber",
+                            ),
+                            variant="soft",
+                            radius="full",
+                            font_size="10px",
+                            title="Score IA",
+                        ),
+                        rx.fragment(),
+                    ),
+                    rx.fragment(),
                 ),
+                rx.cond(
+                    ReembolsoState.dash_active_features.contains("gps_validation"),
+                    rx.cond(
+                        r.get("has_gps", "false") == "true",
+                        rx.icon(tag="map-pin", size=12, color=S.PATINA, title="GPS registrado"),
+                        rx.fragment(),
+                    ),
+                    rx.fragment(),
+                ),
+                spacing="1",
+                align="center",
             ),
         ),
         # Data (pré-formatada no state como date_short)
@@ -747,6 +767,112 @@ def _grafico_combustivel() -> rx.Component:
     )
 
 
+# ── Gráfico: AI Score (feature: ai_score) ───────────────────────────────────
+
+
+def _grafico_score() -> rx.Component:
+    """Distribuição de Score de Confiabilidade IA — só aparece se feature ativa."""
+    return rx.cond(
+        ReembolsoState.dash_active_features.contains("ai_score"),
+        rx.box(
+            rx.vstack(
+                rx.hstack(
+                    rx.icon(tag="shield-check", size=18, color=S.SUCCESS),
+                    rx.text(
+                        "Score de Confiabilidade",
+                        font_size="14px",
+                        font_weight="700",
+                        color=S.TEXT_PRIMARY,
+                        font_family=S.FONT_TECH,
+                    ),
+                    rx.badge("AI SCORE", color_scheme="teal", variant="soft", radius="full", font_size="10px"),
+                    spacing="2",
+                    align="center",
+                ),
+                rx.recharts.pie_chart(
+                    rx.recharts.pie(
+                        data=ReembolsoState.dash_chart_score,
+                        data_key="value",
+                        name_key="name",
+                        cx="50%",
+                        cy="50%",
+                        inner_radius=40,
+                        outer_radius=80,
+                        padding_angle=3,
+                    ),
+                    rx.recharts.legend(icon_type="circle"),
+                    rx.recharts.tooltip(
+                        content_style={"background": S.BG_SURFACE, "border": f"1px solid {S.BORDER_ACCENT}", "border_radius": "8px"},
+                        item_style={"color": S.TEXT_PRIMARY},
+                    ),
+                    height=230,
+                    width="100%",
+                ),
+                spacing="3",
+                width="100%",
+                align="center",
+            ),
+            **{**S.GLASS_CARD, "padding": "20px"},
+            flex="1",
+            min_width="240px",
+        ),
+        rx.fragment(),
+    )
+
+
+# ── Gráfico: GPS Coverage (feature: gps_validation) ─────────────────────────
+
+
+def _grafico_gps() -> rx.Component:
+    """Cobertura de GPS nos reembolsos — só aparece se feature ativa."""
+    return rx.cond(
+        ReembolsoState.dash_active_features.contains("gps_validation"),
+        rx.box(
+            rx.vstack(
+                rx.hstack(
+                    rx.icon(tag="map-pin", size=18, color=S.PATINA),
+                    rx.text(
+                        "Cobertura GPS",
+                        font_size="14px",
+                        font_weight="700",
+                        color=S.TEXT_PRIMARY,
+                        font_family=S.FONT_TECH,
+                    ),
+                    rx.badge("GPS", color_scheme="teal", variant="soft", radius="full", font_size="10px"),
+                    spacing="2",
+                    align="center",
+                ),
+                rx.recharts.pie_chart(
+                    rx.recharts.pie(
+                        data=ReembolsoState.dash_chart_gps,
+                        data_key="value",
+                        name_key="name",
+                        cx="50%",
+                        cy="50%",
+                        inner_radius=40,
+                        outer_radius=80,
+                        padding_angle=3,
+                    ),
+                    rx.recharts.legend(icon_type="circle"),
+                    rx.recharts.tooltip(
+                        content_style={"background": S.BG_SURFACE, "border": f"1px solid {S.BORDER_ACCENT}", "border_radius": "8px"},
+                        item_style={"color": S.TEXT_PRIMARY},
+                    ),
+                    height=230,
+                    width="100%",
+                ),
+                spacing="3",
+                width="100%",
+                align="center",
+            ),
+            **{**S.GLASS_CARD, "padding": "20px"},
+            flex="1",
+            min_width="240px",
+        ),
+        rx.fragment(),
+    )
+
+
 # ── Tab: Visão Geral ─────────────────────────────────────────────────────────
 
 
@@ -814,13 +940,26 @@ def _tab_visao_geral() -> rx.Component:
                 flex_wrap="wrap",
                 width="100%",
             ),
-            # ── Gráficos ────────────────────────────────────────────────────────
+            # ── Gráficos principais ─────────────────────────────────────────────
             rx.flex(
                 _grafico_mensal(),
                 _grafico_combustivel(),
                 gap="16px",
                 flex_wrap="wrap",
                 width="100%",
+            ),
+            # ── Gráficos feature-gated ──────────────────────────────────────────
+            rx.cond(
+                ReembolsoState.dash_active_features.contains("ai_score")
+                | ReembolsoState.dash_active_features.contains("gps_validation"),
+                rx.flex(
+                    _grafico_score(),
+                    _grafico_gps(),
+                    gap="16px",
+                    flex_wrap="wrap",
+                    width="100%",
+                ),
+                rx.fragment(),
             ),
             # ── Alertas + Tabela ─────────────────────────────────────────────────
             _painel_alertas(),

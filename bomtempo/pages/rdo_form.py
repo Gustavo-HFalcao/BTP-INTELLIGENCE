@@ -596,18 +596,65 @@ def _upload_photo_zone(
     existing_url: rx.Var,
     label: str,
     icon_name: str,
+    on_remove=None,
 ) -> rx.Component:
     return rx.vstack(
-        # Existing photo preview
+        # Existing photo preview with lightbox + X
         rx.cond(
             existing_url != "",
             rx.box(
-                rx.image(
-                    src=existing_url,
-                    width="100%",
-                    height="180px",
-                    object_fit="cover",
-                    style={"border_radius": "8px", "display": "block"},
+                # Image with hover overlay (lightbox)
+                rx.box(
+                    rx.image(
+                        src=existing_url,
+                        width="100%",
+                        height="180px",
+                        object_fit="cover",
+                        style={"border_radius": "8px 8px 0 0" if on_remove else "8px", "display": "block"},
+                    ),
+                    rx.box(
+                        rx.icon("zoom-in", size=24, color="white"),
+                        position="absolute",
+                        top="0", left="0", right="0", bottom="0",
+                        display="flex",
+                        align_items="center",
+                        justify_content="center",
+                        background="rgba(0,0,0,0)",
+                        border_radius="8px 8px 0 0" if on_remove else "8px",
+                        style={
+                            "transition": "background 0.2s",
+                            "cursor": "pointer",
+                            "_hover": {"background": "rgba(0,0,0,0.45)"},
+                        },
+                        on_click=RDOState.open_lightbox(existing_url),
+                    ),
+                    position="relative",
+                ),
+                # X button row (only when on_remove provided)
+                rx.cond(
+                    on_remove is not None,
+                    rx.hstack(
+                        rx.spacer(),
+                        rx.button(
+                            rx.icon("x", size=12),
+                            "Remover",
+                            on_click=on_remove,
+                            size="1",
+                            variant="ghost",
+                            style={
+                                "color": _DANGER,
+                                "cursor": "pointer",
+                                "padding": "4px 8px",
+                                "border_radius": "0 0 8px 8px",
+                                "_hover": {"background": "rgba(224,82,82,0.15)"},
+                            },
+                        ),
+                        width="100%",
+                        padding="4px 8px",
+                        background="rgba(255,255,255,0.04)",
+                        border_radius="0 0 8px 8px",
+                    ),
+                    rx.fragment(),
                 ),
                 border=f"1px solid {_BORDER}",
                 border_radius="8px",
@@ -669,6 +716,7 @@ def _section_epi() -> rx.Component:
             existing_url=RDOState.epi_foto_url,
             label="Foto da Equipe com EPIs — toque para capturar",
             icon_name="shield-check",
+            on_remove=RDOState.remove_epi_photo,
         ),
         title="Equipe com EPIs",
         icon="shield-check",
@@ -736,24 +784,68 @@ def _section_atividades() -> rx.Component:
 
 def _ev_card(item) -> rx.Component:
     return rx.box(
-        rx.image(
-            src=item["foto_url"],
-            width="100%",
-            height="140px",
-            object_fit="cover",
-            style={"border_radius": "6px 6px 0 0", "display": "block"},
+        # Imagem clicável para lightbox
+        rx.box(
+            rx.image(
+                src=item["foto_url"],
+                width="100%",
+                height="140px",
+                object_fit="cover",
+                style={"border_radius": "6px 6px 0 0", "display": "block"},
+            ),
+            # Overlay hover: ícone lupa
+            rx.box(
+                rx.icon("zoom-in", size=24, color="white"),
+                position="absolute",
+                top="0", left="0", right="0", bottom="0",
+                display="flex",
+                align_items="center",
+                justify_content="center",
+                background="rgba(0,0,0,0)",
+                border_radius="6px 6px 0 0",
+                style={
+                    "transition": "background 0.2s",
+                    "cursor": "pointer",
+                    "_hover": {"background": "rgba(0,0,0,0.45)"},
+                },
+                on_click=RDOState.open_lightbox(item["foto_url"]),
+            ),
+            position="relative",
         ),
         rx.box(
-            rx.text(item["legenda"], size="1", color=_TEXT, weight="medium"),
-            rx.cond(
-                item["exif_endereco"] != "",
-                rx.hstack(
-                    rx.icon("map-pin", size=10, color=_PATINA),
-                    rx.text(item["exif_endereco"], size="1", color=_PATINA),
+            rx.hstack(
+                rx.vstack(
+                    rx.text(item["legenda"], size="1", color=_TEXT, weight="medium"),
+                    rx.cond(
+                        item["exif_endereco"] != "",
+                        rx.hstack(
+                            rx.icon("map-pin", size=10, color=_PATINA),
+                            rx.text(item["exif_endereco"], size="1", color=_PATINA),
+                            spacing="1",
+                            align="center",
+                        ),
+                    ),
                     spacing="1",
-                    align="center",
-                    margin_top="3px",
+                    align="start",
+                    flex="1",
                 ),
+                # Botão X excluir
+                rx.button(
+                    rx.icon("x", size=12),
+                    on_click=RDOState.remove_evidence(item["foto_url"]),
+                    size="1",
+                    variant="ghost",
+                    style={
+                        "color": _DANGER,
+                        "cursor": "pointer",
+                        "padding": "2px 4px",
+                        "border_radius": "4px",
+                        "_hover": {"background": "rgba(224,82,82,0.15)"},
+                    },
+                ),
+                align="center",
+                width="100%",
+                spacing="1",
             ),
             padding="7px 8px",
             background="rgba(255,255,255,0.05)",
@@ -766,6 +858,83 @@ def _ev_card(item) -> rx.Component:
 
 def _section_evidencias() -> rx.Component:
     return _section_card(
+        # exifr CDN + interceptor — fires before on_drop, sends EXIF to Reflex via hidden input
+        rx.html("""
+<script src="https://cdn.jsdelivr.net/npm/exifr@7/dist/lite.umd.js"></script>
+<script>
+(function(){
+  function _sendExifToState(meta){
+    var inp = document.getElementById('rdo-exif-bridge');
+    if(!inp){ console.warn('[exifr] bridge input not found'); return; }
+    var json = JSON.stringify(meta);
+    console.log('[exifr] sending meta:', json);
+    try {
+      var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;
+      setter.call(inp, json);
+    } catch(e){ inp.value = json; }
+    inp.dispatchEvent(new Event('input', {bubbles:true}));
+    inp.dispatchEvent(new Event('change', {bubbles:true}));
+  }
+
+  function _initExifrInterceptor(){
+    var uploadZone = document.getElementById('rdo_evidence_upload');
+    if(!uploadZone) return;
+    var fileInput = uploadZone.querySelector('input[type="file"]');
+    if(!fileInput || fileInput._exifrBound) return;
+    fileInput._exifrBound = true;
+    console.log('[exifr] interceptor bound to upload input');
+
+    fileInput.addEventListener('change', async function(e){
+      var files = e.target.files;
+      if(!files || !files.length) return;
+      var file = files[0];
+      var meta = {datetime:'', lat:0, lng:0, lastModified: String(file.lastModified || 0)};
+      console.log('[exifr] file selected:', file.name, 'lastModified:', new Date(file.lastModified).toISOString());
+      try {
+        if(window.exifr){
+          // Use exifr.gps() for most reliable GPS extraction (handles all formats)
+          var gpsData = await exifr.gps(file).catch(function(){ return null; });
+          if(gpsData && typeof gpsData.latitude === 'number'){
+            meta.lat = gpsData.latitude;
+            meta.lng = gpsData.longitude;
+            console.log('[exifr] GPS found:', meta.lat, meta.lng);
+          }
+          // Parse full EXIF for DateTimeOriginal
+          var parsed = await exifr.parse(file, {tiff:true, exif:true, gps:false}).catch(function(){ return null; });
+          if(parsed && parsed.DateTimeOriginal){
+            var d = parsed.DateTimeOriginal;
+            meta.datetime = (d instanceof Date) ? d.toISOString() : String(d);
+            console.log('[exifr] DateTimeOriginal:', meta.datetime);
+          }
+        } else {
+          console.warn('[exifr] library not loaded yet');
+        }
+      } catch(ex){ console.warn('[exifr] parse error:', ex); }
+      _sendExifToState(meta);
+    });
+  }
+
+  var _t;
+  var _obs = new MutationObserver(function(){clearTimeout(_t);_t=setTimeout(_initExifrInterceptor,80);});
+  _obs.observe(document.body,{childList:true,subtree:true});
+  [100,300,700,1500,3000].forEach(function(ms){setTimeout(_initExifrInterceptor,ms);});
+})();
+</script>
+"""),
+        # Invisible bridge input — JS sets value + dispatches change, Reflex on_change fires receive_exif_json
+        rx.el.input(
+            id="rdo-exif-bridge",
+            default_value="",
+            on_change=RDOState.receive_exif_json,
+            style={
+                "position": "absolute",
+                "width": "1px",
+                "height": "1px",
+                "opacity": "0",
+                "pointerEvents": "none",
+                "overflow": "hidden",
+            },
+        ),
         # Photo grid
         rx.cond(
             RDOState.evidencias_items.length() > 0,
@@ -803,7 +972,7 @@ def _section_evidencias() -> rx.Component:
                         rx.icon("image-plus", size=28, color=_MUTED),
                         rx.text("Arraste fotos aqui ou toque para selecionar",
                                 size="2", color=_MUTED, text_align="center"),
-                        rx.text("JPG, PNG · EXIF GPS extraído · marca d'água aplicada",
+                        rx.text("JPG, PNG · EXIF + GPS extraído · marca d'água aplicada",
                                 size="1", color=_MUTED, opacity="0.55", text_align="center"),
                         spacing="2",
                         align="center",
@@ -814,7 +983,7 @@ def _section_evidencias() -> rx.Component:
                 width="100%",
             ),
             id="rdo_evidence_upload",
-            accept={"image/*": [".jpg", ".jpeg", ".png", ".webp", ".heic"]},
+            accept={"image/jpeg": [".jpg", ".jpeg"], "image/png": [".png"], "image/webp": [".webp"], "image/heic": [".heic"]},
             multiple=True,
             max_size=15_000_000,
             on_drop=RDOState.upload_evidence_files(rx.upload_files(upload_id="rdo_evidence_upload")),
@@ -872,6 +1041,7 @@ def _section_ferramentas() -> rx.Component:
             existing_url=RDOState.ferramentas_foto_url,
             label="Foto das Ferramentas Limpas e Organizadas — toque para capturar",
             icon_name="wrench",
+            on_remove=RDOState.remove_ferramentas_photo,
         ),
         title="Ferramentas Limpas e Organizadas",
         icon="wrench",
@@ -901,44 +1071,6 @@ def _section_assinatura() -> rx.Component:
             width="100%",
         ),
         rx.box(height="16px"),
-        # Canvas de assinatura — script separado via rx.script() pois React não executa
-        # <script> dentro de dangerouslySetInnerHTML. O MutationObserver re-inicializa
-        # após cada re-render do React (ex: quando state muda ao fazer upload de fotos).
-        rx.script("""
-(function(){
-  function _initSigCanvas(){
-    var c=document.getElementById('sig-canvas');
-    if(!c||c.dataset.sigInit)return;
-    c.dataset.sigInit='1';
-    var ctx=c.getContext('2d');
-    ctx.strokeStyle='#C98B2A';ctx.lineWidth=3;ctx.lineCap='round';ctx.lineJoin='round';
-    var drawing=false;
-    function getPos(e){
-      var r=c.getBoundingClientRect();
-      var src=e.touches?e.touches[0]:e;
-      return{x:(src.clientX-r.left)*(c.width/r.width),y:(src.clientY-r.top)*(c.height/r.height)};
-    }
-    c.addEventListener('mousedown',function(e){e.preventDefault();drawing=true;var p=getPos(e);ctx.beginPath();ctx.moveTo(p.x,p.y);});
-    c.addEventListener('mousemove',function(e){if(!drawing)return;var p=getPos(e);ctx.lineTo(p.x,p.y);ctx.stroke();});
-    c.addEventListener('mouseup',function(){drawing=false;});
-    c.addEventListener('mouseleave',function(){drawing=false;});
-    c.addEventListener('touchstart',function(e){e.preventDefault();drawing=true;var p=getPos(e);ctx.beginPath();ctx.moveTo(p.x,p.y);},{passive:false});
-    c.addEventListener('touchmove',function(e){e.preventDefault();if(!drawing)return;var p=getPos(e);ctx.lineTo(p.x,p.y);ctx.stroke();},{passive:false});
-    c.addEventListener('touchend',function(){drawing=false;});
-    function _attachClear(){
-      var clr=document.getElementById('sig-clear');
-      if(clr&&!clr.dataset.sigClr){clr.dataset.sigClr='1';clr.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();c.dataset.sigInit='';ctx.clearRect(0,0,c.width,c.height);_initSigCanvas();});}
-    }
-    _attachClear();
-    setTimeout(_attachClear,300);
-  }
-  _initSigCanvas();
-  if(!window._sigObs){
-    window._sigObs=new MutationObserver(function(){_initSigCanvas();});
-    window._sigObs.observe(document.body,{childList:true,subtree:true});
-  }
-})();
-"""),
         rx.vstack(
             _label("Assinatura Digital"),
             rx.text(
@@ -947,14 +1079,27 @@ def _section_assinatura() -> rx.Component:
                 color=_MUTED,
                 margin_bottom="6px",
             ),
-            rx.html("""<canvas id="sig-canvas" width="800" height="240"
-  style="border:1px solid rgba(255,255,255,0.15);border-radius:6px;background:rgba(255,255,255,0.04);width:100%;min-height:180px;cursor:crosshair;touch-action:none;display:block;user-select:none;">
-</canvas>"""),
+            rx.el.canvas(
+                id="sig-canvas",
+                width="800",
+                height="240",
+                style={
+                    "border": "1px solid rgba(255,255,255,0.15)",
+                    "borderRadius": "6px",
+                    "background": "rgba(255,255,255,0.04)",
+                    "width": "100%",
+                    "minHeight": "180px",
+                    "cursor": "crosshair",
+                    "touchAction": "none",
+                    "display": "block",
+                    "userSelect": "none",
+                },
+            ),
             rx.hstack(
                 rx.button(
                     rx.icon("trash-2", size=13),
                     "Limpar",
-                    id="sig-clear",
+                    on_click=RDOState.clear_signature_canvas,
                     size="1",
                     style={
                         "background": "rgba(224,82,82,0.10)",
@@ -1001,6 +1146,95 @@ def _section_assinatura() -> rx.Component:
         title="Assinatura do Responsável",
         icon="pen-line",
         badge=rx.cond(RDOState.signatory_sig_b64 != "", "✓", ""),
+    )
+
+
+# ── Section: Eventos Condicionais (feature flag: conditional_fields) ─────────
+
+def _section_eventos_condicionais() -> rx.Component:
+    """Campos de Chuva e Acidente — aparecem somente se feature 'conditional_fields' estiver ativa."""
+    return rx.cond(
+        RDOState.feat_conditional_fields,
+        _section_card(
+            # ── Chuva ──
+            rx.vstack(
+                rx.hstack(
+                    rx.checkbox(
+                        "Houve chuva no período",
+                        checked=RDOState.rdo_houve_chuva,
+                        on_change=RDOState.set_rdo_houve_chuva,
+                        color_scheme="amber",
+                    ),
+                    spacing="2",
+                    align="center",
+                ),
+                rx.cond(
+                    RDOState.rdo_houve_chuva,
+                    rx.box(
+                        rx.vstack(
+                            _label("Intensidade da Chuva"),
+                            _select(
+                                RDOState.rdo_quantidade_chuva,
+                                RDOState.set_rdo_quantidade_chuva,
+                                RDOState.chuva_options,
+                            ),
+                            spacing="1",
+                            width="100%",
+                        ),
+                        margin_top="12px",
+                    ),
+                ),
+                spacing="2",
+                width="100%",
+            ),
+            rx.box(height="16px"),
+            # ── Acidente ──
+            rx.vstack(
+                rx.hstack(
+                    rx.checkbox(
+                        "Houve acidente / ocorrência no dia",
+                        checked=RDOState.rdo_houve_acidente,
+                        on_change=RDOState.set_rdo_houve_acidente,
+                        color_scheme="red",
+                    ),
+                    spacing="2",
+                    align="center",
+                ),
+                rx.cond(
+                    RDOState.rdo_houve_acidente,
+                    rx.box(
+                        rx.vstack(
+                            _label("Descrição da Ocorrência"),
+                            rx.text_area(
+                                value=RDOState.rdo_descricao_acidente,
+                                on_change=RDOState.set_rdo_descricao_acidente,
+                                placeholder="Descreva o acidente/ocorrência, providências tomadas e envolvidos...",
+                                rows="4",
+                                style={
+                                    "background": _INPUT_BG,
+                                    "border": f"1px solid rgba(224,82,82,0.4)",
+                                    "border_radius": "6px",
+                                    "color": _TEXT,
+                                    "padding": "10px 14px",
+                                    "font_size": "15px",
+                                    "width": "100%",
+                                    "resize": "vertical",
+                                    "_focus": {"border_color": "#E05252", "outline": "none"},
+                                },
+                            ),
+                            spacing="1",
+                            width="100%",
+                        ),
+                        margin_top="12px",
+                    ),
+                ),
+                spacing="2",
+                width="100%",
+            ),
+            title="Eventos do Dia",
+            icon="alert-triangle",
+        ),
+        rx.fragment(),
     )
 
 
@@ -1076,6 +1310,102 @@ def _sig_capture_init() -> rx.Component:
     return rx.fragment()
 
 
+def _photo_lightbox() -> rx.Component:
+    """Lightbox fullscreen para visualizar fotos com zoom + download."""
+    return rx.dialog.root(
+        rx.dialog.content(
+            rx.vstack(
+                # Header bar
+                rx.hstack(
+                    rx.hstack(
+                        rx.icon("image", size=14, color=_COPPER),
+                        rx.dialog.title(
+                            rx.text(
+                                "Visualizar Foto",
+                                size="2",
+                                weight="bold",
+                                color=_TEXT,
+                                font_family="'Rajdhani', sans-serif",
+                                letter_spacing="0.04em",
+                            ),
+                        ),
+                        spacing="2",
+                        align="center",
+                    ),
+                    rx.spacer(),
+                    rx.hstack(
+                        rx.el.a(
+                            rx.icon("download", size=14),
+                            href=RDOState.photo_lightbox_url,
+                            download=True,
+                            target="_blank",
+                            style={
+                                "color": _COPPER,
+                                "cursor": "pointer",
+                                "padding": "6px 10px",
+                                "border": f"1px solid rgba(201,139,42,0.4)",
+                                "borderRadius": "6px",
+                                "display": "flex",
+                                "alignItems": "center",
+                                "textDecoration": "none",
+                                "background": "rgba(201,139,42,0.06)",
+                            },
+                        ),
+                        rx.dialog.close(
+                            rx.button(
+                                rx.icon("x", size=14),
+                                on_click=RDOState.close_lightbox,
+                                size="1",
+                                variant="ghost",
+                                style={
+                                    "color": _MUTED,
+                                    "cursor": "pointer",
+                                    "border": "1px solid rgba(255,255,255,0.08)",
+                                    "border_radius": "6px",
+                                    "padding": "6px",
+                                },
+                            )
+                        ),
+                        spacing="2",
+                        align="center",
+                    ),
+                    align="center",
+                    width="100%",
+                    padding_bottom="12px",
+                    border_bottom=f"1px solid rgba(255,255,255,0.07)",
+                    margin_bottom="14px",
+                ),
+                # Foto
+                rx.image(
+                    src=RDOState.photo_lightbox_url,
+                    max_width="100%",
+                    max_height="78vh",
+                    object_fit="contain",
+                    border_radius="8px",
+                    style={
+                        "display": "block",
+                        "margin": "0 auto",
+                        "boxShadow": "0 8px 32px rgba(0,0,0,0.5)",
+                    },
+                ),
+                spacing="0",
+                width="100%",
+            ),
+            style={
+                "background": "#0B1A15",
+                "border": "1px solid rgba(201,139,42,0.2)",
+                "borderRadius": "14px",
+                "padding": "18px 20px 20px",
+                "maxWidth": "92vw",
+                "width": "92vw",
+                "boxShadow": "0 24px 64px rgba(0,0,0,0.7)",
+            },
+        ),
+        open=RDOState.photo_lightbox_url != "",
+        on_open_change=RDOState.close_lightbox,
+    )
+
+
 def rdo_form_page() -> rx.Component:
     return rx.box(
         _sig_capture_init(),
@@ -1103,7 +1433,14 @@ def rdo_form_page() -> rx.Component:
             # 7. Ferramentas Limpas e Organizadas
             _section_ferramentas(),
             rx.box(height="16px"),
-            # 8. Assinatura
+            # 8. Eventos Condicionais (Chuva / Acidente) — feature flag
+            _section_eventos_condicionais(),
+            rx.cond(
+                RDOState.feat_conditional_fields,
+                rx.box(height="16px"),
+                rx.fragment(),
+            ),
+            # 9. Assinatura
             _section_assinatura(),
             rx.box(height="32px"),
             # Bottom submit — full-width on mobile, right-aligned on desktop
@@ -1133,6 +1470,7 @@ def rdo_form_page() -> rx.Component:
             margin="0 auto",
         ),
         _confirm_dialog(),
+        _photo_lightbox(),
         min_height="100vh",
         background=_BG,
     )

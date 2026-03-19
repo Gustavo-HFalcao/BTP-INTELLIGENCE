@@ -3,6 +3,7 @@ Reembolso State — Formulário + Análise IA + Submit
 Padrão idêntico ao rdo_state.py (benchmark)
 """
 
+import asyncio
 from datetime import datetime
 from typing import Any, Dict, List
 
@@ -31,11 +32,24 @@ class ReembolsoState(rx.State):
     rota: str = ""
     finalidade: str = ""
 
+    # ── GPS Check-in ──────────────────────────────────────────────────────────
+    checkin_lat: float = 0.0
+    checkin_lng: float = 0.0
+    checkin_endereco: str = ""
+    checkin_timestamp: str = ""
+    checkin_distancia_posto: float = 0.0  # distância (metros) entre GPS e cidade declarada
+    is_getting_checkin: bool = False
+
     # ── Upload de imagem ───────────────────────────────────────────────────────
     image_b64: str = ""  # base64 puro (sem prefixo data:)
     image_mime: str = "image/jpeg"
     image_filename: str = ""
     image_data_url: str = ""  # data:image/...;base64,... para preview
+    image_hash: str = ""      # MD5 da imagem para detecção de duplicidade
+    duplicate_warning: str = "" # ID do reembolso duplicado encontrado (vazio = sem duplicata)
+
+    # ── Assinatura Digital ─────────────────────────────────────────────────────
+    signature_b64: str = ""   # JPEG base64 capturado do canvas
 
     # ── IA ─────────────────────────────────────────────────────────────────────
     is_analyzing: bool = False
@@ -46,6 +60,7 @@ class ReembolsoState(rx.State):
     ai_verified: bool = False
     ai_confidence: float = 0.0
     ai_insight_text: str = ""
+    ai_score: int = 0          # Score de confiabilidade 0-100
     # IA retry — máximo 3 tentativas antes de liberar envio manual
     ai_attempt_count: int = 0  # quantas análises foram feitas
     ai_override: bool = False  # usuário decidiu enviar mesmo com divergência
@@ -63,6 +78,9 @@ class ReembolsoState(rx.State):
     email_new_address: str = ""
     email_is_loading: bool = False
 
+    # ── Feature Flags (carregados no on_load) ─────────────────────────────────
+    form_active_features: List[str] = []  # Features do contrato do usuário logado
+
     # ── Dashboard (lista para admin) ───────────────────────────────────────────
     reembolsos_list: List[Dict[str, Any]] = []
     dash_total_gasto: float = 0.0
@@ -76,12 +94,125 @@ class ReembolsoState(rx.State):
     dash_alertas: List[Dict[str, Any]] = []  # registros com desvio > 30%
     dash_filtro_projeto: str = "Todos os Motivos"
     dash_filtro_contrato: str = "Todos os Contratos"
+    # Features do contrato filtrado no dashboard
+    dash_active_features: List[str] = []
+
+    # ── Dashboard: Score stats ─────────────────────────────────────────────────
+    dash_chart_score: List[Dict[str, Any]] = []  # [{label, count}, ...]
+    dash_chart_gps: List[Dict[str, Any]] = []    # [{name, value}, ...] GPS match stats
 
     def set_dash_filtro_projeto(self, val: str):
         self.dash_filtro_projeto = val
 
     def set_dash_filtro_contrato(self, val: str):
         self.dash_filtro_contrato = val
+        return ReembolsoState.load_dash_features
+
+    # ── Computed ──────────────────────────────────────────────────────────────
+
+    @rx.var
+    def checkin_done(self) -> bool:
+        return self.checkin_lat != 0.0 or bool(self.checkin_endereco)
+
+    @rx.var
+    def checkin_distancia_str(self) -> str:
+        d = self.checkin_distancia_posto
+        if d <= 0:
+            return ""
+        if d < 1000:
+            return f"{d:.0f}m da cidade"
+        return f"{d / 1000:.1f}km da cidade"
+
+    @rx.var
+    def checkin_distancia_color(self) -> str:
+        d = self.checkin_distancia_posto
+        if d <= 0:
+            return "#6B9090"
+        if d <= 5000:
+            return "#2A9D8F"
+        if d <= 20000:
+            return "#C98B2A"
+        return "#E05252"
+
+    @rx.var
+    def ai_score_color(self) -> str:
+        s = self.ai_score
+        if s >= 80:
+            return "#2A9D8F"  # verde
+        if s >= 50:
+            return "#C98B2A"  # âmbar
+        return "#E05252"       # vermelho
+
+    @rx.var
+    def ai_score_label(self) -> str:
+        s = self.ai_score
+        if s >= 80:
+            return "Alto"
+        if s >= 50:
+            return "Médio"
+        if s > 0:
+            return "Baixo"
+        return ""
+
+    @rx.var
+    def litros_float(self) -> float:
+        try:
+            return float(str(self.litros).replace(",", ".").strip())
+        except Exception:
+            return 0.0
+
+    # ── Feature helpers ───────────────────────────────────────────────────────
+
+    @rx.var
+    def feat_gps(self) -> bool:
+        return "gps_validation" in self.form_active_features
+
+    @rx.var
+    def feat_duplicate(self) -> bool:
+        return "duplicate_detection" in self.form_active_features
+
+    @rx.var
+    def feat_score(self) -> bool:
+        return "ai_score" in self.form_active_features
+
+    @rx.var
+    def feat_signature(self) -> bool:
+        return "digital_signature" in self.form_active_features
+
+    # ── Page init ─────────────────────────────────────────────────────────────
+
+    async def load_form_features(self):
+        """Carrega feature flags direto do banco (sempre fresco)."""
+        try:
+            from bomtempo.state.global_state import GlobalState
+            from bomtempo.core.feature_flags import FeatureFlagsService
+            gs = await self.get_state(GlobalState)
+            contrato = str(gs.current_user_contrato or "").strip()
+            if contrato and contrato not in ("nan", "None", ""):
+                self.form_active_features = FeatureFlagsService.get_features_for_contract(contrato)
+            else:
+                self.form_active_features = list(gs.active_features or [])
+        except Exception as e:
+            logger.warning(f"load_form_features: {e}")
+            self.form_active_features = []
+
+    async def load_dash_features(self):
+        """Carrega feature flags do contrato selecionado no dashboard."""
+        contract_filter = str(self.dash_filtro_contrato)
+        if contract_filter in ("Todos os Contratos", "", "nan"):
+            self.dash_active_features = []
+            return
+        loop = asyncio.get_event_loop()
+        try:
+            from bomtempo.core.feature_flags import FeatureFlagsService
+            features = await loop.run_in_executor(
+                None,
+                lambda: FeatureFlagsService.get_features_for_contract(contract_filter),
+            )
+            self.dash_active_features = features
+        except Exception as e:
+            logger.warning(f"load_dash_features: {e}")
+            self.dash_active_features = []
 
     # ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -177,7 +308,7 @@ class ReembolsoState(rx.State):
             pass
 
     def _build_data(self) -> Dict[str, Any]:
-        """Compila dados do formulário + resultados IA."""
+        """Compila dados do formulário + resultados IA + novos campos."""
         base_data = {
             "combustivel": str(self.combustivel),
             "litros": str(self.litros),
@@ -194,6 +325,16 @@ class ReembolsoState(rx.State):
             "ai_confidence_score": float(self.ai_confidence),
             "ai_extracted_value": float(self.ai_extracted.get("total", 0) or 0),
             "ai_insight_text": str(self.ai_insight_text),
+            # Novos campos
+            "ai_score":            int(self.ai_score),
+            "image_hash":          str(self.image_hash),
+            "signature_b64":       str(self.signature_b64),
+            # GPS
+            "checkin_lat":             float(self.checkin_lat) if self.checkin_lat else None,
+            "checkin_lng":             float(self.checkin_lng) if self.checkin_lng else None,
+            "checkin_endereco":        str(self.checkin_endereco),
+            "checkin_timestamp":       str(self.checkin_timestamp) if self.checkin_timestamp else None,
+            "checkin_distancia_posto": float(self.checkin_distancia_posto) if self.checkin_distancia_posto else None,
         }
 
         from bomtempo.core.fuel_service import FuelService
@@ -219,6 +360,14 @@ class ReembolsoState(rx.State):
         self.image_mime = "image/jpeg"
         self.image_filename = ""
         self.image_data_url = ""
+        self.image_hash = ""
+        self.duplicate_warning = ""
+        self.signature_b64 = ""
+        self.checkin_lat = 0.0
+        self.checkin_lng = 0.0
+        self.checkin_endereco = ""
+        self.checkin_timestamp = ""
+        self.checkin_distancia_posto = 0.0
         self.is_analyzing = False
         self.analysis_done = False
         self.ai_extracted = {}
@@ -227,9 +376,152 @@ class ReembolsoState(rx.State):
         self.ai_verified = False
         self.ai_confidence = 0.0
         self.ai_insight_text = ""
+        self.ai_score = 0
         self.ai_attempt_count = 0
         self.ai_override = False
         self.submit_success = False
+
+    # ── GPS Check-in ──────────────────────────────────────────────────────────
+
+    def do_checkin(self):
+        """Dispara JS para capturar GPS de check-in no reembolso."""
+        self.is_getting_checkin = True
+        return rx.call_script(
+            """
+            new Promise(resolve => {
+                if (!navigator.geolocation) { resolve({lat:0,lng:0,ok:false}); return; }
+                navigator.geolocation.getCurrentPosition(
+                    p => resolve({lat:p.coords.latitude, lng:p.coords.longitude, ok:true}),
+                    () => resolve({lat:0,lng:0,ok:false}),
+                    {enableHighAccuracy:true,timeout:10000}
+                );
+            })
+            """,
+            callback=ReembolsoState.receive_checkin_gps,
+        )
+
+    @rx.event(background=True)
+    async def receive_checkin_gps(self, result: dict):
+        """Recebe GPS e faz reverse geocode + calcula distância à cidade declarada."""
+        from bomtempo.core.rdo_service import _reverse_geocode
+        import math
+
+        lat = float(result.get("lat") or 0.0)
+        lng = float(result.get("lng") or 0.0)
+        ok  = bool(result.get("ok"))
+        endereco = ""
+        distancia = 0.0
+
+        async with self:
+            cidade_declarada = str(self.cidade)
+            estado_declarado = str(self.estado)
+
+        if ok and lat:
+            loop = asyncio.get_running_loop()
+            endereco = await loop.run_in_executor(None, lambda: _reverse_geocode(lat, lng))
+
+            # Geocode cidade declarada para calcular distância
+            if cidade_declarada:
+                try:
+                    from bomtempo.core import weather_api
+                    coords = await weather_api.get_coordinates(f"{cidade_declarada}, {estado_declarado}")
+                    if coords:
+                        cidade_lat = float(coords["lat"])
+                        cidade_lon = float(coords["lon"])
+                        # Haversine
+                        R = 6_371_000.0
+                        phi1, phi2 = math.radians(lat), math.radians(cidade_lat)
+                        dphi = math.radians(cidade_lat - lat)
+                        dlam = math.radians(cidade_lon - lng)
+                        a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlam/2)**2
+                        distancia = 2 * R * math.asin(math.sqrt(a))
+                except Exception as e:
+                    logger.warning(f"GPS distância cidade: {e}")
+
+        async with self:
+            self.checkin_lat             = lat
+            self.checkin_lng             = lng
+            self.checkin_endereco        = endereco
+            self.checkin_timestamp       = datetime.now().isoformat()
+            self.checkin_distancia_posto = distancia
+            self.is_getting_checkin      = False
+            self._recalculate_score()
+
+        if ok and lat:
+            dist_str = f" · {distancia/1000:.1f}km da cidade" if distancia > 5000 else (f" · {distancia:.0f}m da cidade" if distancia > 0 else "")
+            yield rx.toast(f"📍 Check-in registrado: {endereco or f'{lat:.4f}, {lng:.4f}'}{dist_str}", position="top-center")
+        else:
+            yield rx.toast("⚠️ Não foi possível obter localização", position="top-center")
+
+    def clear_checkin(self):
+        self.checkin_lat = 0.0
+        self.checkin_lng = 0.0
+        self.checkin_endereco = ""
+        self.checkin_timestamp = ""
+        self.checkin_distancia_posto = 0.0
+        self._recalculate_score()
+
+    # ── Assinatura Digital ─────────────────────────────────────────────────────
+
+    def receive_signature(self, data):
+        """Callback do rx.call_script — recebe canvas toDataURL."""
+        if isinstance(data, dict):
+            self.signature_b64 = data.get("sig", "")
+        elif isinstance(data, str) and data.startswith("data:"):
+            self.signature_b64 = data
+
+    def capture_signature(self):
+        """Captura assinatura do canvas como JPEG 70%."""
+        return rx.call_script(
+            """(function(){
+              var c=document.getElementById('fr-sig-canvas');
+              if(!c) return {sig:''};
+              var tmp=document.createElement('canvas');
+              tmp.width=c.width; tmp.height=c.height;
+              var ctx=tmp.getContext('2d');
+              ctx.fillStyle='#ffffff';
+              ctx.fillRect(0,0,tmp.width,tmp.height);
+              ctx.drawImage(c,0,0);
+              return {sig: tmp.toDataURL('image/jpeg', 0.70)};
+            })()""",
+            callback=ReembolsoState.receive_signature,
+        )
+
+    def clear_signature(self):
+        self.signature_b64 = ""
+        return rx.call_script(
+            """(function(){
+              var c=document.getElementById('fr-sig-canvas');
+              if(c){var ctx=c.getContext('2d');ctx.clearRect(0,0,c.width,c.height);}
+            })()"""
+        )
+
+    # ── Score de Confiabilidade ────────────────────────────────────────────────
+
+    def _recalculate_score(self):
+        """
+        Score 0-100 baseado em:
+        - GPS presente e distância < 5km da cidade: +30
+        - NF verificada pela IA (ai_verified): +40
+        - Sem desvio excessivo (histórico normal): +30
+        Chamado sempre que GPS ou análise IA mudam.
+        """
+        score = 0
+        # GPS: presente e próximo à cidade declarada
+        if self.checkin_lat != 0.0:
+            if self.checkin_distancia_posto < 5000 or self.checkin_distancia_posto == 0.0:
+                score += 30
+            else:
+                score += 10  # GPS presente mas distante
+        # IA: NF verificada
+        if self.ai_verified:
+            score += 40
+        elif self.analysis_done:
+            score += 10  # análise feita mas não verificada
+        # Histórico: sem override forçado
+        if not self.ai_override:
+            score += 30
+        self.ai_score = min(score, 100)
 
     # ── Upload de imagem ───────────────────────────────────────────────────────
 
@@ -257,10 +549,15 @@ class ReembolsoState(rx.State):
         }
         mime = mime_map.get(ext, "image/jpeg")
 
+        import hashlib
+        img_hash = hashlib.md5(data).hexdigest()
+
         self.image_b64 = b64
         self.image_mime = mime
         self.image_filename = file.filename
         self.image_data_url = f"data:{mime};base64,{b64}"
+        self.image_hash = img_hash
+        self.duplicate_warning = ""
         # Limpa análise anterior
         self.analysis_done = False
         self.ai_extracted = {}
@@ -268,6 +565,22 @@ class ReembolsoState(rx.State):
         self.validation_warnings = []
         self.ai_verified = False
         self.is_uploading_nf = False
+
+        # Verificação de duplicidade (se feature ativa)
+        if "duplicate_detection" in self.form_active_features:
+            try:
+                dup_id = FuelService.check_duplicate_hash(img_hash)
+                if dup_id:
+                    self.duplicate_warning = dup_id
+                    yield rx.toast(
+                        f"⚠️ Imagem já utilizada em reembolso anterior (ID: {dup_id[:8]}…). Verifique antes de enviar.",
+                        position="top-center",
+                        duration=6000,
+                    )
+                    return
+            except Exception as e:
+                logger.warning(f"check_duplicate_hash: {e}")
+
         yield rx.toast("📎 Imagem carregada! Clique em 'Analisar com IA'.", position="top-center")
 
     # ── Análise IA ─────────────────────────────────────────────────────────────
@@ -357,6 +670,7 @@ class ReembolsoState(rx.State):
             self.ai_attempt_count += 1
             self.analysis_done = True
             self.is_analyzing = False
+            self._recalculate_score()
 
             if validation["valid"] and ai_result:
                 yield rx.toast("✅ Nota fiscal verificada pela IA!", position="top-center")
@@ -553,6 +867,7 @@ class ReembolsoState(rx.State):
         kml_v = r.get("km_per_liter")
         ckm_v = r.get("cost_per_km")
         dev_v = r.get("deviation_from_fleet_avg")
+        ai_score_v = r.get("ai_score")
         return {
             **r,
             "date_short": raw_date[:10] if len(raw_date) >= 10 else raw_date,
@@ -560,6 +875,7 @@ class ReembolsoState(rx.State):
             "km_per_liter": f"{float(kml_v):.2f}" if kml_v is not None else "",
             "cost_per_km": f"{float(ckm_v):.4f}" if ckm_v is not None else "",
             "deviation_from_fleet_avg": f"{float(dev_v):.1f}" if dev_v is not None else "",
+            "ai_score": str(int(ai_score_v)) if ai_score_v is not None else "—",
             "ai_verified": bool(r.get("ai_verified", False)),
             "pdf_report_url": str(r.get("pdf_report_url") or ""),
             "receipt_image_url": str(r.get("receipt_image_url") or ""),
@@ -567,6 +883,10 @@ class ReembolsoState(rx.State):
             "fuel_type": str(r.get("fuel_type") or ""),
             "purpose": str(r.get("purpose") or ""),
             "city": str(r.get("city") or ""),
+            "centro_custo": str(r.get("centro_custo") or ""),
+            "checkin_endereco": str(r.get("checkin_endereco") or ""),
+            "has_gps": "true" if r.get("checkin_lat") else "false",
+            "has_signature": "true" if r.get("signature_b64") else "false",
         }
 
     async def load_dashboard(self):
@@ -639,6 +959,37 @@ class ReembolsoState(rx.State):
                 for k, v in combustivel_count.items()
             ]
             self.dash_alertas = alertas
+
+            # Score distribution
+            score_buckets = {"Alto (80-100)": 0, "Médio (50-79)": 0, "Baixo (0-49)": 0, "N/A": 0}
+            gps_count = {"Com GPS": 0, "Sem GPS": 0}
+            for r in records or []:
+                sc = r.get("ai_score")
+                if sc is None:
+                    score_buckets["N/A"] += 1
+                elif int(sc) >= 80:
+                    score_buckets["Alto (80-100)"] += 1
+                elif int(sc) >= 50:
+                    score_buckets["Médio (50-79)"] += 1
+                else:
+                    score_buckets["Baixo (0-49)"] += 1
+                if r.get("checkin_lat"):
+                    gps_count["Com GPS"] += 1
+                else:
+                    gps_count["Sem GPS"] += 1
+            score_colors = {"Alto (80-100)": "#2A9D8F", "Médio (50-79)": "#C98B2A", "Baixo (0-49)": "#E05252", "N/A": "#6B9090"}
+            self.dash_chart_score = [
+                {"name": k, "value": int(v), "fill": score_colors.get(k, "#94A3B8")}
+                for k, v in score_buckets.items() if v > 0
+            ]
+            self.dash_chart_gps = [
+                {"name": k, "value": int(v), "fill": "#2A9D8F" if k == "Com GPS" else "#4A5568"}
+                for k, v in gps_count.items() if v > 0
+            ]
+
+            # Load features do contrato filtrado
+            yield ReembolsoState.load_dash_features
+
         except Exception as e:
             logger.error(f"❌ FR load_dashboard: {e}")
         finally:

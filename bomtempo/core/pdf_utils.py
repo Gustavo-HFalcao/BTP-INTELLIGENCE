@@ -34,15 +34,29 @@ def html_to_pdf(html: str, path: Path) -> None:
         import sys
         from playwright.async_api import async_playwright
 
-        async with async_playwright() as p:
-            # Windows: use pre-installed Edge; Linux/production: fall back to Chromium
+        async def _launch(p):
+            """Launch browser: Edge on Windows, Chromium on Linux (auto-install if missing)."""
             if sys.platform == "win32":
                 try:
-                    browser = await p.chromium.launch(channel="msedge")
+                    return await p.chromium.launch(channel="msedge")
                 except Exception:
-                    browser = await p.chromium.launch()
+                    return await p.chromium.launch()
             else:
-                browser = await p.chromium.launch()
+                try:
+                    return await p.chromium.launch()
+                except Exception as launch_err:
+                    if "Executable doesn't exist" in str(launch_err) or "executable" in str(launch_err).lower():
+                        logger.info("pdf_utils: Chromium not found — installing via playwright...")
+                        import subprocess
+                        subprocess.run(
+                            [sys.executable, "-m", "playwright", "install", "chromium"],
+                            check=False, capture_output=True, timeout=300,
+                        )
+                        return await p.chromium.launch()
+                    raise
+
+        async with async_playwright() as p:
+            browser = await _launch(p)
             try:
                 page = await browser.new_page()
                 # wait_until="networkidle" ensures Google Fonts load before rendering

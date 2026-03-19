@@ -850,6 +850,7 @@ class GlobalState(rx.State):
     current_user_role: str = ""
     current_user_contrato: str = ""  # Contrato associado ao usuário (Mestre de Obras)
     allowed_modules: List[str] = []  # Module slugs from roles table
+    active_features: List[str] = []  # Feature flags habilitadas para o contrato do usuário
 
     # Avatar personalization
     current_user_role_icon: str = "user"     # default icon from role row (roles.icon)
@@ -1487,6 +1488,19 @@ class GlobalState(rx.State):
                 logger.error(f"Erro ao carregar permissões do role '{role}': {role_err}")
                 self.allowed_modules = list(MODULE_SLUGS) if role == "Administrador" else []
                 self.current_user_role_icon = "user"
+
+            # ── Load feature flags for user's contract ────────────────────────
+            _contrato = str(matched.get("project") or matched.get("contrato") or "")
+            if _contrato and _contrato not in ("nan", "None", ""):
+                try:
+                    from bomtempo.core.feature_flags import FeatureFlagsService
+                    self.active_features = FeatureFlagsService.get_features_for_contract(_contrato)
+                    logger.info(f"Feature flags carregadas: {self.active_features}")
+                except Exception as ff_err:
+                    logger.warning(f"Erro ao carregar feature flags: {ff_err}")
+                    self.active_features = []
+            else:
+                self.active_features = []
 
             # ── Load user avatar preferences from login row ───────────────────
             self.current_user_avatar_icon = str(matched.get("avatar_icon", "") or "")

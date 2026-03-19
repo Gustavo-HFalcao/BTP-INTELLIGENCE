@@ -71,6 +71,8 @@ from bomtempo.pages.logs_auditoria import logs_auditoria_page
 from bomtempo.state.logs_state import LogsState
 from bomtempo.pages.usuarios import usuarios_page
 from bomtempo.state.usuarios_state import UsuariosState
+from bomtempo.pages.contract_features import contract_features_page
+from bomtempo.state.feature_flags_state import FeatureFlagsState
 from bomtempo.pages.app_mobile import app_mobile_page
 
 # Start proactive alerts background scheduler
@@ -217,7 +219,7 @@ app.add_page(
     reembolso,
     route="/reembolso",
     title="BOMTEMPO | Reembolso Combustível",
-    on_load=[GlobalState.load_data, ReembolsoState.load_my_reimbursements],
+    on_load=[GlobalState.load_data, ReembolsoState.load_my_reimbursements, ReembolsoState.load_form_features],
 )
 app.add_page(
     reembolso_dash,
@@ -246,6 +248,10 @@ def logs_auditoria():
 
 def usuarios():
     return default_layout(usuarios_page())
+
+
+def contract_features():
+    return default_layout(contract_features_page())
 
 
 app.add_page(
@@ -281,6 +287,13 @@ app.add_page(
     route="/admin/usuarios",
     title="BOMTEMPO | Gerenciar Usuários",
     on_load=[GlobalState.load_data, UsuariosState.load_page],
+)
+
+app.add_page(
+    contract_features,
+    route="/admin/contract-features",
+    title="BOMTEMPO | Feature Flags",
+    on_load=[GlobalState.load_data, FeatureFlagsState.load_page],
 )
 
 
