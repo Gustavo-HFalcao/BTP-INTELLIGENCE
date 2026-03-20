@@ -237,6 +237,24 @@ def _sticky_header() -> rx.Component:
                         "padding": "0 12px",
                     },
                 ),
+                rx.cond(
+                    RDOState.draft_id_rdo != "",
+                    rx.button(
+                        rx.icon("trash-2", size=14),
+                        on_click=RDOState.delete_current_draft,
+                        size="3",
+                        title="Excluir rascunho",
+                        style={
+                            "background": "rgba(239,68,68,0.08)",
+                            "border": "1px solid rgba(239,68,68,0.25)",
+                            "color": "#EF4444",
+                            "border_radius": "6px",
+                            "cursor": "pointer",
+                            "min_height": "44px",
+                            "padding": "0 10px",
+                        },
+                    ),
+                ),
                 rx.button(
                     rx.icon("send", size=14),
                     "Enviar",
@@ -791,23 +809,30 @@ def _section_atividades() -> rx.Component:
         rx.vstack(
             rx.foreach(
                 RDOState.atividades_items,
-                lambda item, index: rx.hstack(
-                    rx.text(item["atividade"], size="2", color=_TEXT, flex="1"),
-                    rx.badge(
-                        rx.text.span(item.get("progresso_percentual", "0")),
-                        rx.text.span("%"),
-                        color_scheme="teal",
-                        variant="soft",
-                        size="1",
+                lambda item, index: rx.box(
+                    rx.flex(
+                        rx.text(item["atividade"], size="2", color=_TEXT, flex="1", min_width="0"),
+                        rx.hstack(
+                            rx.badge(
+                                rx.text.span(item.get("progresso_percentual", "0")),
+                                rx.text.span("%"),
+                                color_scheme="teal", variant="soft", size="1",
+                            ),
+                            rx.badge(item.get("status", "Em andamento"), color_scheme="amber", variant="outline", size="1"),
+                            _remove_btn(RDOState.remove_at(index)),
+                            spacing="2",
+                            align="center",
+                            flex_shrink="0",
+                        ),
+                        gap="8px",
+                        align="center",
+                        wrap="wrap",
                     ),
-                    rx.badge(item.get("status", "Em andamento"), color_scheme="amber", variant="outline", size="1"),
-                    _remove_btn(RDOState.remove_at(index)),
-                    spacing="2",
-                    align="center",
                     padding="8px 10px",
                     background="rgba(255,255,255,0.03)",
                     border_radius="6px",
                     border=f"1px solid {_BORDER}",
+                    width="100%",
                 ),
             ),
             spacing="2",
@@ -849,7 +874,7 @@ def _ev_card(item) -> rx.Component:
             rx.image(
                 src=item["foto_url"],
                 width="100%",
-                height="140px",
+                height=["160px", "140px"],
                 object_fit="cover",
                 style={"border_radius": "6px 6px 0 0", "display": "block"},
             ),
@@ -875,7 +900,60 @@ def _ev_card(item) -> rx.Component:
         rx.box(
             rx.hstack(
                 rx.vstack(
-                    rx.text(item["legenda"], size="1", color=_TEXT, weight="medium"),
+                    # Caption area — click to edit inline
+                    rx.cond(
+                        RDOState.ev_editing_url == item["foto_url"],
+                        # Editing mode: input + save/cancel
+                        rx.hstack(
+                            rx.el.input(
+                                value=RDOState.ev_editing_draft,
+                                on_change=RDOState.set_ev_editing_draft,
+                                on_blur=RDOState.save_edit_caption,
+                                auto_focus=True,
+                                placeholder="Legenda da foto…",
+                                style={
+                                    "background": "rgba(255,255,255,0.08)",
+                                    "border": f"1px solid {_PATINA}",
+                                    "border_radius": "4px",
+                                    "color": _TEXT,
+                                    "font_size": "11px",
+                                    "padding": "2px 6px",
+                                    "width": "100%",
+                                    "outline": "none",
+                                },
+                            ),
+                            rx.icon(
+                                "check", size=13,
+                                color=_PATINA,
+                                style={"cursor": "pointer"},
+                                on_click=RDOState.save_edit_caption,
+                            ),
+                            rx.icon(
+                                "x", size=13,
+                                color=_MUTED,
+                                style={"cursor": "pointer"},
+                                on_click=RDOState.cancel_edit_caption,
+                            ),
+                            spacing="1",
+                            align="center",
+                            width="100%",
+                        ),
+                        # Display mode: click anywhere on caption to edit
+                        rx.hstack(
+                            rx.text(
+                                rx.cond(item["legenda"] != "", item["legenda"], "Toque para adicionar legenda…"),
+                                size="1",
+                                color=rx.cond(item["legenda"] != "", _TEXT, _MUTED),
+                                weight="medium",
+                                style={"cursor": "pointer", "flex": "1"},
+                            ),
+                            rx.icon("pencil", size=10, color=_MUTED, style={"flex_shrink": "0"}),
+                            spacing="1",
+                            align="center",
+                            width="100%",
+                            on_click=RDOState.start_edit_caption(item["foto_url"]),
+                        ),
+                    ),
                     rx.cond(
                         item["exif_endereco"] != "",
                         rx.hstack(
@@ -903,7 +981,7 @@ def _ev_card(item) -> rx.Component:
                         "_hover": {"background": "rgba(224,82,82,0.15)"},
                     },
                 ),
-                align="center",
+                align="start",
                 width="100%",
                 spacing="1",
             ),
@@ -1300,6 +1378,66 @@ def _section_eventos_condicionais() -> rx.Component:
 
 # ── Confirm Dialog ───────────────────────────────────────────────────────────
 
+def _submit_loading_overlay() -> rx.Component:
+    """Full-screen overlay shown while RDO is being processed — step-by-step feedback."""
+    steps = [
+        ("💾", "Salvando RDO no banco de dados…"),
+        ("📄", "Gerando PDF…"),
+        ("☁️", "Enviando PDF para a nuvem…"),
+        ("✅", "Finalizando e enviando e-mails…"),
+    ]
+
+    def _step_row(icon: str, label: str) -> rx.Component:
+        active = RDOState.submit_status.contains(icon)
+        return rx.hstack(
+            rx.text(icon, font_size="18px"),
+            rx.text(label, size="2", color=rx.cond(active, "white", _MUTED),
+                    font_weight=rx.cond(active, "600", "400")),
+            spacing="3",
+            align="center",
+            opacity=rx.cond(active, "1", "0.45"),
+            style={"transition": "opacity 0.3s"},
+        )
+
+    return rx.cond(
+        RDOState.is_submitting,
+        rx.box(
+            rx.vstack(
+                rx.spinner(size="3", color=_COPPER),
+                rx.text("Processando seu RDO", size="4", weight="bold", color="white",
+                        font_family="'Rajdhani', sans-serif", letter_spacing="0.5px"),
+                rx.vstack(
+                    *[_step_row(icon, label) for icon, label in steps],
+                    spacing="3",
+                    padding="16px 20px",
+                    background="rgba(255,255,255,0.05)",
+                    border=f"1px solid rgba(255,255,255,0.1)",
+                    border_radius="10px",
+                    width="100%",
+                ),
+                rx.text("Não feche esta tela", size="1", color=_MUTED, opacity="0.6"),
+                spacing="4",
+                align="center",
+                padding="32px 28px",
+                background="#0d2219",
+                border=f"1px solid rgba(201,139,42,0.35)",
+                border_radius="16px",
+                max_width="340px",
+                width="90vw",
+                box_shadow="0 32px 80px rgba(0,0,0,0.8)",
+            ),
+            position="fixed",
+            top="0", left="0", right="0", bottom="0",
+            display="flex",
+            align_items="center",
+            justify_content="center",
+            background="rgba(0,0,0,0.75)",
+            z_index="9999",
+            style={"backdropFilter": "blur(4px)"},
+        ),
+    )
+
+
 def _confirm_dialog() -> rx.Component:
     return rx.dialog.root(
         rx.dialog.content(
@@ -1531,6 +1669,7 @@ def rdo_form_page() -> rx.Component:
         ),
         _confirm_dialog(),
         _photo_lightbox(),
+        _submit_loading_overlay(),
         min_height="100vh",
         background=_BG,
     )

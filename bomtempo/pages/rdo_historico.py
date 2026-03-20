@@ -122,6 +122,33 @@ class RDOHistoricoState(rx.State):
         if url and url.startswith("http"):
             return rx.call_script(f"window.open({repr(url)}, '_blank', 'noopener,noreferrer')")
 
+    @rx.event(background=True)
+    async def delete_draft_rdo(self, id_rdo: str):
+        """Exclui um RDO com status=rascunho. Recusa excluir finalizados."""
+        if not id_rdo:
+            return
+        loop = asyncio.get_running_loop()
+        # Safety check: only delete drafts
+        rows = await loop.run_in_executor(
+            None,
+            lambda: RDOService.get_full_rdo(id_rdo),
+        )
+        if not rows:
+            async with self:
+                yield rx.toast("❌ RDO não encontrado.", position="top-center")
+            return
+        if rows.get("status") != "rascunho":
+            async with self:
+                yield rx.toast("❌ Apenas rascunhos podem ser excluídos.", position="top-center")
+            return
+        ok = await loop.run_in_executor(None, lambda: RDOService.delete_draft(id_rdo))
+        async with self:
+            if ok:
+                self.rdos_list = [r for r in self.rdos_list if r.get("id_rdo") != id_rdo]
+                yield rx.toast("🗑️ Rascunho excluído.", position="top-center")
+            else:
+                yield rx.toast("❌ Falha ao excluir rascunho.", position="top-center")
+
 
 # ── Components ───────────────────────────────────────────────────────────────
 
@@ -205,17 +232,34 @@ def _rdo_card(rdo: Dict[str, Any]) -> rx.Component:
                 ),
                 rx.cond(
                     rdo["status"] == "rascunho",
-                    rx.button(
-                        rx.icon("pencil", size=14),
-                        "Continuar",
-                        on_click=rx.redirect("/rdo-form"),
-                        size="1",
-                        style={
-                            "background": "rgba(255,255,255,0.06)",
-                            "border": f"1px solid {_BORDER}",
-                            "color": _TEXT,
-                            "border_radius": "5px",
-                        },
+                    rx.hstack(
+                        rx.button(
+                            rx.icon("pencil", size=14),
+                            "Continuar",
+                            on_click=rx.redirect("/rdo-form"),
+                            size="1",
+                            style={
+                                "background": "rgba(255,255,255,0.06)",
+                                "border": f"1px solid {_BORDER}",
+                                "color": _TEXT,
+                                "border_radius": "5px",
+                            },
+                        ),
+                        rx.button(
+                            rx.icon("trash-2", size=14),
+                            on_click=RDOHistoricoState.delete_draft_rdo(rdo["id_rdo"]),
+                            size="1",
+                            style={
+                                "background": "rgba(239,68,68,0.08)",
+                                "border": "1px solid rgba(239,68,68,0.25)",
+                                "color": "#EF4444",
+                                "border_radius": "5px",
+                                "cursor": "pointer",
+                            },
+                            title="Excluir rascunho",
+                        ),
+                        spacing="1",
+                        align="center",
                     ),
                 ),
                 spacing="1",

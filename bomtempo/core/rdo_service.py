@@ -276,7 +276,12 @@ def _apply_watermark(img_bytes: bytes, meta: Dict[str, Any], content_type: str =
         if meta.get("rede_time"):
             text_entries.append((f"Rede: {meta['rede_time']}", fnt_sm, WHITE))
         if meta.get("local_time"):
-            local_label = "Local: " if meta.get("local_is_exif") else "Upload: "
+            if meta.get("local_is_exif"):
+                local_label = "EXIF: "    # DateTimeOriginal — prova forense real
+            elif meta.get("local_is_lastmod"):
+                local_label = "Arquivo: " # lastModified — data do arquivo no dispositivo
+            else:
+                local_label = "Upload: "  # sem dados — hora do servidor
             text_entries.append((f"{local_label}{meta['local_time']}", fnt_sm, WHITE))
 
         # GPS coordinates
@@ -302,9 +307,12 @@ def _apply_watermark(img_bytes: bytes, meta: Dict[str, Any], content_type: str =
         if meta.get("postcode"):
             text_entries.append((str(meta["postcode"]), fnt_sm, MUTED))
 
-        # Aviso quando foto não tem EXIF (hora de upload != hora real)
+        # Aviso quando foto não tem EXIF DateTimeOriginal
         if not meta.get("local_is_exif"):
-            text_entries.append(("* sem metadados EXIF na foto", fnt_sm, YELLOW))
+            if meta.get("local_is_lastmod"):
+                text_entries.append(("* data via lastModified (sem EXIF)", fnt_sm, YELLOW))
+            else:
+                text_entries.append(("* sem metadados EXIF na foto", fnt_sm, YELLOW))
 
         # Branding footer
         text_entries.append((f"BTP Intelligence · {meta.get('contrato','—')}", fnt_sm, COPPER))
@@ -380,6 +388,12 @@ def _gen_id(contrato: str) -> str:
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     safe = (contrato or "RDO").replace("/", "-").replace(" ", "")[:20]
     return f"RDO2-{safe}-{ts}"
+
+
+def _gen_view_token() -> str:
+    """Generates a URL-safe random token for public RDO viewing."""
+    import secrets
+    return secrets.token_urlsafe(20)
 
 
 # ── HTML Builder ────────────────────────────────────────────────────────────
@@ -543,7 +557,7 @@ class RDOService:
         tipo_tarefa  = e(rdo_data.get("tipo_tarefa") or "Diário de Obra")
         orientacao   = e(rdo_data.get("orientacao") or "")
         km_perc      = rdo_data.get("km_percorrido")
-        km_str       = f"{float(km_perc):.2f} km" if km_perc else "—"
+        km_str       = f"{float(km_perc):.2f} km" if km_perc is not None else "—"
         houve_intr = bool(rdo_data.get("houve_interrupcao"))
         motivo     = e((rdo_data.get("motivo_interrupcao") or "—")[:120])
         obs        = (rdo_data.get("observacoes") or "").strip()
@@ -571,9 +585,8 @@ class RDOService:
                 dt_out = datetime.fromisoformat(str(checkout_ts).replace("Z", "+00:00"))
                 h_fim = dt_out.strftime("%H:%M")
             if checkin_ts and checkout_ts:
-                mins = int((dt_out - dt_in).total_seconds() / 60)
-                if mins > 0:
-                    duracao_str = f"{mins // 60:02d}h{mins % 60:02d}m"
+                mins = max(0, int((dt_out - dt_in).total_seconds() / 60))
+                duracao_str = f"{mins // 60:02d}h{mins % 60:02d}m"
         except Exception:
             pass
 
@@ -613,11 +626,23 @@ class RDOService:
         else:
             sig_block = '<div style="height:52px;border-bottom:0.5px solid #ccc;margin-bottom:4px;"></div>'
 
-        ai_block = (
-            f'<div class="ai-content"><pre style="white-space:pre-wrap;font-family:inherit;margin:0;">{_html_mod.escape(ai_text)}</pre></div>'
-            if ai_text else
-            '<div class="ai-pending">⏳ Análise sendo processada…</div>'
-        )
+        if ai_text:
+            # Convert simple markdown to HTML for the PDF
+            def _md_simple(text: str) -> str:
+                import re
+                lines = []
+                for line in text.split("\n"):
+                    line = _html_mod.escape(line)
+                    line = re.sub(r"^## (.+)$", r'<h4 style="margin:8px 0 4px;color:#1d7066;font-size:8pt;text-transform:uppercase;letter-spacing:0.4px;">\1</h4>', line)
+                    line = re.sub(r"^\s*[-•]\s(.+)$", r'<li style="margin:2px 0;">\1</li>', line)
+                    line = re.sub(r"\*\*(.+?)\*\*", r'<strong>\1</strong>', line)
+                    lines.append(line)
+                html_out = "\n".join(lines)
+                html_out = re.sub(r"(<li[^>]*>.*?</li>\n?)+", lambda m: f"<ul style='margin:4px 0 6px 12px;padding:0;'>{m.group(0)}</ul>", html_out)
+                return html_out
+            ai_block = f'<div class="ai-content" style="line-height:1.7;">{_md_simple(ai_text)}</div>'
+        else:
+            ai_block = '<div class="ai-pending">⏳ Análise sendo processada…</div>'
 
         intr_cls  = 'class="info-label danger"' if houve_intr else 'class="info-label"'
         intr_vcls = 'class="info-value danger-bg"' if houve_intr else 'class="info-value"'
@@ -739,10 +764,10 @@ tbody tr td { padding: 6px 8px; border-bottom: 0.3px solid #D4C8A8; vertical-ali
 .obs-box { background: #F8F7F2; border: 0.5px solid #D4C8A8; padding: 10px 12px; font-size: 8.5pt; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }
 
 /* ── Evidence photos ── */
-.ev-grid { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 0; }
-.ev-card { width: 160px; border: 0.5px solid #D4C8A8; border-radius: 4px; overflow: hidden; }
-.ev-img { width: 100%; height: 110px; object-fit: cover; display: block; }
-.ev-meta { padding: 5px 6px; background: #F8F7F2; font-size: 7pt; }
+.ev-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 8px 0; }
+.ev-card { border: 0.5px solid #D4C8A8; border-radius: 5px; overflow: hidden; page-break-inside: avoid; }
+.ev-img { width: 100%; height: 160px; object-fit: cover; display: block; }
+.ev-meta { padding: 6px 8px; background: #F8F7F2; font-size: 7pt; }
 .ev-ts { color: #888; margin-bottom: 2px; }
 .ev-cap { font-weight: 600; color: #1a1a1a; word-break: break-word; }
 .ev-ai { color: #1d7066; margin-top: 3px; font-style: italic; font-size: 6.5pt; }
@@ -926,6 +951,15 @@ tbody tr td { padding: 6px 8px; border-bottom: 0.3px solid #D4C8A8; vertical-ali
     def upsert_draft(rdo_data: Dict[str, Any], mestre_id: str = "") -> str:
         """Upsert rdo_master com status=rascunho. Retorna id_rdo."""
         id_rdo = rdo_data.get("id_rdo") or _gen_id(rdo_data.get("contrato", ""))
+        # Preserve existing view_token if record already exists
+        existing_token = ""
+        try:
+            ex = sb_select("rdo_master", filters={"id_rdo": id_rdo}, limit=1)
+            if ex:
+                existing_token = ex[0].get("view_token") or ""
+        except Exception:
+            pass
+        view_token = existing_token or _gen_view_token()
         record = {
             "id_rdo":              id_rdo,
             "status":              "rascunho",
@@ -962,6 +996,7 @@ tbody tr td { padding: 6px 8px; border-bottom: 0.3px solid #D4C8A8; vertical-ali
             "quantidade_chuva":    rdo_data.get("quantidade_chuva") or "",
             "houve_acidente":      bool(rdo_data.get("houve_acidente")),
             "descricao_acidente":  rdo_data.get("descricao_acidente") or "",
+            "view_token":          view_token,
             "updated_at":          datetime.now().isoformat(),
         }
         record = {k: v for k, v in record.items() if v is not None}
@@ -1021,17 +1056,16 @@ tbody tr td { padding: 6px 8px; border-bottom: 0.3px solid #D4C8A8; vertical-ali
     @staticmethod
     def save_evidence(id_rdo: str, foto_url: str, legenda: str = "") -> Optional[Dict]:
         try:
-            # rdo_id (UUID FK) é obrigatório — buscar na rdo_master pelo id_rdo texto
             rdo_rows = sb_select("rdo_master", filters={"id_rdo": id_rdo}, limit=1)
-            rdo_uuid = rdo_rows[0]["id"] if rdo_rows else None
-            record: Dict[str, Any] = {
-                "id_rdo": id_rdo,
+            if not rdo_rows:
+                logger.warning(f"⚠️ save_evidence: rdo_master not found for id_rdo={id_rdo}")
+                return None
+            rdo_uuid = rdo_rows[0]["id"]
+            return sb_insert("rdo_evidencias", {
+                "rdo_id":   rdo_uuid,
                 "foto_url": foto_url,
-                "legenda": legenda,
-            }
-            if rdo_uuid:
-                record["rdo_id"] = rdo_uuid
-            return sb_insert("rdo_evidencias", record)
+                "legenda":  legenda,
+            })
         except Exception as e:
             logger.warning(f"⚠️ save_evidence (non-fatal): {e}")
             return None
@@ -1042,11 +1076,13 @@ tbody tr td { padding: 6px 8px; border-bottom: 0.3px solid #D4C8A8; vertical-ali
         if not rows:
             return {}
         rdo = dict(rows[0])
-        rdo["mao_obra"]     = sb_select("rdo_mao_obra",     filters={"id_rdo": id_rdo}) or []
-        rdo["atividades"]   = sb_select("rdo_atividades",   filters={"id_rdo": id_rdo}) or []
-        rdo["equipamentos"] = sb_select("rdo_equipamentos", filters={"id_rdo": id_rdo}) or []
-        rdo["materiais"]    = sb_select("rdo_materiais",    filters={"id_rdo": id_rdo}) or []
-        rdo["evidencias"]   = sb_select("rdo_evidencias",   filters={"id_rdo": id_rdo}) or []
+        rdo_uuid = rdo.get("id")  # UUID PK — used as FK in sub-tables
+        if rdo_uuid:
+            rdo["atividades"] = sb_select("rdo_atividades", filters={"rdo_id": rdo_uuid}) or []
+            rdo["evidencias"] = sb_select("rdo_evidencias", filters={"rdo_id": rdo_uuid}) or []
+        else:
+            rdo["atividades"] = []
+            rdo["evidencias"] = []
         return rdo
 
     @staticmethod
@@ -1178,6 +1214,7 @@ tbody tr td { padding: 6px 8px; border-bottom: 0.3px solid #D4C8A8; vertical-ali
 
         # Datetime: prefer client-extracted DateTimeOriginal → server Pillow → lastModified fallback
         exif_dt: Optional[datetime] = server_dt
+        _exif_source = "pillow" if server_dt else ""   # "pillow" | "client" | "lastmod" | ""
         if client_exif_datetime:
             try:
                 # exifr may return:
@@ -1189,13 +1226,16 @@ tbody tr td { padding: 6px 8px; border-bottom: 0.3px solid #D4C8A8; vertical-ali
                 raw = client_exif_datetime[:19].replace("T", " ")
                 date_part = raw[:10].replace(":", "-")   # "2026:03:15" → "2026-03-15"
                 time_part = raw[11:19] if len(raw) > 10 else "00:00:00"
-                exif_dt = datetime.fromisoformat(f"{date_part} {time_part}")
+                parsed = datetime.fromisoformat(f"{date_part} {time_part}")
+                exif_dt = parsed
+                _exif_source = "client"
             except Exception:
                 pass
-        if exif_dt is None and client_last_modified:
+        lastmod_dt: Optional[datetime] = None
+        if client_last_modified:
             try:
-                # lastModified is ms since epoch
-                exif_dt = datetime.fromtimestamp(int(client_last_modified) / 1000)
+                # lastModified is ms since epoch — file system timestamp, NOT EXIF
+                lastmod_dt = datetime.fromtimestamp(int(client_last_modified) / 1000)
             except Exception:
                 pass
 
@@ -1203,9 +1243,12 @@ tbody tr td { padding: 6px 8px; border-bottom: 0.3px solid #D4C8A8; vertical-ali
         now = datetime.now()
         rede_str = _pt_datetime_str(now)
         # "Local" = data/hora real da foto (EXIF DateTimeOriginal) — prova forense da captura
-        # Se não houver EXIF datetime (foto sem metadados), usa hora do upload com aviso
+        # "Arquivo" = lastModified do arquivo (hora de criação no dispositivo, não EXIF)
+        # "Upload" = hora do servidor (nenhuma info de data no arquivo)
         if exif_dt:
             local_str = _pt_datetime_str(exif_dt)
+        elif lastmod_dt:
+            local_str = _pt_datetime_str(lastmod_dt)
         else:
             local_str = rede_str  # sem EXIF → mesmo que rede (upload agora)
 
@@ -1246,7 +1289,8 @@ tbody tr td { padding: 6px 8px; border-bottom: 0.3px solid #D4C8A8; vertical-ali
         wm_meta: Dict[str, Any] = {
             "rede_time":    rede_str,
             "local_time":   local_str,
-            "local_is_exif": bool(exif_dt),       # True = hora real da foto; False = hora do upload
+            "local_is_exif": bool(exif_dt),        # True = DateTimeOriginal real; "Local:"
+            "local_is_lastmod": bool(lastmod_dt and not exif_dt),  # True = lastModified; "Arquivo:"
             "gps_source":   gps_source,            # "exif" | "checkin"
             "lat":          exif_lat if exif_lat else None,
             "lng":          exif_lng if exif_lng else None,
@@ -1273,27 +1317,18 @@ tbody tr td { padding: 6px 8px; border-bottom: 0.3px solid #D4C8A8; vertical-ali
             exif_endereco = _reverse_geocode(exif_lat, exif_lng)
 
         # 5. Persist to rdo_evidencias (best-effort)
-        # rdo_evidencias.rdo_id é FK UUID → rdo_master.id; id_rdo é o campo texto auxiliar
         rdo_master_rows = sb_select("rdo_master", filters={"id_rdo": id_rdo}, limit=1)
         rdo_uuid = rdo_master_rows[0]["id"] if rdo_master_rows else None
-
-        record: Dict[str, Any] = {
-            "id_rdo":        id_rdo,
-            "foto_url":      foto_url,
-            "legenda":       legenda,
-            "timestamp_foto": datetime.now().isoformat(),
-        }
         if rdo_uuid:
-            record["rdo_id"] = rdo_uuid
-        if exif_lat:
-            record["exif_lat"] = exif_lat
-            record["exif_lng"] = exif_lng
-        if exif_endereco:
-            record["exif_endereco"] = exif_endereco
-        try:
-            sb_insert("rdo_evidencias", record)
-        except Exception as db_err:
-            logger.warning(f"⚠️ rdo_evidencias insert (non-fatal): {db_err}")
+            record: Dict[str, Any] = {
+                "rdo_id":   rdo_uuid,
+                "foto_url": foto_url,
+                "legenda":  legenda,
+            }
+            try:
+                sb_insert("rdo_evidencias", record)
+            except Exception as db_err:
+                logger.warning(f"⚠️ rdo_evidencias insert (non-fatal): {db_err}")
 
         return {
             "foto_url":      foto_url,
@@ -1306,48 +1341,87 @@ tbody tr td { padding: 6px 8px; border-bottom: 0.3px solid #D4C8A8; vertical-ali
     # ── AI ───────────────────────────────────────────────────────────────────
 
     @staticmethod
-    def analyze_with_ai(rdo_data: Dict[str, Any], id_rdo: str) -> None:
-        """Fire-and-forget: analisa RDO e salva ai_summary no banco."""
-        def _run():
-            try:
-                acts = "\n".join(
-                    f"  - {r.get('atividade', r.get('descricao','?'))} ({r.get('progresso_percentual',0)}%) [{r.get('status','Em andamento')}]"
-                    for r in rdo_data.get("atividades", [])[:10]
-                )
-                checkin_ts  = rdo_data.get("checkin_timestamp") or ""
-                checkout_ts = rdo_data.get("checkout_timestamp") or ""
-                checkin_end = rdo_data.get("checkin_endereco") or ""
-                checkout_end = rdo_data.get("checkout_endereco") or ""
-                gps_info = ""
-                if checkin_ts:
-                    gps_info += f"\nCheck-in: {checkin_ts[:16]} @ {checkin_end}"
-                if checkout_ts:
-                    gps_info += f"\nCheck-out: {checkout_ts[:16]} @ {checkout_end}"
-                prompt = f"""Você é um consultor sênior de engenharia civil. Analise o RDO abaixo.
+    def _build_ai_prompt(rdo_data: Dict[str, Any]) -> list:
+        """Build the Claude messages list for RDO analysis."""
+        acts = "\n".join(
+            f"  - {r.get('atividade', r.get('descricao','?'))} ({r.get('progresso_percentual',0)}%) [{r.get('status','Em andamento')}]"
+            for r in rdo_data.get("atividades", [])[:10]
+        )
+        checkin_ts   = rdo_data.get("checkin_timestamp") or ""
+        checkout_ts  = rdo_data.get("checkout_timestamp") or ""
+        checkin_end  = rdo_data.get("checkin_endereco") or ""
+        checkout_end = rdo_data.get("checkout_endereco") or ""
+        gps_info = ""
+        if checkin_ts:
+            gps_info += f"\nCheck-in: {checkin_ts[:16]} @ {checkin_end}"
+        if checkout_ts:
+            gps_info += f"\nCheck-out: {checkout_ts[:16]} @ {checkout_end}"
+        n_fotos = len(rdo_data.get("evidencias", []))
+
+        text_prompt = f"""Você é um consultor sênior de engenharia civil. Analise o RDO abaixo e forneça uma análise executiva concisa.
 
 RDO {rdo_data.get('id_rdo','')} — {rdo_data.get('data','')}
 Contrato: {rdo_data.get('contrato','')} | Projeto: {rdo_data.get('projeto','')}
+Cliente: {rdo_data.get('cliente','')}
 Clima: {rdo_data.get('condicao_climatica','')} | Turno: {rdo_data.get('turno','')}
 Interrupção: {'SIM — ' + (rdo_data.get('motivo_interrupcao') or '') if rdo_data.get('houve_interrupcao') else 'NÃO'}
 GPS:{gps_info or ' não registrado'}
+Fotos de evidência: {n_fotos}
 Serviços Executados:\n{acts or '  (não informados)'}
-Observações: {(rdo_data.get('observacoes') or 'Nenhuma')[:300]}
+Observações: {(rdo_data.get('observacoes') or 'Nenhuma')[:400]}
 
-Responda em português com seções:
+Responda em português, de forma direta e objetiva, com as seções:
 ## 📊 RESUMO EXECUTIVO
+(2-3 frases sobre o dia de trabalho)
 ## 🔨 SERVIÇOS EXECUTADOS
+(bullet points dos principais serviços e progresso)
 ## ⚠️ ALERTAS E RISCOS
-## 💡 RECOMENDAÇÕES"""
-                messages = [
-                    {"role": "system", "content": "Seja preciso, direto e profissional. Responda em português."},
-                    {"role": "user", "content": prompt},
-                ]
-                result = ai_client.query(messages)
+(riscos identificados, se houver — caso nenhum, diga "Nenhum risco identificado")
+## 💡 RECOMENDAÇÕES
+(1-2 recomendações práticas)"""
+
+        # Build multimodal message: text + up to 4 photo URLs for vision
+        photo_urls = [
+            e.get("foto_url", "")
+            for e in (rdo_data.get("evidencias") or [])
+            if e.get("foto_url", "").startswith("http")
+        ][:4]
+
+        if photo_urls:
+            # OpenAI vision format (image_url with url type)
+            content: list = [{"type": "text", "text": text_prompt}]
+            for url in photo_urls:
+                content.append({"type": "image_url", "image_url": {"url": url}})
+            content.append({"type": "text", "text": "Considere também as fotos de evidência acima ao fazer sua análise. Identifique o que está sendo feito, condições do canteiro e qualidade do trabalho."})
+            user_msg: Any = {"role": "user", "content": content}
+        else:
+            user_msg = {"role": "user", "content": text_prompt}
+
+        return [
+            {"role": "system", "content": "Seja preciso, direto e profissional. Responda em português. Limite cada seção a 3-5 linhas."},
+            user_msg,
+        ]
+
+    @staticmethod
+    def analyze_now(rdo_data: Dict[str, Any], id_rdo: str) -> str:
+        """Synchronous AI analysis — runs in calling thread, returns result string.
+        Call from run_in_executor to avoid blocking the event loop."""
+        try:
+            messages = RDOService._build_ai_prompt(rdo_data)
+            result = ai_client.query(messages)
+            if result:
                 sb_update("rdo_master", {"id_rdo": id_rdo}, {"ai_summary": result})
                 logger.info(f"✅ AI summary salvo: {id_rdo}")
-            except Exception as e:
-                logger.error(f"❌ AI analyze: {e}")
+            return result or ""
+        except Exception as e:
+            logger.error(f"❌ AI analyze_now: {e}")
+            return ""
 
+    @staticmethod
+    def analyze_with_ai(rdo_data: Dict[str, Any], id_rdo: str) -> None:
+        """Fire-and-forget: analisa RDO e salva ai_summary no banco."""
+        def _run():
+            RDOService.analyze_now(rdo_data, id_rdo)
         threading.Thread(target=_run, daemon=True).start()
 
     @staticmethod
@@ -1373,17 +1447,23 @@ Responda em português com seções:
 
     @staticmethod
     def _save_sub_items(id_rdo: str, rdo_data: Dict[str, Any]) -> None:
-        # Only save atividades — mao_obra, equipamentos, materiais removed from form
-        sb_delete("rdo_atividades", {"id_rdo": id_rdo})
+        # Resolve rdo_id UUID from rdo_master (the FK column is 'rdo_id', not 'id_rdo')
+        rdo_master_rows = sb_select("rdo_master", filters={"id_rdo": id_rdo}, limit=1)
+        if not rdo_master_rows:
+            logger.warning(f"_save_sub_items: rdo_master not found for id_rdo={id_rdo}")
+            return
+        rdo_uuid = rdo_master_rows[0]["id"]
+
+        sb_delete("rdo_atividades", {"rdo_id": rdo_uuid})
 
         for item in (rdo_data.get("atividades") or []):
             atv = item.get("atividade") or item.get("descricao") or ""
             if atv:
                 sb_insert("rdo_atividades", {
-                    "id_rdo":               id_rdo,
-                    "atividade":            atv,
-                    "progresso_percentual": int(item.get("progresso_percentual") or item.get("percentual") or 0),
-                    "status":               item.get("status") or "Em andamento",
+                    "rdo_id":    rdo_uuid,
+                    "atividade": atv,
+                    "efetivo":   int(item.get("efetivo") or item.get("progresso_percentual") or 0),
+                    "observacao": item.get("status") or item.get("observacao") or "",
                 })
 
 

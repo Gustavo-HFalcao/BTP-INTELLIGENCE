@@ -398,6 +398,223 @@ class AlertService:
         return {"sent": sent, "errors": errors, "skipped": skipped}
 
 
+# ── Custom Alert Runner ────────────────────────────────────────────────────────
+
+class CustomAlertRunner:
+    """
+    Executa alertas criados dinamicamente pelo Action AI (tabela custom_alerts).
+    Chamado pelo scheduler a cada ciclo de sweep diário/horário.
+    """
+
+    @staticmethod
+    def run_due(schedule: str = "daily", now: "datetime | None" = None) -> None:
+        """
+        Busca todos os custom_alerts ativos com o schedule informado e avalia cada condição.
+        Se a condição for atendida, envia e-mail e loga no alert_history.
+        """
+        from bomtempo.core.email_service import EmailService
+
+        if now is None:
+            now = datetime.now(_BRT)
+
+        try:
+            rows = sb_select("custom_alerts", filters={"is_active": True, "schedule": schedule}) or []
+        except Exception as exc:
+            logger.error(f"[CustomAlertRunner] Erro ao buscar custom_alerts: {exc}")
+            return
+
+        for alert in rows:
+            alert_id = str(alert.get("id", ""))
+            alert_name = str(alert.get("alert_name", "Alerta"))
+            alert_type = str(alert.get("alert_type", "custom"))
+            contrato = alert.get("contrato")  # None = todos
+            condition_field = alert.get("condition_field") or ""
+            condition_op = str(alert.get("condition_op", "missing"))
+            condition_value = str(alert.get("condition_value") or "")
+            notify_emails = alert.get("notify_emails") or []
+            description = str(alert.get("description", ""))
+
+            # Dedup: skip if already fired within the cooldown window
+            last_fired_raw = alert.get("last_fired_at")
+            if last_fired_raw:
+                try:
+                    last_fired = datetime.fromisoformat(
+                        str(last_fired_raw).replace("Z", "+00:00")
+                    ).astimezone(_BRT).replace(tzinfo=None)
+                    cooldown_h = 1 if schedule == "hourly" else 23
+                    if (now.replace(tzinfo=None) - last_fired).total_seconds() < cooldown_h * 3600:
+                        continue
+                except Exception:
+                    pass
+
+            try:
+                fired = CustomAlertRunner._evaluate(
+                    alert_type, contrato, condition_field, condition_op, condition_value, now
+                )
+            except Exception as exc:
+                logger.error(f"[CustomAlertRunner] Erro ao avaliar '{alert_name}': {exc}")
+                continue
+
+            if not fired:
+                continue
+
+            # Notifica
+            if notify_emails:
+                try:
+                    _color = "#C98B2A"
+                    EmailService.send_alert_email(
+                        recipients=list(notify_emails),
+                        contract=contrato or "Todos",
+                        alert_label=alert_name,
+                        alert_color=_color,
+                        obra_data={"projeto": description},
+                    )
+                except Exception as exc:
+                    logger.error(f"[CustomAlertRunner] Erro ao enviar e-mail '{alert_name}': {exc}")
+
+            # Loga no alert_history
+            try:
+                sb_insert(_TABLE_HIST, {
+                    "alert_type": f"custom_{alert_type}",
+                    "message": f"[{contrato or 'Todos'}] {alert_name}: {description}"[:500],
+                    "is_read": False,
+                })
+            except Exception as exc:
+                logger.warning(f"[CustomAlertRunner] Erro ao logar histórico '{alert_name}': {exc}")
+
+            # Atualiza last_fired_at
+            try:
+                sb_update("custom_alerts", {"id": alert_id}, {"last_fired_at": now.isoformat()})
+            except Exception:
+                pass
+
+        logger.info(f"[CustomAlertRunner] Ciclo '{schedule}' concluído ({len(rows)} alertas avaliados).")
+
+    @staticmethod
+    def _evaluate(
+        alert_type: str,
+        contrato: "str | None",
+        condition_field: str,
+        condition_op: str,
+        condition_value: str,
+        now: "datetime",
+    ) -> bool:
+        """
+        Avalia se a condição do alerta foi atendida.
+        Retorna True se deve disparar.
+        """
+        # ── rdo_ausente: nenhum RDO para o contrato nas últimas N horas ──────
+        if alert_type == "rdo_ausente":
+            hours = int(condition_value) if condition_value.isdigit() else 24
+            filters: dict = {}
+            if contrato:
+                filters["contrato"] = contrato
+            rows = sb_select("rdo_master", filters=filters, order="data.desc", limit=1) or []
+            if not rows:
+                return True  # nunca teve RDO → dispara
+            last_str = str(rows[0].get("data", "") or rows[0].get("created_at", ""))
+            try:
+                if "T" in last_str:
+                    last_dt = datetime.fromisoformat(last_str.replace("Z", "+00:00")).astimezone(_BRT)
+                    last_dt = last_dt.replace(tzinfo=None)
+                else:
+                    last_dt = datetime.strptime(last_str[:10], "%Y-%m-%d")
+                return (now.replace(tzinfo=None) - last_dt).total_seconds() > hours * 3600
+            except Exception:
+                return True
+
+        # ── prazo_contrato: contrato vence em N dias ou menos ────────────────
+        elif alert_type == "prazo_contrato":
+            days_warn = int(condition_value) if condition_value.isdigit() else 7
+            filters = {}
+            if contrato:
+                filters["contrato"] = contrato
+            # condition_field indica a coluna de data (ex: 'data_fim', 'termino')
+            col = condition_field or "termino"
+            rows = sb_select("contratos", filters=filters, limit=200) or []
+            for row in rows:
+                val = str(row.get(col) or row.get("termino") or row.get("data_fim") or "")
+                if not val:
+                    continue
+                try:
+                    end_dt = datetime.strptime(val[:10], "%Y-%m-%d")
+                    delta = (end_dt - now.replace(tzinfo=None)).days
+                    if 0 <= delta <= days_warn:
+                        return True
+                except Exception:
+                    continue
+            return False
+
+        # ── saldo_baixo: saldo orçamentário abaixo de N% ─────────────────────
+        elif alert_type == "saldo_baixo":
+            threshold = float(condition_value) if condition_value else 10.0
+            filters = {}
+            if contrato:
+                filters["contrato"] = contrato
+            col = condition_field or "saldo_percentual"
+            rows = sb_select("financeiro", filters=filters, limit=200) or []
+            for row in rows:
+                try:
+                    val_str = str(row.get(col) or "").replace("%", "").replace(",", ".").strip()
+                    if val_str and float(val_str) < threshold:
+                        return True
+                except Exception:
+                    continue
+            return False
+
+        # ── medicao_pendente: última medição há mais de N dias ───────────────
+        elif alert_type == "medicao_pendente":
+            days = int(condition_value) if condition_value.isdigit() else 30
+            filters = {}
+            if contrato:
+                filters["contrato"] = contrato
+            col = condition_field or "data_medicao"
+            rows = sb_select("financeiro", filters=filters, order=f"{col}.desc", limit=1) or []
+            if not rows:
+                return True
+            val = str(rows[0].get(col) or "")
+            try:
+                last_dt = datetime.strptime(val[:10], "%Y-%m-%d")
+                return (now.replace(tzinfo=None) - last_dt).days >= days
+            except Exception:
+                return True
+
+        # ── custom: avalia campo genérico com operador ───────────────────────
+        elif alert_type == "custom" and condition_field and condition_op:
+            table = "obras"  # default — pode ser expandido
+            filters = {}
+            if contrato:
+                filters["contrato"] = contrato
+            rows = sb_select(table, filters=filters, limit=200) or []
+            for row in rows:
+                raw = str(row.get(condition_field) or "").replace("%", "").replace(",", ".").strip()
+                if not raw:
+                    if condition_op == "missing":
+                        return True
+                    continue
+                try:
+                    v = float(raw)
+                    t = float(condition_value) if condition_value else 0.0
+                    if condition_op == ">" and v > t:
+                        return True
+                    if condition_op == "<" and v < t:
+                        return True
+                    if condition_op == "=" and v == t:
+                        return True
+                    if condition_op == "overdue":
+                        # condition_field é uma coluna de data — verifica se passou
+                        end_dt = datetime.strptime(raw[:10], "%Y-%m-%d")
+                        if now.replace(tzinfo=None) > end_dt:
+                            return True
+                except Exception:
+                    pass
+            return False
+
+        # ── Tipo desconhecido — não dispara ──────────────────────────────────
+        logger.warning(f"[CustomAlertRunner] Tipo desconhecido: {alert_type}")
+        return False
+
+
 # ── Background Scheduler ───────────────────────────────────────────────────────
 
 _scheduler_started = False
@@ -449,15 +666,21 @@ def _scheduler_loop() -> None:
             today_str = today.isoformat()
             this_week = now.isocalendar()[1]
 
-            # Daily at 18h BRT — includes reactive checks
+            # Daily at 18h BRT — includes reactive checks + custom alerts
             if now.hour == 18 and now.minute < 5 and _last_daily != today:
                 if not _already_fired_today("daily", today_str):
                     logger.info("[AlertScheduler] Firing daily+reactive sweeps.")
                     for at in ("daily", "risk_high", "budget_overage", "rdo_pending"):
                         AlertService.run_sweep(at)
+                    CustomAlertRunner.run_due(schedule="daily", now=now)
                 else:
                     logger.info("[AlertScheduler] Daily already fired today (DB check) — skip.")
                 _last_daily = today  # Update in-process guard regardless
+
+            # Custom alerts with hourly schedule — runs every loop iteration (60s)
+            # We throttle by checking last_fired_at in the DB inside CustomAlertRunner
+            if now.minute < 2:  # Only fire near the top of each hour
+                CustomAlertRunner.run_due(schedule="hourly", now=now)
 
             # Weekly on Monday at 8h BRT
             if now.weekday() == 0 and now.hour == 8 and now.minute < 5 and _last_weekly != this_week:

@@ -913,13 +913,22 @@ class GlobalState(rx.State):
     avatar_edit_icon: str = ""
     avatar_edit_type: str = "initial"
 
-    # Avatar modal tab ("avatar" | "senha") + password fields
+    # Contact info
+    current_user_email: str = ""
+    current_user_whatsapp: str = ""
+
+    # Avatar modal tab ("avatar" | "senha" | "contato") + password fields
     avatar_modal_tab: str = "avatar"
     pw_current: str = ""
     pw_new: str = ""
     pw_confirm: str = ""
     pw_error: str = ""
     pw_success: bool = False
+    # Contato edit fields
+    contact_edit_email: str = ""
+    contact_edit_whatsapp: str = ""
+    contact_error: str = ""
+    contact_success: bool = False
 
     async def check_login_on_enter(self, key: str):
         """Login apenas se Enter for pressionado"""
@@ -951,6 +960,12 @@ class GlobalState(rx.State):
         self.pw_confirm = ""
         self.pw_error = ""
         self.pw_success = False
+        self.current_user_email = ""
+        self.current_user_whatsapp = ""
+        self.contact_edit_email = ""
+        self.contact_edit_whatsapp = ""
+        self.contact_error = ""
+        self.contact_success = False
         # Limpa sessão de chat para não vazar histórico entre usuários
         self.chat_session_id = ""
         self.chat_history = []
@@ -986,6 +1001,10 @@ class GlobalState(rx.State):
         self.pw_confirm = ""
         self.pw_error = ""
         self.pw_success = False
+        self.contact_edit_email = self.current_user_email
+        self.contact_edit_whatsapp = self.current_user_whatsapp
+        self.contact_error = ""
+        self.contact_success = False
         self.show_avatar_modal = True
 
     def close_avatar_modal(self):
@@ -995,6 +1014,8 @@ class GlobalState(rx.State):
         self.avatar_modal_tab = tab
         self.pw_error = ""
         self.pw_success = False
+        self.contact_error = ""
+        self.contact_success = False
 
     def set_avatar_edit_type(self, val: str):
         self.avatar_edit_type = val
@@ -1067,6 +1088,35 @@ class GlobalState(rx.State):
         except Exception as e:
             logger.error(f"Erro ao alterar senha: {e}")
             self.pw_error = "Erro ao salvar. Tente novamente."
+
+    # ── Contact info ───────────────────────────────────────────────────────────
+
+    def set_contact_edit_email(self, val: str):
+        self.contact_edit_email = val
+
+    def set_contact_edit_whatsapp(self, val: str):
+        self.contact_edit_whatsapp = val
+
+    def save_contact(self):
+        """Save email and whatsapp for the current user."""
+        self.contact_error = ""
+        self.contact_success = False
+        from bomtempo.core.supabase_client import sb_update
+        try:
+            sb_update(
+                "login",
+                filters={"username": self.current_user_name},
+                data={
+                    "email": self.contact_edit_email.strip(),
+                    "whatsapp": self.contact_edit_whatsapp.strip(),
+                },
+            )
+            self.current_user_email = self.contact_edit_email.strip()
+            self.current_user_whatsapp = self.contact_edit_whatsapp.strip()
+            self.contact_success = True
+        except Exception as e:
+            logger.error(f"Erro ao salvar contato: {e}")
+            self.contact_error = "Erro ao salvar. Tente novamente."
 
     @rx.var
     def page_title(self) -> str:
@@ -1558,9 +1608,11 @@ class GlobalState(rx.State):
             else:
                 self.active_features = []
 
-            # ── Load user avatar preferences from login row ───────────────────
+            # ── Load user avatar + contact preferences from login row ─────────
             self.current_user_avatar_icon = str(matched.get("avatar_icon", "") or "")
             self.current_user_avatar_type = str(matched.get("avatar_type", "initial") or "initial")
+            self.current_user_email = str(matched.get("email", "") or "")
+            self.current_user_whatsapp = str(matched.get("whatsapp", "") or "")
             audit_log(
                 category=AuditCategory.LOGIN,
                 action=f"Login bem-sucedido — role: {role}",

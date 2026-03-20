@@ -30,6 +30,10 @@ class Config:
     SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
     SUPABASE_KEY = os.getenv("SUPABASE_KEY", "sb_publishable_hGsFo0P6OSkrFBPWbNLnCw_cn7ESLlx")
 
+    # App base URL (used for absolute links in emails)
+    # Set APP_URL=https://bomtempo.com.br when that domain goes live
+    APP_URL = os.getenv("APP_URL", "https://bomtempo-blue-ocean.reflex.run")
+
     # Gmail SMTP Configuration (via variáveis de ambiente)
     RDO_EMAIL_USER = os.getenv("RDO_EMAIL_USER", "rdos@bomtempo.com.br")
     RDO_EMAIL_PASSWORD = os.getenv("RDO_EMAIL_PASSWORD", "")

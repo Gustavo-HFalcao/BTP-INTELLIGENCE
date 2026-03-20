@@ -123,20 +123,32 @@ def _user_form_dialog() -> rx.Component:
                     spacing="1",
                     width="100%",
                 ),
-                # Role
+                # Role — native <select> stays above any modal/dialog
                 rx.vstack(
                     rx.text("Perfil de Acesso", font_size="12px", font_weight="600", color=S.TEXT_MUTED),
-                    rx.select(
-                        UsuariosState.role_names_list,
+                    rx.el.select(
+                        rx.foreach(
+                            UsuariosState.role_names_list,
+                            lambda r: rx.el.option(r, value=r),
+                        ),
                         value=UsuariosState.edit_user_role,
                         on_change=UsuariosState.set_edit_user_role,
-                        width="100%",
-                        color_scheme="amber",
+                        style={
+                            "width": "100%",
+                            "background": S.BG_DEPTH,
+                            "border": f"1px solid {S.BORDER_SUBTLE}",
+                            "borderRadius": "6px",
+                            "color": "white",
+                            "fontSize": "13px",
+                            "padding": "8px 10px",
+                            "cursor": "pointer",
+                            "outline": "none",
+                        },
                     ),
                     spacing="1",
                     width="100%",
                 ),
-                # Project (contract dropdown)
+                # Project (contract dropdown) — native <select>
                 rx.vstack(
                     rx.text(
                         "Contrato associado",
@@ -144,12 +156,62 @@ def _user_form_dialog() -> rx.Component:
                         font_weight="600",
                         color=S.TEXT_MUTED,
                     ),
-                    rx.select(
-                        GlobalState.contract_options_list,
+                    rx.el.select(
+                        rx.foreach(
+                            GlobalState.contract_options_list,
+                            lambda c: rx.el.option(c, value=c),
+                        ),
                         value=UsuariosState.edit_user_project_display,
                         on_change=UsuariosState.set_edit_user_project,
+                        style={
+                            "width": "100%",
+                            "background": S.BG_DEPTH,
+                            "border": f"1px solid {S.BORDER_SUBTLE}",
+                            "borderRadius": "6px",
+                            "color": "white",
+                            "fontSize": "13px",
+                            "padding": "8px 10px",
+                            "cursor": "pointer",
+                            "outline": "none",
+                        },
+                    ),
+                    spacing="1",
+                    width="100%",
+                ),
+                # Email
+                rx.vstack(
+                    rx.text("E-mail", font_size="12px", font_weight="600", color=S.TEXT_MUTED),
+                    rx.input(
+                        placeholder="usuario@empresa.com",
+                        type="email",
+                        value=UsuariosState.edit_user_email,
+                        on_change=UsuariosState.set_edit_user_email,
                         width="100%",
                         color_scheme="amber",
+                        style={
+                            "background": "rgba(255,255,255,0.06)",
+                            "color": "#E8F0EE",
+                            "border": "1px solid rgba(255,255,255,0.12)",
+                        },
+                    ),
+                    spacing="1",
+                    width="100%",
+                ),
+                # WhatsApp
+                rx.vstack(
+                    rx.text("WhatsApp", font_size="12px", font_weight="600", color=S.TEXT_MUTED),
+                    rx.input(
+                        placeholder="+55 11 99999-9999",
+                        type="tel",
+                        value=UsuariosState.edit_user_whatsapp,
+                        on_change=UsuariosState.set_edit_user_whatsapp,
+                        width="100%",
+                        color_scheme="amber",
+                        style={
+                            "background": "rgba(255,255,255,0.06)",
+                            "color": "#E8F0EE",
+                            "border": "1px solid rgba(255,255,255,0.12)",
+                        },
                     ),
                     spacing="1",
                     width="100%",

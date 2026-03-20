@@ -75,6 +75,9 @@ class RDOState(rx.State):
     ev_last_modified: str = ""    # File.lastModified as fallback
     # Lightbox
     photo_lightbox_url: str = ""   # URL da foto em fullscreen ("" = fechado)
+    # Inline caption editor
+    ev_editing_url: str = ""       # foto_url being edited ("" = none)
+    ev_editing_draft: str = ""     # draft text while editing
 
     # ── Foto EPIs ─────────────────────────────────────────────
     epi_foto_items: List[Dict[str, str]] = []
@@ -235,6 +238,14 @@ class RDOState(rx.State):
 
     async def init_page(self):
         """Chamado no on_load de /rdo-form."""
+        # Re-trigger signature canvas binding after SPA navigation (canvas may not exist yet)
+        yield rx.call_script(
+            "[500,1000,2000,4000].forEach(function(ms){"
+            "setTimeout(function(){"
+            "if(window.sigCanvasRebind) window.sigCanvasRebind();"
+            "},ms);"
+            "});"
+        )
         from bomtempo.state.global_state import GlobalState
         gs = await self.get_state(GlobalState)
         user = str(gs.current_user_name)
@@ -266,9 +277,10 @@ class RDOState(rx.State):
                     self.rdo_localizacao = str(c.get("cidade", "") or c.get("localizacao", "") or "")
                     break
 
-        # Verificar rascunho ativo (não bloqueia UI — só seta flag)
+        # Verificar rascunho ativo — skip if already tracking a draft in this session
         if user and not self.draft_id_rdo:
-            self.has_draft_to_resume = False  # reset; bg event vai verificar
+            self.has_draft_to_resume = False  # reset; check_for_draft vai verificar
+            # check_for_draft is called via on_load in app.add_page
 
     @rx.event(background=True)
     async def check_for_draft(self):
@@ -364,6 +376,45 @@ class RDOState(rx.State):
 
     def discard_draft_offer(self):
         self.has_draft_to_resume = False
+
+    @rx.event(background=True)
+    async def delete_current_draft(self):
+        """Exclui o rascunho ativo (status=rascunho). Não exclui RDOs finalizados."""
+        async with self:
+            draft_id = str(self.draft_id_rdo)
+        if not draft_id:
+            async with self:
+                yield rx.toast("Nenhum rascunho ativo para excluir.", position="top-center")
+            return
+        loop = asyncio.get_running_loop()
+        ok = await loop.run_in_executor(None, lambda: RDOService.delete_draft(draft_id))
+        async with self:
+            if ok:
+                # Reset all form state
+                self.draft_id_rdo = ""
+                self.draft_saved_at = ""
+                self.draft_resumed = False
+                self.rdo_contrato = ""
+                self.rdo_data = ""
+                self.rdo_projeto = ""
+                self.rdo_cliente = ""
+                self.rdo_localizacao = ""
+                self.rdo_clima = "Ensolarado"
+                self.rdo_observacoes = ""
+                self.rdo_orientacao = ""
+                self.atividades_items = []
+                self.evidencias_items = []
+                self.checkin_timestamp = ""
+                self.checkin_lat = 0.0
+                self.checkin_lng = 0.0
+                self.checkin_endereco = ""
+                self.checkout_timestamp = ""
+                self.checkout_lat = 0.0
+                self.checkout_lng = 0.0
+                self.checkout_endereco = ""
+                yield rx.toast("🗑️ Rascunho excluído.", position="top-center")
+            else:
+                yield rx.toast("❌ Falha ao excluir rascunho.", position="top-center")
 
     # ── GPS ───────────────────────────────────────────────────
 
@@ -528,9 +579,9 @@ class RDOState(rx.State):
         self.is_uploading_evidence = True
         yield
 
-        # Small wait to allow receive_exif_json WebSocket round-trip to complete
-        # before reading ev_exif_* vars (exifr runs async in JS before on_drop fires)
-        await asyncio.sleep(0.4)
+        # Wait for receive_exif_json WebSocket round-trip to complete before reading
+        # ev_exif_* vars. exifr async parse + WS round-trip can take up to ~1s on mobile.
+        await asyncio.sleep(1.2)
 
         from bomtempo.state.global_state import GlobalState
         gs = await self.get_state(GlobalState)
@@ -625,6 +676,31 @@ class RDOState(rx.State):
 
     def close_lightbox(self):
         self.photo_lightbox_url = ""
+
+    def start_edit_caption(self, foto_url: str):
+        """Start inline caption editing for a specific photo."""
+        current = next(
+            (e.get("legenda", "") for e in self.evidencias_items if e.get("foto_url") == foto_url),
+            "",
+        )
+        self.ev_editing_url   = foto_url
+        self.ev_editing_draft = current
+
+    def cancel_edit_caption(self):
+        self.ev_editing_url   = ""
+        self.ev_editing_draft = ""
+
+    def save_edit_caption(self):
+        """Commit the draft caption to evidencias_items."""
+        url   = self.ev_editing_url
+        draft = self.ev_editing_draft.strip()
+        if url:
+            self.evidencias_items = [
+                {**e, "legenda": draft} if e.get("foto_url") == url else e
+                for e in self.evidencias_items
+            ]
+        self.ev_editing_url   = ""
+        self.ev_editing_draft = ""
 
     async def upload_epi_files(self, files: List[rx.UploadFile]):
         """Upload EPI photo — watermark + Supabase Storage."""
@@ -842,6 +918,10 @@ class RDOState(rx.State):
             return rx.toast("⚠️ Informe o Contrato antes de enviar", position="top-center")
         if not self.rdo_data:
             return rx.toast("⚠️ Informe a Data antes de enviar", position="top-center")
+        if not self.checkin_done:
+            return rx.toast("⚠️ Registre o Check-in GPS antes de enviar o RDO", position="top-center", duration=4000)
+        if not self.checkout_done:
+            return rx.toast("⚠️ Registre o Check-out GPS antes de enviar o RDO", position="top-center", duration=4000)
         # Captura assinatura do canvas ANTES de abrir dialog (JPEG 70% — sem erro de WS)
         return rx.call_script(
             """(function(){
@@ -873,6 +953,7 @@ class RDOState(rx.State):
             return
         self.is_submitting = True
         self.show_confirm_dialog = False
+        yield rx.call_script("window.scrollTo({top:0,behavior:'smooth'})")
         yield RDOState.execute_submit
 
     @rx.event(background=True)
@@ -899,14 +980,32 @@ class RDOState(rx.State):
             logger.info(f"💾 RDO2 salvo: {id_rdo}")
 
             async with self:
+                self.submit_status = "🤖 Análise IA…"
+
+            # 2. Run AI analysis BEFORE PDF so the PDF contains the real analysis text
+            ai_summary = ""
+            try:
+                _d_for_ai = dict(rdo_data)
+                _id_for_ai = str(id_rdo)
+                ai_summary = await loop.run_in_executor(
+                    None,
+                    lambda: RDOService.analyze_now(_d_for_ai, _id_for_ai),
+                )
+            except Exception as e:
+                logger.error(f"⚠️ AI: {e}")
+
+            # Inject ai_summary into rdo_data so build_html renders it in PDF
+            rdo_data_with_ai = {**rdo_data, "ai_summary": ai_summary}
+
+            async with self:
                 self.submit_status = "📄 Gerando PDF…"
 
-            # 2. Generate PDF
+            # 3. Generate PDF (with AI already embedded)
             pdf_path = ""
             try:
                 pdf_result = await loop.run_in_executor(
                     None,
-                    lambda: RDOService.generate_pdf(rdo_data, is_preview=False, id_rdo=id_rdo),
+                    lambda: RDOService.generate_pdf(rdo_data_with_ai, is_preview=False, id_rdo=id_rdo),
                 )
                 pdf_path = pdf_result[0] if pdf_result else ""
             except Exception as e:
@@ -915,7 +1014,7 @@ class RDOState(rx.State):
             async with self:
                 self.submit_status = "☁️ Enviando PDF…"
 
-            # 3. Upload PDF
+            # 4. Upload PDF
             pdf_url = ""
             if pdf_path:
                 try:
@@ -929,20 +1028,21 @@ class RDOState(rx.State):
             async with self:
                 self.submit_status = "✅ Finalizando…"
 
-            # 4. Finalize in DB
+            # 5. Finalize in DB
             await loop.run_in_executor(
                 None,
-                lambda: RDOService.finalize_rdo(id_rdo, pdf_path, pdf_url, rdo_data),
+                lambda: RDOService.finalize_rdo(id_rdo, pdf_path, pdf_url, rdo_data_with_ai),
             )
 
-            # 5. Build view URL (public)
+            # 5. Build view URL (public — absolute for email, relative for UI)
             from bomtempo.core.supabase_client import sb_select
             master_rows = await loop.run_in_executor(
                 None,
                 lambda: sb_select("rdo_master", filters={"id_rdo": id_rdo}),
             )
             view_token = (master_rows[0].get("view_token") or "") if master_rows else ""
-            view_url   = f"/rdo-view/{view_token}" if view_token else ""
+            # Relative path used inside the app; email service will prepend domain
+            view_url   = f"/rdo-view/{view_token}" if view_token else f"/rdo-view/{id_rdo}"
 
             # 6. Get email recipients
             from bomtempo.core.supabase_client import sb_select as _sb_select
@@ -956,22 +1056,17 @@ class RDOState(rx.State):
             except Exception:
                 pass
 
-            # 7. AI + Email (fire-and-forget)
-            _d, _p, _r, _vu = dict(rdo_data), str(pdf_path), list(recipients), str(view_url)
-            _id = str(id_rdo)
+            # 7. Email (fire-and-forget — AI already ran above, pass ai_summary to email)
+            _d, _p, _r, _vu, _ai = dict(rdo_data_with_ai), str(pdf_path), list(recipients), str(view_url), str(ai_summary)
 
-            def _async_tasks():
-                try:
-                    RDOService.analyze_with_ai(_d, _id)
-                except Exception as e:
-                    logger.error(f"AI: {e}")
+            def _send_email_task():
                 if _r and _p:
                     try:
-                        RDOService.send_email(_r, _d, _p, _vu)
+                        RDOService.send_email(_r, _d, _p, _vu, _ai)
                     except Exception as e:
                         logger.error(f"Email: {e}")
 
-            threading.Thread(target=_async_tasks, daemon=True).start()
+            threading.Thread(target=_send_email_task, daemon=True).start()
 
             # Audit
             audit_log(
@@ -1015,7 +1110,10 @@ class RDOState(rx.State):
             "motivo_interrupcao":   str(self.rdo_motivo_interrupcao),
             "tipo_tarefa":          str(self.rdo_tipo_tarefa),
             "orientacao":           str(self.rdo_orientacao),
-            "km_percorrido":        float(self.rdo_km_percorrido) if self.rdo_km_percorrido else None,
+            "km_percorrido":        float(self.rdo_km_percorrido) if self.rdo_km_percorrido else (
+                round(_haversine_km(self.checkin_lat, self.checkin_lng, self.checkout_lat, self.checkout_lng), 2)
+                if (self.checkin_lat and self.checkout_lat and self.checkin_lng and self.checkout_lng) else 0.0
+            ),
             "observacoes":          str(self.rdo_observacoes),
             # Campos condicionais
             "houve_chuva":          bool(self.rdo_houve_chuva),

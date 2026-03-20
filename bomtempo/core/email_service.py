@@ -17,6 +17,35 @@ from bomtempo.core.logging_utils import get_logger
 logger = get_logger(__name__)
 
 
+def _generate_personalized_intro(
+    doc_label: str,
+    recipient_name: str = "",
+    sender_name: str = "",
+    context_hint: str = "",
+) -> str:
+    """
+    Gera um parágrafo de abertura personalizado para o email via LLM.
+    Retorna string vazia em caso de falha (email segue com template padrão).
+    Máximo 2 frases, tom profissional e direto.
+    """
+    try:
+        from bomtempo.core.ai_client import ai_client
+        recipient_part = f"para {recipient_name}" if recipient_name else ""
+        sender_part = f"enviado por {sender_name}" if sender_name else ""
+        extra = f"\nContexto adicional: {context_hint}" if context_hint else ""
+        prompt = (
+            f"Escreva exatamente 1 ou 2 frases de abertura personalizadas para um email profissional "
+            f"enviando o documento '{doc_label}' {recipient_part} {sender_part}. "
+            f"Tom: profissional, objetivo, caloroso. Não mencione IA. "
+            f"Responda APENAS o texto do parágrafo, sem saudação, sem aspas.{extra}"
+        )
+        result = ai_client.query([{"role": "user", "content": prompt}])
+        return (result or "").strip()[:500]
+    except Exception as e:
+        logger.warning(f"[PersonalizedEmail] Falha ao gerar intro: {e}")
+        return ""
+
+
 def _md_to_html(text: str) -> str:
     """Converte Markdown simples para HTML formatado"""
     if not text:
@@ -652,11 +681,17 @@ class EmailService:
             n_labor  = len(rdo_data.get("mao_obra", []))
             n_acts   = len(rdo_data.get("atividades", []))
 
+            # Build absolute URL for the email link
+            from bomtempo.core.config import Config as _Cfg
+            abs_view_url = (
+                view_url if view_url.startswith("http")
+                else f"{_Cfg.APP_URL.rstrip('/')}{view_url}"
+            ) if view_url else ""
             view_btn = (
-                f'<a href="{view_url}" style="display:inline-block;background:linear-gradient(135deg,#C98B2A,#9B6820);'
+                f'<a href="{abs_view_url}" style="display:inline-block;background:linear-gradient(135deg,#C98B2A,#9B6820);'
                 f'color:#fff;font-weight:700;font-size:13px;text-decoration:none;padding:12px 28px;'
                 f'border-radius:8px;letter-spacing:0.05em;text-transform:uppercase;margin-top:8px;">Ver RDO Online</a>'
-                if view_url else ""
+                if abs_view_url else ""
             )
 
             ai_section = (
@@ -667,6 +702,14 @@ class EmailService:
                 f'</div>'
                 if ai_text else ""
             )
+
+            # Personalized intro para o RDO
+            doc_label_rdo = f"RDO do contrato {contrato} de {data_rdo}"
+            personalized_intro = _generate_personalized_intro(
+                doc_label=doc_label_rdo,
+                context_hint=f"Projeto: {projeto}. Clima: {clima}. {n_acts} atividade(s) registrada(s).",
+            )
+            intro_text = personalized_intro or f"Segue o Relatório Diário de Obra do contrato <strong style='color:#C98B2A;'>{contrato}</strong> de <strong style='color:#C98B2A;'>{data_rdo}</strong>."
 
             body_html = f"""<!DOCTYPE html>
 <html lang="pt-BR"><head><meta charset="UTF-8"></head>
@@ -680,7 +723,10 @@ class EmailService:
         <h1 style="margin:0 0 8px;color:#fff;font-size:22px;font-weight:700;">Relatório Diário de Obra — v2</h1>
         <p style="margin:0;background:rgba(0,0,0,0.25);display:inline-block;padding:6px 16px;border-radius:20px;color:#fff;font-size:14px;">{contrato} &nbsp;·&nbsp; {data_rdo}</p>
       </td></tr>
-      <tr><td style="padding:24px 32px 0;">
+      <tr><td style="padding:20px 32px 4px;">
+        <p style="margin:0;color:#C8D8D4;font-size:14px;line-height:1.7;">{intro_text}</p>
+      </td></tr>
+      <tr><td style="padding:12px 32px 0;">
         <table style="width:100%;border-collapse:collapse;">
           <tr style="background:rgba(201,139,42,0.06);">
             <td style="padding:9px 12px;color:#889999;font-size:13px;width:40%;">Projeto</td>
@@ -748,4 +794,109 @@ class EmailService:
 
         except Exception as e:
             logger.error(f"❌ Erro ao testar SMTP: {e}")
+            return False
+
+    @staticmethod
+    def send_document_email(
+        recipients: List[str],
+        doc_label: str,
+        doc_url: str,
+        sender_username: str = "Action AI",
+        message_extra: str = "",
+        recipient_name: str = "",
+    ) -> bool:
+        """
+        Envia email com link para um documento (RDO, relatório) solicitado via Action AI.
+        Não anexa o PDF — apenas envia link para evitar bloqueios de tamanho.
+        Gera intro personalizada via IA quando message_extra ou recipient_name disponíveis.
+        """
+        try:
+            if not recipients:
+                logger.warning("[DocEmail] Nenhum destinatário.")
+                return False
+            if not Config.RDO_EMAIL_PASSWORD:
+                logger.error("[DocEmail] RDO_EMAIL_PASSWORD não configurado.")
+                return False
+
+            now_str = datetime.now().strftime("%d/%m/%Y %H:%M")
+
+            # Personalized intro via AI (runs synchronously, <2s, failure-safe)
+            personalized = _generate_personalized_intro(
+                doc_label=doc_label,
+                recipient_name=recipient_name,
+                sender_name=sender_username,
+                context_hint=message_extra,
+            )
+            display_text = personalized or message_extra or f"Segue o documento solicitado: {doc_label}."
+            message_block = (
+                f'<p style="color:#C8D8D4;font-size:14px;line-height:1.6;margin:0 0 16px;">'
+                f'{display_text}</p>'
+            )
+
+            body_html = f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#0a1f1a;font-family:'Segoe UI',sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#0a1f1a;padding:32px 16px;">
+  <tr><td>
+    <table width="600" align="center" cellpadding="0" cellspacing="0"
+           style="background:linear-gradient(180deg,#0d2b24,#0a1f1a);border:1px solid rgba(201,139,42,0.25);border-radius:12px;overflow:hidden;max-width:600px;">
+      <tr>
+        <td style="background:linear-gradient(135deg,#0d2b24,#1a3d35);padding:28px 32px;border-bottom:1px solid rgba(201,139,42,0.2);">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="background:linear-gradient(135deg,#C98B2A,#9B6820);border-radius:8px;padding:8px;display:inline-block;">
+              <span style="font-size:18px;">📄</span>
+            </div>
+            <div>
+              <p style="margin:0;font-size:11px;color:#2A9D8F;letter-spacing:0.1em;text-transform:uppercase;font-weight:700;">Bomtempo Dashboard · Action AI</p>
+              <h1 style="margin:4px 0 0;font-size:18px;color:#E0E0E0;font-weight:700;">Documento Solicitado</h1>
+            </div>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:28px 32px;">
+          <p style="color:#889999;font-size:12px;margin:0 0 20px;">Enviado em {now_str} por {sender_username}</p>
+          {message_block}
+          <div style="background:rgba(201,139,42,0.06);border:1px solid rgba(201,139,42,0.2);border-radius:10px;padding:20px;margin-bottom:24px;">
+            <p style="margin:0 0 8px;font-size:12px;color:#889999;text-transform:uppercase;letter-spacing:0.08em;">Documento</p>
+            <p style="margin:0;font-size:16px;font-weight:700;color:#E0E0E0;">{doc_label}</p>
+          </div>
+          <div style="text-align:center;margin-bottom:24px;">
+            <a href="{doc_url}"
+               style="display:inline-block;background:linear-gradient(135deg,#C98B2A,#9B6820);color:#fff;font-weight:700;
+                      font-size:13px;text-decoration:none;padding:14px 32px;border-radius:8px;
+                      letter-spacing:0.05em;text-transform:uppercase;">
+              Acessar Documento PDF
+            </a>
+          </div>
+          <p style="color:#556666;font-size:11px;text-align:center;margin:0;">
+            Este e-mail foi gerado automaticamente pelo Bomtempo Dashboard.<br>
+            O link é público e pode ser acessado diretamente.
+          </p>
+        </td>
+      </tr>
+    </table>
+  </td></tr>
+</table>
+</body></html>"""
+
+            msg = MIMEMultipart("alternative")
+            msg["From"] = Config.RDO_EMAIL_USER
+            msg["To"] = ", ".join(recipients)
+            msg["Subject"] = f"[Bomtempo] {doc_label}"
+            msg.attach(MIMEText(body_html, "html"))
+
+            with smtplib.SMTP(Config.RDO_SMTP_SERVER, Config.RDO_SMTP_PORT) as server:
+                server.starttls()
+                server.login(Config.RDO_EMAIL_USER, Config.RDO_EMAIL_PASSWORD)
+                server.send_message(msg)
+
+            logger.info(f"[DocEmail] '{doc_label}' enviado para {recipients}.")
+            return True
+
+        except smtplib.SMTPAuthenticationError:
+            logger.error("[DocEmail] Falha de autenticação SMTP.")
+            return False
+        except Exception as exc:
+            logger.error(f"[DocEmail] Erro: {exc}")
             return False

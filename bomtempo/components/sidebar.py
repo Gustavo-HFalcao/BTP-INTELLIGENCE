@@ -224,6 +224,10 @@ def sidebar_content() -> rx.Component:
                 GlobalState.allowed_modules.contains("editar_dados"),
                 sidebar_item("EDITAR DADOS", "database", "/admin/editar_dados"),
             ),
+            rx.cond(
+                GlobalState.allowed_modules.contains("gerenciar_usuarios"),
+                sidebar_item("OBSERVABILIDADE", "activity", "/admin/observabilidade"),
+            ),
 
             spacing="1",
             width="100%",

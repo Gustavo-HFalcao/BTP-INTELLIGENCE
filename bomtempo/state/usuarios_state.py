@@ -94,6 +94,8 @@ class UsuariosState(rx.State):
     edit_user_password: str = ""
     edit_user_role: str = ""
     edit_user_project: str = ""
+    edit_user_email: str = ""
+    edit_user_whatsapp: str = ""
     user_form_error: str = ""
 
     # ── Perfis (roles) ────────────────────────────────────────────
@@ -161,6 +163,8 @@ class UsuariosState(rx.State):
                     "username": str(r.get("username", r.get("user", ""))),
                     "user_role": str(r.get("user_role", "")),
                     "project": str(r.get("project", "") or ""),
+                    "email": str(r.get("email", "") or ""),
+                    "whatsapp": str(r.get("whatsapp", "") or ""),
                 }
                 for r in rows
             ]
@@ -202,6 +206,8 @@ class UsuariosState(rx.State):
         self.edit_user_password = ""
         self.edit_user_role = self.roles_list[0]["name"] if self.roles_list else ""
         self.edit_user_project = ""
+        self.edit_user_email = ""
+        self.edit_user_whatsapp = ""
         self.user_form_error = ""
         self.show_user_dialog = True
 
@@ -216,6 +222,8 @@ class UsuariosState(rx.State):
                 self.edit_user_password = ""
                 self.edit_user_role = u["user_role"]
                 self.edit_user_project = u["project"]
+                self.edit_user_email = u.get("email", "")
+                self.edit_user_whatsapp = u.get("whatsapp", "")
                 break
         self.show_user_dialog = True
 
@@ -234,6 +242,12 @@ class UsuariosState(rx.State):
     def set_edit_user_project(self, val: str):
         # "__none__" / "Nenhum" sentinel → store empty string (no contract)
         self.edit_user_project = "" if val in ("__none__", "Nenhum") else val
+
+    def set_edit_user_email(self, val: str):
+        self.edit_user_email = val
+
+    def set_edit_user_whatsapp(self, val: str):
+        self.edit_user_whatsapp = val
 
     async def save_user(self):
         """Salva usuário com feedback imediato no botão (#6)."""
@@ -272,6 +286,8 @@ class UsuariosState(rx.State):
                     "username": username,
                     "user_role": self.edit_user_role,
                     "project": self.edit_user_project.strip(),
+                    "email": self.edit_user_email.strip(),
+                    "whatsapp": self.edit_user_whatsapp.strip(),
                 }
                 if password:
                     data["password"] = password
@@ -300,6 +316,8 @@ class UsuariosState(rx.State):
                     "password": password,
                     "user_role": self.edit_user_role,
                     "project": self.edit_user_project.strip(),
+                    "email": self.edit_user_email.strip(),
+                    "whatsapp": self.edit_user_whatsapp.strip(),
                 })
                 new_id = str(result.get("id", "")) if result else ""
 

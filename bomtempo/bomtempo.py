@@ -74,6 +74,9 @@ from bomtempo.state.usuarios_state import UsuariosState
 from bomtempo.pages.contract_features import contract_features_page
 from bomtempo.state.feature_flags_state import FeatureFlagsState
 from bomtempo.pages.app_mobile import app_mobile_page
+from bomtempo.pages.observabilidade import observabilidade_page
+from bomtempo.state.observability_state import ObservabilityState
+from bomtempo.state.action_ai_state import ActionAIState
 
 # Start proactive alerts background scheduler
 start_alert_scheduler()
@@ -139,6 +142,8 @@ def reembolso_dash():
     return default_layout(reembolso_dashboard_page())
 
 
+from bomtempo.components.action_ai_popup import ACTION_AI_JS
+
 app = rx.App(
     style=S.GLOBAL_STYLE,
     stylesheets=[
@@ -193,7 +198,7 @@ app.add_page(
     rdo_form,
     route="/rdo-form",
     title="BOMTEMPO | RDO Diário",
-    on_load=[GlobalState.load_data, RDOState.init_page, RDOState.check_for_draft],
+    on_load=[GlobalState.load_data, RDOState.init_page, RDOState.check_for_draft, ActionAIState.apply_rdo_prefill],
 )
 app.add_page(
     rdo_historico,
@@ -219,7 +224,7 @@ app.add_page(
     reembolso,
     route="/reembolso",
     title="BOMTEMPO | Reembolso Combustível",
-    on_load=[GlobalState.load_data, ReembolsoState.load_my_reimbursements, ReembolsoState.load_form_features],
+    on_load=[GlobalState.load_data, ReembolsoState.load_my_reimbursements, ReembolsoState.load_form_features, ActionAIState.apply_reembolso_prefill],
 )
 app.add_page(
     reembolso_dash,
@@ -297,6 +302,18 @@ app.add_page(
 )
 
 
+def observabilidade():
+    return default_layout(observabilidade_page())
+
+
+app.add_page(
+    observabilidade,
+    route="/admin/observabilidade",
+    title="BOMTEMPO | Observabilidade LLM",
+    on_load=[GlobalState.load_data, ObservabilityState.load_page],
+)
+
+
 def app_mobile():
     return default_layout(app_mobile_page())
 
@@ -308,19 +325,3 @@ app.add_page(
     on_load=GlobalState.load_data,
 )
 
-from bomtempo.pages.voice_chat_page import voice_chat_page
-
-app.add_page(voice_chat_page, route="/voice-chat", title="BOMTEMPO | Chat de Voz (Web Audio)")
-
-from bomtempo.pages.debug_audio import debug_audio_page
-
-app.add_page(debug_audio_page, route="/debug-audio", title="Debug Audio Lab")
-
-from bomtempo.pages.test_audio import test_audio_page
-
-
-def test_audio():
-    return test_audio_page()
-
-
-app.add_page(test_audio, route="/test-audio", title="Diagnóstico de Áudio")

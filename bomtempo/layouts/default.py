@@ -1,5 +1,6 @@
 import reflex as rx
 
+from bomtempo.components.action_ai_popup import action_ai_fab
 from bomtempo.components.chat.chat_bubble import chart_init_script
 from bomtempo.components.loading_screen import (
     loading_screen,
@@ -471,7 +472,7 @@ def _avatar_modal() -> rx.Component:
         rx.cond(
             GlobalState.pw_success,
             rx.callout.root(
-                rx.callout.icon(rx.icon(tag="check-circle", size=14)),
+                rx.callout.icon(rx.icon(tag="check", size=14)),
                 rx.callout.text("Senha alterada com sucesso!"),
                 color_scheme="green", variant="soft", size="1", width="100%",
             ),
@@ -512,12 +513,73 @@ def _avatar_modal() -> rx.Component:
         spacing="4", width="100%",
     )
 
+    # ── Contato tab content ───────────────────────────────────────────────────
+    contato_tab = rx.vstack(
+        rx.cond(
+            GlobalState.contact_error != "",
+            rx.callout.root(
+                rx.callout.icon(rx.icon(tag="triangle-alert", size=14)),
+                rx.callout.text(GlobalState.contact_error),
+                color_scheme="red", variant="soft", size="1", width="100%",
+            ),
+        ),
+        rx.cond(
+            GlobalState.contact_success,
+            rx.callout.root(
+                rx.callout.icon(rx.icon(tag="check", size=14)),
+                rx.callout.text("Contato salvo com sucesso!"),
+                color_scheme="green", variant="soft", size="1", width="100%",
+            ),
+        ),
+        rx.vstack(
+            rx.text("E-mail", font_size="12px", font_weight="600", color=S.TEXT_MUTED),
+            rx.input(
+                type="email",
+                placeholder="seu@email.com",
+                value=GlobalState.contact_edit_email,
+                on_change=GlobalState.set_contact_edit_email,
+                width="100%",
+                color_scheme="amber",
+            ),
+            spacing="1", width="100%",
+        ),
+        rx.vstack(
+            rx.text("WhatsApp", font_size="12px", font_weight="600", color=S.TEXT_MUTED),
+            rx.input(
+                type="tel",
+                placeholder="+55 11 99999-9999",
+                value=GlobalState.contact_edit_whatsapp,
+                on_change=GlobalState.set_contact_edit_whatsapp,
+                width="100%",
+                color_scheme="amber",
+            ),
+            spacing="1", width="100%",
+        ),
+        rx.text(
+            "Usado para alertas e envio de documentos via Action AI.",
+            font_size="11px", color=S.TEXT_MUTED, opacity="0.7",
+        ),
+        rx.hstack(
+            rx.cond(
+                GlobalState.contact_success,
+                rx.button("Fechar", on_click=GlobalState.close_avatar_modal, color_scheme="amber"),
+                rx.hstack(
+                    rx.button("Cancelar", on_click=GlobalState.close_avatar_modal, variant="soft", color_scheme="gray", style={"color": "rgba(255,255,255,0.75)"}),
+                    rx.button("Salvar Contato", on_click=GlobalState.save_contact, color_scheme="amber"),
+                    spacing="3",
+                ),
+            ),
+            justify="end", width="100%",
+        ),
+        spacing="4", width="100%",
+    )
+
     return rx.dialog.root(
         rx.dialog.content(
             rx.vstack(
                 # Header
                 rx.hstack(
-                    rx.icon(tag="user-circle", size=18, color=S.COPPER),
+                    rx.icon(tag="user", size=18, color=S.COPPER),
                     rx.text(
                         "Meu Perfil",
                         font_family=S.FONT_TECH,
@@ -538,13 +600,18 @@ def _avatar_modal() -> rx.Component:
                 ),
                 # Tab switcher
                 rx.hstack(
-                    _tab_btn("Avatar", "user-circle", "avatar"),
+                    _tab_btn("Avatar", "user", "avatar"),
+                    _tab_btn("Contato", "mail", "contato"),
                     _tab_btn("Senha", "key-round", "senha"),
                     spacing="2",
                 ),
                 rx.separator(width="100%"),
                 # Tab content
-                rx.cond(GlobalState.avatar_modal_tab == "avatar", avatar_tab, senha_tab),
+                rx.cond(
+                    GlobalState.avatar_modal_tab == "avatar",
+                    avatar_tab,
+                    rx.cond(GlobalState.avatar_modal_tab == "contato", contato_tab, senha_tab),
+                ),
                 spacing="4",
                 width="100%",
             ),
@@ -1185,15 +1252,15 @@ def default_layout(content: rx.Component) -> rx.Component:
             # ── Unauthenticated view ────────────────────────────────────────────
             login_page(),
         ),  # End rx.cond(is_authenticated)
-        # ── Floating AI Insight Button (oculto no Editor de Dados) ──────────────
-        rx.cond(
-            ~GlobalState.router.page.path.contains("editar_dados"),
-            _fab_ai_insight(),
-        ),
         # ── KPI Detail Popup (global, accessible from all pages) ─────────────
         _kpi_detail_dialog(),
         # ── Meu Perfil Modal (avatar + senha) ────────────────────────────────
         _avatar_modal(),
+        # ── Action AI — Escutador Executivo (substitui FAB de Insights) ──────
+        rx.cond(
+            ~GlobalState.router.page.path.contains("editar_dados"),
+            action_ai_fab(),
+        ),
         # Outer box props
         position="relative",
         width="100%",

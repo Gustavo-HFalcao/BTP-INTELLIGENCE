@@ -74,6 +74,9 @@
     _timer = setTimeout(_bind, 60);
   }
 
+  // Expose globally so Reflex can trigger rebind via rx.call_script
+  window.sigCanvasRebind = _bind;
+
   // Start observer as soon as DOM is ready
   function _start() {
     _bind();
