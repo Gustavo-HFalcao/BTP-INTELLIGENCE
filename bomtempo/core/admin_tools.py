@@ -113,8 +113,8 @@ ADMIN_AI_TOOLS = [
                 "Navega imediatamente para uma página do dashboard. "
                 "Use quando o usuário disser 'me leva para', 'abre', 'vai para', 'quero ver', etc. "
                 "Páginas disponíveis: visao-geral, obras, projetos, financeiro, om, analytics, "
-                "previsoes, relatorios, reembolso, reembolso-dash, rdo-form, rdo-dashboard, "
-                "editar-dados, alertas, logs-auditoria, admin/usuarios."
+                "previsoes, relatorios, chat-ia, reembolso, reembolso-dash, rdo-form, rdo-historico, rdo-dashboard, "
+                "admin/editar_dados, alertas, logs-auditoria, admin/usuarios, admin/observabilidade."
             ),
             "parameters": {
                 "type": "object",
@@ -412,6 +412,52 @@ ADMIN_AI_TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "propose_create_record",
+            "strict": True,
+            "description": (
+                "Propõe a criação de um NOVO registro em uma tabela do banco de dados. "
+                "IMPORTANTE: NÃO executa imediatamente — retorna uma proposta para o admin CONFIRMAR via HITL. "
+                "Use quando o admin pedir 'adicionar um contrato', 'criar novo projeto', 'cadastrar uma obra', "
+                "'incluir nova medição', 'adicionar funcionário', etc. "
+                "Tabelas disponíveis: contratos, projetos, obras, financeiro, om. "
+                "FLUXO CORRETO para criar via voz: o usuário pode fornecer campos em múltiplas falas — "
+                "acumule os campos mencionados e só chame este tool quando tiver informação suficiente "
+                "(pelo menos o campo principal: contrato, nome, ou código). "
+                "Use execute_sql + get_schema_info ANTES para conhecer as colunas exatas da tabela alvo."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "table": {
+                        "type": "string",
+                        "description": "Nome da tabela onde criar o registro. Ex: 'contratos', 'projetos', 'obras'.",
+                    },
+                    "fields": {
+                        "type": "array",
+                        "description": "Lista de pares coluna/valor para o novo registro.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "column": {"type": "string", "description": "Nome exato da coluna na tabela."},
+                                "value": {"type": "string", "description": "Valor para a coluna (sempre como string)."},
+                            },
+                            "required": ["column", "value"],
+                            "additionalProperties": False,
+                        },
+                    },
+                    "summary": {
+                        "type": "string",
+                        "description": "Resumo em 1 frase para confirmação HITL. Ex: 'Criar contrato 005-2026 - Obra Residencial Norte'.",
+                    },
+                },
+                "required": ["table", "fields", "summary"],
+                "additionalProperties": False,
+            },
+        },
+    },
 ]
 
 
@@ -609,6 +655,25 @@ def execute_admin_tool(name: str, args: dict) -> tuple[str, dict | None]:
             }
             return json.dumps(proposal), proposal
 
+        elif name == "propose_create_record":
+            table = args.get("table", "")
+            fields = args.get("fields", [])
+            record = {f["column"]: f["value"] for f in fields}
+            preview = [f"📋 Tabela: **{table}**", f"➕ Novo registro:"]
+            for item in fields:
+                preview.append(f"  • {item['column']}: `{item['value']}`")
+            proposal = {
+                "__hitl__": True,
+                "action": "create_record",
+                "summary": args.get("summary", f"Criar registro em {table}"),
+                "data": {
+                    "table": table,
+                    "record": record,
+                },
+                "preview_lines": preview,
+            }
+            return json.dumps(proposal), proposal
+
         return f"Ferramenta {name} não encontrada.", None
     except Exception as e:
         logger.error(f"Error in admin tool {name}: {e}")
@@ -782,6 +847,28 @@ def execute_confirmed_action(action: str, data: dict) -> str:
 
             sb_update(table, {filter_col: filter_val}, updates)
             return f"✅ Registro em `{table}` atualizado com sucesso."
+
+        elif action == "create_record":
+            table = data.get("table", "")
+            record = data.get("record", {})
+
+            # Safety: only allow writable business tables
+            ALLOWED_TABLES = {"contratos", "projetos", "obras", "financeiro", "om", "login", "custom_alerts", "email_sender"}
+            if table not in ALLOWED_TABLES:
+                return f"❌ Tabela `{table}` não permitida para criação via Action AI. Tabelas disponíveis: {', '.join(sorted(ALLOWED_TABLES))}."
+            if not record:
+                return "❌ Nenhum campo fornecido para criar o registro."
+
+            result = sb_insert(table, record)
+            if result:
+                # Invalidate data cache so dashboard reflects new record immediately
+                try:
+                    from bomtempo.core.data_loader import DataLoader
+                    DataLoader.invalidate_cache()
+                except Exception:
+                    pass
+                return f"✅ Registro criado em `{table}` com sucesso."
+            return f"❌ Falha ao criar registro em `{table}`. Verifique se os campos são válidos."
 
         return "❌ Ação desconhecida."
     except Exception as e:

@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>FOREMAN_OS | Master Hover System</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;700&amp;family=Plus+Jakarta+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "tertiary-fixed-dim": "#f9bc4f",
+                        "surface-variant": "#2c3734",
+                        "on-secondary-fixed": "#00201c",
+                        "on-secondary": "#003731",
+                        "background": "#0b1513",
+                        "surface-container-highest": "#2c3734",
+                        "secondary-fixed-dim": "#6fd8c8",
+                        "on-tertiary-fixed": "#281900",
+                        "primary-container": "#c98b2a",
+                        "secondary": "#6fd8c8",
+                        "outline": "#9e8e7d",
+                        "on-error": "#690005",
+                        "inverse-on-surface": "#283230",
+                        "surface-container-low": "#131d1b",
+                        "on-primary": "#452b00",
+                        "inverse-surface": "#dae5e1",
+                        "on-secondary-fixed-variant": "#005048",
+                        "inverse-primary": "#835500",
+                        "error-container": "#93000a",
+                        "tertiary-container": "#c48e23",
+                        "primary-fixed": "#ffddb4",
+                        "primary": "#ffb955",
+                        "on-primary-fixed-variant": "#633f00",
+                        "on-background": "#dae5e1",
+                        "on-surface": "#dae5e1",
+                        "on-surface-variant": "#d5c4b0",
+                        "surface-container-lowest": "#06100e",
+                        "secondary-fixed": "#8cf5e4",
+                        "surface-dim": "#0b1513",
+                        "on-tertiary-container": "#422c00",
+                        "on-primary-fixed": "#291800",
+                        "surface-container-high": "#222c2a",
+                        "tertiary": "#f9bc4f",
+                        "surface-container": "#17221f",
+                        "surface-bright": "#313b39",
+                        "tertiary-fixed": "#ffdeac",
+                        "secondary-container": "#30a193",
+                        "on-tertiary-fixed-variant": "#5f4100",
+                        "error": "#ffb4ab",
+                        "surface-tint": "#ffb955",
+                        "on-secondary-container": "#00302a",
+                        "primary-fixed-dim": "#ffb955",
+                        "on-tertiary": "#432c00",
+                        "outline-variant": "#514536",
+                        "on-error-container": "#ffdad6",
+                        "surface": "#0b1513",
+                        "on-primary-container": "#442a00",
+                        "patina": "#2A9D8F",
+                        "copper": "#C98B2A"
+                    },
+                    fontFamily: {
+                        "headline": ["Rajdhani"],
+                        "body": ["Plus Jakarta Sans"],
+                        "label": ["JetBrains Mono"]
+                    },
+                    borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: rgba(8, 18, 16, 0.96);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(201, 139, 42, 0.4);
+        }
+        .telemetry-bar {
+            height: 4px;
+            background: #030504;
+            position: relative;
+            overflow: hidden;
+        }
+        .telemetry-fill {
+            height: 100%;
+            background: #2A9D8F;
+        }
+        .copper-gradient {
+            background: linear-gradient(135deg, #C98B2A 0%, #835500 100%);
+        }
+    </style>
+</head>
+<body class="bg-[#030504] text-on-surface font-body selection:bg-copper selection:text-background">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-[#0e1a17]/60 backdrop-blur-md border-b border-white/10 shadow-[0_20px_40px_rgba(0,0,0,0.4)] flex justify-between items-center px-6 h-16">
+<div class="flex items-center gap-4">
+<span class="text-2xl font-bold text-[#C98B2A] font-['Rajdhani'] tracking-wider uppercase">FOREMAN_OS</span>
+<div class="hidden md:flex items-center gap-6 ml-10">
+<a class="text-[#C98B2A] border-b-2 border-[#C98B2A] font-['Rajdhani'] tracking-wider uppercase h-16 flex items-center" href="#">Dashboard</a>
+<a class="text-[#dae5e1]/60 hover:text-[#C98B2A] hover:bg-white/5 transition-colors font-['Rajdhani'] tracking-wider uppercase h-16 flex items-center" href="#">Projects</a>
+<a class="text-[#dae5e1]/60 hover:text-[#C98B2A] hover:bg-white/5 transition-colors font-['Rajdhani'] tracking-wider uppercase h-16 flex items-center" href="#">Reports</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined text-[#dae5e1]/60 hover:text-[#C98B2A] transition-colors" data-icon="settings_input_component">settings_input_component</button>
+<button class="material-symbols-outlined text-[#dae5e1]/60 hover:text-[#C98B2A] transition-colors" data-icon="notifications">notifications</button>
+<button class="material-symbols-outlined text-[#dae5e1]/60 hover:text-[#C98B2A] transition-colors" data-icon="account_circle">account_circle</button>
+</div>
+</header>
+<!-- SideNavBar -->
+<aside class="hidden md:flex h-screen w-64 fixed left-0 top-0 bg-[#081210] flex-col py-8 border-r border-white/5 z-40 pt-20">
+<div class="px-6 mb-8">
+<h2 class="text-lg font-bold text-[#C98B2A] font-['Rajdhani']">PROJECT TITAN</h2>
+<p class="font-['JetBrains_Mono'] text-[10px] text-[#dae5e1]/40 uppercase tracking-widest">SECTOR 07G</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-6 py-3 bg-[#C98B2A]/10 text-[#C98B2A] border-r-2 border-[#C98B2A] active:translate-x-1 transition-transform" href="#">
+<span class="material-symbols-outlined" data-icon="precision_manufacturing">precision_manufacturing</span>
+<span class="font-['JetBrains_Mono'] text-xs uppercase tracking-tight">Fleet</span>
+</a>
+<a class="flex items-center gap-3 px-6 py-3 text-[#dae5e1]/40 hover:bg-[#0e1a17] hover:text-[#2A9D8F] transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="local_shipping">local_shipping</span>
+<span class="font-['JetBrains_Mono'] text-xs uppercase tracking-tight">Logistics</span>
+</a>
+<a class="flex items-center gap-3 px-6 py-3 text-[#dae5e1]/40 hover:bg-[#0e1a17] hover:text-[#2A9D8F] transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="monitoring">monitoring</span>
+<span class="font-['JetBrains_Mono'] text-xs uppercase tracking-tight">Telemetry</span>
+</a>
+<a class="flex items-center gap-3 px-6 py-3 text-[#dae5e1]/40 hover:bg-[#0e1a17] hover:text-[#2A9D8F] transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="psychology">psychology</span>
+<span class="font-['JetBrains_Mono'] text-xs uppercase tracking-tight">AI Insights</span>
+</a>
+<a class="flex items-center gap-3 px-6 py-3 text-[#dae5e1]/40 hover:bg-[#0e1a17] hover:text-[#2A9D8F] transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span>
+<span class="font-['JetBrains_Mono'] text-xs uppercase tracking-tight">Archive</span>
+</a>
+</nav>
+<div class="px-6 pt-4 pb-2 border-t border-white/5 mt-auto">
+<button class="w-full py-2 bg-copper-gradient text-on-primary font-headline font-bold text-sm tracking-widest uppercase mb-4">
+                SYSTEM DIAGNOSTIC
+            </button>
+<div class="space-y-2">
+<a class="flex items-center gap-3 text-[#dae5e1]/40 hover:text-[#C98B2A] transition-colors" href="#">
+<span class="material-symbols-outlined text-sm" data-icon="help">help</span>
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase">Support</span>
+</a>
+<a class="flex items-center gap-3 text-[#dae5e1]/40 hover:text-[#C98B2A] transition-colors" href="#">
+<span class="material-symbols-outlined text-sm" data-icon="security">security</span>
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase">Safety</span>
+</a>
+</div>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="md:ml-64 pt-24 px-8 pb-12 min-h-screen">
+<header class="mb-12">
+<h1 class="font-headline text-5xl font-extrabold text-on-surface tracking-tighter uppercase">MASTER HOVER SYSTEM <span class="text-copper">v4.2</span></h1>
+<p class="font-label text-sm text-patina mt-2 tracking-widest uppercase">Precision Interface &amp; Industrial Intelligence Visualizer</p>
+</header>
+<!-- Dashboard Bento Grid -->
+<div class="grid grid-cols-12 gap-6 items-start">
+<!-- Hover 1: S-Curve Analytics -->
+<div class="col-span-12 lg:col-span-8 bg-surface-container rounded-lg p-6 relative group border border-white/5">
+<div class="flex justify-between items-center mb-6">
+<h3 class="font-headline text-xl text-on-surface uppercase tracking-wide flex items-center gap-2">
+<span class="material-symbols-outlined text-copper" data-icon="show_chart">show_chart</span>
+                        Project Progression (S-Curve)
+                    </h3>
+<div class="font-label text-xs text-on-surface-variant bg-surface-container-low px-2 py-1">LIVE_FEED: 0x44A2</div>
+</div>
+<div class="h-64 relative flex items-end gap-2 overflow-hidden">
+<!-- Faux S-Curve -->
+<svg class="absolute inset-0 w-full h-full opacity-30" viewbox="0 0 800 200">
+<path d="M0,180 Q200,180 400,100 T800,20" fill="none" stroke="#C98B2A" stroke-width="2"></path>
+<path d="M0,190 Q200,190 400,120 T800,50" fill="none" stroke="#2A9D8F" stroke-dasharray="4" stroke-width="2"></path>
+</svg>
+<!-- Interactive Point for Hover -->
+<div class="absolute left-1/2 top-1/3 -translate-x-1/2 -translate-y-1/2 z-10">
+<div class="w-4 h-4 rounded-full bg-copper shadow-[0_0_15px_rgba(201,139,42,0.8)] animate-pulse"></div>
+<!-- Hover 1 Tooltip -->
+<div class="glass-panel w-72 p-4 absolute top-6 -left-32 z-20 pointer-events-none">
+<div class="flex justify-between items-start mb-3 border-b border-white/10 pb-2">
+<div>
+<p class="font-headline text-xs text-copper uppercase tracking-widest">S-Curve Analysis</p>
+<p class="font-label text-[10px] text-on-surface-variant">NODE_REF: 887-ALPHA</p>
+</div>
+<span class="material-symbols-outlined text-tertiary" data-icon="light_mode">light_mode</span>
+</div>
+<div class="grid grid-cols-2 gap-4 mb-4">
+<div>
+<p class="font-label text-[10px] text-on-surface-variant uppercase">Predicted</p>
+<p class="font-headline text-lg text-on-surface">64.2%</p>
+</div>
+<div>
+<p class="font-label text-[10px] text-on-surface-variant uppercase">Actual</p>
+<p class="font-headline text-lg text-patina">61.8%</p>
+</div>
+</div>
+<div class="bg-surface-container-lowest/50 p-2 border-l-2 border-copper">
+<div class="flex items-center gap-2 mb-1">
+<span class="material-symbols-outlined text-sm text-copper" data-icon="psychology">psychology</span>
+<p class="font-label text-[10px] text-copper uppercase font-bold">AI Insight</p>
+</div>
+<p class="font-body text-[11px] text-on-surface leading-snug">Delay risk: 3 days due to precipitation. Adjusting concrete pour window to T+48h.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Hover 3: Finance Overview -->
+<div class="col-span-12 lg:col-span-4 bg-surface-container rounded-lg p-6 relative border border-white/5 h-full">
+<div class="mb-6">
+<h3 class="font-headline text-xl text-on-surface uppercase tracking-wide flex items-center gap-2">
+<span class="material-symbols-outlined text-copper" data-icon="payments">payments</span>
+                        Capital Burn
+                    </h3>
+</div>
+<div class="space-y-8">
+<div class="relative group cursor-crosshair">
+<div class="flex justify-between font-label text-[10px] uppercase text-on-surface-variant mb-2">
+<span>Phased Budget</span>
+<span>$2.4M</span>
+</div>
+<div class="telemetry-bar w-full rounded-full">
+<div class="telemetry-fill w-[50%]" style="width: 50%;"></div>
+</div>
+<!-- Hover 3 Tooltip -->
+<div class="glass-panel w-64 p-4 absolute top-10 left-0 z-20">
+<div class="flex items-center gap-2 mb-3">
+<span class="material-symbols-outlined text-patina" data-icon="account_balance_wallet">account_balance_wallet</span>
+<p class="font-headline text-xs text-on-surface uppercase font-bold">Financial Variance</p>
+</div>
+<div class="space-y-3">
+<div>
+<div class="flex justify-between mb-1">
+<p class="font-label text-[10px] text-on-surface-variant uppercase">Monthly Spend</p>
+<p class="font-label text-[10px] text-on-surface">$412k</p>
+</div>
+<div class="telemetry-bar rounded-full">
+<div class="telemetry-fill w-[88%]" style="width: 88%;"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between mb-1">
+<p class="font-label text-[10px] text-on-surface-variant uppercase">Budget Cap</p>
+<p class="font-label text-[10px] text-on-surface">$825k</p>
+</div>
+<div class="telemetry-bar rounded-full">
+<div class="telemetry-fill w-[50%]" style="width: 50%; background-color: #C98B2A;"></div>
+</div>
+</div>
+<div class="pt-2 border-t border-white/5 flex justify-between items-center">
+<p class="font-label text-[10px] text-patina uppercase font-bold">Status: Optimal</p>
+<p class="font-headline text-sm text-on-surface">50.0% UTIL</p>
+</div>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="p-4 bg-surface-container-low border-l border-white/10">
+<p class="font-label text-[10px] text-on-surface-variant uppercase">Forecast</p>
+<p class="font-headline text-2xl text-on-surface">$12.8M</p>
+</div>
+<div class="p-4 bg-surface-container-low border-l border-white/10">
+<p class="font-label text-[10px] text-on-surface-variant uppercase">ROI Est</p>
+<p class="font-headline text-2xl text-patina">14.2%</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Hover 2: Gantt Chart -->
+<div class="col-span-12 bg-surface-container rounded-lg p-6 border border-white/5 overflow-hidden">
+<div class="flex justify-between items-center mb-8">
+<h3 class="font-headline text-xl text-on-surface uppercase tracking-wide flex items-center gap-2">
+<span class="material-symbols-outlined text-copper" data-icon="tactic">tactic</span>
+                        Structural Deployment Schedule
+                    </h3>
+<div class="flex gap-2">
+<button class="px-3 py-1 bg-surface-container-low border border-white/10 font-label text-[10px] uppercase text-on-surface hover:bg-copper hover:text-background transition-colors">Week View</button>
+<button class="px-3 py-1 bg-surface-container-low border border-white/10 font-label text-[10px] uppercase text-on-surface hover:bg-copper hover:text-background transition-colors">Month View</button>
+</div>
+</div>
+<!-- Gantt Interface -->
+<div class="space-y-6 relative pb-20">
+<!-- Row 1 -->
+<div class="grid grid-cols-12 gap-4 items-center">
+<div class="col-span-2 font-headline text-sm uppercase tracking-wide text-on-surface-variant">Site Prep</div>
+<div class="col-span-10 h-6 bg-surface-container-low relative">
+<div class="absolute left-0 w-[30%] h-full bg-patina/40 border-r border-patina"></div>
+</div>
+</div>
+<!-- Row 2 (Interactive) -->
+<div class="grid grid-cols-12 gap-4 items-center relative group">
+<div class="col-span-2 font-headline text-sm uppercase tracking-wide text-on-surface-variant">Core Struct.</div>
+<div class="col-span-10 h-6 bg-surface-container-low relative cursor-pointer">
+<div class="absolute left-[30%] w-[45%] h-full bg-copper/60 border-x border-copper shadow-[0_0_20px_rgba(201,139,42,0.2)]"></div>
+<!-- Hover 2 Tooltip -->
+<div class="glass-panel w-80 p-5 absolute top-8 left-[35%] z-30">
+<div class="flex justify-between items-start mb-4">
+<div>
+<h4 class="font-headline text-lg text-on-surface uppercase leading-none">Steel Framing Phase</h4>
+<p class="font-label text-[10px] text-copper uppercase mt-1 tracking-widest">Active Task: TX-902</p>
+</div>
+<span class="material-symbols-outlined text-copper animate-spin-slow" data-icon="settings" style="font-variation-settings: 'FILL' 1">settings</span>
+</div>
+<div class="space-y-4">
+<div>
+<div class="flex justify-between text-[10px] font-label uppercase text-on-surface-variant mb-1">
+<span>Current Activity</span>
+<span>Erection 72%</span>
+</div>
+<div class="telemetry-bar w-full rounded-sm">
+<div class="telemetry-fill w-[72%]"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between text-[10px] font-label uppercase text-on-surface-variant mb-1">
+<span>Resource Allocation</span>
+<span>Heavy Machinery</span>
+</div>
+<div class="flex gap-1">
+<div class="h-2 w-4 bg-patina"></div>
+<div class="h-2 w-4 bg-patina"></div>
+<div class="h-2 w-4 bg-patina"></div>
+<div class="h-2 w-4 bg-copper"></div>
+<div class="h-2 w-4 bg-white/10"></div>
+<div class="h-2 w-4 bg-white/10"></div>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-3 border border-white/5">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-sm text-on-surface-variant" data-icon="event_upcoming">event_upcoming</span>
+<p class="font-label text-[10px] text-on-surface-variant uppercase">Next Milestone</p>
+</div>
+<p class="font-label text-[10px] text-on-surface">AUG 14, 2024</p>
+</div>
+<p class="font-headline text-sm text-on-surface mt-1 uppercase">Load-Bearing Verification</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Row 3 -->
+<div class="grid grid-cols-12 gap-4 items-center">
+<div class="col-span-2 font-headline text-sm uppercase tracking-wide text-on-surface-variant">Electrical</div>
+<div class="col-span-10 h-6 bg-surface-container-low relative">
+<div class="absolute left-[75%] w-[15%] h-full bg-white/5 border-r border-white/20"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- System Status Bar -->
+<footer class="mt-12 flex flex-wrap gap-6 items-center border-t border-white/5 pt-8">
+<div class="flex items-center gap-3">
+<div class="w-2 h-2 rounded-full bg-patina shadow-[0_0_8px_#2A9D8F]"></div>
+<p class="font-label text-[10px] text-on-surface-variant uppercase tracking-widest">Global Network: <span class="text-on-surface">Stable</span></p>
+</div>
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-sm text-copper" data-icon="database">database</span>
+<p class="font-label text-[10px] text-on-surface-variant uppercase tracking-widest">Latency: <span class="text-on-surface">14ms</span></p>
+</div>
+<div class="flex items-center gap-3 ml-auto">
+<p class="font-label text-[10px] text-on-surface-variant uppercase tracking-widest">Foreman Intelligence Protocol v4.2.0-Alpha</p>
+</div>
+</footer>
+</main>
+<!-- Visual Background Element -->
+<div class="fixed inset-0 pointer-events-none z-[-1] opacity-20">
+<img class="w-full h-full object-cover mix-blend-overlay" data-alt="close-up of industrial rusted steel plates with a complex network of subtle circuitry-like glowing copper lines and atmospheric smoke" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBWIK0AIHzGADRECsqHwaeGujnUifsfiqvamoj1N2Cl_6poJdTjkkTNk8VBAKZ7kgaRMpnxvP0-1DN0zFfAtVUcyf9JAP8zUGggZsRc52PP3c1NP4YEd1-GBGm98P-f66M8Deb8vVaPBrDpAGB5AJmtfUjjiRyEspdQ1ZBbZUh5HQn-tYjBJUv52tRr-QffHXPWID0QVpcvnpuQM9lHxvDQR8kqjBa-x98-fTy6vyYx89ZpCtFCf86QyzW3ian5R6AAq8-8eNBaIK4"/>
+</div>
+</body></html>

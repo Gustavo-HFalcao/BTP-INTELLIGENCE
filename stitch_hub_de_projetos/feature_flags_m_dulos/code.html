@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="pt-br"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&amp;family=Outfit:wght@300;400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary-fixed": "#ffddb4",
+              "inverse-on-surface": "#283230",
+              "on-tertiary-container": "#422c00",
+              "surface-bright": "#313b39",
+              "secondary-container": "#30a193",
+              "on-error-container": "#ffdad6",
+              "on-primary-fixed-variant": "#633f00",
+              "inverse-surface": "#dae5e1",
+              "surface-variant": "#2c3734",
+              "inverse-primary": "#835500",
+              "on-surface-variant": "#d5c4b0",
+              "on-secondary-fixed-variant": "#005048",
+              "on-secondary": "#003731",
+              "background": "#0b1513",
+              "tertiary": "#f9bc4f",
+              "surface-container-highest": "#2c3734",
+              "on-primary": "#452b00",
+              "on-primary-container": "#442a00",
+              "on-secondary-fixed": "#00201c",
+              "primary-container": "#c98b2a",
+              "outline-variant": "#514536",
+              "surface-container-lowest": "#06100e",
+              "surface-container-high": "#222c2a",
+              "error": "#ffb4ab",
+              "surface-tint": "#ffb955",
+              "secondary": "#6fd8c8",
+              "on-background": "#dae5e1",
+              "tertiary-container": "#c48e23",
+              "primary": "#ffb955",
+              "surface-container": "#17221f",
+              "on-surface": "#dae5e1",
+              "on-error": "#690005",
+              "surface-dim": "#0b1513",
+              "primary-fixed-dim": "#ffb955",
+              "tertiary-fixed": "#ffdeac",
+              "on-tertiary-fixed-variant": "#5f4100",
+              "surface": "#0b1513",
+              "secondary-fixed-dim": "#6fd8c8",
+              "outline": "#9e8e7d",
+              "on-secondary-container": "#00302a",
+              "tertiary-fixed-dim": "#f9bc4f",
+              "on-tertiary-fixed": "#281900",
+              "secondary-fixed": "#8cf5e4",
+              "surface-container-low": "#131d1b",
+              "on-primary-fixed": "#291800",
+              "error-container": "#93000a",
+              "on-tertiary": "#432c00"
+            },
+            fontFamily: {
+              "headline": ["Rajdhani"],
+              "body": ["Outfit"],
+              "label": ["JetBrains Mono"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .glass-panel {
+            background: rgba(14, 26, 23, 0.6);
+            backdrop-filter: blur(12px);
+        }
+        .copper-gradient {
+            background: linear-gradient(135deg, #C98B2A 0%, #835500 100%);
+        }
+    </style>
+</head>
+<body class="bg-[#030504] text-on-surface font-body selection:bg-primary-container selection:text-on-primary-container">
+<!-- TopNavBar -->
+<header class="bg-[#030504] dark:bg-[#030504] flex justify-between items-center w-full px-6 h-16 border-b border-white/10 docked full-width top-0 z-50">
+<div class="flex items-center gap-8">
+<span class="font-['Rajdhani'] font-bold text-xl tracking-tighter text-[#C98B2A]">INTEL_FOREMAN</span>
+<nav class="hidden md:flex gap-6 items-center">
+<a class="font-['Rajdhani'] uppercase tracking-[0.05em] text-sm text-[#dae5e1] opacity-70 hover:text-[#C98B2A] transition-colors duration-200" href="#">Dashboard</a>
+<a class="font-['Rajdhani'] uppercase tracking-[0.05em] text-sm text-[#dae5e1] opacity-70 hover:text-[#C98B2A] transition-colors duration-200" href="#">Projetos</a>
+<a class="font-['Rajdhani'] uppercase tracking-[0.05em] text-sm text-[#C98B2A] border-b-2 border-[#C98B2A]" href="#">Administração</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative">
+<span class="material-symbols-outlined text-[#dae5e1] opacity-70 cursor-pointer hover:text-[#C98B2A]">notifications</span>
+<span class="absolute top-0 right-0 w-2 h-2 bg-[#C98B2A] rounded-full"></span>
+</div>
+<span class="material-symbols-outlined text-[#dae5e1] opacity-70 cursor-pointer hover:text-[#C98B2A]">settings</span>
+<div class="w-8 h-8 rounded-sm bg-surface-container-highest border border-white/10 overflow-hidden">
+<img alt="User profile avatar" class="w-full h-full object-cover" data-alt="close-up of a professional industrial engineer avatar icon in a dark stylized tech suit" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBzZiW8rnbZTdUXlzAYw1cbQ53Iq7fK14z0M9q1UP9Hvm2cKNXry_PNqtwtETIjn3PPtZmWiZP-2uM4npizgLUFj28YMMbNvN9kqcIXTwg2-fEsSZa1A-uvhehZy4x2F2cQq8W8ZwUJddfWcW_imcB7ItbYQnET7D0UYe524JrfN0EL3QdjvkqQE0a3hyWTQ3cUCR6Kff6dMhOncRfv25mz_x9Rmxou4_ErzCwl39RqD3U4RN1vgCM2cqbz69XeOQPcn87aTN_4q3g"/>
+</div>
+</div>
+</header>
+<!-- SideNavBar -->
+<aside class="bg-[#081210] dark:bg-[#081210] fixed left-0 top-0 h-full w-64 z-40 shadow-[20px_0_40px_rgba(0,0,0,0.4)] flex flex-col h-screen py-8 px-4 gap-y-2 hidden md:flex">
+<div class="mb-8 px-2">
+<h2 class="text-[#C98B2A] font-bold text-lg font-headline tracking-tighter">COMMAND_CENTER</h2>
+<p class="font-label text-[10px] text-[#2A9D8F] tracking-widest uppercase opacity-80">V.2.0_STABLE</p>
+</div>
+<div class="space-y-1">
+<a class="flex items-center gap-3 px-3 py-2 text-[#dae5e1] hover:bg-white/5 font-headline font-medium tracking-widest text-xs transition-all hover:border-r-2 hover:border-[#C98B2A]/40 group" href="#">
+<span class="material-symbols-outlined text-sm group-hover:text-[#C98B2A]">dashboard</span> Principal
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#dae5e1] hover:bg-white/5 font-headline font-medium tracking-widest text-xs transition-all hover:border-r-2 hover:border-[#C98B2A]/40 group" href="#">
+<span class="material-symbols-outlined text-sm group-hover:text-[#C98B2A]">engineering</span> Operacional
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#dae5e1] hover:bg-white/5 font-headline font-medium tracking-widest text-xs transition-all hover:border-r-2 hover:border-[#C98B2A]/40 group" href="#">
+<span class="material-symbols-outlined text-sm group-hover:text-[#C98B2A]">description</span> RDO
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#C98B2A] bg-[#0e1a17] border-r-2 border-[#C98B2A] font-headline font-medium tracking-widest text-xs transition-all" href="#">
+<span class="material-symbols-outlined text-sm">admin_panel_settings</span> Administração
+            </a>
+</div>
+<div class="mt-8 px-2">
+<button class="w-full py-2 bg-[#C98B2A] text-[#030504] font-headline font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
+<span class="material-symbols-outlined text-xs">add_circle</span> NEW_PROJECT
+            </button>
+</div>
+<div class="mt-auto space-y-1">
+<a class="flex items-center gap-3 px-3 py-2 text-[#dae5e1] hover:bg-white/5 font-headline font-medium tracking-widest text-xs group" href="#">
+<span class="material-symbols-outlined text-sm group-hover:text-[#C98B2A]">smartphone</span> Mobile App
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#dae5e1] hover:bg-white/5 font-headline font-medium tracking-widest text-xs group" href="#">
+<span class="material-symbols-outlined text-sm text-error">logout</span> Logout
+            </a>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="md:ml-64 pt-16 min-h-screen bg-[#030504]">
+<div class="max-w-7xl mx-auto p-8">
+<!-- Header Section with Project Selector -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
+<div>
+<h1 class="font-headline text-4xl font-bold tracking-tight text-[#dae5e1] uppercase">Feature Flags</h1>
+<p class="font-body text-outline mt-1 max-w-lg">Configuração de módulos ativos por contrato. Controle granular de permissões e visibilidade de recursos industriais.</p>
+</div>
+<div class="w-full md:w-80">
+<label class="font-headline text-xs font-semibold tracking-widest text-[#C98B2A] uppercase mb-2 block">Selecione o Contrato</label>
+<div class="relative">
+<select class="w-full bg-[#06100e] border-0 border-b-2 border-outline-variant focus:border-[#C98B2A] text-on-surface font-headline tracking-wider py-3 px-4 appearance-none focus:ring-0">
+<option>CONTRATO_MIN_2024_082 (Vale S.A.)</option>
+<option>CONTRATO_EN_2024_015 (Petrobras)</option>
+<option>CONTRATO_LOG_2023_112 (Rumo Logística)</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-3 pointer-events-none text-outline">expand_more</span>
+</div>
+</div>
+</div>
+<!-- Bento Grid of Feature Toggles -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+<!-- Summary Card -->
+<div class="md:col-span-4 bg-[#0e1a17] p-6 border-l-4 border-[#C98B2A] relative overflow-hidden group">
+<div class="relative z-10">
+<span class="font-label text-[10px] text-[#C98B2A] tracking-tighter">STATUS_GERAL</span>
+<div class="mt-4 flex items-baseline gap-2">
+<span class="font-headline text-5xl font-bold text-on-surface">12</span>
+<span class="font-headline text-lg text-outline">MÓDULOS ATIVOS</span>
+</div>
+<div class="mt-8 space-y-4">
+<div class="flex justify-between items-center text-xs">
+<span class="font-body text-outline">Uptime do Servidor</span>
+<span class="font-label text-[#2A9D8F]">99.98%</span>
+</div>
+<div class="h-1 bg-background w-full">
+<div class="h-1 bg-[#2A9D8F] w-[99.98%] shadow-[0_0_10px_rgba(42,157,143,0.3)]"></div>
+</div>
+<div class="flex justify-between items-center text-xs">
+<span class="font-body text-outline">Sincronização Mobile</span>
+<span class="font-label text-[#C98B2A]">ESTÁVEL</span>
+</div>
+</div>
+</div>
+<!-- Decorative back image -->
+<div class="absolute -right-10 -bottom-10 opacity-5 group-hover:opacity-10 transition-opacity">
+<span class="material-symbols-outlined text-[120px]" style="font-variation-settings: 'wght' 200;">settings_input_component</span>
+</div>
+</div>
+<!-- Reembolso Module (COPPER Theme) -->
+<div class="md:col-span-8 bg-[#0e1a17] p-8 border border-white/5 relative">
+<div class="flex items-center justify-between mb-8">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 bg-[#C98B2A]/10 flex items-center justify-center border border-[#C98B2A]/20">
+<span class="material-symbols-outlined text-[#C98B2A]">payments</span>
+</div>
+<div>
+<h3 class="font-headline text-xl font-bold text-on-surface tracking-wide">MÓDULO: REEMBOLSO</h3>
+<p class="text-[10px] font-label text-[#C98B2A] uppercase tracking-widest">Financial Operations Control</p>
+</div>
+</div>
+<div class="flex items-center gap-2 px-3 py-1 bg-[#2A9D8F]/10 border border-[#2A9D8F]/20 text-[#2A9D8F] font-label text-[10px]">
+<span class="w-1.5 h-1.5 bg-[#2A9D8F] rounded-full"></span>
+                            ACTIVE
+                        </div>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-6">
+<!-- Toggle Item -->
+<div class="flex items-center justify-between group">
+<div>
+<p class="font-headline text-sm font-semibold tracking-wide text-on-surface">Adiantamento Digital</p>
+<p class="font-body text-[11px] text-outline">Solicitações via app mobile</p>
+</div>
+<button class="w-12 h-6 bg-[#C98B2A] rounded-sm p-1 flex justify-end transition-all">
+<div class="w-4 h-4 bg-[#030504] rounded-sm"></div>
+</button>
+</div>
+<!-- Toggle Item -->
+<div class="flex items-center justify-between group">
+<div>
+<p class="font-headline text-sm font-semibold tracking-wide text-on-surface">OCR de Recibos</p>
+<p class="font-body text-[11px] text-outline">Leitura automática por IA</p>
+</div>
+<button class="w-12 h-6 bg-[#C98B2A] rounded-sm p-1 flex justify-end transition-all">
+<div class="w-4 h-4 bg-[#030504] rounded-sm"></div>
+</button>
+</div>
+<!-- Toggle Item -->
+<div class="flex items-center justify-between group">
+<div>
+<p class="font-headline text-sm font-semibold tracking-wide text-on-surface">Fluxo de Aprovação</p>
+<p class="font-body text-[11px] text-outline">Hierarquia multinível</p>
+</div>
+<button class="w-12 h-6 bg-[#030504] border border-white/10 rounded-sm p-1 flex justify-start transition-all">
+<div class="w-4 h-4 bg-outline-variant rounded-sm"></div>
+</button>
+</div>
+<!-- Toggle Item -->
+<div class="flex items-center justify-between group">
+<div>
+<p class="font-headline text-sm font-semibold tracking-wide text-on-surface">Exportação ERP</p>
+<p class="font-body text-[11px] text-outline">Integração via API REST</p>
+</div>
+<button class="w-12 h-6 bg-[#C98B2A] rounded-sm p-1 flex justify-end transition-all">
+<div class="w-4 h-4 bg-[#030504] rounded-sm"></div>
+</button>
+</div>
+</div>
+</div>
+<!-- RDO Module (PATINA Theme) -->
+<div class="md:col-span-6 bg-[#0e1a17] p-8 border border-white/5">
+<div class="flex items-center justify-between mb-8">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 bg-[#2A9D8F]/10 flex items-center justify-center border border-[#2A9D8F]/20">
+<span class="material-symbols-outlined text-[#2A9D8F]">engineering</span>
+</div>
+<div>
+<h3 class="font-headline text-xl font-bold text-on-surface tracking-wide">MÓDULO: RDO</h3>
+<p class="text-[10px] font-label text-[#2A9D8F] uppercase tracking-widest">Field Daily Reports</p>
+</div>
+</div>
+<div class="flex items-center gap-2 px-3 py-1 bg-[#C98B2A]/10 border border-[#C98B2A]/20 text-[#C98B2A] font-label text-[10px]">
+<span class="w-1.5 h-1.5 bg-[#C98B2A] animate-pulse rounded-full"></span>
+                            LIMITED
+                        </div>
+</div>
+<div class="space-y-6">
+<div class="flex items-center justify-between group">
+<div>
+<p class="font-headline text-sm font-semibold tracking-wide text-on-surface">Assinatura Digital Foreperson</p>
+<p class="font-body text-[11px] text-outline">Validado por blockchain</p>
+</div>
+<button class="w-12 h-6 bg-[#2A9D8F] rounded-sm p-1 flex justify-end transition-all">
+<div class="w-4 h-4 bg-[#030504] rounded-sm"></div>
+</button>
+</div>
+<div class="flex items-center justify-between group">
+<div>
+<p class="font-headline text-sm font-semibold tracking-wide text-on-surface">Registro Fotográfico HD</p>
+<p class="font-body text-[11px] text-outline">Upload em alta resolução</p>
+</div>
+<button class="w-12 h-6 bg-[#2A9D8F] rounded-sm p-1 flex justify-end transition-all">
+<div class="w-4 h-4 bg-[#030504] rounded-sm"></div>
+</button>
+</div>
+<div class="flex items-center justify-between group">
+<div>
+<p class="font-headline text-sm font-semibold tracking-wide text-on-surface">Clima Automático</p>
+<p class="font-body text-[11px] text-outline">Integração com sensores locais</p>
+</div>
+<button class="w-12 h-6 bg-background border border-white/10 rounded-sm p-1 flex justify-start transition-all">
+<div class="w-4 h-4 bg-outline-variant rounded-sm"></div>
+</button>
+</div>
+</div>
+</div>
+<!-- Shared Module (Violet Theme) -->
+<div class="md:col-span-6 bg-[#0e1a17] p-8 border border-white/5 relative group">
+<div class="flex items-center justify-between mb-8">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 bg-purple-500/10 flex items-center justify-center border border-purple-500/20">
+<span class="material-symbols-outlined text-purple-400">hub</span>
+</div>
+<div>
+<h3 class="font-headline text-xl font-bold text-on-surface tracking-wide">MÓDULO: SHARED</h3>
+<p class="text-[10px] font-label text-purple-400 uppercase tracking-widest">Cross-Project Resources</p>
+</div>
+</div>
+<div class="flex items-center gap-2 px-3 py-1 bg-surface-container-lowest border border-white/5 text-outline font-label text-[10px]">
+<span class="w-1.5 h-1.5 bg-outline rounded-full"></span>
+                            INACTIVE
+                        </div>
+</div>
+<div class="space-y-6">
+<div class="flex items-center justify-between opacity-50 group-hover:opacity-100 transition-opacity">
+<div>
+<p class="font-headline text-sm font-semibold tracking-wide text-on-surface">Gestão de Equipes</p>
+<p class="font-body text-[11px] text-outline">Alocação entre canteiros</p>
+</div>
+<button class="w-12 h-6 bg-background border border-white/10 rounded-sm p-1 flex justify-start transition-all">
+<div class="w-4 h-4 bg-outline-variant rounded-sm"></div>
+</button>
+</div>
+<div class="flex items-center justify-between opacity-50 group-hover:opacity-100 transition-opacity">
+<div>
+<p class="font-headline text-sm font-semibold tracking-wide text-on-surface">Inventário Global</p>
+<p class="font-body text-[11px] text-outline">Maquinário e Ferramentaria</p>
+</div>
+<button class="w-12 h-6 bg-background border border-white/10 rounded-sm p-1 flex justify-start transition-all">
+<div class="w-4 h-4 bg-outline-variant rounded-sm"></div>
+</button>
+</div>
+<div class="flex items-center justify-between opacity-50 group-hover:opacity-100 transition-opacity">
+<div>
+<p class="font-headline text-sm font-semibold tracking-wide text-on-surface">Analytics Preditivo</p>
+<p class="font-body text-[11px] text-outline">IA para estimativa de atrasos</p>
+</div>
+<button class="w-12 h-6 bg-background border border-white/10 rounded-sm p-1 flex justify-start transition-all">
+<div class="w-4 h-4 bg-outline-variant rounded-sm"></div>
+</button>
+</div>
+</div>
+</div>
+<!-- Footer Stats Grid -->
+<div class="md:col-span-12 grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+<div class="bg-[#0e1a17] p-4 border border-white/5 flex flex-col items-center justify-center text-center">
+<span class="font-label text-[10px] text-outline uppercase tracking-tighter mb-1">Custo Adicional</span>
+<span class="font-headline text-2xl font-bold text-[#C98B2A]">R$ 1.250/mês</span>
+</div>
+<div class="bg-[#0e1a17] p-4 border border-white/5 flex flex-col items-center justify-center text-center">
+<span class="font-label text-[10px] text-outline uppercase tracking-tighter mb-1">Vencimento Flags</span>
+<span class="font-headline text-2xl font-bold text-on-surface">31/DEZ/2024</span>
+</div>
+<div class="bg-[#0e1a17] p-4 border border-white/5 flex flex-col items-center justify-center text-center">
+<span class="font-label text-[10px] text-outline uppercase tracking-tighter mb-1">Usuários Admin</span>
+<span class="font-headline text-2xl font-bold text-on-surface">04 Ativos</span>
+</div>
+<div class="bg-[#0e1a17] p-4 border border-white/5 flex flex-col items-center justify-center text-center">
+<button class="copper-gradient w-full h-full py-2 font-headline font-bold text-on-primary tracking-widest uppercase hover:opacity-90 transition-opacity">
+                            Salvar Alterações
+                        </button>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Bottom Nav for Mobile -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full bg-[#081210] border-t border-white/10 flex justify-around items-center h-16 z-50">
+<a class="flex flex-col items-center text-[#dae5e1] opacity-70" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-[10px] font-headline">HOME</span>
+</a>
+<a class="flex flex-col items-center text-[#C98B2A]" href="#">
+<span class="material-symbols-outlined">admin_panel_settings</span>
+<span class="text-[10px] font-headline">ADMIN</span>
+</a>
+<a class="flex flex-col items-center text-[#dae5e1] opacity-70" href="#">
+<span class="material-symbols-outlined">description</span>
+<span class="text-[10px] font-headline">RDO</span>
+</a>
+<a class="flex flex-col items-center text-[#dae5e1] opacity-70" href="#">
+<span class="material-symbols-outlined">account_circle</span>
+<span class="text-[10px] font-headline">PERFIL</span>
+</a>
+</nav>
+</body></html>

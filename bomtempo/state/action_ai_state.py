@@ -109,7 +109,7 @@ class ActionAIState(rx.State):
 
     async def send_message(self):
         text = self.input_text.strip()
-        if not text:
+        if not text or self.is_processing:
             return
         # Fecha o teclado após enviar
         self.show_text_input = False
@@ -243,8 +243,8 @@ class ActionAIState(rx.State):
                     user_role = gs.current_user_role or "Administrador"
                     is_mobile = user_role == "Gestão-Mobile"
                     data = gs._data
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.warning(f"ActionAI: falha ao ler GlobalState: {_e}")
 
             if not data:
                 try:
@@ -272,54 +272,69 @@ class ActionAIState(rx.State):
             if is_form_fill_only:
                 system_content = (
                     f"Você é o Assistente de Preenchimento de Formulários do BOMTEMPO. "
-                    f"Usuário logado: **{username}** (Mestre de Obras).\n"
+                    f"Usuário logado: **{username}** (Mestre de Obras). Data de hoje: {today_str}.\n"
                     "Sua ÚNICA função é ajudar o usuário a preencher formulários de RDO ou Reembolso por voz.\n"
                     "Você NÃO navega para outras páginas, NÃO acessa dados do banco, NÃO executa outras ações.\n\n"
-                    "## ÚNICO RECURSO DISPONÍVEL\n"
-                    "  - fill_rdo_form: 'registra o RDO', 'preenche o diário de obra', 'RDO de hoje', etc.\n"
-                    f"    → Data de hoje: {today_str}\n"
-                    "    → clima: 'Ensolarado', 'Parcialmente Nublado', 'Nublado', 'Chuvoso', 'Chuvoso Forte', 'Nevando'\n"
+                    "## COLETA MULTI-TURNO\n"
+                    "O usuário pode fornecer campos em VÁRIAS falas consecutivas. Você deve ACUMULAR os campos "
+                    "mencionados ao longo da conversa e só chamar fill_rdo_form / fill_reembolso_form quando "
+                    "o usuário indicar que terminou (ex: 'pode preencher', 'pronto', 'pode ir') OU quando "
+                    "tiver campos suficientes para uma ação útil (pelo menos contrato + data ou 2+ campos).\n"
+                    "Se o usuário fornecer apenas 1 campo, responda confirmando e perguntando pelo próximo.\n\n"
+                    "## TOOLS DISPONÍVEIS\n"
+                    "  - fill_rdo_form: preenche formulário de Relatório Diário de Obra.\n"
+                    f"    → clima: 'Ensolarado', 'Parcialmente Nublado', 'Nublado', 'Chuvoso', 'Chuvoso Forte', 'Nevando'\n"
                     "    → turno: 'Diurno', 'Noturno', 'Integral'\n"
-                    "  - fill_reembolso_form: 'registra reembolso', 'abasteci X litros', 'reembolso de combustível'\n\n"
-                    "## REGRAS ABSOLUTAS\n"
-                    "- Sempre chame fill_rdo_form ou fill_reembolso_form quando o usuário quiser preencher um formulário.\n"
-                    "- Se o usuário pedir algo fora do preenchimento de formulários, recuse educadamente em 1 frase.\n"
-                    "- Respostas: máximo 1 frase. Confirme o que será preenchido.\n"
+                    "  - fill_reembolso_form: preenche formulário de reembolso de combustível.\n\n"
+                    "## REGRAS\n"
+                    "- Sempre confirme o que foi entendido: 'Entendido: contrato 001, clima ensolarado. Qual o turno?'\n"
+                    "- Respostas: máximo 1-2 frases curtas.\n"
+                    "- Se o usuário pedir algo fora do preenchimento, recuse em 1 frase.\n"
                 )
             else:
                 system_content = (
                     system_prompt
                     + f"\n\n## VOCÊ É O ACTION AI — Hub de Ações Executivas\n"
-                    f"Usuário logado: **{username}**. Papel: {user_role}. Você executa ações reais no sistema via comandos de voz ou texto.\n"
-                    "Você NÃO é um chatbot de consultas — o dashboard já tem isso. Seu valor é AGIR.\n\n"
+                    f"Usuário logado: **{username}**. Papel: {user_role}. Data de hoje: {today_str}.\n"
+                    "Você executa ações reais no sistema via comandos de voz ou texto. Seu valor é AGIR, não responder.\n\n"
                     "## AÇÕES DISPONÍVEIS\n"
                     "**Navegação imediata** (navigate_to_page):\n"
                     "  - 'me leva para obras', 'abre o financeiro', 'vai para alertas', 'quero ver usuários'\n"
                     "  - Páginas: visao-geral, obras, projetos, financeiro, om, analytics, previsoes,\n"
-                    "    relatorios, reembolso, reembolso-dash, rdo-form, rdo-dashboard,\n"
-                    "    editar-dados, alertas, logs-auditoria, admin/usuarios\n\n"
-                    "**Preenchimento de formulário por voz** (pré-preenche e navega):\n"
+                    "    relatorios, chat-ia, reembolso, reembolso-dash, rdo-form, rdo-historico, rdo-dashboard,\n"
+                    "    admin/editar_dados, alertas, logs-auditoria, admin/usuarios, admin/observabilidade\n\n"
+                    "**Preenchimento de formulário por voz** (multi-turno — acumule campos):\n"
                     "  - fill_rdo_form: 'preenche o RDO', 'registra o diário de obra', 'RDO de hoje ensolarado'\n"
-                    f"    → hoje é {today_str}. Extrai: contrato, data (YYYY-MM-DD), clima, turno, observacoes, orientacao, atividade_descricao\n"
+                    f"    → extrai: contrato, data (YYYY-MM-DD), clima, turno, observacoes, orientacao, atividade_descricao\n"
+                    "    → IMPORTANTE: o usuário pode fornecer campos em turnos separados — acumule no histórico e\n"
+                    "      chame fill_rdo_form só quando tiver ≥2 campos ou o usuário disser 'pronto'/'pode preencher'.\n"
                     "  - fill_reembolso_form: 'preenche o reembolso', 'registra combustível', 'abasteci X litros'\n"
-                    "    → extrai contrato, data, km_rodado, valor_litro, litros\n\n"
+                    "    → extrai: data, km_rodado, valor_litro, litros\n\n"
+                    "**Criação de registros no banco** (multi-turno HITL):\n"
+                    "  - propose_create_record: 'adiciona um contrato', 'cria novo projeto', 'cadastra obra X'\n"
+                    "    → FLUXO: 1) get_schema_info para ver colunas da tabela alvo\n"
+                    "             2) Peça campos ao usuário turno a turno se necessário\n"
+                    "             3) Quando tiver os campos principais, chame propose_create_record\n"
+                    "             4) O usuário confirma via HITL → registro criado no banco\n"
+                    "    → Tabelas: contratos, projetos, obras, financeiro, om\n\n"
                     "**Ações com confirmação HITL** (propõe → usuário confirma → executa):\n"
                     f"  - propose_change_own_password: 'troca minha senha' → logged_user='{username}'\n"
                     "  - propose_change_user_password: 'reseta a senha do João'\n"
                     "  - propose_create_user: 'cria usuário renato como Engenheiro'\n"
-                    "  - propose_create_alert: 'me avisa quando RDO do contrato X não for enviado', 'alerta de prazo em 7 dias'\n"
+                    "  - propose_create_alert: 'me avisa quando RDO do contrato X não for enviado'\n"
                     "    → use execute_sql para descobrir código do contrato se necessário\n"
                     "  - propose_send_document: 'envie o RDO de ontem do contrato X para renato'\n"
                     "    → OBRIGATÓRIO: use execute_sql para buscar pdf_url em rdo_master E email/whatsapp em login\n"
-                    "    → preencha recipient_email e recipient_whatsapp com o que encontrar ('' se ausente)\n"
-                    "  - propose_update_record: alterar qualquer campo de qualquer tabela\n\n"
-                    "**Consultas rápidas** (quando o usuário precisar de dado para tomar decisão):\n"
-                    "  - execute_sql / get_schema_info — apenas para suportar uma AÇÃO, não para 'resumos'\n\n"
+                    "  - propose_update_record: alterar campo específico em qualquer tabela\n\n"
+                    "**Consultas** (só para suportar uma AÇÃO):\n"
+                    "  - execute_sql / get_schema_info\n\n"
                     "## REGRAS\n"
                     "- Prefira AGIR a responder com texto. Se o usuário quer ver algo, NAVEGUE.\n"
-                    "- Respostas: máximo 2 frases. Confirme a ação tomada, nada mais.\n"
+                    "- Multi-turno: se o usuário diz 'adiciona um contrato' mas não deu o nome ainda, PERGUNTE o nome\n"
+                    "  antes de chamar get_schema_info. Acumule campos no contexto antes de propor.\n"
+                    "- Respostas: máximo 2 frases. Confirme a ação tomada.\n"
                     "- NÃO use sintaxe de imagem Markdown ![...]().\n"
-                    "- IMPORTANTE: tabela de usuários = 'login' (colunas: username, password, user_role, project, email, whatsapp).\n\n"
+                    "- Tabela de usuários = 'login' (username, password, user_role, project, email, whatsapp).\n\n"
                     + dashboard_context
                     + f"\n\n## SCHEMA DO BANCO\n{schema_context}"
                 )
@@ -338,7 +353,7 @@ class ActionAIState(rx.State):
                 response = ai_client.query_agentic(
                     messages,
                     tools=available_tools,
-                    force_tool=(i == 0),
+                    force_tool=False,
                     username=username,
                     session_id="action_ai",
                 )

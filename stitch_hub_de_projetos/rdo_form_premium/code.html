@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;family=Plus+Jakarta+Sans:wght@400;500;600&amp;family=Space+Grotesk:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary-fixed": "#ffddb4",
+              "inverse-on-surface": "#283230",
+              "on-tertiary-container": "#422c00",
+              "surface-bright": "#313b39",
+              "secondary-container": "#30a193",
+              "on-error-container": "#ffdad6",
+              "on-primary-fixed-variant": "#633f00",
+              "inverse-surface": "#dae5e1",
+              "surface-variant": "#2c3734",
+              "inverse-primary": "#835500",
+              "on-surface-variant": "#d5c4b0",
+              "on-secondary-fixed-variant": "#005048",
+              "on-secondary": "#003731",
+              "background": "#030504",
+              "tertiary": "#f9bc4f",
+              "surface-container-highest": "#2c3734",
+              "on-primary": "#452b00",
+              "on-primary-container": "#442a00",
+              "on-secondary-fixed": "#00201c",
+              "primary-container": "#c98b2a",
+              "outline-variant": "#514536",
+              "surface-container-lowest": "#06100e",
+              "surface-container-high": "#222c2a",
+              "error": "#ffb4ab",
+              "surface-tint": "#ffb955",
+              "secondary": "#2A9D8F",
+              "on-background": "#dae5e1",
+              "tertiary-container": "#c48e23",
+              "primary": "#ffb955",
+              "surface-container": "#17221f",
+              "on-surface": "#dae5e1",
+              "on-error": "#690005",
+              "surface-dim": "#030504",
+              "primary-fixed-dim": "#ffb955",
+              "tertiary-fixed": "#ffdeac",
+              "on-tertiary-fixed-variant": "#5f4100",
+              "surface": "#030504",
+              "secondary-fixed-dim": "#6fd8c8",
+              "outline": "#9e8e7d",
+              "on-secondary-container": "#00302a",
+              "tertiary-fixed-dim": "#f9bc4f",
+              "on-tertiary-fixed": "#281900",
+              "secondary-fixed": "#8cf5e4",
+              "surface-container-low": "#081210",
+              "on-primary-fixed": "#291800",
+              "error-container": "#93000a",
+              "on-tertiary": "#432c00"
+            },
+            fontFamily: {
+              "headline": ["Rajdhani", "sans-serif"],
+              "body": ["Plus Jakarta Sans", "sans-serif"],
+              "label": ["JetBrains Mono", "monospace"],
+              "display": ["Rajdhani", "sans-serif"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: rgba(14, 26, 23, 0.6);
+            backdrop-filter: blur(12px);
+        }
+        .copper-gradient {
+            background: linear-gradient(135deg, #C98B2A 0%, #E0A63B 100%);
+        }
+        .ghost-border {
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .telemetry-bar {
+            height: 2px;
+            background: #030504;
+        }
+        .telemetry-fill {
+            height: 100%;
+            background: #2A9D8F;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface font-body selection:bg-primary-container selection:text-on-primary">
+<!-- Top Navigation Anchor -->
+<header class="bg-[#030504] fixed top-0 left-0 right-0 z-50 flex justify-between items-center w-full px-6 h-16 border-b border-white/10 glass-panel">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[#C98B2A]" style="font-variation-settings: 'FILL' 1;">engineering</span>
+<h1 class="font-headline font-bold text-xl tracking-tighter text-[#C98B2A] uppercase">INTEL_FOREMAN</h1>
+</div>
+<button class="copper-gradient text-on-primary px-5 py-2 font-headline font-bold text-sm tracking-widest uppercase rounded shadow-[0_0_15px_rgba(201,139,42,0.3)] hover:opacity-90 active:scale-[0.98] transition-all">
+            Enviar
+        </button>
+</header>
+<main class="pt-24 pb-12 px-4 max-w-2xl mx-auto space-y-8">
+<!-- Section 1: Core Info -->
+<section class="space-y-4">
+<div class="flex items-center justify-between">
+<h2 class="font-headline text-lg font-semibold tracking-widest uppercase text-on-surface flex items-center gap-2">
+<span class="w-1 h-5 bg-primary-container"></span>
+                    Core_Information
+                </h2>
+<span class="font-label text-[10px] text-primary-container opacity-60">ID: RDO-2024-089</span>
+</div>
+<div class="grid grid-cols-1 gap-3">
+<div class="surface-container-low p-4 rounded-lg ghost-border">
+<label class="font-headline text-xs font-medium tracking-widest text-[#C98B2A] uppercase mb-2 block">Contract_Ref</label>
+<div class="flex flex-wrap gap-2">
+<span class="bg-surface-container-highest px-3 py-1 text-xs font-label text-on-surface ghost-border rounded">#CTR-9921-X</span>
+<span class="bg-primary-container/10 border border-primary-container/30 px-3 py-1 text-xs font-label text-primary-container rounded">ACTIVE_PHASE</span>
+</div>
+</div>
+<div class="surface-container-low p-4 rounded-lg ghost-border">
+<label class="font-headline text-xs font-medium tracking-widest text-[#C98B2A] uppercase mb-2 block">Project_Name</label>
+<p class="font-headline text-lg font-bold tracking-tight text-on-surface uppercase">Solar_Array_Expansion_V2</p>
+<p class="font-label text-[10px] text-on-surface/50 mt-1">COORD: -23.5505, -46.6333</p>
+</div>
+</div>
+</section>
+<!-- Section 2: GPS Check-in -->
+<section class="space-y-4">
+<h2 class="font-headline text-lg font-semibold tracking-widest uppercase text-on-surface flex items-center gap-2">
+<span class="w-1 h-5 bg-secondary"></span>
+                Location_Verification
+            </h2>
+<div class="relative overflow-hidden rounded-lg ghost-border aspect-video group">
+<img class="w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-700" data-alt="dark satellite map interface with digital grid overlays and industrial data markers in teal and amber colors" data-location="São Paulo" src="https://lh3.googleusercontent.com/aida-public/AB6AXuClrNg4_d3ucyf1ylPWTnBRXdQyvoUI0uVgj8xwzkTBjMPG6RP3AJ5_Pd4UmBggpmTnAkGklyb54DGWjxY05FpOUsm7_TNy889vFOkJNJ8RXn7HZQQsJR7p22VRqJXodl1DGdg1P2cLxLsHLaHKPTSZ9sMl1xZRxQEXmrpT1q2268_piiKlFWAxHVLrWFhQIxIWkl6yY1QP5cxwXm8dKIv4RRpD7_T9BVtKGzFaH9s7hHgQdkhcWClgrklNqIxj26Jdb3PQNCa8x9M"/>
+<div class="absolute inset-0 bg-gradient-to-t from-[#081210] to-transparent"></div>
+<div class="absolute bottom-4 left-4 right-4 flex items-center justify-between glass-panel p-3 rounded border border-secondary/20">
+<div class="flex items-center gap-3">
+<div class="w-2 h-2 rounded-full bg-secondary animate-pulse"></div>
+<div>
+<p class="font-label text-[10px] text-secondary uppercase">Secure Connection established</p>
+<p class="font-headline text-sm font-bold text-on-surface">LOC_SITE_BRAVO_01</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-secondary text-xl">gps_fixed</span>
+</div>
+</div>
+</section>
+<!-- Section 3: PPE Team Photo -->
+<section class="space-y-4">
+<h2 class="font-headline text-lg font-semibold tracking-widest uppercase text-on-surface flex items-center gap-2">
+<span class="w-1 h-5 bg-primary-container"></span>
+                Team_Safety_Validation
+            </h2>
+<div class="border-2 border-dashed border-white/10 bg-surface-container-low hover:bg-surface-container-high transition-colors rounded-lg flex flex-col items-center justify-center py-10 px-6 cursor-pointer group">
+<div class="w-12 h-12 rounded bg-surface-container-highest flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-primary-container">photo_camera</span>
+</div>
+<p class="font-headline text-sm font-bold tracking-widest uppercase text-on-surface mb-1">Upload_PPE_Verification</p>
+<p class="font-body text-xs text-on-surface/50 text-center">Capture current team wearing full required safety gear.</p>
+<div class="mt-4 flex gap-2">
+<span class="w-1.5 h-1.5 bg-primary-container/40"></span>
+<span class="w-1.5 h-1.5 bg-primary-container/40"></span>
+<span class="w-1.5 h-1.5 bg-primary-container/40"></span>
+</div>
+</div>
+</section>
+<!-- Section 4: Dynamic Activity List -->
+<section class="space-y-4">
+<div class="flex items-center justify-between">
+<h2 class="font-headline text-lg font-semibold tracking-widest uppercase text-on-surface flex items-center gap-2">
+<span class="w-1 h-5 bg-primary-container"></span>
+                    Daily_Execution
+                </h2>
+<button class="text-primary-container flex items-center gap-1 font-label text-[10px] uppercase hover:opacity-80 transition-opacity">
+<span class="material-symbols-outlined text-sm">add</span>
+                    New_Entry
+                </button>
+</div>
+<div class="space-y-3">
+<div class="surface-container-low rounded-lg p-4 ghost-border flex items-start gap-4">
+<div class="font-label text-[10px] text-primary-container py-1">01.</div>
+<div class="flex-1 space-y-2">
+<input class="bg-transparent border-b border-white/10 w-full focus:border-primary-container focus:ring-0 font-headline font-bold text-on-surface uppercase text-sm p-0 pb-1" type="text" value="ESTRUTURA_METALICA_S04"/>
+<div class="flex justify-between items-center pt-2">
+<span class="font-label text-[10px] text-on-surface/40 uppercase">Progress: 85%</span>
+<div class="w-24 telemetry-bar rounded-full overflow-hidden">
+<div class="telemetry-fill w-[85%]"></div>
+</div>
+</div>
+</div>
+</div>
+<div class="surface-container-low rounded-lg p-4 ghost-border flex items-start gap-4">
+<div class="font-label text-[10px] text-primary-container py-1">02.</div>
+<div class="flex-1 space-y-2">
+<input class="bg-transparent border-b border-white/10 w-full focus:border-primary-container focus:ring-0 font-headline font-bold text-on-surface uppercase text-sm p-0 pb-1" placeholder="ACTIVITY_NAME_NULL" type="text"/>
+<div class="flex justify-between items-center pt-2">
+<span class="font-label text-[10px] text-on-surface/40 uppercase">Progress: 0%</span>
+<div class="w-24 telemetry-bar rounded-full overflow-hidden opacity-20">
+<div class="telemetry-fill w-[0%]"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Section 5: Safety Observations -->
+<section class="space-y-4">
+<h2 class="font-headline text-lg font-semibold tracking-widest uppercase text-on-surface flex items-center gap-2">
+<span class="w-1 h-5 bg-error"></span>
+                Risk_Assessment
+            </h2>
+<div class="surface-container-low rounded-lg p-5 ghost-border space-y-6">
+<div>
+<label class="font-headline text-xs font-medium tracking-widest text-[#C98B2A] uppercase mb-4 block">Risk_Level_Selector</label>
+<div class="grid grid-cols-4 gap-2">
+<button class="flex flex-col items-center gap-2 p-2 rounded bg-surface-container-highest ghost-border border-b-2 border-secondary/50">
+<span class="font-label text-[8px] text-secondary">LOW</span>
+<div class="w-4 h-1 bg-secondary"></div>
+</button>
+<button class="flex flex-col items-center gap-2 p-2 rounded bg-surface-container-highest border border-white/5 opacity-50">
+<span class="font-label text-[8px] text-on-surface/40">MED</span>
+<div class="w-4 h-1 bg-tertiary"></div>
+</button>
+<button class="flex flex-col items-center gap-2 p-2 rounded bg-surface-container-highest border border-white/5 opacity-50">
+<span class="font-label text-[8px] text-on-surface/40">HIGH</span>
+<div class="w-4 h-1 bg-primary-container"></div>
+</button>
+<button class="flex flex-col items-center gap-2 p-2 rounded bg-surface-container-highest border border-white/5 opacity-50">
+<span class="font-label text-[8px] text-on-surface/40">CRIT</span>
+<div class="w-4 h-1 bg-error"></div>
+</button>
+</div>
+</div>
+<div>
+<label class="font-headline text-xs font-medium tracking-widest text-[#C98B2A] uppercase mb-2 block">Safety_Logs</label>
+<textarea class="w-full bg-surface-container-lowest border-none border-b-2 border-white/5 focus:border-primary-container focus:ring-0 text-on-surface font-body text-sm rounded min-h-[100px] p-3" placeholder="DESCRIBE_OBSERVATIONS..."></textarea>
+</div>
+</div>
+</section>
+<!-- Footer Telemetry -->
+<footer class="mt-12 pt-8 border-t border-white/5">
+<div class="flex justify-between items-end">
+<div class="space-y-1">
+<p class="font-label text-[10px] text-on-surface/30 uppercase tracking-[0.2em]">System_Status</p>
+<p class="font-headline text-xs font-bold text-secondary uppercase tracking-widest">ENCRYPTED_STREAM_V.2.0</p>
+</div>
+<div class="text-right">
+<p class="font-label text-xs text-on-surface/50">2024.05.23 // 14:45:01</p>
+</div>
+</div>
+</footer>
+</main>
+<!-- Navigation Shell Support (Mobile Only Logic) -->
+<div class="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-[#081210] flex justify-around items-center px-4 border-t border-white/5 glass-panel z-50">
+<button class="flex flex-col items-center gap-1 text-[#C98B2A]">
+<span class="material-symbols-outlined text-xl" style="font-variation-settings: 'FILL' 1;">description</span>
+<span class="font-headline text-[9px] font-medium tracking-widest uppercase">RDO</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-on-surface opacity-70">
+<span class="material-symbols-outlined text-xl">dashboard</span>
+<span class="font-headline text-[9px] font-medium tracking-widest uppercase">Status</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-on-surface opacity-70">
+<span class="material-symbols-outlined text-xl">admin_panel_settings</span>
+<span class="font-headline text-[9px] font-medium tracking-widest uppercase">Admin</span>
+</button>
+</div>
+</body></html>

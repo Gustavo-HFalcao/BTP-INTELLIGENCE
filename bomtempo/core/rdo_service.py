@@ -227,19 +227,26 @@ def _extract_exif_full(img_bytes: bytes) -> Tuple[float, float, Optional[datetim
 
 
 def _apply_watermark(img_bytes: bytes, meta: Dict[str, Any], content_type: str = "image/jpeg") -> bytes:
-    """Overlay Auvo-style geolocation stamp: full-width bottom panel + top-right map thumbnail.
+    """Geolocation audit stamp — full-width bottom panel anchored below the photo.
+
+    Layout:
+      ┌────────────────────────────────────────┐
+      │            PHOTO (unchanged)           │
+      ├══════════════════════════════════════ ═╡  ← copper stripe 4px
+      │ TEXT COLUMN (timestamps, GPS, address) │ MAP (35% width, same height) │
+      └────────────────────────────────────────┘
+
+    Panel is appended BELOW the image (canvas expands downward) so the photo
+    is never cropped or overlaid.
 
     meta keys:
-      rede_time    – str, network/server time (formatted PT)
-      local_time   – str, device/EXIF time (formatted PT)
-      lat / lng    – float, GPS decimal degrees (optional)
-      address      – str, street + number (optional)
-      neighborhood – str (optional)
-      city         – str, "Cidade UF" (optional)
-      postcode     – str (optional)
-      contrato     – str
-      mestre       – str
-      map_bytes    – bytes|None, pre-fetched map thumbnail (optional)
+      rede_time / local_time  – formatted PT timestamps
+      local_is_exif / local_is_lastmod – source flags
+      lat / lng               – float decimal degrees (optional)
+      gps_source              – "exif" | "checkin"
+      address / neighborhood / city / postcode – reverse-geocode strings
+      contrato / mestre       – RDO metadata
+      map_bytes               – bytes|None OSM tile thumbnail
     """
     try:
         from PIL import Image, ImageDraw, ImageFont
@@ -247,8 +254,11 @@ def _apply_watermark(img_bytes: bytes, meta: Dict[str, Any], content_type: str =
         img = Image.open(io.BytesIO(img_bytes)).convert("RGBA")
         w, h = img.size
 
-        # ── Fonts ────────────────────────────────────────────────
-        fsize = max(14, w // 55)
+        # ── Font: proportional to image width, min 28px for readability ──────
+        # iPhone 13 portrait = 3024px wide → fsize ≈ 75px (legível em impressão A4)
+        # Imagem pequena 800px → fsize ≈ 28px (mínimo seguro)
+        fsize = max(28, w // 40)
+        fnt = ImageFont.load_default()
         fnt_sm = ImageFont.load_default()
         for fp in [
             "arial.ttf", "Arial.ttf",
@@ -257,128 +267,138 @@ def _apply_watermark(img_bytes: bytes, meta: Dict[str, Any], content_type: str =
             "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
         ]:
             try:
-                fnt_sm = ImageFont.truetype(fp, size=max(12, fsize - 2))
+                fnt    = ImageFont.truetype(fp, size=fsize)
+                fnt_sm = ImageFont.truetype(fp, size=max(22, fsize - 8))
                 break
             except Exception:
                 continue
 
-        # ── Colors ───────────────────────────────────────────────
-        WHITE  = (255, 255, 255, 240)
-        COPPER = (201, 139, 42,  255)
-        MUTED  = (160, 200, 195, 210)
-        PANEL  = (0,   0,   0,   185)
+        # ── Colors ───────────────────────────────────────────────────────────
+        WHITE  = (255, 255, 255, 245)
+        COPPER = (201, 139,  42, 255)
+        MUTED  = (160, 200, 195, 220)
+        YELLOW = (240, 210,  50, 240)
+        PANEL  = ( 10,  10,  10, 230)   # near-black, high opacity
 
-        # ── Build text lines ──────────────────────────────────────
+        # ── Build text lines ──────────────────────────────────────────────────
+        # Each entry: (text, font, color)
         text_entries: List[Tuple[str, Any, Any]] = []
-        YELLOW = (230, 200, 60, 230)   # aviso: dado sem EXIF
 
-        # Timestamps
+        # Row 1-2: timestamps
         if meta.get("rede_time"):
-            text_entries.append((f"Rede: {meta['rede_time']}", fnt_sm, WHITE))
+            text_entries.append((f"Rede:    {meta['rede_time']}", fnt, WHITE))
         if meta.get("local_time"):
             if meta.get("local_is_exif"):
-                local_label = "EXIF: "    # DateTimeOriginal — prova forense real
+                local_label = "EXIF:    "
             elif meta.get("local_is_lastmod"):
-                local_label = "Arquivo: " # lastModified — data do arquivo no dispositivo
+                local_label = "Arquivo: "
             else:
-                local_label = "Upload: "  # sem dados — hora do servidor
-            text_entries.append((f"{local_label}{meta['local_time']}", fnt_sm, WHITE))
+                local_label = "Upload:  "
+            text_entries.append((f"{local_label}{meta['local_time']}", fnt, WHITE))
 
-        # GPS coordinates
+        # Row 3-4: GPS DMS coordinates
         lat = meta.get("lat")
         lng = meta.get("lng")
         gps_src = meta.get("gps_source", "exif")
         if lat and lng:
-            lat_dms = _decimal_to_dms(float(lat), True)
-            lng_dms = _decimal_to_dms(float(lng), False)
             gps_color = MUTED if gps_src == "exif" else YELLOW
-            text_entries.append((lat_dms, fnt_sm, gps_color))
-            text_entries.append((lng_dms, fnt_sm, gps_color))
+            text_entries.append((_decimal_to_dms(float(lat), True),  fnt_sm, gps_color))
+            text_entries.append((_decimal_to_dms(float(lng), False), fnt_sm, gps_color))
             if gps_src == "checkin":
-                text_entries.append(("(GPS: check-in do tecnico)", fnt_sm, YELLOW))
+                text_entries.append(("* GPS via check-in do técnico", fnt_sm, YELLOW))
 
-        # Address
+        # Address block
         if meta.get("address"):
-            text_entries.append((str(meta["address"])[:52], fnt_sm, WHITE))
+            text_entries.append((str(meta["address"])[:60], fnt_sm, WHITE))
         if meta.get("neighborhood"):
-            text_entries.append((str(meta["neighborhood"])[:44], fnt_sm, WHITE))
+            text_entries.append((str(meta["neighborhood"])[:55], fnt_sm, WHITE))
         if meta.get("city"):
-            text_entries.append((str(meta["city"])[:44], fnt_sm, WHITE))
+            text_entries.append((str(meta["city"])[:55], fnt_sm, WHITE))
         if meta.get("postcode"):
             text_entries.append((str(meta["postcode"]), fnt_sm, MUTED))
 
-        # Aviso quando foto não tem EXIF DateTimeOriginal
+        # Warning when no EXIF
         if not meta.get("local_is_exif"):
             if meta.get("local_is_lastmod"):
-                text_entries.append(("* data via lastModified (sem EXIF)", fnt_sm, YELLOW))
+                text_entries.append(("⚠ Data via lastModified — sem EXIF", fnt_sm, YELLOW))
             else:
-                text_entries.append(("* sem metadados EXIF na foto", fnt_sm, YELLOW))
+                text_entries.append(("⚠ Sem metadados EXIF na foto", fnt_sm, YELLOW))
 
         # Branding footer
-        text_entries.append((f"BTP Intelligence · {meta.get('contrato','—')}", fnt_sm, COPPER))
+        text_entries.append((f"BTP Intelligence · {meta.get('contrato', '—')}", fnt_sm, COPPER))
 
-        # ── Map thumbnail (top-right corner) ─────────────────────
+        # ── Measure text column ───────────────────────────────────────────────
+        tmp_draw = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
+        line_h = fsize + max(8, fsize // 5)   # generous line spacing
+        pad_x, pad_y = max(24, w // 80), max(16, fsize // 3)
+
+        max_text_w = max(
+            (int(tmp_draw.textlength(t, font=f)) for t, f, _ in text_entries),
+            default=300,
+        )
+
+        # ── Map thumbnail — 35% of image width, same height as text block ────
+        text_block_h = len(text_entries) * line_h + pad_y * 2
+        map_target_w = int(w * 0.35)
+        map_target_h = text_block_h - 16  # 8px margin top+bottom
+
         map_img = None
         map_bytes = meta.get("map_bytes")
-        if map_bytes:
+        if map_bytes and map_target_w > 60 and map_target_h > 40:
             try:
-                map_img = Image.open(io.BytesIO(map_bytes)).convert("RGBA")
-                thumb_w = min(int(w * 0.28), 240)
-                thumb_h = int(thumb_w * 0.75)
-                map_img = map_img.resize((thumb_w, thumb_h), Image.LANCZOS)
+                raw_map = Image.open(io.BytesIO(map_bytes)).convert("RGBA")
+                # Fit inside target box preserving aspect ratio
+                raw_map.thumbnail((map_target_w, map_target_h), Image.LANCZOS)
+                map_img = raw_map
             except Exception:
                 map_img = None
 
-        # ── Measure panel dimensions ──────────────────────────────
-        tmp_draw = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
-        line_h = fsize + 6
-        pad_x, pad_y = 14, 10
-
-        text_col_w = max(
-            (int(tmp_draw.textlength(t, font=f)) for t, f, _ in text_entries),
-            default=220,
-        ) + pad_x * 2
-
-        map_col_w = (map_img.width + 8) if map_img else 0
-        panel_w   = text_col_w + map_col_w
-        panel_h   = max(
-            len(text_entries) * line_h + pad_y * 2,
-            (map_img.height + 8) if map_img else 0,
+        # ── Panel dimensions — FULL width of image ────────────────────────────
+        map_col_w  = (map_img.width + pad_x * 2) if map_img else 0
+        text_col_w = w - map_col_w             # text takes remaining width
+        panel_h    = max(
+            text_block_h,
+            (map_img.height + 16) if map_img else 0,
         )
 
-        # ── Compose panel ─────────────────────────────────────────
-        panel = Image.new("RGBA", (panel_w, panel_h), PANEL)
+        # ── Compose panel ─────────────────────────────────────────────────────
+        panel = Image.new("RGBA", (w, panel_h), PANEL)
         draw  = ImageDraw.Draw(panel)
 
-        # Copper top border stripe
-        draw.rectangle([0, 0, panel_w, 3], fill=(201, 139, 42, 200))
+        # Copper accent stripe across top of panel
+        stripe = max(4, fsize // 12)
+        draw.rectangle([0, 0, w, stripe], fill=(201, 139, 42, 220))
 
         # Text lines
-        y = pad_y + 4
+        y = pad_y + stripe + 4
         for text, fnt_use, clr in text_entries:
             draw.text((pad_x, y), text, font=fnt_use, fill=clr)
             y += line_h
 
-        # Map inset
+        # Map inset — right column, vertically centred
         if map_img:
-            mx = text_col_w + 4
-            my = 7
-            # copper border around map
-            brd = Image.new("RGBA", (map_img.width + 4, map_img.height + 4), (201, 139, 42, 180))
-            panel.paste(brd, (mx - 2, my - 2), brd)
+            mx = w - map_img.width - pad_x
+            my = (panel_h - map_img.height) // 2
+            # Copper border frame
+            border_px = max(3, fsize // 20)
+            brd_w, brd_h = map_img.width + border_px * 2, map_img.height + border_px * 2
+            brd = Image.new("RGBA", (brd_w, brd_h), (201, 139, 42, 200))
+            panel.paste(brd, (mx - border_px, my - border_px), brd)
             panel.paste(map_img, (mx, my), map_img)
 
-        # ── Composite onto image — panel anchored top-left ────────
-        canvas = img.copy()
-        canvas.paste(panel, (0, 0), panel)
+        # ── Append panel BELOW the photo (expand canvas downward) ─────────────
+        # This keeps the photo intact and visible — panel never overlays it.
+        canvas = Image.new("RGBA", (w, h + panel_h), (0, 0, 0, 255))
+        canvas.paste(img, (0, 0))
+        canvas.paste(panel, (0, h), panel)
 
         out = canvas.convert("RGB")
         buf = io.BytesIO()
         fmt = "PNG" if "png" in content_type.lower() else "JPEG"
-        out.save(buf, format=fmt, quality=88)
+        out.save(buf, format=fmt, quality=90)
         return buf.getvalue()
     except Exception as e:
-        logger.warning(f"Watermark falhou: {e}")
+        logger.error(f"❌ Watermark falhou (retornando original): {e}")
         return img_bytes
 
 
@@ -1189,124 +1209,17 @@ tbody tr td { padding: 6px 8px; border-bottom: 0.3px solid #D4C8A8; vertical-ali
         client_exif_datetime: str = "",
         client_last_modified: str = "",
     ) -> Dict[str, str]:
-        """Full pipeline: EXIF extract → watermark → upload → geocode → DB insert.
-        Returns a dict suitable for evidencias_items display.
-        client_exif_* are trusted values extracted by exifr.js in the browser (highest priority).
-        checkin_lat/lng/endereco são usados como fallback quando a foto não tem EXIF GPS.
-        """
-        # 1. EXIF GPS + datetime original da foto
-        # Priority: client-side exifr → server-side Pillow → checkin fallback
-        server_lat, server_lng, server_dt = _extract_exif_full(file_bytes)
-
-        # GPS: prefer client-extracted (exifr reads before iOS strips it)
-        if client_exif_lat and client_exif_lng:
-            exif_lat, exif_lng = client_exif_lat, client_exif_lng
-            gps_source = "exif"
-        elif server_lat and server_lng:
-            exif_lat, exif_lng = server_lat, server_lng
-            gps_source = "exif"
-        elif checkin_lat and checkin_lng:
-            exif_lat, exif_lng = checkin_lat, checkin_lng
-            gps_source = "checkin"
-        else:
-            exif_lat, exif_lng = 0.0, 0.0
-            gps_source = "exif"
-
-        # Datetime: prefer client-extracted DateTimeOriginal → server Pillow → lastModified fallback
-        exif_dt: Optional[datetime] = server_dt
-        _exif_source = "pillow" if server_dt else ""   # "pillow" | "client" | "lastmod" | ""
-        if client_exif_datetime:
-            try:
-                # exifr may return:
-                #   "2026:03:15T14:38:27"       — EXIF-style date with T separator
-                #   "2026:03:15 14:38:27"        — EXIF-style date with space separator
-                #   "2026-03-15T14:38:27"        — ISO format (Date.toISOString() slice)
-                #   "2026-03-15T14:38:27.000Z"   — full ISO with ms+Z
-                # Normalise: replace colons in the DATE part only (first 10 chars)
-                raw = client_exif_datetime[:19].replace("T", " ")
-                date_part = raw[:10].replace(":", "-")   # "2026:03:15" → "2026-03-15"
-                time_part = raw[11:19] if len(raw) > 10 else "00:00:00"
-                parsed = datetime.fromisoformat(f"{date_part} {time_part}")
-                exif_dt = parsed
-                _exif_source = "client"
-            except Exception:
-                pass
-        lastmod_dt: Optional[datetime] = None
-        if client_last_modified:
-            try:
-                # lastModified is ms since epoch — file system timestamp, NOT EXIF
-                lastmod_dt = datetime.fromtimestamp(int(client_last_modified) / 1000)
-            except Exception:
-                pass
-
-        # 2. Build watermark metadata
-        now = datetime.now()
-        rede_str = _pt_datetime_str(now)
-        # "Local" = data/hora real da foto (EXIF DateTimeOriginal) — prova forense da captura
-        # "Arquivo" = lastModified do arquivo (hora de criação no dispositivo, não EXIF)
-        # "Upload" = hora do servidor (nenhuma info de data no arquivo)
-        if exif_dt:
-            local_str = _pt_datetime_str(exif_dt)
-        elif lastmod_dt:
-            local_str = _pt_datetime_str(lastmod_dt)
-        else:
-            local_str = rede_str  # sem EXIF → mesmo que rede (upload agora)
-
-        # Reverse-geocode (EXIF ou checkin)
-        address_parts: Dict[str, str] = {}
-        if exif_lat and exif_lng:
-            # Se veio do check-in e já temos o endereço, usar direto (sem nova chamada)
-            if gps_source == "checkin" and checkin_endereco:
-                address_parts["address"] = checkin_endereco
-            else:
-                try:
-                    import httpx
-                    resp = httpx.get(
-                        "https://nominatim.openstreetmap.org/reverse",
-                        params={"format":"json","lat":exif_lat,"lon":exif_lng,"zoom":16,"addressdetails":1},
-                        headers={"User-Agent":"BomtempoRDO/2.0"},
-                        timeout=8,
-                    )
-                    if resp.status_code == 200:
-                        addr = resp.json().get("address", {})
-                        road   = addr.get("road") or addr.get("pedestrian") or ""
-                        number = addr.get("house_number") or ""
-                        address_parts["address"]      = f"{road}{', ' + number if number else ''}"
-                        address_parts["neighborhood"] = addr.get("suburb") or addr.get("neighbourhood") or ""
-                        city   = addr.get("city") or addr.get("town") or addr.get("municipality") or ""
-                        state  = addr.get("state_district") or addr.get("state") or ""
-                        state_ab = state[:2].upper() if len(state) > 3 else state.upper()
-                        address_parts["city"]         = f"{city} {state_ab}".strip()
-                        address_parts["postcode"]     = addr.get("postcode") or ""
-                except Exception:
-                    pass
-
-        # Fetch map thumbnail (best-effort)
-        map_bytes = None
-        if exif_lat and exif_lng:
-            map_bytes = _fetch_map_thumbnail(exif_lat, exif_lng)
-
-        wm_meta: Dict[str, Any] = {
-            "rede_time":    rede_str,
-            "local_time":   local_str,
-            "local_is_exif": bool(exif_dt),        # True = DateTimeOriginal real; "Local:"
-            "local_is_lastmod": bool(lastmod_dt and not exif_dt),  # True = lastModified; "Arquivo:"
-            "gps_source":   gps_source,            # "exif" | "checkin"
-            "lat":          exif_lat if exif_lat else None,
-            "lng":          exif_lng if exif_lng else None,
-            "address":      address_parts.get("address", ""),
-            "neighborhood": address_parts.get("neighborhood", ""),
-            "city":         address_parts.get("city", ""),
-            "postcode":     address_parts.get("postcode", ""),
-            "contrato":     contrato,
-            "mestre":       mestre,
-            "data":         data,
-            "map_bytes":    map_bytes,
-        }
-        watermarked = _apply_watermark(file_bytes, wm_meta, content_type)
-
         # 3. Upload to Supabase Storage
-        foto_url = RDOService.upload_evidence(id_rdo, watermarked, content_type, filename)
+        allowed_types = ["image/jpeg", "image/png", "image/webp", "image/jpg"]
+        if content_type.lower() not in allowed_types:
+            logger.warning(f"⚠️ Upload bloqueado: MIME type {content_type} não permitido para evidências.")
+            return {"foto_url": "", "legenda": legenda, "exif_lat": "", "exif_lng": "", "exif_endereco": ""}
+
+        # Sanitize filename to prevent path traversal
+        import os
+        safe_filename = os.path.basename(filename)
+        
+        foto_url = RDOService.upload_evidence(id_rdo, watermarked, content_type, safe_filename)
         if not foto_url:
             # Upload falhou — retorna dict vazio para o caller filtrar
             return {"foto_url": "", "legenda": legenda, "exif_lat": "", "exif_lng": "", "exif_endereco": ""}

@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&amp;family=Outfit:wght@300;400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-error-container": "#ffdad6",
+              "error-container": "#93000a",
+              "surface": "#0b1513",
+              "on-tertiary": "#432c00",
+              "tertiary": "#f9bc4f",
+              "surface-container-lowest": "#06100e",
+              "outline": "#9e8e7d",
+              "surface-container": "#17221f",
+              "secondary": "#6fd8c8",
+              "surface-tint": "#ffb955",
+              "on-tertiary-fixed": "#281900",
+              "on-error": "#690005",
+              "tertiary-container": "#c48e23",
+              "surface-container-low": "#131d1b",
+              "primary": "#ffb955",
+              "tertiary-fixed": "#ffdeac",
+              "surface-container-highest": "#2c3734",
+              "on-primary-fixed-variant": "#633f00",
+              "on-secondary-fixed": "#00201c",
+              "error": "#ffb4ab",
+              "background": "#0b1513",
+              "inverse-primary": "#835500",
+              "surface-bright": "#313b39",
+              "on-primary-container": "#442a00",
+              "on-primary": "#452b00",
+              "surface-container-high": "#222c2a",
+              "secondary-fixed": "#8cf5e4",
+              "on-primary-fixed": "#291800",
+              "primary-fixed-dim": "#ffb955",
+              "outline-variant": "#514536",
+              "on-secondary-container": "#00302a",
+              "on-background": "#dae5e1",
+              "inverse-surface": "#dae5e1",
+              "on-surface-variant": "#d5c4b0",
+              "tertiary-fixed-dim": "#f9bc4f",
+              "on-tertiary-container": "#422c00",
+              "on-surface": "#dae5e1",
+              "on-secondary": "#003731",
+              "surface-dim": "#0b1513",
+              "secondary-fixed-dim": "#6fd8c8",
+              "primary-fixed": "#ffddb4",
+              "surface-variant": "#2c3734",
+              "on-tertiary-fixed-variant": "#5f4100",
+              "on-secondary-fixed-variant": "#005048",
+              "inverse-on-surface": "#283230",
+              "secondary-container": "#30a193",
+              "primary-container": "#c98b2a"
+            },
+            fontFamily: {
+              "headline": ["Rajdhani"],
+              "body": ["Outfit"],
+              "data": ["JetBrains Mono"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Outfit', sans-serif; background-color: #030504; color: #dae5e1; }
+        .font-headline { font-family: 'Rajdhani', sans-serif; }
+        .font-data { font-family: 'JetBrains Mono', monospace; }
+        .glass-panel {
+            background: rgba(14, 26, 23, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .copper-gradient {
+            background: linear-gradient(135deg, #C98B2A 0%, #a36b1d 100%);
+        }
+        .ghost-border { border: 1px solid rgba(255, 255, 255, 0.08); }
+        .patina-glow { box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), 0 0 10px rgba(42, 157, 143, 0.05); }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    </style>
+</head>
+<body class="bg-[#030504] text-on-background antialiased overflow-x-hidden">
+<!-- SideNavBar (Rail) -->
+<aside class="fixed left-0 top-0 h-full z-50 flex flex-col items-center py-8 bg-[#081210] dark:bg-[#081210] w-20 border-r border-white/10">
+<div class="mb-10 text-center">
+<span class="font-headline uppercase tracking-widest font-bold text-[#C98B2A] block text-xs">Bomtempo</span>
+<span class="font-headline text-[10px] tracking-[0.2em] opacity-50 block">INTEL</span>
+</div>
+<nav class="flex flex-col gap-8 w-full">
+<a class="flex flex-col items-center gap-1 group py-3 text-[#C98B2A] border-r-2 border-[#C98B2A] bg-[#0e1a17] transition-transform scale-95 duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="folder_open">folder_open</span>
+<span class="text-[10px] font-data font-medium">Projects</span>
+</a>
+<a class="flex flex-col items-center gap-1 group py-3 text-gray-500 hover:text-gray-300 hover:bg-[#0e1a17] transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="text-[10px] font-data font-medium">Settings</span>
+</a>
+<a class="flex flex-col items-center gap-1 group py-3 text-gray-500 hover:text-gray-300 hover:bg-[#0e1a17] transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="support_agent">support_agent</span>
+<span class="text-[10px] font-data font-medium">Support</span>
+</a>
+</nav>
+<div class="mt-auto">
+<div class="w-10 h-10 rounded-sm bg-surface-container-highest border border-white/10 flex items-center justify-center overflow-hidden">
+<img class="w-full h-full object-cover opacity-80" data-alt="User profile photo in industrial gear" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDTtOkxkVIY7XMRhBRz9WIb_bOFTblPg0AT4zMsvfQqAo8aKw8hDj13MS-fIFNrTXK_bmHpC3GcshzV5ZU3zzuW4HW9a_vWtAxDpI25kNgby0ak_6rA5aC0BV3WRRlO57DD9jMjZZNZo7EUaiSmG8F0tu_PqI3Q-XOZ4Rx8uEafqot79Xlrpt0_VYfCUwW5VW4L6J7nJ6Xu3DgDgyMnyxEA17asmS8JZuizpxU0BsHklpSGAXB-MBH9fp5KRR8TRiaIMwmo5o_3zP8"/>
+</div>
+</div>
+</aside>
+<!-- TopAppBar -->
+<header class="fixed top-0 right-0 left-20 z-40 flex h-16 items-center justify-between px-8 bg-[#0e1a17]/60 backdrop-blur-xl border-b border-white/5 shadow-[0_20px_40px_rgba(0,0,0,0.4),0_0_10px_rgba(42,157,143,0.05)]">
+<div class="flex items-center gap-6">
+<h1 class="text-xl font-headline font-bold tracking-tighter text-[#dae5e1] uppercase">Unified Project Module</h1>
+<nav class="hidden md:flex items-center gap-8 ml-8">
+<a class="text-[#C98B2A] border-b-2 border-[#C98B2A] pb-2 font-bold font-data text-xs uppercase tracking-wider" href="#">Overview</a>
+<a class="text-[#dae5e1]/60 pb-2 hover:text-[#dae5e1] font-data text-xs uppercase tracking-wider hover:bg-white/5 transition-colors" href="#">Timeline (Gantt)</a>
+<a class="text-[#dae5e1]/60 pb-2 hover:text-[#dae5e1] font-data text-xs uppercase tracking-wider hover:bg-white/5 transition-colors" href="#">Media Audit</a>
+<a class="text-[#dae5e1]/60 pb-2 hover:text-[#dae5e1] font-data text-xs uppercase tracking-wider hover:bg-white/5 transition-colors" href="#">Project Logs</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative hidden lg:block">
+<input class="bg-surface-container-lowest border-0 border-b-2 border-transparent focus:border-[#C98B2A] focus:ring-0 text-xs font-data py-1 px-4 w-64 text-on-surface placeholder-on-surface/30" placeholder="SEARCH TELEMETRY..." type="text"/>
+</div>
+<button class="p-2 text-on-surface/60 hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="p-2 text-on-surface/60 hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+</button>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="pl-20 pt-16 min-h-screen">
+<div class="p-8 max-w-[1600px] mx-auto space-y-8">
+<!-- Dashboard Header & Top KPIs -->
+<section class="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6">
+<div>
+<div class="flex items-center gap-3 text-primary mb-2">
+<span class="font-data text-xs tracking-widest uppercase">Location: 40.7128° N, 74.0060° W</span>
+<div class="h-[1px] w-12 bg-primary/30"></div>
+<span class="font-data text-xs text-[#2A9D8F]">LIVE_FEED_STABLE</span>
+</div>
+<h2 class="text-5xl font-headline font-bold uppercase tracking-tight">Industrial Core Alpha</h2>
+</div>
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 w-full lg:w-auto">
+<div class="glass-panel p-4 flex flex-col min-w-[140px]">
+<span class="text-[10px] font-data text-on-surface/50 uppercase mb-1">Total Progress</span>
+<span class="text-3xl font-headline font-bold text-[#2A9D8F]">68.4%</span>
+<div class="w-full h-1 bg-[#030504] mt-2 overflow-hidden">
+<div class="h-full bg-[#2A9D8F]" style="width: 68.4%"></div>
+</div>
+</div>
+<div class="glass-panel p-4 flex flex-col min-w-[140px]">
+<span class="text-[10px] font-data text-on-surface/50 uppercase mb-1">Budget Burn</span>
+<span class="text-3xl font-headline font-bold text-[#C98B2A]">42.1M</span>
+<span class="text-[10px] font-data text-red-400 mt-1">+2.4% vs Plan</span>
+</div>
+<div class="glass-panel p-4 flex flex-col min-w-[140px]">
+<span class="text-[10px] font-data text-on-surface/50 uppercase mb-1">Workforce</span>
+<span class="text-3xl font-headline font-bold">1,240</span>
+<span class="text-[10px] font-data text-[#2A9D8F] mt-1">Active Now</span>
+</div>
+<div class="glass-panel p-4 flex flex-col min-w-[140px]">
+<span class="text-[10px] font-data text-on-surface/50 uppercase mb-1">Safety Index</span>
+<span class="text-3xl font-headline font-bold text-[#2A9D8F]">0.0</span>
+<span class="text-[10px] font-data opacity-50 mt-1">LTI Rate</span>
+</div>
+</div>
+</section>
+<!-- Main Grid Layout -->
+<div class="grid grid-cols-12 gap-6">
+<!-- S-Curve & Weather Integrated Chart -->
+<div class="col-span-12 lg:col-span-8 glass-panel p-6 relative overflow-hidden group">
+<div class="flex justify-between items-center mb-8">
+<h3 class="font-headline text-lg font-bold tracking-widest uppercase flex items-center gap-2">
+<span class="w-2 h-2 bg-primary"></span> Integrated Project S-Curve
+                        </h3>
+<div class="flex gap-4 font-data text-[10px] uppercase tracking-wider">
+<div class="flex items-center gap-2"><span class="w-3 h-3 border border-white/20"></span> Previsto</div>
+<div class="flex items-center gap-2"><span class="w-3 h-3 bg-primary"></span> Realizado</div>
+<div class="flex items-center gap-2 text-[#2A9D8F]"><span class="material-symbols-outlined text-[14px]" data-icon="cloud">cloud</span> Clima</div>
+</div>
+</div>
+<!-- Simplified Chart SVG Logic -->
+<div class="h-[300px] w-full relative">
+<!-- S-Curve Lines -->
+<svg class="w-full h-full overflow-visible" preserveaspectratio="none">
+<!-- Previsto Line (Dashed) -->
+<path d="M0,300 Q200,280 400,180 T800,50" fill="none" stroke="rgba(255,255,255,0.2)" stroke-dasharray="4,4" stroke-width="2"></path>
+<!-- Realizado Line (Copper) -->
+<path d="M0,300 Q200,290 400,210 T600,160" fill="none" stroke="#C98B2A" stroke-width="3"></path>
+<!-- Area Shade -->
+<path d="M0,300 Q200,290 400,210 T600,160 L600,300 L0,300 Z" fill="url(#copper-gradient-svg)" fill-opacity="0.1"></path>
+<defs>
+<lineargradient id="copper-gradient-svg" x1="0" x2="0" y1="0" y2="1">
+<stop offset="0%" stop-color="#C98B2A"></stop>
+<stop offset="100%" stop-color="#C98B2A" stop-opacity="0"></stop>
+</lineargradient>
+</defs>
+</svg>
+<!-- Hover Detail (Positioned at data point) -->
+<div class="absolute left-[50%] top-[40%] transform -translate-x-1/2 -translate-y-1/2 z-10">
+<div class="glass-panel p-4 border-[#C98B2A]/40 patina-glow w-[240px]">
+<div class="flex justify-between items-start mb-3 border-b border-white/5 pb-2">
+<span class="font-data text-[10px] uppercase">14 OCT 2023</span>
+<div class="flex items-center gap-1 text-[#2A9D8F]">
+<span class="material-symbols-outlined text-sm" data-icon="rainy" style="font-variation-settings: 'FILL' 1;">rainy</span>
+<span class="font-data text-[10px]">Moderate Rain</span>
+</div>
+</div>
+<div class="space-y-2 mb-4">
+<div class="flex justify-between items-center">
+<span class="text-[10px] font-body text-on-surface/50">Previsto</span>
+<span class="font-data text-xs">R$ 1.2M</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-[10px] font-body text-on-surface/50">Realizado</span>
+<span class="font-data text-xs text-[#C98B2A]">R$ 0.94M</span>
+</div>
+<!-- Bar Chart representation -->
+<div class="flex h-1.5 w-full bg-surface-container-lowest overflow-hidden">
+<div class="bg-primary/50 w-[78%] h-full"></div>
+<div class="bg-primary w-[62%] h-full -ml-[78%]"></div>
+</div>
+</div>
+<div class="bg-primary/10 p-2 border-l-2 border-primary">
+<p class="text-[9px] font-body leading-tight text-primary">AI INSIGHT: Precipitação acima do esperado reduziu produtividade na concretagem da Ala C em 15%.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="mt-4 flex justify-between font-data text-[9px] text-on-surface/40">
+<span>START_PHASE</span>
+<span>MAY</span>
+<span>JUN</span>
+<span>JUL</span>
+<span>AUG</span>
+<span>SEP</span>
+<span class="text-primary font-bold">OCT</span>
+<span>NOV</span>
+<span>DEC</span>
+<span>TARGET_COMPLETION</span>
+</div>
+</div>
+<!-- Live Intelligence Feed -->
+<div class="col-span-12 lg:col-span-4 flex flex-col gap-6">
+<div class="glass-panel flex-1 p-6">
+<div class="flex justify-between items-center mb-6">
+<h3 class="font-headline text-lg font-bold tracking-widest uppercase">Live Intelligence Feed</h3>
+<span class="flex h-2 w-2 rounded-full bg-[#2A9D8F] animate-pulse"></span>
+</div>
+<div class="space-y-6">
+<!-- Feed Item -->
+<div class="flex gap-4 relative">
+<div class="flex flex-col items-center">
+<div class="w-8 h-8 rounded-sm bg-surface-container-highest flex items-center justify-center border border-white/5">
+<span class="material-symbols-outlined text-sm text-[#2A9D8F]" data-icon="description">description</span>
+</div>
+<div class="w-[1px] h-full bg-white/5 mt-2"></div>
+</div>
+<div class="pb-2">
+<div class="flex items-center gap-2 mb-1">
+<span class="font-data text-[10px] text-primary">14:22:10</span>
+<span class="px-1.5 py-0.5 bg-white/5 text-[9px] font-data text-on-surface/60">AUDIT</span>
+</div>
+<p class="text-xs font-body leading-relaxed mb-1">Quality check approved for Structure Sector 4. Non-conformity resolved at Joint 22B.</p>
+<span class="text-[10px] font-data text-on-surface/40">Eng. Marcus V. • RDO-992-B</span>
+</div>
+</div>
+<!-- Feed Item -->
+<div class="flex gap-4 relative">
+<div class="flex flex-col items-center">
+<div class="w-8 h-8 rounded-sm bg-surface-container-highest flex items-center justify-center border border-white/5">
+<span class="material-symbols-outlined text-sm text-[#C98B2A]" data-icon="warning">warning</span>
+</div>
+<div class="w-[1px] h-full bg-white/5 mt-2"></div>
+</div>
+<div class="pb-2">
+<div class="flex items-center gap-2 mb-1">
+<span class="font-data text-[10px] text-primary">11:05:44</span>
+<span class="px-1.5 py-0.5 bg-white/5 text-[9px] font-data text-on-surface/60">DISRUPTION</span>
+</div>
+<p class="text-xs font-body leading-relaxed mb-1">Logistics delay: Steel beam shipment delayed 4 hours due to regional transit blockade.</p>
+<span class="text-[10px] font-data text-on-surface/40">Logistics Hub • Auto-Log</span>
+</div>
+</div>
+<!-- Feed Item -->
+<div class="flex gap-4">
+<div class="flex flex-col items-center">
+<div class="w-8 h-8 rounded-sm bg-surface-container-highest flex items-center justify-center border border-white/5">
+<span class="material-symbols-outlined text-sm text-[#2A9D8F]" data-icon="photo_camera" style="font-variation-settings: 'FILL' 1;">photo_camera</span>
+</div>
+</div>
+<div>
+<div class="flex items-center gap-2 mb-1">
+<span class="font-data text-[10px] text-primary">09:15:00</span>
+<span class="px-1.5 py-0.5 bg-white/5 text-[9px] font-data text-on-surface/60">MEDIA</span>
+</div>
+<p class="text-xs font-body leading-relaxed mb-2">Morning drone survey completed. Phase 2 terrain mapping synchronized.</p>
+<div class="w-full h-16 rounded-sm overflow-hidden bg-surface-container-lowest">
+<img class="w-full h-full object-cover grayscale hover:grayscale-0 transition-all cursor-pointer" data-alt="Aerial view of industrial construction site" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDtWrwDD59mm0hC4_57xjg0X4NFI0royv7exYbO_EgpNU176VS97rs1B8JiZ7rFnqUtjnNZlXvMVnABtduB5EpPYlKlIDx2fK6lSNWbDBhmWFcHz8nE_WQLRlq2tPHfvwVmXFVJbCbcrcNryrNg76SfIijzfmi4zZcBrNxqJpu_mRKIV2-3uDA69llhV5zMx2su9TQUthRV6i3FpZDU4Sb2VGFR45h7_gpNUuu-IjDJqqyRvsDmU43RooBCl0IctrydEy1_AzPacKc"/>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Disruption Matrix -->
+<div class="col-span-12 lg:col-span-4 glass-panel p-6">
+<h3 class="font-headline text-lg font-bold tracking-widest uppercase mb-6 flex items-center gap-2">
+<span class="w-2 h-2 bg-[#C98B2A]"></span> Disruption Matrix
+                    </h3>
+<div class="grid grid-cols-5 grid-rows-5 gap-1 mb-6">
+<!-- Matrix Background Heatmap (Placeholder simulation) -->
+<div class="bg-white/5 h-12 flex items-center justify-center text-[8px] font-data opacity-20 hover:opacity-100 border border-transparent hover:border-primary cursor-help">L1</div>
+<div class="bg-white/5 h-12"></div>
+<div class="bg-[#2A9D8F]/10 h-12"></div>
+<div class="bg-white/5 h-12"></div>
+<div class="bg-white/5 h-12"></div>
+<div class="bg-white/5 h-12"></div>
+<div class="bg-[#C98B2A]/20 h-12 flex items-center justify-center">
+<span class="w-2 h-2 bg-[#C98B2A] rounded-full shadow-[0_0_8px_#C98B2A]"></span>
+</div>
+<div class="bg-[#C98B2A]/40 h-12"></div>
+<div class="bg-[#C98B2A]/10 h-12"></div>
+<div class="bg-white/5 h-12"></div>
+<div class="bg-white/5 h-12"></div>
+<div class="bg-white/5 h-12"></div>
+<div class="bg-red-500/20 h-12 flex items-center justify-center">
+<span class="material-symbols-outlined text-sm text-red-500" data-icon="error">error</span>
+</div>
+<div class="bg-[#C98B2A]/20 h-12"></div>
+<div class="bg-white/5 h-12"></div>
+<div class="bg-white/5 h-12"></div>
+<div class="bg-white/5 h-12"></div>
+<div class="bg-white/5 h-12"></div>
+<div class="bg-white/5 h-12"></div>
+<div class="bg-white/5 h-12"></div>
+<div class="bg-white/5 h-12"></div>
+<div class="bg-white/5 h-12"></div>
+<div class="bg-white/5 h-12"></div>
+<div class="bg-white/5 h-12"></div>
+<div class="bg-white/5 h-12"></div>
+</div>
+<div class="flex justify-between font-data text-[10px] text-on-surface/40 px-1">
+<span>PROBABILITY</span>
+<span>IMPACT</span>
+</div>
+<div class="mt-6 pt-6 border-t border-white/5 space-y-3">
+<div class="flex justify-between items-center">
+<span class="text-xs font-body">Supply Chain Lag</span>
+<span class="px-2 py-0.5 bg-red-500/10 text-red-400 font-data text-[10px] border border-red-500/20">CRITICAL</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-xs font-body">Wet Weather Delay</span>
+<span class="px-2 py-0.5 bg-[#C98B2A]/10 text-[#C98B2A] font-data text-[10px] border border-[#C98B2A]/20">MODERATE</span>
+</div>
+</div>
+</div>
+<!-- Interactive Map Widget -->
+<div class="col-span-12 lg:col-span-8 glass-panel overflow-hidden relative min-h-[400px]">
+<!-- Map Canvas Simulation -->
+<div class="absolute inset-0 z-0">
+<img class="w-full h-full object-cover opacity-60" data-alt="Satellite map view of a large construction project site" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAR4p_gyULruetk_UVSaZ8U5hSJ-rm7V82QBypQ44LFIm8qqrXNJjfqZ3zrUOJMykCWwt3FxvqYpJK7OXgdcqvy-ldDEeYnSGRddkE2jlXc3CRl8Qw2vaNVLjg-UzAPqhVx6IQwv6y7veNPMPeg2Ewdlc-SYyHhSDU8ABbvFhSC3y6CkGifoqBbPTyQGoqS6rDR_9bsqXuzXEZidrVyvZ7FWKdnsztxHXeglmQuMRI3B_rJfva6B2oB-JYm0zIHOm0YTkYKbY0NxUM"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent"></div>
+</div>
+<!-- Windy Style Overlay UI -->
+<div class="absolute top-6 left-6 flex flex-col gap-2 z-10">
+<div class="glass-panel p-2 flex flex-col gap-2">
+<button class="w-8 h-8 flex items-center justify-center bg-primary text-background"><span class="material-symbols-outlined text-sm" data-icon="add">add</span></button>
+<button class="w-8 h-8 flex items-center justify-center hover:bg-white/10"><span class="material-symbols-outlined text-sm" data-icon="remove">remove</span></button>
+</div>
+<div class="glass-panel p-2 flex flex-col gap-2">
+<button class="w-8 h-8 flex items-center justify-center hover:bg-white/10 text-[#2A9D8F]"><span class="material-symbols-outlined text-sm" data-icon="air">air</span></button>
+<button class="w-8 h-8 flex items-center justify-center hover:bg-white/10"><span class="material-symbols-outlined text-sm" data-icon="layers">layers</span></button>
+</div>
+</div>
+<div class="absolute top-6 right-6 z-10 glass-panel p-4 w-[220px]">
+<div class="flex items-center justify-between mb-4">
+<span class="font-headline font-bold text-xs uppercase tracking-widest">Local Weather</span>
+<span class="text-[10px] font-data opacity-50">SITREP-4</span>
+</div>
+<div class="flex items-center gap-4 mb-4">
+<span class="material-symbols-outlined text-3xl text-primary" data-icon="partly_cloudy_day" style="font-variation-settings: 'FILL' 1;">partly_cloudy_day</span>
+<div>
+<span class="text-2xl font-headline font-bold">24°C</span>
+<p class="text-[10px] font-data text-on-surface/50">WIND: 12km/h NW</p>
+</div>
+</div>
+<div class="space-y-2">
+<div class="h-1 w-full bg-white/5 flex">
+<div class="h-full bg-[#2A9D8F] w-[20%]"></div>
+<div class="h-full bg-primary w-[30%]"></div>
+</div>
+<div class="flex justify-between text-[8px] font-data text-on-surface/40 uppercase">
+<span>Prec: 14%</span>
+<span>Humidity: 62%</span>
+</div>
+</div>
+</div>
+<!-- Floating Map Labels -->
+<div class="absolute bottom-20 left-[40%] flex items-center gap-2">
+<div class="w-2 h-2 bg-primary rounded-full animate-ping"></div>
+<div class="glass-panel px-3 py-1 text-[10px] font-data tracking-tighter bg-surface/80">SECTOR_DELTA_CRANE_04</div>
+</div>
+<!-- Bottom Map Legend -->
+<div class="absolute bottom-0 left-0 right-0 glass-panel border-t-0 p-4 flex items-center justify-between">
+<div class="flex gap-6">
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 bg-[#2A9D8F]/20 border border-[#2A9D8F]"></span>
+<span class="text-[10px] font-data uppercase opacity-60">Completed Zone</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 bg-primary/20 border border-primary"></span>
+<span class="text-[10px] font-data uppercase opacity-60">Active Ops</span>
+</div>
+</div>
+<div class="flex gap-4">
+<span class="text-[10px] font-data opacity-40">10:44:02 UTC-3</span>
+<span class="text-[10px] font-data text-[#2A9D8F]">SATELLITE_LINK: OPTIMAL</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Floating Action Button (Industrial Design) -->
+<button class="fixed bottom-8 right-8 copper-gradient w-14 h-14 shadow-lg flex items-center justify-center group active:scale-95 transition-transform z-50">
+<span class="material-symbols-outlined text-background text-2xl group-hover:rotate-90 transition-transform duration-300" data-icon="add">add</span>
+</button>
+</body></html>

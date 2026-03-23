@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .copper-gradient {
+            background: linear-gradient(135deg, #C98B2A 0%, #835500 100%);
+        }
+        .glass-panel {
+            background: rgba(14, 26, 23, 0.6);
+            backdrop-filter: blur(12px);
+        }
+        .orb-pulse {
+            box-shadow: 0 0 50px rgba(201, 139, 42, 0.4), 0 0 100px rgba(201, 139, 42, 0.2);
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary-fixed": "#ffddb4",
+                        "inverse-on-surface": "#283230",
+                        "on-tertiary-container": "#422c00",
+                        "surface-bright": "#313b39",
+                        "secondary-container": "#30a193",
+                        "on-error-container": "#ffdad6",
+                        "on-primary-fixed-variant": "#633f00",
+                        "inverse-surface": "#dae5e1",
+                        "surface-variant": "#2c3734",
+                        "inverse-primary": "#835500",
+                        "on-surface-variant": "#d5c4b0",
+                        "on-secondary-fixed-variant": "#005048",
+                        "on-secondary": "#003731",
+                        "background": "#030504",
+                        "tertiary": "#f9bc4f",
+                        "surface-container-highest": "#2c3734",
+                        "on-primary": "#452b00",
+                        "on-primary-container": "#442a00",
+                        "on-secondary-fixed": "#00201c",
+                        "primary-container": "#c98b2a",
+                        "outline-variant": "#514536",
+                        "surface-container-lowest": "#06100e",
+                        "surface-container-high": "#222c2a",
+                        "error": "#ffb4ab",
+                        "surface-tint": "#ffb955",
+                        "secondary": "#6fd8c8",
+                        "on-background": "#dae5e1",
+                        "tertiary-container": "#c48e23",
+                        "primary": "#ffb955",
+                        "surface-container": "#17221f",
+                        "on-surface": "#dae5e1",
+                        "on-error": "#690005",
+                        "surface-dim": "#0b1513",
+                        "primary-fixed-dim": "#ffb955",
+                        "tertiary-fixed": "#ffdeac",
+                        "on-tertiary-fixed-variant": "#5f4100",
+                        "surface": "#0b1513",
+                        "secondary-fixed-dim": "#6fd8c8",
+                        "outline": "#9e8e7d",
+                        "on-secondary-container": "#00302a",
+                        "tertiary-fixed-dim": "#f9bc4f",
+                        "on-tertiary-fixed": "#281900",
+                        "secondary-fixed": "#8cf5e4",
+                        "surface-container-low": "#131d1b",
+                        "on-primary-fixed": "#291800",
+                        "error-container": "#93000a",
+                        "on-tertiary": "#432c00"
+                    },
+                    fontFamily: {
+                        "headline": ["Rajdhani"],
+                        "body": ["Plus Jakarta Sans"],
+                        "label": ["JetBrains Mono"]
+                    },
+                    borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-[#030504] text-on-surface font-body min-h-screen flex overflow-hidden">
+<!-- Sidebar Navigation (Predicted Component: SideNavBar) -->
+<aside class="fixed left-0 top-0 h-full w-64 z-40 bg-[#081210] flex flex-col py-8 px-4 gap-y-2 shadow-[20px_0_40px_rgba(0,0,0,0.4)] border-r border-white/5 hidden md:flex">
+<div class="mb-8 px-2">
+<h1 class="text-[#C98B2A] font-headline font-bold text-lg tracking-tighter">COMMAND_CENTER</h1>
+<p class="font-label text-[10px] text-[#2A9D8F] tracking-widest uppercase">V.2.0_STABLE</p>
+</div>
+<nav class="flex-1 space-y-1">
+<button class="w-full flex items-center gap-3 px-3 py-3 font-headline font-medium tracking-widest text-xs text-[#C98B2A] bg-[#0e1a17] border-r-2 border-[#C98B2A] transition-all">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+                PRINCIPAL
+            </button>
+<button class="w-full flex items-center gap-3 px-3 py-3 font-headline font-medium tracking-widest text-xs text-[#dae5e1] opacity-70 hover:bg-white/5 hover:text-[#C98B2A] transition-all">
+<span class="material-symbols-outlined">engineering</span>
+                OPERACIONAL
+            </button>
+<button class="w-full flex items-center gap-3 px-3 py-3 font-headline font-medium tracking-widest text-xs text-[#dae5e1] opacity-70 hover:bg-white/5 hover:text-[#C98B2A] transition-all">
+<span class="material-symbols-outlined">description</span>
+                RDO
+            </button>
+<button class="w-full flex items-center gap-3 px-3 py-3 font-headline font-medium tracking-widest text-xs text-[#dae5e1] opacity-70 hover:bg-white/5 hover:text-[#C98B2A] transition-all">
+<span class="material-symbols-outlined">admin_panel_settings</span>
+                ADMINISTRAÇÃO
+            </button>
+</nav>
+<div class="mt-auto border-t border-white/5 pt-4">
+<button class="w-full flex items-center gap-3 px-3 py-3 font-headline font-medium tracking-widest text-xs text-[#dae5e1] opacity-70 hover:text-[#C98B2A] transition-all">
+<span class="material-symbols-outlined">smartphone</span>
+                MOBILE APP
+            </button>
+<button class="w-full flex items-center gap-3 px-3 py-3 font-headline font-medium tracking-widest text-xs text-[#dae5e1] opacity-70 hover:text-error transition-all">
+<span class="material-symbols-outlined">logout</span>
+                LOGOUT
+            </button>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col md:ml-64 relative h-screen bg-[#030504]">
+<!-- Header (Predicted Component: TopNavBar) -->
+<header class="bg-[#030504] flex justify-between items-center w-full px-6 h-16 border-b border-white/10 sticky top-0 z-50">
+<div class="flex items-center gap-4">
+<div class="relative">
+<img alt="AI Avatar" class="w-10 h-10 rounded bg-[#0e1a17] border border-[#C98B2A]/30 p-1" data-alt="Futuristic 3D robot head avatar with glowing copper accents and technical interface details in the background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCazeMJtKgrE0U7qULIMHQxmi8WgTTjYckl03HA1NnVmKpRMhW8qZDqPpizkn55ZfXV2favzOlNGI4HJoymWZmXIGLVObS_Fv9Bw0ufolEOSAoromNRe8wua8xGVoy2OC9uP7yCkDlLt45ynQ9gVdKysyGMaxCgsgXJCij8MYfKvWH98BQxxQ_7eiNF0TMyT8v2sDFLcExVgl2s8ou0qaqmNUyaoqsfwdk0bpoIhbKUeH5rVRta3gflxN3XiymxA1KdpcXsUiC03nw"/>
+<span class="absolute -top-1 -right-1 flex h-3 w-3">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#2A9D8F] opacity-75"></span>
+<span class="relative inline-flex rounded-full h-3 w-3 bg-[#2A9D8F]"></span>
+</span>
+</div>
+<div>
+<h2 class="font-headline font-bold text-lg tracking-tighter text-[#C98B2A]">INTEL_FOREMAN</h2>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[10px] text-[#2A9D8F]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+<span class="font-label text-[9px] text-[#dae5e1] opacity-60 uppercase tracking-widest">IA CONECTADA EM TEMPO REAL</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 text-[#dae5e1] opacity-70 hover:text-[#C98B2A] transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 text-[#dae5e1] opacity-70 hover:text-[#C98B2A] transition-colors">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<div class="w-8 h-8 rounded border border-white/10 overflow-hidden">
+<img alt="User Profile" class="w-full h-full object-cover" data-alt="Professional headshot of a middle-aged male construction engineer wearing a hard hat and safety vest, soft industrial lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCfbTZANcLd-HWZBUHRGWRdodFHnTtdn8ggCjHM-np_VfFGX1Ynj3tOINRZAPYOgqghg04pbkT8ufd1h4eUnFKD-9mQ837wgOo7AHREBFkLNe3MIclcmX8ROAJWO6YoPpoA1QROn8prp2tVbVnEZOEIHZ2w4IbQUIdaeUGHlASydTrMxJpWEd-9hUCbY7su1Fj2Cdphsu96s_H49BHCIkNM3boOd3b2JooBuA8-u_tKH4lKrrKp0vlM8hWKP-OkYieqCoT1PFS0vVA"/>
+</div>
+</div>
+</header>
+<!-- Chat Stream -->
+<div class="flex-1 overflow-y-auto p-6 space-y-8 hide-scrollbar">
+<!-- Timestamp Divider -->
+<div class="flex justify-center">
+<span class="font-label text-[10px] text-[#dae5e1] opacity-30 bg-[#0e1a17] px-3 py-1 rounded">2023-10-27 // 14:42:01</span>
+</div>
+<!-- Assistant Message -->
+<div class="flex items-start gap-4 max-w-3xl">
+<div class="w-8 h-8 mt-1 flex-shrink-0 bg-[#0e1a17] border border-[#C98B2A]/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-[#C98B2A] text-sm">precision_manufacturing</span>
+</div>
+<div class="space-y-2">
+<p class="font-headline text-xs font-bold text-[#C98B2A] tracking-widest uppercase">SYSTEM_ASST</p>
+<div class="bg-[#0e1a17] p-4 rounded-r-lg rounded-bl-lg border-l-2 border-[#C98B2A]/40 shadow-lg">
+<p class="text-sm leading-relaxed text-[#dae5e1]">Relatório de telemetria da Unidade 04 processado. Identificamos uma queda de 12% na eficiência térmica. Deseja iniciar o protocolo de manutenção preventiva ou agendar uma inspeção local?</p>
+</div>
+</div>
+</div>
+<!-- User Message -->
+<div class="flex items-start gap-4 max-w-3xl ml-auto flex-row-reverse">
+<div class="w-8 h-8 mt-1 flex-shrink-0 bg-[#2c3734] border border-white/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-[#dae5e1] text-sm">person</span>
+</div>
+<div class="space-y-2 text-right">
+<p class="font-headline text-xs font-bold text-[#dae5e1] opacity-50 tracking-widest uppercase">CHIEF_OPERATOR</p>
+<div class="bg-[#2c3734] p-4 rounded-l-lg rounded-br-lg border-r-2 border-white/10 shadow-lg">
+<p class="text-sm leading-relaxed text-[#dae5e1]">Agende a inspeção para amanhã às 08:00. Verifique se a equipe Alfa está disponível.</p>
+</div>
+</div>
+</div>
+<!-- Assistant Streaming Message -->
+<div class="flex items-start gap-4 max-w-3xl">
+<div class="w-8 h-8 mt-1 flex-shrink-0 bg-[#0e1a17] border border-[#C98B2A]/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-[#C98B2A] text-sm">precision_manufacturing</span>
+</div>
+<div class="space-y-2">
+<p class="font-headline text-xs font-bold text-[#C98B2A] tracking-widest uppercase">SYSTEM_ASST</p>
+<div class="bg-[#0e1a17] p-4 rounded-r-lg rounded-bl-lg border-l-2 border-[#C98B2A]/40 shadow-lg relative">
+<p class="text-sm leading-relaxed text-[#dae5e1]">Processando consulta de disponibilidade... Equipe Alfa confirmada. O agendamento foi inserido no log operacional 294-X. Notificando supervisores.</p>
+<div class="flex gap-1 mt-4">
+<span class="w-1.5 h-1.5 bg-[#C98B2A] rounded-full animate-bounce"></span>
+<span class="w-1.5 h-1.5 bg-[#C98B2A] rounded-full animate-bounce [animation-delay:0.2s]"></span>
+<span class="w-1.5 h-1.5 bg-[#C98B2A] rounded-full animate-bounce [animation-delay:0.4s]"></span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Input Area -->
+<div class="p-6 bg-gradient-to-t from-[#030504] to-transparent">
+<div class="max-w-4xl mx-auto">
+<div class="relative glass-panel rounded-lg border border-white/10 p-2 shadow-2xl">
+<div class="flex items-center gap-3">
+<button class="p-3 text-[#C98B2A] hover:bg-white/5 transition-colors">
+<span class="material-symbols-outlined">attach_file</span>
+</button>
+<textarea class="flex-1 bg-transparent border-none focus:ring-0 text-sm py-3 text-[#dae5e1] placeholder-[#dae5e1]/30 resize-none font-body" placeholder="Comando de voz ou texto operacional..." rows="1"></textarea>
+<div class="flex items-center gap-2 px-2">
+<button class="p-3 text-[#C98B2A] hover:bg-white/5 transition-all group">
+<span class="material-symbols-outlined group-active:scale-95 transition-transform" style="font-variation-settings: 'FILL' 1;">mic</span>
+</button>
+<button class="copper-gradient p-3 text-[#030504] rounded flex items-center justify-center shadow-[0_0_15px_rgba(201,139,42,0.3)] hover:brightness-110 transition-all">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">send</span>
+</button>
+</div>
+</div>
+<!-- Streaming indicator -->
+<div class="absolute -top-6 left-4 flex items-center gap-2">
+<span class="font-label text-[8px] text-[#2A9D8F] tracking-[0.2em] uppercase">SYSTEM_READY // UPLINK_ACTIVE</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Voice Overlay (Hidden by default, shown for "OUVINDO" state) -->
+<!-- To toggle visibility: toggle class 'hidden' and 'flex' -->
+<div class="fixed inset-0 z-[60] glass-panel bg-[#030504]/80 flex-col items-center justify-center gap-8 hidden">
+<div class="relative">
+<!-- Pulsing Orb -->
+<div class="w-48 h-48 rounded-full copper-gradient orb-pulse flex items-center justify-center animate-pulse">
+<span class="material-symbols-outlined text-[#030504] text-6xl" style="font-variation-settings: 'FILL' 1;">mic</span>
+</div>
+<!-- Wave Effects -->
+<div class="absolute -inset-8 border border-[#C98B2A]/20 rounded-full animate-ping [animation-duration:3s]"></div>
+<div class="absolute -inset-16 border border-[#C98B2A]/10 rounded-full animate-ping [animation-duration:4s]"></div>
+</div>
+<div class="text-center space-y-2">
+<h3 class="font-headline text-4xl font-bold text-[#C98B2A] tracking-widest uppercase">OUVINDO</h3>
+<p class="font-label text-xs text-[#dae5e1] opacity-60">SISTEMA AGUARDANDO COMANDOS DE TELEMETRIA</p>
+</div>
+<div class="flex gap-4 mt-12">
+<div class="h-8 w-1 bg-[#C98B2A]/30 animate-[bounce_1s_infinite]"></div>
+<div class="h-12 w-1 bg-[#C98B2A]/50 animate-[bounce_1.2s_infinite]"></div>
+<div class="h-16 w-1 bg-[#C98B2A] animate-[bounce_0.8s_infinite]"></div>
+<div class="h-12 w-1 bg-[#C98B2A]/50 animate-[bounce_1.1s_infinite]"></div>
+<div class="h-8 w-1 bg-[#C98B2A]/30 animate-[bounce_0.9s_infinite]"></div>
+</div>
+<button class="mt-8 px-6 py-2 border border-white/10 text-[#dae5e1] font-headline text-xs tracking-widest hover:bg-white/5 transition-all">
+                CANCELAR
+            </button>
+</div>
+</main>
+<!-- Mobile Navigation (Predicted Component: BottomNavBar) -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full bg-[#081210] flex justify-around items-center h-16 z-50 px-4 border-t border-white/5">
+<button class="flex flex-col items-center gap-1 text-[#C98B2A]">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+<span class="text-[10px] font-headline font-medium uppercase tracking-tighter">PRINCIPAL</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-[#dae5e1] opacity-70">
+<span class="material-symbols-outlined">engineering</span>
+<span class="text-[10px] font-headline font-medium uppercase tracking-tighter">OPS</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-[#dae5e1] opacity-70">
+<span class="material-symbols-outlined">description</span>
+<span class="text-[10px] font-headline font-medium uppercase tracking-tighter">RDO</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-[#dae5e1] opacity-70">
+<span class="material-symbols-outlined">person</span>
+<span class="text-[10px] font-headline font-medium uppercase tracking-tighter">PERFIL</span>
+</button>
+</nav>
+</body></html>

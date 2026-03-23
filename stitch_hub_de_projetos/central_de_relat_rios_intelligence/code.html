@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&amp;family=Outfit:wght@300;400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-secondary-fixed-variant": "#005048",
+                        "secondary-fixed": "#8cf5e4",
+                        "primary-container": "#c98b2a",
+                        "surface-variant": "#2c3734",
+                        "primary-fixed-dim": "#ffb955",
+                        "on-primary-fixed-variant": "#633f00",
+                        "tertiary-fixed": "#ffdeac",
+                        "on-tertiary-container": "#422c00",
+                        "on-error": "#690005",
+                        "surface-container-high": "#222c2a",
+                        "surface-dim": "#0b1513",
+                        "on-tertiary": "#432c00",
+                        "on-secondary": "#003731",
+                        "on-primary-fixed": "#291800",
+                        "tertiary-container": "#c48e23",
+                        "inverse-primary": "#835500",
+                        "surface": "#0b1513",
+                        "surface-bright": "#313b39",
+                        "on-secondary-fixed": "#00201c",
+                        "tertiary-fixed-dim": "#f9bc4f",
+                        "error": "#ffb4ab",
+                        "on-primary-container": "#442a00",
+                        "error-container": "#93000a",
+                        "on-primary": "#452b00",
+                        "tertiary": "#f9bc4f",
+                        "outline-variant": "#514536",
+                        "outline": "#9e8e7d",
+                        "surface-tint": "#ffb955",
+                        "on-error-container": "#ffdad6",
+                        "on-background": "#dae5e1",
+                        "on-secondary-container": "#00302a",
+                        "background": "#0b1513",
+                        "secondary-fixed-dim": "#6fd8c8",
+                        "surface-container-low": "#131d1b",
+                        "surface-container-highest": "#2c3734",
+                        "inverse-surface": "#dae5e1",
+                        "on-surface": "#dae5e1",
+                        "surface-container": "#17221f",
+                        "on-tertiary-fixed-variant": "#5f4100",
+                        "secondary-container": "#30a193",
+                        "primary-fixed": "#ffddb4",
+                        "surface-container-lowest": "#06100e",
+                        "on-surface-variant": "#d5c4b0",
+                        "inverse-on-surface": "#283230",
+                        "primary": "#ffb955",
+                        "secondary": "#6fd8c8",
+                        "on-tertiary-fixed": "#281900",
+                        "copper": "#C98B2A",
+                        "patina": "#2A9D8F",
+                        "bg-void": "#030504",
+                        "bg-depth": "#081210",
+                        "bg-surface": "#0e1a17"
+                    },
+                    fontFamily: {
+                        "headline": ["Rajdhani", "sans-serif"],
+                        "body": ["Outfit", "sans-serif"],
+                        "label": ["Space Grotesk", "sans-serif"],
+                        "data": ["JetBrains Mono", "monospace"]
+                    },
+                    borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+                },
+            },
+        }
+    </script>
+<style>
+        .glass-card {
+            background: rgba(14, 26, 23, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .copper-glow:hover {
+            border-color: rgba(201, 139, 42, 0.4);
+            box-shadow: 0 0 20px rgba(201, 139, 42, 0.1);
+        }
+        .patina-glow:hover {
+            border-color: rgba(42, 157, 143, 0.4);
+            box-shadow: 0 0 20px rgba(42, 157, 143, 0.1);
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .tech-parchment {
+            background-image: radial-gradient(circle at 2px 2px, rgba(218, 229, 225, 0.05) 1px, transparent 0);
+            background-size: 24px 24px;
+            background-color: #06100e;
+        }
+    </style>
+</head>
+<body class="bg-bg-void text-on-background font-body selection:bg-copper/30">
+<!-- Top Navigation Bar -->
+<header class="fixed top-0 z-50 flex justify-between items-center w-full px-6 h-16 bg-[#030504]/60 backdrop-blur-xl border-b border-white/5 shadow-[0_20px_40px_rgba(0,0,0,0.4)]">
+<div class="flex items-center gap-8">
+<span class="text-xl font-bold text-[#C98B2A] tracking-tighter font-headline">PROJECT_FOREMAN</span>
+<nav class="hidden md:flex gap-6">
+<a class="text-[#dae5e1]/60 font-headline uppercase tracking-[0.05em] text-sm hover:text-[#C98B2A] transition-colors duration-200" href="#">Dashboard</a>
+<a class="text-[#C98B2A] font-bold font-headline uppercase tracking-[0.05em] text-sm transition-colors duration-200" href="#">Central de Inteligência</a>
+<a class="text-[#dae5e1]/60 font-headline uppercase tracking-[0.05em] text-sm hover:text-[#C98B2A] transition-colors duration-200" href="#">Logistics</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative flex items-center bg-surface-container-lowest border-b-2 border-copper px-3 py-1.5">
+<span class="material-symbols-outlined text-copper text-sm mr-2">contract</span>
+<select class="bg-transparent border-none text-xs font-headline uppercase tracking-widest focus:ring-0 text-on-surface cursor-pointer">
+<option>CONTRATO: STRATUM-A1-2024</option>
+<option>CONTRATO: CORE-GRID-B4</option>
+<option>CONTRATO: VOID-REACH-09</option>
+</select>
+</div>
+<button class="material-symbols-outlined text-on-background/60 hover:text-copper transition-colors">notifications</button>
+<button class="material-symbols-outlined text-on-background/60 hover:text-copper transition-colors">settings</button>
+<div class="w-8 h-8 rounded-sm overflow-hidden bg-surface-container-high border border-white/10">
+<img class="w-full h-full object-cover" data-alt="close-up portrait of a professional male engineer in a dark industrial setting with subtle orange lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD2B6GNcPpzYhfYguy4h_C3OYqY7ZgvY86u9xWHSvlby1GuPSID_5WOwf8NBjHY7ZiV4Ov1c0Ts3AqV0iNFCPd5ZTiL1vRbl1e15QZ6yyEalOyr9vxtH73szqw02QSnvux3GSUpzIshhNvvPrpHeRZDxzZSmJQuG8141L9QaTCHuJqmynmar2eGwtD9u9IAyMW-CMgJ_twP2TOhCFdv6ZBWNxA1SGGd4vvyOuPqoGBTX4X7K0Lk9Bruh5_k9quemOvk4UXn_KzaRjc"/>
+</div>
+</div>
+</header>
+<!-- Side Navigation Bar -->
+<aside class="fixed left-0 top-0 h-full flex flex-col py-4 bg-[#081210]/80 backdrop-blur-lg border-r border-white/5 w-[236px] z-40 pt-20">
+<div class="px-6 mb-8">
+<div class="flex items-center gap-3">
+<div class="w-2 h-2 rounded-full bg-patina animate-pulse"></div>
+<div>
+<h3 class="font-headline font-bold text-sm tracking-widest text-on-background">STRATUM_01</h3>
+<p class="font-headline text-[10px] text-patina uppercase tracking-widest">Active Ops</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 flex flex-col">
+<a class="flex items-center gap-4 px-6 py-3 text-[#dae5e1]/40 border-l-[3px] border-transparent hover:bg-white/5 hover:text-[#dae5e1] transition-all duration-200 font-headline uppercase tracking-widest text-[10px] font-semibold" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+                Dashboard
+            </a>
+<a class="flex items-center gap-4 px-6 py-3 bg-[#C98B2A]/10 text-[#C98B2A] border-l-[3px] border-[#C98B2A] shadow-[0_0_15px_rgba(201,139,42,0.15)] font-headline uppercase tracking-widest text-[10px] font-semibold" href="#">
+<span class="material-symbols-outlined">analytics</span>
+                Intelligence
+            </a>
+<a class="flex items-center gap-4 px-6 py-3 text-[#dae5e1]/40 border-l-[3px] border-transparent hover:bg-white/5 hover:text-[#dae5e1] transition-all duration-200 font-headline uppercase tracking-widest text-[10px] font-semibold" href="#">
+<span class="material-symbols-outlined">sensors</span>
+                Site Telemetry
+            </a>
+<a class="flex items-center gap-4 px-6 py-3 text-[#dae5e1]/40 border-l-[3px] border-transparent hover:bg-white/5 hover:text-[#dae5e1] transition-all duration-200 font-headline uppercase tracking-widest text-[10px] font-semibold" href="#">
+<span class="material-symbols-outlined">grid_view</span>
+                Resource Grid
+            </a>
+<a class="flex items-center gap-4 px-6 py-3 text-[#dae5e1]/40 border-l-[3px] border-transparent hover:bg-white/5 hover:text-[#dae5e1] transition-all duration-200 font-headline uppercase tracking-widest text-[10px] font-semibold" href="#">
+<span class="material-symbols-outlined">verified_user</span>
+                Safety Protocol
+            </a>
+</nav>
+<div class="mt-auto px-6 pt-4 border-t border-white/5">
+<a class="flex items-center gap-4 py-2 text-[#dae5e1]/40 hover:text-on-background transition-colors text-[10px] font-headline uppercase tracking-widest" href="#">
+<span class="material-symbols-outlined text-sm">help_outline</span> Support
+            </a>
+<a class="flex items-center gap-4 py-2 text-[#dae5e1]/40 hover:text-on-background transition-colors text-[10px] font-headline uppercase tracking-widest" href="#">
+<span class="material-symbols-outlined text-sm">terminal</span> System Log
+            </a>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="ml-[236px] pt-24 px-8 pb-12 min-h-screen">
+<!-- Header Section -->
+<header class="flex justify-between items-end mb-10">
+<div>
+<div class="flex items-center gap-3 mb-2">
+<span class="material-symbols-outlined text-copper">hub</span>
+<h2 class="text-xs font-data text-copper tracking-[0.2em] uppercase">System Phase: Analytical</h2>
+</div>
+<div class="flex items-center gap-4">
+<h1 class="text-4xl font-headline font-bold uppercase tracking-tight text-on-background">Central de Relatórios</h1>
+<div class="flex items-center gap-2 px-3 py-1 bg-surface-container rounded-full border border-white/5">
+<span class="material-symbols-outlined text-sm text-on-background/60">files</span>
+<span class="text-xs font-data text-on-background/80">148 REPORTS</span>
+</div>
+</div>
+</div>
+<div class="flex gap-3">
+<button class="px-4 py-2 bg-transparent border border-white/10 text-on-background hover:bg-white/5 transition-all text-xs font-headline tracking-widest uppercase">Export Archive</button>
+<button class="px-6 py-2 bg-copper text-on-primary font-headline font-bold text-xs tracking-widest uppercase shadow-[0_0_15px_rgba(201,139,42,0.3)] hover:brightness-110 transition-all">New Intelligence Query</button>
+</div>
+</header>
+<!-- Split Panel Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
+<!-- Dossier Estático Card -->
+<div class="glass-card copper-glow transition-all duration-300 border-t-2 border-t-copper flex flex-col overflow-hidden">
+<div class="p-8 flex-1">
+<div class="flex justify-between items-start mb-6">
+<div class="p-3 bg-copper/10 rounded-sm">
+<span class="material-symbols-outlined text-copper text-3xl">description</span>
+</div>
+<span class="font-data text-[10px] text-copper/60 uppercase">Manual Extraction</span>
+</div>
+<h3 class="text-2xl font-headline font-bold text-on-background mb-3 uppercase tracking-wide">Dossier Estático</h3>
+<p class="text-on-background/60 text-sm leading-relaxed mb-8 max-w-md">
+                        Relatórios compilados estruturalmente com base em parâmetros fixos de sistema. Ideal para auditorias, históricos de contrato e snapshots de conformidade.
+                    </p>
+<div class="grid grid-cols-2 gap-4 mb-8">
+<div class="bg-bg-void/40 p-3 rounded-sm border border-white/5">
+<p class="text-[10px] font-data text-on-background/40 uppercase mb-1">Last Update</p>
+<p class="font-data text-xs text-on-background">2024.05.12 14:30</p>
+</div>
+<div class="bg-bg-void/40 p-3 rounded-sm border border-white/5">
+<p class="text-[10px] font-data text-on-background/40 uppercase mb-1">File Format</p>
+<p class="font-data text-xs text-on-background">PDF / XML / XLSX</p>
+</div>
+</div>
+</div>
+<div class="px-8 pb-8">
+<button class="w-full py-3 bg-copper text-on-primary font-headline font-bold uppercase tracking-widest text-sm hover:brightness-110 transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm">download</span>
+                        Gerar Dossier Estrutural
+                    </button>
+</div>
+</div>
+<!-- Análise IA Card -->
+<div class="glass-card patina-glow transition-all duration-300 relative flex flex-col overflow-hidden" style="background: radial-gradient(circle at top right, rgba(42,157,143,0.08), transparent), rgba(14, 26, 23, 0.6);">
+<div class="p-8 flex-1">
+<div class="flex justify-between items-start mb-6">
+<div class="p-3 bg-patina/10 rounded-sm">
+<span class="material-symbols-outlined text-patina text-3xl">auto_awesome</span>
+</div>
+<span class="font-data text-[10px] text-patina uppercase tracking-widest flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-patina animate-pulse"></span>
+                            Neural Processor Active
+                        </span>
+</div>
+<h3 class="text-2xl font-headline font-bold text-on-background mb-3 uppercase tracking-wide">Análise de Inteligência Artificial</h3>
+<div class="mb-6">
+<label class="block text-[10px] font-headline font-semibold text-patina uppercase tracking-widest mb-2">Selecione a Abordagem</label>
+<select class="w-full bg-bg-void/60 border-none border-b border-patina/40 focus:border-patina focus:ring-0 text-sm font-body py-2 px-0">
+<option>Abordagem Estratégica (Visão Executiva)</option>
+<option>Abordagem Analítica (Dados Brutos &amp; Telemetria)</option>
+<option>Abordagem de Risco (Conformidade &amp; Segurança)</option>
+<option>Abordagem de Produtividade (Timeline &amp; Eficiência)</option>
+</select>
+</div>
+<div class="bg-patina/5 border border-patina/20 p-4 rounded-sm shadow-[inset_0_0_15px_rgba(42,157,143,0.05)] mb-6">
+<div class="flex items-center gap-2 mb-2">
+<span class="material-symbols-outlined text-patina text-xs">info</span>
+<span class="text-[10px] font-data text-patina uppercase tracking-widest">Logic Description</span>
+</div>
+<p class="text-xs text-patina/80 leading-relaxed font-body">
+                            A análise estratégica sintetiza múltiplos fluxos de dados em insights de alto nível, focando em tendências de longo prazo e desvios orçamentários críticos.
+                        </p>
+</div>
+</div>
+<div class="px-8 pb-8">
+<button class="w-full py-3 bg-patina text-on-primary-container font-headline font-bold uppercase tracking-widest text-sm hover:brightness-110 transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm">rocket_launch</span>
+                        Executar Processamento Neural
+                    </button>
+</div>
+</div>
+</div>
+<!-- IA Results Preview Section -->
+<section class="mb-12">
+<div class="flex items-center gap-4 mb-6">
+<span class="h-[1px] flex-1 bg-white/5"></span>
+<h4 class="font-headline font-bold uppercase tracking-[0.3em] text-[10px] text-on-background/40">Latest Neural Output Preview</h4>
+<span class="h-[1px] flex-1 bg-white/5"></span>
+</div>
+<div class="tech-parchment border border-white/5 p-8 rounded-lg shadow-2xl relative overflow-hidden">
+<!-- Watermark deco -->
+<div class="absolute -right-20 -bottom-20 opacity-[0.03] rotate-12 pointer-events-none">
+<span class="material-symbols-outlined text-[300px]">auto_awesome</span>
+</div>
+<div class="max-w-4xl mx-auto relative z-10">
+<div class="flex justify-between items-center mb-10 border-b border-white/5 pb-4">
+<div>
+<p class="font-data text-[10px] text-patina uppercase">Query ID: 4882-QX-ALPHA</p>
+<p class="text-xl font-headline font-bold text-on-background uppercase tracking-wider">Relatório de Desvio de Eficiência Operacional</p>
+</div>
+<button class="flex items-center gap-2 px-3 py-1.5 border border-white/10 hover:bg-white/5 text-[10px] font-data uppercase transition-colors">
+<span class="material-symbols-outlined text-sm">content_copy</span> Copy Raw Data
+                        </button>
+</div>
+<div class="space-y-8">
+<div>
+<h5 class="text-patina font-headline font-bold uppercase tracking-widest text-sm border-l-2 border-patina pl-3 mb-3">Resumo Executivo</h5>
+<p class="text-on-background/80 text-sm leading-relaxed font-body">
+                                Identificamos um desvio de <span class="text-patina font-bold">12.4%</span> na utilização de recursos de solo durante o turno 02. A análise correlacional indica que falhas na telemetria do setor sul impactaram o despacho automático.
+                            </p>
+</div>
+<blockquote class="bg-surface-container/50 border-l-4 border-copper p-6 italic text-on-background/90 text-sm font-body">
+                            "A manutenção preventiva do Grid 04 está atrasada em 72 horas, o que representa um risco de escalada nível 3 para o cronograma de entrega do próximo trimestre."
+                        </blockquote>
+<div>
+<h5 class="text-copper font-headline font-bold uppercase tracking-widest text-sm border-l-2 border-copper pl-3 mb-4">Métricas Técnicas de Sistema</h5>
+<div class="bg-[#030504] border border-white/5 p-4 rounded-sm font-data text-xs text-patina/90 overflow-x-auto">
+<code class="block whitespace-pre">
+# TELEMETRY_LOG_ANALYSIS_V2
+[STATUS] : ALERT_LEVEL_YELLOW
+[CONTRACT] : STRATUM-A1-2024
+[RESOURCE_UTIL] : 0.88421
+[LATENCY_AVG] : 42ms
+[ANOMALY_DETECTED] : true
+[VECTOR_ID] : "CORE_ALPHA_9"
+                                </code>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- History Table Section -->
+<section class="mb-12">
+<h4 class="font-headline font-bold uppercase tracking-widest text-sm text-on-background/80 mb-6">Histórico de Consultas</h4>
+<div class="glass-card overflow-hidden">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low/50">
+<th class="px-6 py-4 font-headline uppercase tracking-widest text-[10px] text-on-background/40">Timestamp</th>
+<th class="px-6 py-4 font-headline uppercase tracking-widest text-[10px] text-on-background/40">Report Name</th>
+<th class="px-6 py-4 font-headline uppercase tracking-widest text-[10px] text-on-background/40">Type</th>
+<th class="px-6 py-4 font-headline uppercase tracking-widest text-[10px] text-on-background/40">Status</th>
+<th class="px-6 py-4 font-headline uppercase tracking-widest text-[10px] text-on-background/40 text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-white/5">
+<tr class="hover:bg-white/5 transition-colors cursor-pointer group">
+<td class="px-6 py-4 font-data text-[10px]">2024.05.20 09:12</td>
+<td class="px-6 py-4 font-body text-sm text-on-background font-medium">Análise de Risco de Contrato Q2</td>
+<td class="px-6 py-4">
+<span class="px-2 py-0.5 bg-patina/10 text-patina text-[9px] font-headline uppercase tracking-widest border border-patina/20">AI_NEURAL</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-patina"></span>
+<span class="text-[10px] font-data text-on-background/60">COMPLETED</span>
+</div>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="material-symbols-outlined text-on-background/40 group-hover:text-copper transition-colors">visibility</button>
+</td>
+</tr>
+<tr class="hover:bg-white/5 transition-colors cursor-pointer group">
+<td class="px-6 py-4 font-data text-[10px]">2024.05.19 22:45</td>
+<td class="px-6 py-4 font-body text-sm text-on-background font-medium">Dossier de Conformidade Ambiental</td>
+<td class="px-6 py-4">
+<span class="px-2 py-0.5 bg-copper/10 text-copper text-[9px] font-headline uppercase tracking-widest border border-copper/20">STATIC_DOSSIER</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-patina"></span>
+<span class="text-[10px] font-data text-on-background/60">COMPLETED</span>
+</div>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="material-symbols-outlined text-on-background/40 group-hover:text-copper transition-colors">visibility</button>
+</td>
+</tr>
+<tr class="hover:bg-white/5 transition-colors cursor-pointer group">
+<td class="px-6 py-4 font-data text-[10px]">2024.05.18 14:02</td>
+<td class="px-6 py-4 font-body text-sm text-on-background font-medium">Daily Telemetry Overview</td>
+<td class="px-6 py-4">
+<span class="px-2 py-0.5 bg-patina/10 text-patina text-[9px] font-headline uppercase tracking-widest border border-patina/20">AI_NEURAL</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-on-background/20"></span>
+<span class="text-[10px] font-data text-on-background/60">ARCHIVED</span>
+</div>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="material-symbols-outlined text-on-background/40 group-hover:text-copper transition-colors">visibility</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<!-- Natural Language Chatbox (Pinned at Bottom) -->
+<div class="fixed bottom-8 left-[calc(236px+2rem)] right-8 z-30">
+<div class="max-w-4xl mx-auto">
+<div class="glass-card p-2 shadow-2xl flex items-center gap-3 border-patina/20">
+<div class="pl-4">
+<span class="material-symbols-outlined text-patina" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+</div>
+<input class="flex-1 bg-transparent border-none focus:ring-0 text-sm font-body text-on-background placeholder:text-on-background/30 py-3" placeholder="Pergunte ao Foreman IA: 'Qual o risco do contrato STRATUM para o próximo mês?'" type="text"/>
+<button class="bg-patina text-on-primary-container px-4 py-2 text-[10px] font-headline font-bold uppercase tracking-widest hover:brightness-110 transition-all flex items-center gap-2">
+                        Query IA <span class="material-symbols-outlined text-sm">send</span>
+</button>
+</div>
+</div>
+</div>
+</main>
+</body></html>

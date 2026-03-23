@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700;900&amp;family=Outfit:wght@300;400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-secondary-fixed": "#00201c",
+                        "error-container": "#93000a",
+                        "primary-fixed-dim": "#ffb955",
+                        "surface-container": "#17221f",
+                        "error": "#ffb4ab",
+                        "secondary": "#6fd8c8",
+                        "surface-dim": "#0b1513",
+                        "on-secondary-fixed-variant": "#005048",
+                        "secondary-container": "#30a193",
+                        "on-secondary": "#003731",
+                        "tertiary-container": "#c48e23",
+                        "surface-container-lowest": "#06100e",
+                        "on-tertiary-container": "#422c00",
+                        "surface-variant": "#2c3734",
+                        "surface-bright": "#313b39",
+                        "secondary-fixed-dim": "#6fd8c8",
+                        "on-tertiary-fixed": "#281900",
+                        "secondary-fixed": "#8cf5e4",
+                        "primary": "#ffb955",
+                        "background": "#0b1513",
+                        "on-secondary-container": "#00302a",
+                        "tertiary-fixed": "#ffdeac",
+                        "tertiary": "#f9bc4f",
+                        "inverse-primary": "#835500",
+                        "on-primary": "#452b00",
+                        "surface-tint": "#ffb955",
+                        "primary-container": "#c98b2a",
+                        "outline-variant": "#514536",
+                        "on-primary-fixed-variant": "#633f00",
+                        "on-primary-container": "#442a00",
+                        "on-background": "#dae5e1",
+                        "outline": "#9e8e7d",
+                        "tertiary-fixed-dim": "#f9bc4f",
+                        "inverse-surface": "#dae5e1",
+                        "on-error-container": "#ffdad6",
+                        "on-surface-variant": "#d5c4b0",
+                        "surface-container-high": "#222c2a",
+                        "on-primary-fixed": "#291800",
+                        "surface-container-highest": "#2c3734",
+                        "on-tertiary": "#432c00",
+                        "inverse-on-surface": "#283230",
+                        "primary-fixed": "#ffddb4",
+                        "on-surface": "#dae5e1",
+                        "surface-container-low": "#131d1b",
+                        "on-tertiary-fixed-variant": "#5f4100",
+                        "surface": "#0b1513",
+                        "on-error": "#690005",
+                        "copper": "#C98B2A",
+                        "patina": "#2A9D8F",
+                        "bg-void": "#030504",
+                        "bg-depth": "#081210",
+                        "bg-surface": "#0e1a17"
+                    },
+                    fontFamily: {
+                        "headline": ["Rajdhani", "sans-serif"],
+                        "body": ["Outfit", "sans-serif"],
+                        "label": ["JetBrains Mono", "monospace"]
+                    },
+                    borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass {
+            background: rgba(14, 26, 23, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .ghost-border {
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .copper-gradient {
+            background: linear-gradient(135deg, #C98B2A 0%, #a67322 100%);
+        }
+        .text-shadow-glow {
+            text-shadow: 0 0 10px rgba(201, 139, 42, 0.3);
+        }
+    </style>
+</head>
+<body class="bg-bg-void text-on-surface font-body selection:bg-copper selection:text-bg-void">
+<!-- SideNavBar Shell -->
+<aside class="fixed left-0 top-0 h-full z-40 h-screen w-20 lg:w-64 border-r border-white/5 bg-[#081210] shadow-[20px_0_40px_rgba(0,0,0,0.4)] transition-all duration-200 ease-in-out">
+<div class="p-6">
+<h1 class="font-['Rajdhani'] font-bold text-xl text-[#C98B2A] tracking-tighter uppercase">FOREMAN_01</h1>
+<p class="font-['Rajdhani'] uppercase tracking-[0.05em] text-xs text-[#dae5e1]/40">Site Lead</p>
+</div>
+<nav class="mt-8 space-y-2 px-3">
+<a class="flex items-center gap-4 px-4 py-3 font-['Rajdhani'] uppercase tracking-[0.05em] text-sm text-[#dae5e1]/60 hover:text-[#dae5e1] hover:bg-[#0e1a17]/50 transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="construction">construction</span>
+<span class="hidden lg:block">Projects</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 font-['Rajdhani'] uppercase tracking-[0.05em] text-sm bg-[#0e1a17] text-[#C98B2A] border-l-4 border-[#C98B2A] transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+<span class="hidden lg:block">Finance</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 font-['Rajdhani'] uppercase tracking-[0.05em] text-sm text-[#dae5e1]/60 hover:text-[#dae5e1] hover:bg-[#0e1a17]/50 transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="engineering">engineering</span>
+<span class="hidden lg:block">O&amp;M</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 font-['Rajdhani'] uppercase tracking-[0.05em] text-sm text-[#dae5e1]/60 hover:text-[#dae5e1] hover:bg-[#0e1a17]/50 transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+<span class="hidden lg:block">Analytics</span>
+</a>
+</nav>
+</aside>
+<!-- TopAppBar Shell -->
+<header class="fixed top-0 right-0 left-20 lg:left-64 z-30 h-16 px-6 flex justify-between items-center bg-[#030504]/80 backdrop-blur-xl border-b border-white/10">
+<div class="flex items-center gap-8">
+<span class="font-['Rajdhani'] font-black text-[#C98B2A] text-xl">PROJECT_ALPHA_7</span>
+<nav class="hidden md:flex items-center gap-6">
+<a class="font-['Rajdhani'] font-medium text-lg text-[#dae5e1]/70 hover:text-[#C98B2A] transition-colors duration-300" href="#">Overview</a>
+<a class="font-['Rajdhani'] font-medium text-lg text-[#dae5e1]/70 hover:text-[#C98B2A] transition-colors duration-300" href="#">Resources</a>
+<a class="font-['Rajdhani'] font-medium text-lg text-[#dae5e1]/70 hover:text-[#C98B2A] transition-colors duration-300" href="#">Timeline</a>
+<a class="font-['Rajdhani'] font-medium text-lg text-[#dae5e1]/70 hover:text-[#C98B2A] transition-colors duration-300" href="#">Risk</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="bg-surface-container-lowest px-4 py-1.5 flex items-center gap-2 border-b-2 border-copper">
+<span class="material-symbols-outlined text-copper text-sm" data-icon="search">search</span>
+<input class="bg-transparent border-none text-sm font-label focus:ring-0 text-on-surface w-48 placeholder:text-on-surface-variant/40" placeholder="Global Search..." type="text"/>
+</div>
+<button class="p-2 text-on-surface-variant hover:text-copper transition-colors">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-copper/30">
+<img class="w-full h-full object-cover" data-alt="Close-up portrait of a professional female site engineer in a dark industrial environment with dramatic orange safety lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBH0z_iIkjXSx1-ZeIVim8M8smIyuSiJejMBgTAFDmDMTzTppuql6e541m5oBZ4ZJ6fcCJUgksnwFkAbmCTQVM3cBA6kyzEXf7lxv9EAsUmnGAANoPVoF0nuO3pqG9ZMuUQutewgrkliqhdsS9OILeJDOixFGsmVCd58Bz_1Gmrdq8aaX1PsIMqTBlwUGun1pKKs4EJFvvZlaWytzeLuQczMTg6TuSTVqlmL3PPLkl1WaG5QMHGZhqe6vCSuE-n34XgJFhyfheFL-4"/>
+</div>
+</div>
+</header>
+<main class="ml-20 lg:ml-64 pt-20 p-8 min-h-screen space-y-8">
+<!-- Dashboard Header -->
+<section class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+<div>
+<h2 class="font-headline text-4xl font-black tracking-tight text-on-surface uppercase leading-none">FINANCEIRO</h2>
+<div class="flex items-center gap-2 mt-2">
+<span class="w-2 h-2 rounded-full bg-patina animate-pulse"></span>
+<p class="font-label text-xs text-on-surface-variant uppercase tracking-widest">Active Monitoring System v4.2</p>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<div class="px-4 py-2 bg-patina/10 border border-patina/30 text-patina rounded-lg font-headline font-semibold text-sm flex items-center gap-2 uppercase tracking-wider">
+<span class="material-symbols-outlined text-sm" data-icon="filter_list">filter_list</span>
+                    Unidade: SUL_FRONTIER_SITE
+                </div>
+<button class="px-6 py-2 copper-gradient text-bg-void font-headline font-bold uppercase tracking-tighter hover:scale-[1.02] transition-transform active:scale-95">
+                    Exportar Relatório
+                </button>
+</div>
+</section>
+<!-- KPI Cards -->
+<section class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<!-- Card 1 -->
+<div class="glass p-6 group hover:border-copper/40 transition-all">
+<div class="flex justify-between items-start mb-4">
+<p class="font-headline text-on-surface-variant uppercase tracking-widest text-sm">Total Contratado</p>
+<span class="material-symbols-outlined text-copper opacity-40 group-hover:opacity-100" data-icon="account_balance_wallet">account_balance_wallet</span>
+</div>
+<div class="flex items-baseline gap-2">
+<span class="font-label text-copper text-lg">R$</span>
+<span class="font-headline text-4xl font-black text-on-surface tracking-tighter">12.450.000</span>
+</div>
+<div class="mt-4 flex items-center gap-2">
+<div class="flex-1 h-1 bg-surface-container-lowest overflow-hidden">
+<div class="h-full bg-copper w-[100%]"></div>
+</div>
+<span class="font-label text-[10px] text-on-surface-variant">BASE</span>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="glass p-6 group hover:border-patina/40 transition-all">
+<div class="flex justify-between items-start mb-4">
+<p class="font-headline text-on-surface-variant uppercase tracking-widest text-sm">Total Medido</p>
+<span class="material-symbols-outlined text-patina opacity-40 group-hover:opacity-100" data-icon="verified">verified</span>
+</div>
+<div class="flex items-baseline gap-2">
+<span class="font-label text-patina text-lg">R$</span>
+<span class="font-headline text-4xl font-black text-on-surface tracking-tighter">8.125.400</span>
+</div>
+<div class="mt-4 flex items-center gap-2">
+<div class="flex-1 h-1 bg-surface-container-lowest overflow-hidden">
+<div class="h-full bg-patina w-[65%]"></div>
+</div>
+<span class="font-label text-[10px] text-patina">65.2%</span>
+</div>
+</div>
+<!-- Card 3 -->
+<div class="glass p-6 group hover:border-white/20 transition-all">
+<div class="flex justify-between items-start mb-4">
+<p class="font-headline text-on-surface-variant uppercase tracking-widest text-sm">Saldo à Medir</p>
+<span class="material-symbols-outlined text-on-surface-variant opacity-40 group-hover:opacity-100" data-icon="pending_actions">pending_actions</span>
+</div>
+<div class="flex items-baseline gap-2">
+<span class="font-label text-on-surface-variant text-lg">R$</span>
+<span class="font-headline text-4xl font-black text-on-surface tracking-tighter">4.324.600</span>
+</div>
+<div class="mt-4 flex items-center gap-2">
+<div class="flex-1 h-1 bg-surface-container-lowest overflow-hidden">
+<div class="h-full bg-on-surface-variant/30 w-[34.8%]"></div>
+</div>
+<span class="font-label text-[10px] text-on-surface-variant">34.8%</span>
+</div>
+</div>
+</section>
+<!-- Analytics Grid -->
+<section class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+<!-- Donut Chart Container -->
+<div class="lg:col-span-2 glass p-6">
+<h3 class="font-headline text-xl font-bold uppercase tracking-wide mb-8 border-l-2 border-copper pl-4">Status de Medição Global</h3>
+<div class="flex items-center justify-between gap-4">
+<div class="relative w-48 h-48 flex items-center justify-center">
+<svg class="w-full h-full transform -rotate-90" viewbox="0 0 100 100">
+<circle cx="50" cy="50" fill="transparent" r="40" stroke="rgba(255,255,255,0.05)" stroke-width="12"></circle>
+<!-- Patina Segment (Approved) -->
+<circle cx="50" cy="50" fill="transparent" r="40" stroke="#2A9D8F" stroke-dasharray="163.3 251.2" stroke-dashoffset="0" stroke-width="12"></circle>
+<!-- Copper Segment (Pending) -->
+<circle cx="50" cy="50" fill="transparent" r="40" stroke="#C98B2A" stroke-dasharray="62.8 251.2" stroke-dashoffset="-163.3" stroke-width="12"></circle>
+<!-- Grey Segment (Not Processed) -->
+<circle cx="50" cy="50" fill="transparent" r="40" stroke="rgba(255,255,255,0.2)" stroke-dasharray="25.1 251.2" stroke-dashoffset="-226.1" stroke-width="12"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<span class="font-headline text-3xl font-black text-on-surface">65%</span>
+<span class="font-label text-[10px] text-on-surface-variant uppercase">Finalizado</span>
+</div>
+</div>
+<div class="flex-1 space-y-4">
+<div class="flex items-center gap-3">
+<span class="w-3 h-3 bg-patina rounded-sm"></span>
+<div>
+<p class="text-[10px] uppercase font-label text-on-surface-variant leading-none">Aprovado</p>
+<p class="font-headline font-bold text-sm">R$ 8.1M</p>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<span class="w-3 h-3 bg-copper rounded-sm"></span>
+<div>
+<p class="text-[10px] uppercase font-label text-on-surface-variant leading-none">Em Análise</p>
+<p class="font-headline font-bold text-sm">R$ 3.2M</p>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<span class="w-3 h-3 bg-on-surface-variant/30 rounded-sm"></span>
+<div>
+<p class="text-[10px] uppercase font-label text-on-surface-variant leading-none">Aguardando</p>
+<p class="font-headline font-bold text-sm">R$ 1.1M</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Horizontal Bar Chart -->
+<div class="lg:col-span-3 glass p-6">
+<h3 class="font-headline text-xl font-bold uppercase tracking-wide mb-8 border-l-2 border-copper pl-4">Custos por Centro</h3>
+<div class="space-y-6">
+<div class="space-y-2">
+<div class="flex justify-between font-label text-xs uppercase text-on-surface-variant">
+<span>Mão de Obra Direta</span>
+<span>R$ 4.2M</span>
+</div>
+<div class="h-6 bg-surface-container-lowest relative group">
+<div class="h-full bg-copper/80 w-[85%] group-hover:bg-copper transition-colors"></div>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between font-label text-xs uppercase text-on-surface-variant">
+<span>Suprimentos e Equipamentos</span>
+<span>R$ 3.8M</span>
+</div>
+<div class="h-6 bg-surface-container-lowest relative group">
+<div class="h-full bg-copper/60 w-[78%] group-hover:bg-copper transition-colors"></div>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between font-label text-xs uppercase text-on-surface-variant">
+<span>Logística e Transportes</span>
+<span>R$ 1.5M</span>
+</div>
+<div class="h-6 bg-surface-container-lowest relative group">
+<div class="h-full bg-copper/40 w-[42%] group-hover:bg-copper transition-colors"></div>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between font-label text-xs uppercase text-on-surface-variant">
+<span>Gestão e Overhead</span>
+<span>R$ 0.9M</span>
+</div>
+<div class="h-6 bg-surface-container-lowest relative group">
+<div class="h-full bg-copper/20 w-[24%] group-hover:bg-copper transition-colors"></div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Curva S Area Chart -->
+<section class="glass p-6">
+<div class="flex justify-between items-end mb-8 border-l-2 border-copper pl-4">
+<div>
+<h3 class="font-headline text-xl font-bold uppercase tracking-wide">Avanço Financeiro Acumulado</h3>
+<p class="font-label text-[10px] text-on-surface-variant uppercase mt-1">Curva S - Realizado vs Planejado</p>
+</div>
+<div class="flex gap-4">
+<div class="flex items-center gap-2">
+<span class="w-3 h-0.5 bg-patina"></span>
+<span class="font-label text-[10px] uppercase">Planejado</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="w-3 h-0.5 bg-copper"></span>
+<span class="font-label text-[10px] uppercase">Realizado</span>
+</div>
+</div>
+</div>
+<div class="relative h-64 w-full">
+<!-- SVG Chart Mockup -->
+<svg class="w-full h-full" preserveaspectratio="none" viewbox="0 0 1000 200">
+<defs>
+<lineargradient id="grad-copper" x1="0" x2="0" y1="0" y2="1">
+<stop offset="0%" stop-color="#C98B2A" stop-opacity="0.3"></stop>
+<stop offset="100%" stop-color="#C98B2A" stop-opacity="0"></stop>
+</lineargradient>
+<lineargradient id="grad-patina" x1="0" x2="0" y1="0" y2="1">
+<stop offset="0%" stop-color="#2A9D8F" stop-opacity="0.2"></stop>
+<stop offset="100%" stop-color="#2A9D8F" stop-opacity="0"></stop>
+</lineargradient>
+</defs>
+<!-- Grid Lines -->
+<line stroke="white" stroke-dasharray="4" stroke-opacity="0.05" x1="0" x2="1000" y1="40" y2="40"></line>
+<line stroke="white" stroke-dasharray="4" stroke-opacity="0.05" x1="0" x2="1000" y1="80" y2="80"></line>
+<line stroke="white" stroke-dasharray="4" stroke-opacity="0.05" x1="0" x2="1000" y1="120" y2="120"></line>
+<line stroke="white" stroke-dasharray="4" stroke-opacity="0.05" x1="0" x2="1000" y1="160" y2="160"></line>
+<!-- Area Planejado -->
+<path d="M0,200 L0,180 C100,175 200,160 300,140 C400,120 500,80 600,60 C700,45 800,30 900,20 L1000,10 L1000,200 Z" fill="url(#grad-patina)" stroke="#2A9D8F" stroke-opacity="0.5" stroke-width="2"></path>
+<!-- Area Realizado -->
+<path d="M0,200 L0,185 C100,182 200,170 300,155 C400,140 500,100 600,85 C650,78 680,82 720,75 L720,200 Z" fill="url(#grad-copper)" stroke="#C98B2A" stroke-width="3"></path>
+</svg>
+<div class="absolute inset-0 flex items-end justify-between px-2 pt-4 pointer-events-none font-label text-[9px] text-on-surface-variant/40 uppercase">
+<span>Jan</span>
+<span>Fev</span>
+<span>Mar</span>
+<span>Abr</span>
+<span>Mai</span>
+<span>Jun</span>
+<span>Jul</span>
+<span>Ago</span>
+<span>Set</span>
+<span>Out</span>
+</div>
+</div>
+</section>
+<!-- Detailed Table -->
+<section class="glass overflow-hidden">
+<div class="px-6 py-4 border-b border-white/5 flex justify-between items-center bg-surface-container-low/50">
+<h3 class="font-headline text-lg font-bold uppercase tracking-wide">Detalhamento Financeiro por Marco</h3>
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="unfold_more">unfold_more</span>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead class="bg-surface-container-lowest">
+<tr>
+<th class="px-6 py-3 font-headline text-xs font-bold uppercase text-on-surface-variant tracking-widest border-b border-white/5">Marco / Fase</th>
+<th class="px-6 py-3 font-headline text-xs font-bold uppercase text-on-surface-variant tracking-widest border-b border-white/5">Data Prevista</th>
+<th class="px-6 py-3 font-headline text-xs font-bold uppercase text-on-surface-variant tracking-widest border-b border-white/5">Valor Contratado</th>
+<th class="px-6 py-3 font-headline text-xs font-bold uppercase text-on-surface-variant tracking-widest border-b border-white/5">Variação (%)</th>
+<th class="px-6 py-3 font-headline text-xs font-bold uppercase text-on-surface-variant tracking-widest border-b border-white/5">Status</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-white/5">
+<tr class="hover:bg-white/5 transition-colors group">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-1.5 h-12 bg-patina shadow-[0_0_10px_rgba(42,157,143,0.3)]"></div>
+<div>
+<p class="font-headline font-bold text-on-surface">M1 - INFRAESTRUTURA BASE</p>
+<p class="font-label text-[10px] text-on-surface-variant uppercase">Cod: IF-2024-001</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 font-label text-sm">15/02/2024</td>
+<td class="px-6 py-4 font-label text-sm">R$ 2.450.000,00</td>
+<td class="px-6 py-4 text-patina font-label text-sm">+0.0%</td>
+<td class="px-6 py-4">
+<span class="px-2 py-1 bg-patina/20 text-patina text-[10px] font-bold uppercase tracking-widest">Liquidado</span>
+</td>
+</tr>
+<tr class="hover:bg-white/5 transition-colors group">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-1.5 h-12 bg-patina shadow-[0_0_10px_rgba(42,157,143,0.3)]"></div>
+<div>
+<p class="font-headline font-bold text-on-surface">M2 - SUPERESTRUTURA METÁLICA</p>
+<p class="font-label text-[10px] text-on-surface-variant uppercase">Cod: SM-2024-005</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 font-label text-sm">30/05/2024</td>
+<td class="px-6 py-4 font-label text-sm">R$ 3.120.000,00</td>
+<td class="px-6 py-4 text-patina font-label text-sm">+2.4%</td>
+<td class="px-6 py-4">
+<span class="px-2 py-1 bg-patina/20 text-patina text-[10px] font-bold uppercase tracking-widest">Liquidado</span>
+</td>
+</tr>
+<tr class="hover:bg-white/5 transition-colors group">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-1.5 h-12 bg-copper shadow-[0_0_10px_rgba(201,139,42,0.3)]"></div>
+<div>
+<p class="font-headline font-bold text-on-surface">M3 - INSTALAÇÕES E CABEAMENTO</p>
+<p class="font-label text-[10px] text-on-surface-variant uppercase">Cod: IC-2024-012</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 font-label text-sm">22/07/2024</td>
+<td class="px-6 py-4 font-label text-sm">R$ 1.850.000,00</td>
+<td class="px-6 py-4 text-copper font-label text-sm">-1.5%</td>
+<td class="px-6 py-4">
+<span class="px-2 py-1 bg-copper/20 text-copper text-[10px] font-bold uppercase tracking-widest">Medição em Aberto</span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="px-6 py-4 bg-surface-container-lowest/50 flex justify-end gap-2 border-t border-white/5">
+<button class="p-2 border border-white/5 hover:border-copper transition-colors">
+<span class="material-symbols-outlined text-sm" data-icon="chevron_left">chevron_left</span>
+</button>
+<button class="p-2 border border-copper text-copper">
+<span class="font-label text-xs">01</span>
+</button>
+<button class="p-2 border border-white/5 hover:border-copper transition-colors">
+<span class="font-label text-xs">02</span>
+</button>
+<button class="p-2 border border-white/5 hover:border-copper transition-colors">
+<span class="material-symbols-outlined text-sm" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+</section>
+</main>
+</body></html>

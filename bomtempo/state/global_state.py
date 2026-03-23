@@ -7,7 +7,9 @@ import base64
 import json
 import math
 import re
+import secrets
 import tempfile
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -23,6 +25,7 @@ from bomtempo.core.logging_utils import get_logger
 from bomtempo.core.audit_logger import audit_log, audit_error, AuditCategory
 from bomtempo.core.supabase_client import sb_select, sb_insert, sb_rpc
 from bomtempo.core.ai_tools import AI_TOOLS, execute_tool
+from bomtempo.core.auth_utils import verify_password
 
 logger = get_logger(__name__)
 
@@ -63,65 +66,6 @@ class GlobalState(rx.State):
             loader = DataLoader()
             self._data = loader.load_all()
 
-    async def _perform_ai_query(self, _question: str):
-        """Unified context-aware AI logic for both Desk/Mobile and Text/Voice chat."""
-        # Visual feedback
-        yield rx.toast("Processando...", position="top-center")
-
-        try:
-            # CRITICAL: Ensure data is loaded for context
-            await self.ensure_data_loaded()
-
-            # Prepare context
-            dashboard_context = AIContext.get_dashboard_context(self._data)
-
-            # Detect Mobile User (Role-based)
-            is_mobile = self.current_user_role == "Gestão-Mobile"
-            system_prompt = AIContext.get_system_prompt(is_mobile=is_mobile)
-
-            # Build messages with focus on context and history
-            messages = [{"role": "system", "content": f"{system_prompt}\n\n{dashboard_context}"}]
-
-            # Add recent history (last 6 messages)
-            history_msgs = [
-                {"role": m["role"], "content": m["content"]} for m in self.chat_history[-6:]
-            ]
-            messages.extend(history_msgs)
-
-            response_content = ai_client.query(messages)
-
-            self.chat_history.append(_msg("assistant", response_content))
-
-            # Handle TTS if in Talking Mode
-            if self.is_talking_mode:
-                self.last_spoken_response = response_content
-                from bomtempo.core.tts_service import TTSService
-
-                logger.info("Starting TTS generation...")
-                audio_path = TTSService.generate_speech(response_content)
-                if audio_path:
-                    import time
-
-                    final_url = f"{audio_path}?t={int(time.time())}"
-                    self.latest_audio_src = final_url
-                    self.is_speaking = True
-                    yield rx.call_script(
-                        f"if(window.playResponseAudio) window.playResponseAudio('{final_url}')"
-                    )
-                else:
-                    self.last_spoken_response += "\n\n(⚠️ Falha na geração de áudio.)"
-
-            # Auto-scroll after AI response
-            yield rx.call_script("window.scrollToBottom('chat-container')")
-
-        except Exception as e:
-            logger.error(f"Erro no chat: {e}")
-            self.chat_history.append(_msg("assistant", "Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente."))
-            yield rx.toast("Erro ao processar mensagem.", position="top-center")
-        finally:
-            self.is_processing_chat = False
-            self.current_question = ""
-            yield rx.call_script("window.clearChatInput()")
 
     async def send_message(self):
         """Envia mensagem para a IA e processa resposta com streaming real."""
@@ -170,7 +114,8 @@ class GlobalState(rx.State):
             sb_insert("chat_messages", data)
             # Atualiza timestamp da sessão
             sb_rpc("update_session_timestamp", {"sess_id": self.chat_session_id})
-        except: pass
+        except Exception as e:
+            logger.warning(f"save_chat_msg falhou (não crítico): {e}")
 
     @rx.event(background=True)
     async def stream_chat_bg(self):
@@ -403,6 +348,60 @@ class GlobalState(rx.State):
     is_authenticating: bool = False   # Intermediate auth button state (login page)
     error_message: str = ""
 
+    # --- Forgot Password State ---
+    forgot_password_email: str = ""
+    forgot_password_error: str = ""
+    forgot_password_success: bool = False
+    is_sending_reset: bool = False
+    show_forgot_password: bool = False
+
+    def toggle_forgot_password(self):
+        self.show_forgot_password = not self.show_forgot_password
+        self.forgot_password_error = ""
+        self.forgot_password_success = False
+        self.forgot_password_email = ""
+
+    async def send_reset_link(self):
+        if not self.forgot_password_email or "@" not in self.forgot_password_email:
+            self.forgot_password_error = "Por favor, digite um email válido."
+            return
+
+        self.is_sending_reset = True
+        self.forgot_password_error = ""
+        yield
+
+        try:
+            # Check if user exists
+            user = sb_select("login", filters={"email": self.forgot_password_email}, limit=1)
+            
+            # Security: Always show success to prevent email enumeration, 
+            # but only send if user actually exists.
+            if user:
+                token = secrets.token_urlsafe(32)
+                expires_at = (datetime.now() + timedelta(hours=1)).isoformat()
+
+                # Save token
+                sb_insert("password_reset_tokens", {
+                    "user_id": user[0]["id"],
+                    "token": token,
+                    "expires_at": expires_at
+                })
+
+                # Send email
+                from bomtempo.core.email_service import EmailService
+                from bomtempo.core.config import Config
+                reset_link = f"{Config.APP_URL}/reset-password?token={token}"
+                
+                EmailService.send_password_reset_email(self.forgot_password_email, reset_link)
+            
+            self.forgot_password_success = True
+            
+        except Exception as e:
+            logger.error(f"Reset link error: {e}")
+            self.forgot_password_error = "Ocorreu um erro no servidor. Tente novamente."
+        
+        self.is_sending_reset = False
+
     # Dados processados para UI
     contratos_list: List[Dict[str, Any]] = []
     projetos_list: List[Dict[str, Any]] = []
@@ -425,11 +424,19 @@ class GlobalState(rx.State):
     projetos_search: str = ""
     projetos_fase_filter: str = ""
 
-    # Obras page state
+    # Obras page state (legacy — kept for backwards compat with relatorios.py etc.)
     obras_selected_contract: str = ""
     obra_insight_text: str = ""
     obra_insight_loading: bool = False
     obras_navigating: bool = False   # True while transitioning list→detail or back
+
+    # ── Unified Gestão de Projetos Hub ──────────────────────────
+    selected_project: str = ""          # Unified: contract code e.g. "BOM010-24"
+    project_hub_tab: str = "visao_geral"  # Active tab
+    project_search: str = ""            # Search term for pulse cards list
+    project_status_filter: str = ""     # Status filter
+    project_campo_rdos: List[Dict[str, Any]] = []
+    project_campo_loading: bool = False
 
     # O&M page state
     om_time_filter: str = ""  # Empty = no time filter applied
@@ -1212,7 +1219,11 @@ class GlobalState(rx.State):
         self._recompute_fin_charts()
 
     def load_data(self):
-        """Carrega dados iniciais"""
+        """Carrega dados iniciais com guard de autentização"""
+        if not self.is_authenticated:
+            logger.warning("🚫 Tentativa de load_data sem autenticação.")
+            return rx.redirect("/")
+
         self.is_navigating = False  # Encerra feedback de navegação ao chegar na nova página
         # Se já temos dados, não recarrega (Persistência na Sessão)
         if self.contratos_list:
@@ -1414,6 +1425,14 @@ class GlobalState(rx.State):
     def toggle_sidebar(self):
         self.sidebar_open = not self.sidebar_open
 
+    async def toggle_theme(self):
+        self.theme_mode = "light" if self.theme_mode == "dark" else "dark"
+        mode = self.theme_mode
+        yield rx.call_script(
+            f"document.documentElement.setAttribute('data-theme', '{mode}');"
+            f"try{{localStorage.setItem('bomtempo-theme', '{mode}');}}catch(e){{}}"
+        )
+
     def set_navigating(self):
         """Seta is_navigating=True para exibir top-bar imediatamente ao clicar na sidebar.
         A navegação SPA em si é feita pelo rx.link(href=...) — não usamos redirect aqui
@@ -1448,9 +1467,6 @@ class GlobalState(rx.State):
         if self.current_user_role != "Gestão-Mobile":
             return rx.redirect("/")
 
-    def toggle_theme(self):
-        self.theme_mode = "light" if self.theme_mode == "dark" else "dark"
-
     def select_contrato(self, contrato: str):
         self.selected_contrato = contrato
 
@@ -1475,24 +1491,6 @@ class GlobalState(rx.State):
         self.login_error = ""
         yield
 
-        # ── Emergency Fallback ────────────────────────────────────────────────
-        if username == "fallback" and password == "2":
-            self.is_authenticated = True
-            self.current_user_name = "fallback"
-            self.current_user_role = "Administrador"
-            self.current_user_contrato = ""
-            from bomtempo.state.usuarios_state import MODULE_SLUGS
-            self.allowed_modules = list(MODULE_SLUGS)
-            self.login_error = ""
-            self.username_input = ""
-            self.password_input = ""
-            self.is_authenticating = False
-            self.show_loading_screen = True
-            yield
-            yield GlobalState.load_initial_data_smooth
-            yield rx.redirect("/")
-            return
-
         # ── Supabase ──────────────────────────────────────────────────────────
         try:
             import os
@@ -1510,11 +1508,15 @@ class GlobalState(rx.State):
             from bomtempo.core.supabase_client import sb_select
 
             # Busca apenas o usuário específico — não carrega tabela inteira
-            user_rows = sb_select("login", filters={"username": username}, limit=1)
+            # Try 'user' column first (original schema), fallback to 'username'
+            user_rows = sb_select("login", filters={"user": username}, limit=1)
+            if not user_rows:
+                user_rows = sb_select("login", filters={"username": username}, limit=1)
             logger.info(f"Supabase login: query filtrada p/ '{username}' → {len(user_rows)} linha(s)")
 
             def _get_password_field(row: dict) -> str:
-                for key in ("password", "senha", "pass", "pwd"):
+                # pw_hash first (post-migration), then legacy column names
+                for key in ("pw_hash", "password", "senha", "pass", "pwd"):
                     val = row.get(key)
                     if val is not None:
                         return str(val).strip()
@@ -1543,7 +1545,7 @@ class GlobalState(rx.State):
                 self.is_authenticated = False
                 return
 
-            if _get_password_field(matched) != password:
+            if not verify_password(_get_password_field(matched), password):
                 logger.warning(f"Senha incorreta para '{username}'")
                 audit_log(
                     category=AuditCategory.LOGIN,
@@ -1649,14 +1651,20 @@ class GlobalState(rx.State):
             self.is_authenticated = False
 
     async def guard_index_page(self):
-        """on_load da página /: redireciona roles sem permissão antes de renderizar conteúdo."""
-        if self.is_authenticated and self.current_user_role == "Mestre de Obras":
+        """on_load da página /: redireciona roles sem permissão ou usuários não autenticados."""
+        if not self.is_authenticated:
+            # Se não estiver logado, não carrega dados e deixa na página de login (index renderiza condicionalmente)
+            # Na verdade bomtempo.py usa index_page() wrapped em default_layout()
+            # Precisamos garantir que o layout mostre o login se is_authenticated for False.
+            return
+
+        if self.current_user_role == "Mestre de Obras":
             yield rx.redirect("/rdo-form")
             return
-        if self.is_authenticated and self.current_user_role == "solicitacao_reembolso":
+        if self.current_user_role == "solicitacao_reembolso":
             yield rx.redirect("/reembolso")
             return
-        if self.is_authenticated and self.current_user_role == "data_edit":
+        if self.current_user_role == "data_edit":
             yield rx.redirect("/admin/editar_dados")
             return
         yield GlobalState.load_data
@@ -2338,6 +2346,204 @@ class GlobalState(rx.State):
 
         return result
 
+    # ── Unified Gestão de Projetos Hub computed vars ───────────────
+
+    @rx.var
+    def project_pulse_cards(self) -> List[Dict[str, Any]]:
+        """Enriched pulse cards for the unified project list view.
+        One card per contract with obras KPIs + sparkline + days to deadline.
+        """
+        if not self.contratos_list:
+            return []
+
+        import math
+        from datetime import datetime
+
+        df_obras = self._data.get("obras")
+        df_proj = self._data.get("projeto")
+        today = datetime.now()
+
+        search = self.project_search.lower()
+        status_filter = self.project_status_filter
+
+        cards = []
+        for c in self.contratos_list:
+            code = str(c.get("contrato", ""))
+            cliente = str(c.get("cliente", ""))
+            status = str(c.get("status", ""))
+
+            # Search filter
+            if search and search not in code.lower() and search not in cliente.lower():
+                continue
+            # Status filter
+            if status_filter and status != status_filter:
+                continue
+
+            # ── Obras data ────────────────────────────────────────
+            avanco = 0.0
+            risco = 0
+            equipe = 0
+            efetivo = 0
+            budget_p = 0.0
+            budget_r = 0.0
+            localizacao = str(c.get("localizacao", "—"))
+
+            if df_obras is not None and not df_obras.empty and "contrato" in df_obras.columns:
+                sub = df_obras[df_obras["contrato"] == code]
+                if not sub.empty:
+                    if "realizado_pct" in sub.columns:
+                        avanco = round(float(sub["realizado_pct"].mean()), 1)
+                    if "risco_geral_score" in sub.columns:
+                        risco = int(sub["risco_geral_score"].max())
+                    if "equipe_presente_hoje" in sub.columns:
+                        equipe = int(sub["equipe_presente_hoje"].max())
+                    if "efetivo_planejado" in sub.columns:
+                        efetivo = int(sub["efetivo_planejado"].max())
+                    if "budget_planejado" in sub.columns:
+                        budget_p = float(sub["budget_planejado"].max())
+                    if "budget_realizado" in sub.columns:
+                        budget_r = float(sub["budget_realizado"].max())
+                    if "localizacao" in sub.columns:
+                        lv = sub["localizacao"].dropna()
+                        if not lv.empty:
+                            localizacao = str(lv.iloc[0])
+
+            # ── Sparkline: last 7 daily avg realizado_pct ────────
+            spark = [0.0] * 7
+            if df_obras is not None and not df_obras.empty and "contrato" in df_obras.columns:
+                sub = df_obras[df_obras["contrato"] == code].copy()
+                if not sub.empty and "data" in sub.columns and "realizado_pct" in sub.columns:
+                    sub["data"] = pd.to_datetime(sub["data"], errors="coerce")
+                    daily = sub.dropna(subset=["data"]).sort_values("data")
+                    daily = daily.groupby("data")["realizado_pct"].mean().tail(7).tolist()
+                    while len(daily) < 7:
+                        daily.insert(0, 0.0)
+                    spark = [round(float(v), 1) for v in daily]
+
+            spark_max = max(spark) if any(v > 0 for v in spark) else 1.0
+
+            # ── Progress from projetos DF ─────────────────────────
+            progress = avanco
+            if df_proj is not None and not df_proj.empty and "contrato" in df_proj.columns:
+                ps = df_proj[df_proj["contrato"] == code]
+                if not ps.empty and "conclusao_pct" in ps.columns:
+                    progress = round(float(ps["conclusao_pct"].mean()), 1)
+
+            # ── Days to deadline ──────────────────────────────────
+            days_fmt = "—"
+            days_int = -1
+            if df_proj is not None and not df_proj.empty and "contrato" in df_proj.columns:
+                ps = df_proj[df_proj["contrato"] == code]
+                if not ps.empty and "termino_previsto" in ps.columns:
+                    td = pd.to_datetime(ps["termino_previsto"], errors="coerce").max()
+                    if pd.notna(td):
+                        days_int = (td.to_pydatetime().replace(tzinfo=None) - today).days
+                        if days_int < 0:
+                            days_fmt = "Vencido"
+                        elif days_int == 0:
+                            days_fmt = "Hoje"
+                        else:
+                            days_fmt = f"{days_int}d"
+
+            # ── Risk label ────────────────────────────────────────
+            if risco >= 60:
+                risco_label = "CRÍTICO"
+                risco_color = "#EF4444"
+                risco_bg = "rgba(239,68,68,0.12)"
+            elif risco >= 30:
+                risco_label = "ATENÇÃO"
+                risco_color = "#F59E0B"
+                risco_bg = "rgba(245,158,11,0.12)"
+            else:
+                risco_label = "SAUDÁVEL"
+                risco_color = "#2A9D8F"
+                risco_bg = "rgba(42,157,143,0.12)"
+
+            # ── Status color ──────────────────────────────────────
+            if status == "Em Execução":
+                status_color = "#2A9D8F"
+                status_bg = "rgba(42,157,143,0.12)"
+            elif status == "Concluído":
+                status_color = "#C98B2A"
+                status_bg = "rgba(201,139,42,0.12)"
+            else:
+                status_color = "#889999"
+                status_bg = "rgba(136,153,153,0.1)"
+
+            cards.append({
+                "contrato": code,
+                "label": f"{code} - {cliente}",
+                "cliente": cliente,
+                "status": status,
+                "status_color": status_color,
+                "status_bg": status_bg,
+                "localizacao": localizacao,
+                "progress": round(progress, 1),
+                "progress_fmt": f"{round(progress, 1):.1f}%",
+                "risco_geral_score": risco,
+                "risco_label": risco_label,
+                "risco_color": risco_color,
+                "risco_bg": risco_bg,
+                "days_to_deadline": days_int,
+                "days_fmt": days_fmt,
+                "equipe": equipe,
+                "efetivo": efetivo,
+                "budget_planejado": budget_p,
+                "budget_realizado": budget_r,
+                # Sparkline: 7 explicit fields to avoid chained subscript
+                "spark0": spark[0], "spark1": spark[1], "spark2": spark[2],
+                "spark3": spark[3], "spark4": spark[4], "spark5": spark[5],
+                "spark6": spark[6],
+                "spark_max": spark_max,
+            })
+
+        return cards
+
+    @rx.var
+    def project_scurve_chart(self) -> List[Dict[str, Any]]:
+        """Daily previsto vs realizado for selected project S-curve chart."""
+        code = self.selected_project
+        if not code:
+            return []
+        df = self._data.get("obras")
+        if df is None or df.empty or "contrato" not in df.columns:
+            return []
+        sub = df[df["contrato"] == code].copy()
+        if sub.empty or "data" not in sub.columns:
+            return []
+        sub["data"] = pd.to_datetime(sub["data"], errors="coerce")
+        sub = sub.dropna(subset=["data"]).sort_values("data")
+        cols = {}
+        if "previsto_pct" in sub.columns:
+            cols["previsto"] = ("previsto_pct", "mean")
+        if "realizado_pct" in sub.columns:
+            cols["realizado"] = ("realizado_pct", "mean")
+        if not cols:
+            return []
+        agg = {v[0]: v[1] for v in cols.values()}
+        rename = {v[0]: k for k, v in cols.items()}
+        grp = sub.groupby("data").agg(**{k: pd.NamedAgg(column=v[0], aggfunc=v[1]) for k, v in cols.items()}).reset_index()
+        grp["data"] = grp["data"].dt.strftime("%d/%m")
+        for col in cols.keys():
+            if col in grp.columns:
+                grp[col] = grp[col].round(1)
+        return grp.to_dict("records")
+
+    @rx.var
+    def project_campo_rdos_display(self) -> List[Dict[str, str]]:
+        """Pre-formatted RDO rows for foreach in Campo tab."""
+        return [
+            {
+                "id": str(r.get("id", "")),
+                "data_rdo": str(r.get("data_rdo", "—"))[:10],
+                "responsavel": str(r.get("responsavel_tecnico", r.get("responsavel", "—"))),
+                "atividade": str(r.get("atividade_principal", r.get("descricao", "—")))[:60],
+                "pdf_url": str(r.get("pdf_url", r.get("pdf_path", ""))),
+                "status": str(r.get("status", "enviado")),
+            }
+            for r in self.project_campo_rdos
+        ]
+
     # ── Obras Enterprise (Revamp) ─────────────────────────────────
 
     @rx.var
@@ -2560,6 +2766,7 @@ class GlobalState(rx.State):
             "risco_color": risco_color,
             "risco_bg": risco_bg,
             "avanco_fmt": f"{avanco:.1f}%",
+            "avanco_pct": round(avanco, 1),   # numeric — used by S-Curve reference_line
             "disc_val": disc_val,
             "disc_sub": disc_sub,
             "disc_icon_color": disc_icon_color,
@@ -2831,6 +3038,81 @@ class GlobalState(rx.State):
     weather_loading: bool = False
     weather_risk_level: str = "Unknown"
     weather_location_name: str = "Recife, PE"
+    weather_lat: float = -8.0543
+    weather_lon: float = -34.8813
+    windy_layer: str = "rain"  # active Windy overlay: rain | satellite | wind | temp
+
+    # ── Unified Project Hub handlers ─────────────────────────────────────────────
+
+    def set_project_search(self, value: str):
+        self.project_search = value
+
+    def set_project_status_filter(self, value: str):
+        if self.project_status_filter == value:
+            self.project_status_filter = ""
+        else:
+            self.project_status_filter = value
+
+    def set_project_hub_tab(self, tab: str):
+        self.project_hub_tab = tab
+
+    def set_windy_layer(self, layer: str):
+        """Switch the active Windy map overlay layer."""
+        self.windy_layer = layer
+
+    @rx.event(background=True)
+    async def select_project(self, code: str):
+        """Unified entry point for Gestão de Projetos Hub.
+        Sets both legacy vars (for backward compat) and new unified var.
+        """
+        async with self:
+            self.selected_project = code
+            self.selected_contrato = code            # drives filtered_projetos / activity_timeline
+            self.obras_selected_contract = code      # drives obra_kpi_fmt / disciplina_gauges_list
+            self.project_hub_tab = "visao_geral"
+            self.obra_insight_text = ""
+            self.obra_insight_loading = True
+            self.weather_loading = True
+            self.weather_data = {}
+            self.project_campo_rdos = []
+            self.project_campo_loading = False
+            yield GlobalState.load_weather_data
+            yield GlobalState.generate_obra_insight_bg
+
+    @rx.event(background=True)
+    async def deselect_project(self):
+        """Return to the project pulse list view."""
+        async with self:
+            self.selected_project = ""
+            self.selected_contrato = ""
+            self.obras_selected_contract = ""
+            self.obra_insight_text = ""
+            self.obra_insight_loading = False
+            self.project_hub_tab = "visao_geral"
+            self.project_campo_rdos = []
+            self.project_campo_loading = False
+
+    @rx.event(background=True)
+    async def load_project_campo_rdos(self):
+        """Load recent RDOs for the selected project (Campo tab)."""
+        import asyncio
+        async with self:
+            code = self.selected_project
+            self.project_campo_loading = True
+        if not code:
+            async with self:
+                self.project_campo_loading = False
+            return
+        from bomtempo.core.supabase_client import sb_select
+        loop = asyncio.get_running_loop()
+        rdos = await loop.run_in_executor(
+            None,
+            lambda: sb_select("rdo_master", filters={"contrato": code}, limit=20) or []
+        )
+        rdos_sorted = sorted(rdos, key=lambda r: str(r.get("data_rdo", "")), reverse=True)
+        async with self:
+            self.project_campo_rdos = rdos_sorted
+            self.project_campo_loading = False
 
     @rx.event(background=True)
     async def select_obra_detail(self, label: str):
@@ -2995,7 +3277,7 @@ class GlobalState(rx.State):
                 if " - " in contract_to_use
                 else contract_to_use
             )
-            logger.info(f"DEBUG: Processing weather for contract: '{target_code}'")
+            logger.debug(f"Processing weather for contract: '{target_code}'")
 
             if df_obras_ref is not None and not df_obras_ref.empty:
                 for _, row in df_obras_ref.iterrows():
@@ -3004,7 +3286,7 @@ class GlobalState(rx.State):
                         target_code in contrato_val or contrato_val in target_code
                     ):
                         city = str(row.get("localizacao", "")).strip()
-                        logger.info(f"DEBUG: Found in OBRA. City: '{city}'")
+                        logger.debug(f"Weather lookup: found city '{city}' via OBRA")
                         break
 
             if not city and df_contratos_ref is not None and not df_contratos_ref.empty:
@@ -3014,12 +3296,12 @@ class GlobalState(rx.State):
                         target_code in contrato_val or contrato_val in target_code
                     ):
                         city = str(row.get("localizacao", "")).strip()
-                        logger.info(f"DEBUG: Found in CONTRATOS. City: '{city}'")
+                        logger.debug(f"Weather lookup: found city '{city}' via CONTRATOS")
                         break
 
         # ── Step 3: geocoding HTTP call — outside the lock ──────────────────
         if city and city.lower() not in ("", "nan"):
-            logger.info(f"DEBUG: Geocoding city: '{city}'")
+            logger.debug(f"Geocoding city: '{city}'")
             try:
                 coords = await weather_api.get_coordinates(city)
                 if coords:
@@ -3032,6 +3314,8 @@ class GlobalState(rx.State):
         # ── Step 4: mark loading (brief lock) ───────────────────────────────
         async with self:
             self.weather_location_name = location_name
+            self.weather_lat = lat
+            self.weather_lon = lon
             self.weather_loading = True
 
         # ── Step 5: forecast HTTP call — outside the lock ───────────────────

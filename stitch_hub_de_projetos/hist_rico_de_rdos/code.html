@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "inverse-primary": "#835500",
+              "on-tertiary-container": "#422c00",
+              "on-primary": "#452b00",
+              "background": "#0b1513",
+              "on-tertiary-fixed-variant": "#5f4100",
+              "on-surface-variant": "#d5c4b0",
+              "error": "#ffb4ab",
+              "surface-tint": "#ffb955",
+              "surface-container": "#17221f",
+              "inverse-surface": "#dae5e1",
+              "on-secondary-fixed-variant": "#005048",
+              "on-primary-fixed-variant": "#633f00",
+              "surface-container-high": "#222c2a",
+              "secondary": "#6fd8c8",
+              "tertiary-fixed": "#ffdeac",
+              "on-primary-container": "#442a00",
+              "surface-container-low": "#131d1b",
+              "on-secondary-container": "#00302a",
+              "secondary-fixed-dim": "#6fd8c8",
+              "surface-variant": "#2c3734",
+              "on-secondary": "#003731",
+              "on-primary-fixed": "#291800",
+              "outline": "#9e8e7d",
+              "primary-fixed-dim": "#ffb955",
+              "outline-variant": "#514536",
+              "on-error-container": "#ffdad6",
+              "surface": "#0b1513",
+              "surface-dim": "#0b1513",
+              "on-error": "#690005",
+              "secondary-container": "#30a193",
+              "tertiary-container": "#c48e23",
+              "surface-container-highest": "#2c3734",
+              "surface-bright": "#313b39",
+              "inverse-on-surface": "#283230",
+              "on-tertiary-fixed": "#281900",
+              "primary": "#ffb955",
+              "tertiary-fixed-dim": "#f9bc4f",
+              "primary-container": "#c98b2a",
+              "surface-container-lowest": "#06100e",
+              "primary-fixed": "#ffddb4",
+              "on-secondary-fixed": "#00201c",
+              "secondary-fixed": "#8cf5e4",
+              "on-tertiary": "#432c00",
+              "on-surface": "#dae5e1",
+              "error-container": "#93000a",
+              "on-background": "#dae5e1",
+              "tertiary": "#f9bc4f"
+            },
+            fontFamily: {
+              "headline": ["Rajdhani", "sans-serif"],
+              "body": ["Plus Jakarta Sans", "sans-serif"],
+              "label": ["JetBrains Mono", "monospace"],
+              "display": ["Rajdhani", "sans-serif"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+      .glass-card {
+        background: rgba(14, 26, 23, 0.6);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .ghost-border {
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      .active-pill {
+        box-shadow: 0 0 15px rgba(201, 139, 42, 0.3);
+      }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-[#030504] text-on-surface font-body min-h-screen pb-24 selection:bg-primary-container selection:text-on-primary-container">
+<!-- Top Navigation Anchor (Shared Component: TopAppBar) -->
+<header class="fixed top-0 left-0 w-full z-50 bg-[#030504]/60 backdrop-blur-md shadow-[0_20px_40px_rgba(0,0,0,0.4)]">
+<div class="flex flex-col w-full px-4 pt-4">
+<div class="flex items-center justify-between mb-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full border border-primary-container overflow-hidden">
+<img alt="User profile" class="w-full h-full object-cover" data-alt="close-up portrait of a professional engineer wearing a safety vest in a high-tech industrial environment" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDADjXBLxkc8IctohEN7p0R4g-Y4Ek8g730K-N1nqaTR-X_CXB912itCOO9OmFy4H3p-ayfDm36frh3vrlV998KI80LuZF-s8Rd6Dpv_2bojrlLgCCUgDqMlPw29fFUM5JWivM_Nbkh1UIYYf7PylzVxCVVmKJ5q6ouNedWqQzmkOWZ8eyHKfWCJhQUR6i2deQqjbmjyG6gn8XBYQLYoW74V80m5fz4xMvEho_EKnMQefPfgvQtTihmckrjCeh3bFKam5Fns4Jai3g"/>
+</div>
+<span class="font-headline uppercase tracking-[0.05em] font-bold text-xl text-primary-container">FIELD_OPS</span>
+</div>
+<button class="text-primary-container hover:opacity-80 transition-all active:scale-95">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+</div>
+<!-- Module Specific Tabs -->
+<div class="flex border-b border-white/5">
+<button class="flex-1 py-3 text-center text-[#dae5e1]/60 font-medium font-headline uppercase tracking-wider hover:text-primary-container transition-colors">
+                    NOVO RDO
+                </button>
+<button class="flex-1 py-3 text-center text-primary-container border-b-2 border-primary-container font-bold font-headline uppercase tracking-wider">
+                    MEUS RDOS
+                </button>
+</div>
+</div>
+</header>
+<main class="mt-32 px-4 space-y-8">
+<!-- Section: Rascunhos (Drafts) -->
+<section>
+<div class="flex items-center justify-between mb-4">
+<h2 class="font-headline text-lg uppercase tracking-widest text-on-surface flex items-center gap-2">
+<span class="w-2 h-2 bg-primary-container"></span>
+                    Rascunhos
+                </h2>
+<span class="font-label text-xs text-primary-container opacity-60">2 ITENS</span>
+</div>
+<div class="space-y-4">
+<!-- Draft Card 1 -->
+<div class="glass-card p-4 group transition-all duration-300">
+<div class="flex justify-between items-start mb-3">
+<div>
+<p class="font-label text-[10px] text-primary-container mb-1 tracking-tighter">ID: DRAFT_8829</p>
+<h3 class="font-headline text-lg leading-tight text-on-surface">Instalação de Turbinas Eólicas</h3>
+</div>
+<div class="text-right">
+<p class="font-label text-[10px] text-on-surface/40 uppercase">Última edição</p>
+<p class="font-label text-xs text-on-surface/80">Hoje, 09:42</p>
+</div>
+</div>
+<div class="flex gap-2 mt-4">
+<button class="flex-1 bg-primary-container text-on-primary py-2 px-4 font-headline font-bold uppercase text-sm flex items-center justify-center gap-2 hover:bg-[#E0A63B] transition-colors active-pill">
+<span class="material-symbols-outlined text-sm" data-icon="edit">edit</span>
+                            CONTINUE
+                        </button>
+<button class="px-4 py-2 ghost-border text-on-surface/60 hover:text-error hover:border-error transition-colors">
+<span class="material-symbols-outlined text-sm" data-icon="delete">delete</span>
+</button>
+</div>
+</div>
+<!-- Draft Card 2 -->
+<div class="glass-card p-4 group transition-all duration-300">
+<div class="flex justify-between items-start mb-3">
+<div>
+<p class="font-label text-[10px] text-primary-container mb-1 tracking-tighter">ID: DRAFT_8741</p>
+<h3 class="font-headline text-lg leading-tight text-on-surface">Fundação Bloco C - Setor Norte</h3>
+</div>
+<div class="text-right">
+<p class="font-label text-[10px] text-on-surface/40 uppercase">Última edição</p>
+<p class="font-label text-xs text-on-surface/80">Ontem, 16:15</p>
+</div>
+</div>
+<div class="flex gap-2 mt-4">
+<button class="flex-1 bg-primary-container text-on-primary py-2 px-4 font-headline font-bold uppercase text-sm flex items-center justify-center gap-2 hover:bg-[#E0A63B] transition-colors active-pill">
+<span class="material-symbols-outlined text-sm" data-icon="edit">edit</span>
+                            CONTINUE
+                        </button>
+<button class="px-4 py-2 ghost-border text-on-surface/60 hover:text-error hover:border-error transition-colors">
+<span class="material-symbols-outlined text-sm" data-icon="delete">delete</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Section: Finalizados (Completed) -->
+<section>
+<div class="flex items-center justify-between mb-4">
+<h2 class="font-headline text-lg uppercase tracking-widest text-on-surface flex items-center gap-2">
+<span class="w-2 h-2 bg-[#2A9D8F]"></span>
+                    Finalizados
+                </h2>
+<span class="font-label text-xs text-[#2A9D8F] opacity-60">12 TOTAL</span>
+</div>
+<div class="space-y-4">
+<!-- Completed Card 1 -->
+<div class="bg-surface-container-low border-l-2 border-[#2A9D8F] p-4 transition-all duration-300">
+<div class="flex justify-between items-start mb-2">
+<div>
+<div class="flex items-center gap-2 mb-1">
+<p class="font-label text-[10px] text-[#2A9D8F] tracking-tighter">RDO_2023_990</p>
+<span class="bg-[#2A9D8F]/10 text-[#2A9D8F] text-[9px] px-1 font-label uppercase">Sincronizado</span>
+</div>
+<h3 class="font-headline text-lg leading-tight text-on-surface">Manutenção Preventiva - Subestação</h3>
+</div>
+<div class="text-right">
+<p class="font-label text-xs text-on-surface/80">12 Out 2023</p>
+</div>
+</div>
+<div class="flex items-center gap-4 mt-4 pt-4 border-t border-white/5">
+<button class="flex items-center gap-2 text-primary-container font-headline font-semibold uppercase text-xs hover:opacity-80 transition-opacity">
+<span class="material-symbols-outlined text-sm" data-icon="visibility">visibility</span>
+                            VIEW
+                        </button>
+<button class="flex items-center gap-2 text-on-surface/60 font-headline font-semibold uppercase text-xs hover:text-on-surface transition-colors">
+<span class="material-symbols-outlined text-sm" data-icon="picture_as_pdf">picture_as_pdf</span>
+                            DOWNLOAD PDF
+                        </button>
+</div>
+</div>
+<!-- Completed Card 2 -->
+<div class="bg-surface-container-low border-l-2 border-[#2A9D8F] p-4 transition-all duration-300">
+<div class="flex justify-between items-start mb-2">
+<div>
+<div class="flex items-center gap-2 mb-1">
+<p class="font-label text-[10px] text-[#2A9D8F] tracking-tighter">RDO_2023_985</p>
+<span class="bg-[#2A9D8F]/10 text-[#2A9D8F] text-[9px] px-1 font-label uppercase">Sincronizado</span>
+</div>
+<h3 class="font-headline text-lg leading-tight text-on-surface">Drenagem Profunda - Trecho 04</h3>
+</div>
+<div class="text-right">
+<p class="font-label text-xs text-on-surface/80">10 Out 2023</p>
+</div>
+</div>
+<div class="flex items-center gap-4 mt-4 pt-4 border-t border-white/5">
+<button class="flex items-center gap-2 text-primary-container font-headline font-semibold uppercase text-xs hover:opacity-80 transition-opacity">
+<span class="material-symbols-outlined text-sm" data-icon="visibility">visibility</span>
+                            VIEW
+                        </button>
+<button class="flex items-center gap-2 text-on-surface/60 font-headline font-semibold uppercase text-xs hover:text-on-surface transition-colors">
+<span class="material-symbols-outlined text-sm" data-icon="picture_as_pdf">picture_as_pdf</span>
+                            DOWNLOAD PDF
+                        </button>
+</div>
+</div>
+<!-- Completed Card 3 -->
+<div class="bg-surface-container-low border-l-2 border-[#2A9D8F] p-4 transition-all duration-300">
+<div class="flex justify-between items-start mb-2">
+<div>
+<div class="flex items-center gap-2 mb-1">
+<p class="font-label text-[10px] text-[#2A9D8F] tracking-tighter">RDO_2023_982</p>
+<span class="bg-[#2A9D8F]/10 text-[#2A9D8F] text-[9px] px-1 font-label uppercase">Sincronizado</span>
+</div>
+<h3 class="font-headline text-lg leading-tight text-on-surface">Levantamento Topográfico - Área B</h3>
+</div>
+<div class="text-right">
+<p class="font-label text-xs text-on-surface/80">08 Out 2023</p>
+</div>
+</div>
+<div class="flex items-center gap-4 mt-4 pt-4 border-t border-white/5">
+<button class="flex items-center gap-2 text-primary-container font-headline font-semibold uppercase text-xs hover:opacity-80 transition-opacity">
+<span class="material-symbols-outlined text-sm" data-icon="visibility">visibility</span>
+                            VIEW
+                        </button>
+<button class="flex items-center gap-2 text-on-surface/60 font-headline font-semibold uppercase text-xs hover:text-on-surface transition-colors">
+<span class="material-symbols-outlined text-sm" data-icon="picture_as_pdf">picture_as_pdf</span>
+                            DOWNLOAD PDF
+                        </button>
+</div>
+</div>
+</div>
+<button class="w-full mt-6 py-4 ghost-border font-headline uppercase tracking-widest text-xs text-on-surface/40 hover:text-primary-container hover:border-primary-container transition-all">
+                Ver histórico completo
+            </button>
+</section>
+</main>
+<!-- Bottom Navigation Shell (Shared Component: BottomNavBar) -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center py-3 px-6 bg-[#030504]/80 backdrop-blur-lg z-50 border-t border-white/10 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
+<a class="flex flex-col items-center justify-center text-[#dae5e1]/40 hover:text-primary-container/80 transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="assignment">assignment</span>
+<span class="font-label text-[10px] uppercase mt-1">Tasks</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#dae5e1]/40 hover:text-primary-container/80 transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+<span class="font-label text-[10px] uppercase mt-1">Claims</span>
+</a>
+<a class="flex flex-col items-center justify-center text-primary-container scale-110 transition-transform active:translate-y-[-2px]" href="#">
+<span class="material-symbols-outlined" data-icon="event_repeat" style="font-variation-settings: 'FILL' 1;">event_repeat</span>
+<span class="font-label text-[10px] uppercase mt-1">RDO</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#dae5e1]/40 hover:text-primary-container/80 transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+<span class="font-label text-[10px] uppercase mt-1">Logs</span>
+</a>
+</nav>
+<!-- Floating Action Button - Supressed as per Task Logic for Detail/History Screens but standard for Module Home -->
+<button class="fixed right-6 bottom-24 w-14 h-14 bg-primary-container text-on-primary rounded-full shadow-2xl flex items-center justify-center active:scale-95 transition-transform z-40 active-pill">
+<span class="material-symbols-outlined text-3xl" data-icon="add">add</span>
+</button>
+</body></html>

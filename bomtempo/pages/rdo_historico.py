@@ -4,6 +4,7 @@ Rota: /rdo2-historico
 """
 
 import asyncio
+import json as _json
 from typing import Any, Dict, List
 
 import reflex as rx
@@ -120,7 +121,8 @@ class RDOHistoricoState(rx.State):
     def open_external_url(self, url: str):
         """Abre URL em nova aba via JS — bypassa o router SPA/PWA."""
         if url and url.startswith("http"):
-            return rx.call_script(f"window.open({repr(url)}, '_blank', 'noopener,noreferrer')")
+            safe = _json.dumps(url)
+            return rx.call_script(f"window.open({safe}, '_blank', 'noopener,noreferrer')")
 
     @rx.event(background=True)
     async def delete_draft_rdo(self, id_rdo: str):

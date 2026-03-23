@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&amp;family=Outfit:wght@300;400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary-fixed": "#ffddb4",
+              "inverse-on-surface": "#283230",
+              "on-tertiary-container": "#422c00",
+              "surface-bright": "#313b39",
+              "secondary-container": "#30a193",
+              "on-error-container": "#ffdad6",
+              "on-primary-fixed-variant": "#633f00",
+              "inverse-surface": "#dae5e1",
+              "surface-variant": "#2c3734",
+              "inverse-primary": "#835500",
+              "on-surface-variant": "#d5c4b0",
+              "on-secondary-fixed-variant": "#005048",
+              "on-secondary": "#003731",
+              "background": "#0b1513",
+              "tertiary": "#f9bc4f",
+              "surface-container-highest": "#2c3734",
+              "on-primary": "#452b00",
+              "on-primary-container": "#442a00",
+              "on-secondary-fixed": "#00201c",
+              "primary-container": "#c98b2a",
+              "outline-variant": "#514536",
+              "surface-container-lowest": "#06100e",
+              "surface-container-high": "#222c2a",
+              "error": "#ffb4ab",
+              "surface-tint": "#ffb955",
+              "secondary": "#6fd8c8",
+              "on-background": "#dae5e1",
+              "tertiary-container": "#c48e23",
+              "primary": "#ffb955",
+              "surface-container": "#17221f",
+              "on-surface": "#dae5e1",
+              "on-error": "#690005",
+              "surface-dim": "#0b1513",
+              "primary-fixed-dim": "#ffb955",
+              "tertiary-fixed": "#ffdeac",
+              "on-tertiary-fixed-variant": "#5f4100",
+              "surface": "#0b1513",
+              "secondary-fixed-dim": "#6fd8c8",
+              "outline": "#9e8e7d",
+              "on-secondary-container": "#00302a",
+              "tertiary-fixed-dim": "#f9bc4f",
+              "on-tertiary-fixed": "#281900",
+              "secondary-fixed": "#8cf5e4",
+              "surface-container-low": "#131d1b",
+              "on-primary-fixed": "#291800",
+              "error-container": "#93000a",
+              "on-tertiary": "#432c00"
+            },
+            fontFamily: {
+              "headline": ["Rajdhani", "sans-serif"],
+              "body": ["Outfit", "sans-serif"],
+              "label": ["JetBrains Mono", "monospace"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+      .glass {
+        background: rgba(14, 26, 23, 0.6);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .ghost-border {
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .copper-gradient {
+        background: linear-gradient(135deg, #C98B2A 0%, #E0A63B 100%);
+      }
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+    </style>
+</head>
+<body class="bg-[#030504] text-on-surface font-body selection:bg-primary-container selection:text-on-primary">
+<!-- TopNavBar -->
+<header class="bg-[#030504] fixed top-0 z-50 flex justify-between items-center w-full px-6 h-16 border-b border-white/10">
+<div class="flex items-center gap-8">
+<span class="font-['Rajdhani'] font-bold text-xl tracking-tighter text-[#C98B2A]">INTEL_FOREMAN</span>
+<div class="hidden md:flex gap-6">
+<a class="font-['Rajdhani'] uppercase tracking-[0.05em] text-sm text-[#dae5e1] opacity-70 hover:text-[#C98B2A] transition-colors duration-200" href="#">Principal</a>
+<a class="font-['Rajdhani'] uppercase tracking-[0.05em] text-sm text-[#dae5e1] opacity-70 hover:text-[#C98B2A] transition-colors duration-200" href="#">Operacional</a>
+<a class="font-['Rajdhani'] uppercase tracking-[0.05em] text-sm text-[#dae5e1] opacity-70 hover:text-[#C98B2A] transition-colors duration-200" href="#">RDO</a>
+<a class="font-['Rajdhani'] uppercase tracking-[0.05em] text-sm text-[#C98B2A] border-b-2 border-[#C98B2A]" href="#">Administração</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative group">
+<span class="material-symbols-outlined text-[#dae5e1]/70 cursor-pointer hover:text-[#C98B2A]">notifications</span>
+<span class="absolute -top-1 -right-1 w-2 h-2 bg-[#C98B2A] rounded-full"></span>
+</div>
+<span class="material-symbols-outlined text-[#dae5e1]/70 cursor-pointer hover:text-[#C98B2A]">settings</span>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-white/20">
+<img alt="User profile avatar" class="w-full h-full object-cover" data-alt="Close-up portrait of a professional engineer in a dark workspace with soft technical blue and orange ambient lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDJGmu80QGA5vhk8w1vr2BjNbd7L9yFc3xdos7pTRmOuY7N_SappVPPRoAqbRstiTjRyChDSRPhsLxGsqlzbeHk2-JDEZKI7XoTD_PUZaM1rcN0j_uQb0LFfB1-D7u7_a8mzYVEikCf9gE1j8t701DeyRdQyhJoLLd2QxK-85SojvAnNAufHC7-Ai_XkHb8j8Ey_pDGV-DgxXeTKThb0jvmly3x9YfSzrq189xjBNjq_Tc79BZr4unMkaYEE3NrnaJD2xb6V6ecv2M"/>
+</div>
+</div>
+</header>
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-full w-64 z-40 bg-[#081210] hidden lg:flex flex-col py-8 px-4 gap-y-2 shadow-[20px_0_40px_rgba(0,0,0,0.4)]">
+<div class="mb-10 px-4">
+<h2 class="text-[#C98B2A] font-bold text-lg font-headline">COMMAND_CENTER</h2>
+<p class="font-label text-[10px] text-[#2A9D8F] tracking-[0.2em]">V.2.0_STABLE</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 rounded text-[#dae5e1] hover:bg-white/5 font-headline font-medium tracking-widest text-xs transition-all group" href="#">
+<span class="material-symbols-outlined text-lg">dashboard</span>
+                Principal
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 rounded text-[#dae5e1] hover:bg-white/5 font-headline font-medium tracking-widest text-xs transition-all group" href="#">
+<span class="material-symbols-outlined text-lg">engineering</span>
+                Operacional
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 rounded text-[#dae5e1] hover:bg-white/5 font-headline font-medium tracking-widest text-xs transition-all group" href="#">
+<span class="material-symbols-outlined text-lg">description</span>
+                RDO
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 rounded text-[#C98B2A] bg-[#0e1a17] border-r-2 border-[#C98B2A] font-headline font-medium tracking-widest text-xs transition-all translate-x-1" href="#">
+<span class="material-symbols-outlined text-lg" data-weight="fill" style="font-variation-settings: 'FILL' 1;">admin_panel_settings</span>
+                Administração
+            </a>
+</nav>
+<div class="mt-auto pt-6 border-t border-white/5 space-y-1">
+<button class="w-full copper-gradient text-on-primary font-headline font-bold py-3 mb-4 tracking-widest text-xs flex items-center justify-center gap-2 hover:opacity-90 active:scale-[0.98] transition-all">
+<span class="material-symbols-outlined text-sm">add</span>
+                NEW_PROJECT
+            </button>
+<a class="flex items-center gap-3 px-4 py-3 rounded text-[#dae5e1] hover:bg-white/5 font-headline font-medium tracking-widest text-xs transition-all" href="#">
+<span class="material-symbols-outlined text-lg">smartphone</span>
+                Mobile App
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 rounded text-error hover:bg-error/5 font-headline font-medium tracking-widest text-xs transition-all" href="#">
+<span class="material-symbols-outlined text-lg">logout</span>
+                Logout
+            </a>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="lg:ml-64 pt-24 pb-12 px-6 min-h-screen">
+<div class="max-w-7xl mx-auto">
+<!-- Header Section -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
+<div>
+<h1 class="font-headline text-4xl font-bold uppercase tracking-tight text-on-surface">Administração de Usuários</h1>
+<div class="flex items-center gap-2 mt-2">
+<span class="w-2 h-2 bg-primary rounded-full"></span>
+<p class="font-label text-xs text-on-surface-variant uppercase tracking-widest">Controle de acessos e permissões de sistema</p>
+</div>
+</div>
+<div class="flex gap-4">
+<button class="copper-gradient text-on-primary px-6 py-2.5 font-headline font-bold text-sm tracking-widest flex items-center gap-2 hover:brightness-110 transition-all">
+<span class="material-symbols-outlined text-xl">person_add</span>
+                        NOVO_USUÁRIO
+                    </button>
+<button class="ghost-border text-primary px-6 py-2.5 font-headline font-bold text-sm tracking-widest flex items-center gap-2 hover:bg-primary/5 transition-all">
+<span class="material-symbols-outlined text-xl">shield_person</span>
+                        NOVO_PERFIL
+                    </button>
+</div>
+</div>
+<!-- Tabs Navigation -->
+<div class="flex border-b border-white/10 mb-8 overflow-x-auto no-scrollbar">
+<button class="px-8 py-4 font-headline font-bold tracking-[0.15em] text-xs text-[#C98B2A] border-b-2 border-[#C98B2A] whitespace-nowrap">
+                    USUÁRIOS
+                </button>
+<button class="px-8 py-4 font-headline font-bold tracking-[0.15em] text-xs text-on-surface-variant/50 hover:text-on-surface transition-colors whitespace-nowrap">
+                    PERFIS DE ACESSO
+                </button>
+</div>
+<!-- Dashboard Grid -->
+<div class="grid grid-cols-12 gap-6">
+<!-- Filters Bar -->
+<div class="col-span-12 glass p-4 flex flex-wrap items-center gap-6">
+<div class="flex-1 min-w-[300px] relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/40">search</span>
+<input class="w-full bg-surface-container-lowest border-none border-b-2 border-transparent focus:border-primary focus:ring-0 text-sm font-label py-2.5 pl-10 text-on-surface placeholder:text-on-surface-variant/30" placeholder="BUSCAR USUÁRIO OU PROJETO..." type="text"/>
+</div>
+<div class="flex items-center gap-4">
+<select class="bg-surface-container-lowest border-none text-xs font-headline font-bold tracking-widest py-2.5 px-4 text-on-surface-variant focus:ring-0">
+<option>STATUS: TODOS</option>
+<option>ATIVO</option>
+<option>INATIVO</option>
+</select>
+<select class="bg-surface-container-lowest border-none text-xs font-headline font-bold tracking-widest py-2.5 px-4 text-on-surface-variant focus:ring-0">
+<option>ORDEM: A-Z</option>
+<option>RECENTE</option>
+</select>
+</div>
+</div>
+<!-- User Table Container -->
+<div class="col-span-12 glass overflow-hidden">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low border-b border-white/5">
+<th class="px-6 py-4 font-headline font-bold text-[10px] tracking-[0.2em] text-on-surface-variant/60 uppercase">Identidade</th>
+<th class="px-6 py-4 font-headline font-bold text-[10px] tracking-[0.2em] text-on-surface-variant/60 uppercase">Nível de Acesso</th>
+<th class="px-6 py-4 font-headline font-bold text-[10px] tracking-[0.2em] text-on-surface-variant/60 uppercase">Projetos Alocados</th>
+<th class="px-6 py-4 font-headline font-bold text-[10px] tracking-[0.2em] text-on-surface-variant/60 uppercase">Último Acesso</th>
+<th class="px-6 py-4 font-headline font-bold text-[10px] tracking-[0.2em] text-on-surface-variant/60 uppercase text-right">Ações</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-white/5">
+<!-- User Row 1 -->
+<tr class="hover:bg-white/[0.02] transition-colors group">
+<td class="px-6 py-5">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded bg-surface-container-highest flex items-center justify-center overflow-hidden border border-white/10 group-hover:border-primary/40 transition-colors">
+<img alt="Avatar Marco Silva" class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all" data-alt="Close-up headshot of a middle-aged man with a short beard wearing a safety helmet and high-visibility vest" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCOJGfN53PdGrd4xljtq1f9FJl-hVagKCQrJiOpMRSGJ6ycnh8plQ_kp6RF2hh3XGPHhj9VaXspwUbyswI2vcQFyOlWeYzuX_jtZ1Unc610sPvoaFqcIvSkvFg6p4aGOxGunwRevOqnuXtkPvWB18YigfujJuicbw9enoZ6fJAanBiX_aO89obuSbYj34HzOqFvyQkpadh620UKkORHcZbGwChaa_1eLtPP40LD9TxWa1v46nh6t-7WePGooJLaA3J-jPdMOOAayl4"/>
+</div>
+<div>
+<p class="font-headline font-bold text-sm tracking-wide text-on-surface">MARCO_SILVA</p>
+<p class="font-label text-[10px] text-on-surface-variant/60">m.silva@foreman.intel</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-lg">engineering</span>
+<span class="font-label text-xs uppercase text-primary-fixed-dim">Master_Foreman</span>
+</div>
+</td>
+<td class="px-6 py-5">
+<div class="flex -space-x-2">
+<div class="w-7 h-7 rounded-full bg-surface-container-highest border-2 border-[#081210] flex items-center justify-center text-[10px] font-label font-bold text-on-surface" title="Projeto ALPHA">A</div>
+<div class="w-7 h-7 rounded-full bg-surface-container-highest border-2 border-[#081210] flex items-center justify-center text-[10px] font-label font-bold text-on-surface" title="Projeto OMEGA">Ω</div>
+<div class="w-7 h-7 rounded-full bg-surface-container-highest border-2 border-[#081210] flex items-center justify-center text-[10px] font-label font-bold text-on-surface-variant/40">+2</div>
+</div>
+</td>
+<td class="px-6 py-5">
+<p class="font-label text-[10px] text-on-surface-variant uppercase">Hoje, 08:42 AM</p>
+<div class="w-24 h-1 bg-surface-container-lowest mt-1.5 overflow-hidden">
+<div class="h-full bg-secondary w-full"></div>
+</div>
+</td>
+<td class="px-6 py-5 text-right">
+<div class="flex justify-end gap-2">
+<button class="p-2 hover:bg-white/5 text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg">edit_square</span>
+</button>
+<button class="p-2 hover:bg-white/5 text-on-surface-variant hover:text-error transition-colors">
+<span class="material-symbols-outlined text-lg">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- User Row 2 -->
+<tr class="hover:bg-white/[0.02] transition-colors group">
+<td class="px-6 py-5">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded bg-surface-container-highest flex items-center justify-center overflow-hidden border border-white/10 group-hover:border-primary/40 transition-colors">
+<img alt="Avatar Ana Souza" class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all" data-alt="Professional woman in business casual attire in a modern architectural office setting with dramatic industrial lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCKj1Yxrzaq4XzVc6IEMVmt3-We7louJh80UjhORPvvrhFgYzMfjadTnlljSVwAmR_9UiCmQChaJk5C51IznoNcD3auzUGQvJjAM_m4sUkvQz6TZuFItzYCNlQkQF34Wg3tLGwrGWKM52zNmxTkGDwDXOW9JhKcDuHzDkG6YHF-qmK9mzqsPeGP9kNEYWoAFnMipRI3096QdVqsH4ralYDs7cVWK0kHhkUd6E-u6fhnF3yvevfza2kGJ7QE7Y2mMw2cIWyN8Rg2kMY"/>
+</div>
+<div>
+<p class="font-headline font-bold text-sm tracking-wide text-on-surface">ANA_SOUZA</p>
+<p class="font-label text-[10px] text-on-surface-variant/60">a.souza@foreman.intel</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[#2A9D8F] text-lg">analytics</span>
+<span class="font-label text-xs uppercase text-[#2A9D8F]">Data_Auditor</span>
+</div>
+</td>
+<td class="px-6 py-5">
+<div class="flex -space-x-2">
+<div class="w-7 h-7 rounded-full bg-surface-container-highest border-2 border-[#081210] flex items-center justify-center text-[10px] font-label font-bold text-on-surface" title="Projeto DELTA">Δ</div>
+</div>
+</td>
+<td class="px-6 py-5">
+<p class="font-label text-[10px] text-on-surface-variant uppercase">Ontem, 04:15 PM</p>
+<div class="w-24 h-1 bg-surface-container-lowest mt-1.5 overflow-hidden">
+<div class="h-full bg-secondary w-2/3"></div>
+</div>
+</td>
+<td class="px-6 py-5 text-right">
+<div class="flex justify-end gap-2">
+<button class="p-2 hover:bg-white/5 text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg">edit_square</span>
+</button>
+<button class="p-2 hover:bg-white/5 text-on-surface-variant hover:text-error transition-colors">
+<span class="material-symbols-outlined text-lg">delete</span>
+</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination -->
+<div class="bg-surface-container-low px-6 py-4 flex items-center justify-between border-t border-white/5">
+<span class="font-label text-[10px] text-on-surface-variant uppercase tracking-widest">Exibindo 2 de 48 registros</span>
+<div class="flex gap-2">
+<button class="w-8 h-8 flex items-center justify-center bg-surface-container-highest text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-base">chevron_left</span>
+</button>
+<button class="w-8 h-8 flex items-center justify-center bg-primary text-on-primary font-label text-xs font-bold">1</button>
+<button class="w-8 h-8 flex items-center justify-center bg-surface-container-highest text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-base">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Bento Grid: Secondary Info -->
+<div class="col-span-12 lg:col-span-4 glass p-6">
+<h3 class="font-headline font-bold text-sm tracking-widest text-[#C98B2A] mb-6 flex items-center gap-2">
+<span class="material-symbols-outlined text-lg">security</span>
+                        PERMISSÕES_RÁPIDAS
+                    </h3>
+<div class="space-y-4">
+<div class="flex items-center justify-between p-3 bg-surface-container-lowest border-l-2 border-primary">
+<div>
+<p class="font-headline font-semibold text-xs text-on-surface">ACESSO_TOTAL</p>
+<p class="font-label text-[10px] text-on-surface-variant/50 uppercase">Módulo administrativo</p>
+</div>
+<input checked="" class="w-4 h-4 bg-transparent border-primary text-primary focus:ring-0 rounded-sm" type="checkbox"/>
+</div>
+<div class="flex items-center justify-between p-3 bg-surface-container-lowest border-l-2 border-[#2A9D8F]">
+<div>
+<p class="font-headline font-semibold text-xs text-on-surface">EDITAR_PROJETOS</p>
+<p class="font-label text-[10px] text-on-surface-variant/50 uppercase">Modificar cronograma</p>
+</div>
+<input checked="" class="w-4 h-4 bg-transparent border-[#2A9D8F] text-[#2A9D8F] focus:ring-0 rounded-sm" type="checkbox"/>
+</div>
+<div class="flex items-center justify-between p-3 bg-surface-container-lowest border-l-2 border-white/10 opacity-50">
+<div>
+<p class="font-headline font-semibold text-xs text-on-surface">REMOVER_DADOS</p>
+<p class="font-label text-[10px] text-on-surface-variant/50 uppercase">Exclusão permanente</p>
+</div>
+<input class="w-4 h-4 bg-transparent border-white/20 text-primary focus:ring-0 rounded-sm" type="checkbox"/>
+</div>
+</div>
+</div>
+<div class="col-span-12 lg:col-span-8 glass p-6 relative overflow-hidden">
+<div class="flex justify-between items-start mb-6">
+<h3 class="font-headline font-bold text-sm tracking-widest text-[#C98B2A] flex items-center gap-2">
+<span class="material-symbols-outlined text-lg">radar</span>
+                            MAPA_DE_ATIVIDADE
+                        </h3>
+<span class="font-label text-[10px] text-primary uppercase border border-primary/20 px-2 py-0.5">Live_Telemetry</span>
+</div>
+<div class="h-48 flex items-end justify-between gap-1 px-2">
+<!-- Data Bars Simulated -->
+<div class="w-full bg-[#2A9D8F]/20 h-12 hover:bg-[#2A9D8F]/40 transition-all cursor-help" title="08:00 - High Load"></div>
+<div class="w-full bg-[#2A9D8F]/20 h-24 hover:bg-[#2A9D8F]/40 transition-all cursor-help"></div>
+<div class="w-full bg-[#C98B2A]/20 h-32 hover:bg-[#C98B2A]/40 transition-all cursor-help"></div>
+<div class="w-full bg-primary/40 h-40 hover:bg-primary/60 transition-all cursor-help"></div>
+<div class="w-full bg-primary/40 h-36 hover:bg-primary/60 transition-all cursor-help"></div>
+<div class="w-full bg-[#2A9D8F]/20 h-16 hover:bg-[#2A9D8F]/40 transition-all cursor-help"></div>
+<div class="w-full bg-[#2A9D8F]/20 h-8 hover:bg-[#2A9D8F]/40 transition-all cursor-help"></div>
+<div class="w-full bg-primary/40 h-44 hover:bg-primary/60 transition-all cursor-help"></div>
+<div class="w-full bg-[#C98B2A]/20 h-28 hover:bg-[#C98B2A]/40 transition-all cursor-help"></div>
+<div class="w-full bg-[#2A9D8F]/20 h-20 hover:bg-[#2A9D8F]/40 transition-all cursor-help"></div>
+<div class="w-full bg-[#2A9D8F]/20 h-12 hover:bg-[#2A9D8F]/40 transition-all cursor-help"></div>
+<div class="w-full bg-primary/40 h-32 hover:bg-primary/60 transition-all cursor-help"></div>
+</div>
+<div class="flex justify-between mt-4 font-label text-[9px] text-on-surface-variant/40 uppercase tracking-widest">
+<span>00:00</span>
+<span>06:00</span>
+<span>12:00</span>
+<span>18:00</span>
+<span>23:59</span>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Floating Action Button (FAB) - Suppression Logic applied: FAB is relevant on this dashboard screen -->
+<button class="fixed bottom-8 right-8 w-14 h-14 copper-gradient rounded-full shadow-lg flex items-center justify-center text-on-primary hover:scale-110 active:scale-95 transition-all z-50">
+<span class="material-symbols-outlined text-3xl">add</span>
+</button>
+</body></html>

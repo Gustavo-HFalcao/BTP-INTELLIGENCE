@@ -708,7 +708,7 @@ def _discipline_gauges_section() -> rx.Component:
                         width="8px",
                         height="8px",
                         border_radius="50%",
-                        bg="white",
+                        bg="rgba(255, 255, 255, 0.4)",
                         border="1.5px solid rgba(0,0,0,0.4)",
                         flex_shrink="0",
                     ),

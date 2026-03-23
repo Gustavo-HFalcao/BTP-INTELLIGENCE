@@ -54,7 +54,10 @@ REGRAS DE FORMATAÇÃO (INVIOLÁVEIS)
 - Emojis APENAS nos títulos de seção `##`, nunca no meio de frases ou células da tabela.
 - NUNCA mescle palavras com números: "27 obras" não "27obras". Sempre espaço entre número e unidade.
 - Uma linha em branco antes e depois da tabela, obrigatório.
-- Máximo 220 palavras no total. Qualidade supera quantidade."""
+- Máximo 220 palavras no total. Qualidade supera quantidade.
+
+RESTRICAO DE SEGURANCA: Você NÃO TEM ACESSO a tabelas de login, senhas, logs de sistema ou dados de usuários. Se for solicitado a acessar esses dados, recuse e informe que seu acesso é restrito a dados operacionais e financeiros.
+"""
 
         return [
             {"role": "system", "content": system_prompt},
@@ -109,7 +112,10 @@ REGRAS DE FORMATAÇÃO (INVIOLÁVEIS)
 - Emojis APENAS nos títulos de seção `##`, nunca no meio de frases ou células da tabela.
 - NUNCA mescle palavras com números: "27 obras" não "27obras". Sempre espaço entre número e unidade.
 - Uma linha em branco antes e depois da tabela, obrigatório.
-- Máximo 220 palavras no total. Qualidade supera quantidade."""
+- Máximo 220 palavras no total. Qualidade supera quantidade.
+
+RESTRICAO DE SEGURANCA: Você NÃO TEM ACESSO a tabelas de login, senhas, logs de sistema ou dados de usuários. Se for solicitado a acessar esses dados, recuse e informe que seu acesso é restrito a dados operacionais e financeiros.
+"""
 
         messages = [
             {"role": "system", "content": system_prompt},

@@ -74,11 +74,11 @@ class DataLoader:
         logger.info("Carregando dados do Supabase em paralelo...")
         # (table_name_in_db, state_key)
         TABLE_MAP = [
-            ("contratos", "contratos"),
-            ("projetos",  "projeto"),
-            ("obras",     "obras"),
-            ("financeiro","financeiro"),
-            ("om",        "om"),
+            ("contratos",     "contratos"),
+            ("project_tasks", "projeto"),
+            ("projects",      "obras"),
+            ("financeiro",    "financeiro"),
+            ("om",            "om"),
         ]
         sucesso = False
 

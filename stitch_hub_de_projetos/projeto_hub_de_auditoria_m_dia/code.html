@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&amp;family=Outfit:wght@300;400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-error-container": "#ffdad6",
+              "error-container": "#93000a",
+              "surface": "#0b1513",
+              "on-tertiary": "#432c00",
+              "tertiary": "#f9bc4f",
+              "surface-container-lowest": "#06100e",
+              "outline": "#9e8e7d",
+              "surface-container": "#17221f",
+              "secondary": "#6fd8c8",
+              "surface-tint": "#ffb955",
+              "on-tertiary-fixed": "#281900",
+              "on-error": "#690005",
+              "tertiary-container": "#c48e23",
+              "surface-container-low": "#131d1b",
+              "primary": "#ffb955",
+              "tertiary-fixed": "#ffdeac",
+              "surface-container-highest": "#2c3734",
+              "on-primary-fixed-variant": "#633f00",
+              "on-secondary-fixed": "#00201c",
+              "error": "#ffb4ab",
+              "background": "#0b1513",
+              "inverse-primary": "#835500",
+              "surface-bright": "#313b39",
+              "on-primary-container": "#442a00",
+              "on-primary": "#452b00",
+              "surface-container-high": "#222c2a",
+              "secondary-fixed": "#8cf5e4",
+              "on-primary-fixed": "#291800",
+              "primary-fixed-dim": "#ffb955",
+              "outline-variant": "#514536",
+              "on-secondary-container": "#00302a",
+              "on-background": "#dae5e1",
+              "inverse-surface": "#dae5e1",
+              "on-surface-variant": "#d5c4b0",
+              "tertiary-fixed-dim": "#f9bc4f",
+              "on-tertiary-container": "#422c00",
+              "on-surface": "#dae5e1",
+              "on-secondary": "#003731",
+              "surface-dim": "#0b1513",
+              "secondary-fixed-dim": "#6fd8c8",
+              "primary-fixed": "#ffddb4",
+              "surface-variant": "#2c3734",
+              "on-tertiary-fixed-variant": "#5f4100",
+              "on-secondary-fixed-variant": "#005048",
+              "inverse-on-surface": "#283230",
+              "secondary-container": "#30a193",
+              "primary-container": "#c98b2a"
+            },
+            fontFamily: {
+              "headline": ["Rajdhani"],
+              "body": ["Outfit"],
+              "label": ["JetBrains Mono"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      .glass-card {
+        background: rgba(14, 26, 23, 0.6);
+        backdrop-filter: blur(12px);
+      }
+      .industrial-shadow {
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), 0 0 10px rgba(42, 157, 143, 0.05);
+      }
+      .custom-scrollbar::-webkit-scrollbar {
+        width: 4px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-track {
+        background: #06100e;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #c98b2a;
+      }
+      .font-rajdhani { font-family: 'Rajdhani', sans-serif; }
+      .font-outfit { font-family: 'Outfit', sans-serif; }
+      .font-jetbrains { font-family: 'JetBrains Mono', monospace; }
+    </style>
+</head>
+<body class="bg-[#030504] text-on-surface font-outfit selection:bg-primary-container selection:text-on-primary-container">
+<!-- SideNavBar (Rail) -->
+<aside class="fixed left-0 top-0 h-full z-50 flex flex-col items-center py-8 bg-[#081210] w-20 border-r border-white/10">
+<div class="mb-12">
+<div class="font-rajdhani uppercase tracking-widest font-bold text-[#C98B2A] text-xs flex flex-col items-center">
+<span>Bomtempo</span>
+<span class="text-[10px] opacity-60">Intel</span>
+</div>
+</div>
+<nav class="flex flex-col gap-8 flex-1">
+<a class="text-gray-500 hover:text-gray-300 transition-colors duration-200 flex flex-col items-center group" href="#">
+<span class="material-symbols-outlined" data-icon="folder_open">folder_open</span>
+<span class="text-[10px] font-jetbrains mt-1 opacity-0 group-hover:opacity-100 transition-opacity">Projects</span>
+</a>
+<a class="text-gray-500 hover:text-gray-300 transition-colors duration-200 flex flex-col items-center group" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="text-[10px] font-jetbrains mt-1 opacity-0 group-hover:opacity-100 transition-opacity">Settings</span>
+</a>
+<a class="text-gray-500 hover:text-gray-300 transition-colors duration-200 flex flex-col items-center group" href="#">
+<span class="material-symbols-outlined" data-icon="support_agent">support_agent</span>
+<span class="text-[10px] font-jetbrains mt-1 opacity-0 group-hover:opacity-100 transition-opacity">Support</span>
+</a>
+</nav>
+<div class="mt-auto">
+<div class="w-10 h-10 bg-surface-container-highest rounded-full overflow-hidden border border-white/10">
+<img alt="User profile" data-alt="User profile avatar portrait" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCsZQYD-QH3n1UOTeAKbXDDkOEnog4WTIH_eVWuE_CqhbjH6EbE5XP9zgXGZ69ChkR3yWdwGz7YMQPR83ohjt6-m26QI8BKK-wYfEHrz5uAfXRakEU29zf6b2u90BC_PPIDoxqG0BhRLsaxttmBpeEbWcECJrLiOTt2XN3mrL1inlO5dTmo6OnLlwGqV4HkupaL-ft9nqKIO1JS60auDUjYG6ZDUvn_OG95NOkpOv1_-och_AL6H8R03Vi_iC-p4WCVJIhL1A_BR38"/>
+</div>
+</div>
+</aside>
+<!-- TopAppBar -->
+<header class="fixed top-0 right-0 left-20 z-40 flex h-16 items-center justify-between px-8 bg-[#0e1a17]/60 backdrop-blur-xl border-b border-white/5 industrial-shadow">
+<div class="flex items-center gap-8">
+<h1 class="text-xl font-rajdhani font-bold tracking-tighter text-[#dae5e1] uppercase">Unified Project Module</h1>
+<nav class="hidden lg:flex items-center gap-6">
+<a class="text-[#dae5e1]/60 pb-1 hover:text-[#dae5e1] font-jetbrains text-xs transition-colors" href="#">Overview</a>
+<a class="text-[#dae5e1]/60 pb-1 hover:text-[#dae5e1] font-jetbrains text-xs transition-colors" href="#">Timeline (Gantt)</a>
+<a class="text-[#C98B2A] border-b-2 border-[#C98B2A] pb-1 font-bold font-jetbrains text-xs" href="#">Media Audit</a>
+<a class="text-[#dae5e1]/60 pb-1 hover:text-[#dae5e1] font-jetbrains text-xs transition-colors" href="#">Project Logs</a>
+<a class="text-[#dae5e1]/60 pb-1 hover:text-[#dae5e1] font-jetbrains text-xs transition-colors" href="#">Tutorial</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#dae5e1]/40 text-sm" data-icon="search">search</span>
+<input class="bg-[#06100e] border-none border-b border-transparent focus:border-primary focus:ring-0 text-[10px] font-jetbrains pl-10 pr-4 py-2 w-64 transition-all" placeholder="SEARCH ASSETS..." type="text"/>
+</div>
+<button class="text-[#dae5e1]/60 hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="text-[#dae5e1]/60 hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+</button>
+</div>
+</header>
+<!-- Main Content Area -->
+<main class="ml-20 pt-24 px-8 pb-12 min-h-screen">
+<!-- Dashboard Header / Controls -->
+<div class="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-10">
+<div class="space-y-1">
+<p class="font-jetbrains text-[10px] text-primary tracking-widest uppercase">Intelligence Dashboard</p>
+<h2 class="text-4xl font-rajdhani font-bold tracking-tight uppercase">Audit Hub</h2>
+</div>
+<div class="flex flex-wrap items-center gap-3">
+<!-- Filters Group -->
+<div class="flex items-center bg-surface-container-low px-4 py-2 rounded-lg gap-4 border border-white/5">
+<div class="flex flex-col">
+<label class="font-rajdhani text-[10px] font-bold text-[#dae5e1]/40 uppercase leading-none mb-1">Date Range</label>
+<select class="bg-transparent border-none p-0 text-xs font-jetbrains focus:ring-0 text-on-surface">
+<option>Last 7 Days</option>
+<option>Last 30 Days</option>
+<option>Q3 2023</option>
+</select>
+</div>
+<div class="h-8 w-px bg-white/10"></div>
+<div class="flex flex-col">
+<label class="font-rajdhani text-[10px] font-bold text-[#dae5e1]/40 uppercase leading-none mb-1">Team</label>
+<select class="bg-transparent border-none p-0 text-xs font-jetbrains focus:ring-0 text-on-surface">
+<option>All RDOs</option>
+<option>Structure Alpha</option>
+<option>Foundations Beta</option>
+</select>
+</div>
+<div class="h-8 w-px bg-white/10"></div>
+<div class="flex flex-col">
+<label class="font-rajdhani text-[10px] font-bold text-[#dae5e1]/40 uppercase leading-none mb-1">Audit Type</label>
+<select class="bg-transparent border-none p-0 text-xs font-jetbrains focus:ring-0 text-on-surface">
+<option>EPI Audit</option>
+<option>Progress</option>
+<option>Incident</option>
+</select>
+</div>
+</div>
+<button class="flex items-center gap-2 bg-gradient-to-br from-[#C98B2A] to-[#835500] text-on-primary-container px-6 py-3 font-rajdhani font-bold uppercase tracking-wider text-sm hover:brightness-110 active:scale-95 transition-all">
+<span class="material-symbols-outlined text-base" data-icon="clinical_notes">clinical_notes</span>
+                    Analyze EPI Images
+                </button>
+</div>
+</div>
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+<!-- Empty State / Upload (Large Span) -->
+<div class="lg:col-span-2 glass-card border border-white/5 p-8 flex flex-col items-center justify-center text-center group hover:border-primary/40 transition-colors cursor-pointer">
+<div class="w-16 h-16 bg-surface-container-highest flex items-center justify-center rounded-lg mb-4 industrial-shadow group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-primary text-3xl" data-icon="cloud_upload">cloud_upload</span>
+</div>
+<h3 class="font-rajdhani text-xl font-bold uppercase mb-2">Initialize Data Feed</h3>
+<p class="text-on-surface-variant text-sm max-w-xs mb-6">Drop RDO media files here or sync from mobile terminal to start the AI EPI verification sequence.</p>
+<div class="flex gap-4">
+<div class="flex items-center gap-2 text-primary font-jetbrains text-[10px] uppercase border border-primary/20 px-3 py-1 rounded">
+<span class="material-symbols-outlined text-xs" data-icon="document_scanner">document_scanner</span>
+                        AI Ready
+                    </div>
+<div class="flex items-center gap-2 text-secondary font-jetbrains text-[10px] uppercase border border-secondary/20 px-3 py-1 rounded">
+<span class="material-symbols-outlined text-xs" data-icon="check_circle">check_circle</span>
+                        Cloud Sync Active
+                    </div>
+</div>
+</div>
+<!-- Media Card (EPI Incident Detected) -->
+<div class="glass-card border border-red-500/20 p-0 overflow-hidden relative group">
+<div class="relative aspect-video">
+<img class="w-full h-full object-cover" data-alt="Construction site ground view with workers" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAAq9esmPqdkEK69DHiSOeLrKlaIVhH6H_9W5sKgpg8cA6usf2ZGa4dVw-i2GWsMgp5wK5Sw5ZLprM6GCt56iRXCslyMuLYRhOTb2sgevDHrWHGCvSfIwC7Zjxr4lIpVaGLCCvkol-El-o-RCzvlN-Xis6PwE4Kj-mARuFCKHgSOMPtT_WGA9jMUC2z9XMMgeNiQhyXHdIGx193Em9Nf9TBO67ytc8TXBFiVj4tpj8T3XPSLXTMXOqFTTmMbfxCrKrKblPaGjkvStg"/>
+<div class="absolute inset-0 bg-red-900/20"></div>
+<!-- AI Detection Overlay -->
+<div class="absolute top-4 left-4 border-2 border-red-500 w-12 h-12 flex items-center justify-center">
+<span class="absolute -top-5 left-0 bg-red-500 text-[8px] font-jetbrains text-white px-1">NO HELMET</span>
+</div>
+<div class="absolute bottom-2 left-2 flex items-center gap-2 bg-black/60 backdrop-blur px-2 py-1">
+<span class="text-[8px] font-jetbrains text-white opacity-70">CAM_04_NORTH</span>
+</div>
+</div>
+<div class="p-4 space-y-3">
+<div class="flex justify-between items-start">
+<div>
+<p class="text-[10px] font-jetbrains text-red-400 uppercase">Incident Report</p>
+<h4 class="font-rajdhani font-bold text-lg leading-tight">EPI COMPLIANCE FAILURE</h4>
+</div>
+<span class="material-symbols-outlined text-red-400" data-icon="warning">warning</span>
+</div>
+<div class="grid grid-cols-2 gap-2 pt-2 border-t border-white/5">
+<div>
+<p class="text-[9px] font-jetbrains text-white/40 uppercase">Timestamp</p>
+<p class="text-[10px] font-jetbrains">14:22:05 UTC</p>
+</div>
+<div>
+<p class="text-[9px] font-jetbrains text-white/40 uppercase">Source</p>
+<p class="text-[10px] font-jetbrains">RDO #442</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Media Card (Progress) -->
+<div class="glass-card border border-white/5 p-0 overflow-hidden relative group">
+<div class="relative aspect-video">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="Worker welding steel structure with sparks" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDnfv89-Jhz03ofqP3qGLKVZH0YIYkWTH8yL92Nnem9gat6AOO792i-J7x0LVt7nQwBmiu6Y1HNwAplTVUtNxc7Wm0t1_Y6d0EXBedaCxVIOE-lTrOYgYkDVsE02Kl8d5RROgbm97XdAEIKcLmMFOTOQhOMJtUlJvR-gbooa6aZC_Vyuk3-WvCFymYSeb7fYrZox_qglviS6SwvI6nTjArhTz2ieX3ubMxOwxYvtb2m82zsyyL-IMLBzsjWnE7KyVX9RF_3Ewe47vk"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-60"></div>
+</div>
+<div class="p-4 space-y-3">
+<div class="flex justify-between items-start">
+<div>
+<p class="text-[10px] font-jetbrains text-secondary uppercase">Progress Audit</p>
+<h4 class="font-rajdhani font-bold text-lg leading-tight">STEEL REINFORCEMENT</h4>
+</div>
+<span class="material-symbols-outlined text-secondary" data-icon="verified">verified</span>
+</div>
+<div class="grid grid-cols-2 gap-2 pt-2 border-t border-white/5">
+<div>
+<p class="text-[9px] font-jetbrains text-white/40 uppercase">Timestamp</p>
+<p class="text-[10px] font-jetbrains">09:15:30 UTC</p>
+</div>
+<div>
+<p class="text-[9px] font-jetbrains text-white/40 uppercase">Team</p>
+<p class="text-[10px] font-jetbrains">Echo Structure</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Media Card (EPI Scan Success) -->
+<div class="glass-card border border-[#2A9D8F]/20 p-0 overflow-hidden relative group">
+<div class="relative aspect-video">
+<img class="w-full h-full object-cover" data-alt="Engineers inspecting site with high-visibility gear" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAsq9QUpEQzkNLEwFXgX6nXf0mcpoUmuc6bLNHenHUCAafMn4MzuML4NKUdp3Q0rw0SXAo7_QUsTiFFohSU03c0zxzgLP3osN6ZoWrH1lIVg94K7jinBV5B2twb5oI6j6FuYfHxNrNNMbyMYCzdXUkbWpMJvas3sKGT_y1jjEoJh4IeMz3OgQQDiczXNegeNqc3SLjfT3gO6bc5Sh7F97rO3E-waO5X_3IRMwBESjuMCy640C7wVEpmOvUb_GPUC6E9qgXClC-DA-s"/>
+<!-- AI Scan Trace Effect (Visual only) -->
+<div class="absolute inset-x-0 top-1/2 h-0.5 bg-secondary shadow-[0_0_15px_rgba(111,216,200,0.8)] opacity-40"></div>
+<div class="absolute top-2 right-2 bg-[#2A9D8F] text-[8px] font-jetbrains text-black font-bold px-2 py-0.5">SCAN_SUCCESS</div>
+</div>
+<div class="p-4 space-y-3">
+<div class="flex justify-between items-start">
+<div>
+<p class="text-[10px] font-jetbrains text-secondary uppercase">EPI Scan</p>
+<h4 class="font-rajdhani font-bold text-lg leading-tight">SHIFT INITIALIZATION</h4>
+</div>
+<span class="material-symbols-outlined text-secondary" data-icon="security">security</span>
+</div>
+<div class="grid grid-cols-2 gap-2 pt-2 border-t border-white/5">
+<div>
+<p class="text-[9px] font-jetbrains text-white/40 uppercase">Objects</p>
+<p class="text-[10px] font-jetbrains">12/12 DETECTED</p>
+</div>
+<div>
+<p class="text-[9px] font-jetbrains text-white/40 uppercase">Confidence</p>
+<p class="text-[10px] font-jetbrains">98.4%</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Telemetry Sidebar / Activity -->
+<div class="lg:col-span-1 glass-card border border-white/5 p-6 flex flex-col space-y-6">
+<h3 class="font-rajdhani text-sm font-bold uppercase tracking-widest text-primary">Live Telemetry</h3>
+<div class="space-y-4">
+<div class="space-y-2">
+<div class="flex justify-between font-jetbrains text-[10px] uppercase">
+<span>Processing Queue</span>
+<span class="text-secondary">88%</span>
+</div>
+<div class="h-1 bg-surface-container-lowest overflow-hidden">
+<div class="h-full bg-secondary w-[88%]"></div>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between font-jetbrains text-[10px] uppercase">
+<span>EPI Violations (Today)</span>
+<span class="text-red-400">03</span>
+</div>
+<div class="h-1 bg-surface-container-lowest overflow-hidden">
+<div class="h-full bg-red-500 w-[15%]"></div>
+</div>
+</div>
+</div>
+<div class="pt-6 border-t border-white/5">
+<h4 class="font-rajdhani text-[10px] font-bold text-white/40 uppercase mb-4 tracking-widest">Active Analysers</h4>
+<ul class="space-y-3">
+<li class="flex items-center gap-3">
+<div class="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse"></div>
+<span class="font-jetbrains text-[10px] uppercase">Vision-X-Neural</span>
+</li>
+<li class="flex items-center gap-3">
+<div class="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse"></div>
+<span class="font-jetbrains text-[10px] uppercase">Hardhat_Detector_V3</span>
+</li>
+<li class="flex items-center gap-3 opacity-30">
+<div class="w-1.5 h-1.5 rounded-full bg-white/20"></div>
+<span class="font-jetbrains text-[10px] uppercase">Thermal_Grid_Sync</span>
+</li>
+</ul>
+</div>
+</div>
+<!-- Floating Action Detail / Highlight Card -->
+<div class="lg:col-span-2 glass-card border border-white/5 overflow-hidden flex flex-col md:flex-row industrial-shadow">
+<div class="md:w-1/2 relative">
+<img class="w-full h-full object-cover" data-alt="Close up of construction worker in safety gear" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCXfUOhNaaDY_XqwOE8MSD3UFaeW3CyxaAtIQISBSoio8hyYKtxWT86BX1SJaGcN4c1LqKqmzDPD8BfHkuGAdOGh2ma-3fF7SBpkOkU4Y2o1kvU2H7_N-pZQ5sbQNsccJtC5fGO5xKtK9HAgSls0LfVQw2xjpjl9Xx66VihymkF19duVdQ_HmBemehJ9UbzcfzP0fFdAmYcgtzYjJsltc-o9LqI9EHEu3g81oqtne3l0YJEGByqIA9WEhwQEJOFVE7z19HKt8sETnw"/>
+<div class="absolute inset-0 bg-gradient-to-r from-transparent to-[#0e1a17]"></div>
+<div class="absolute top-4 left-4 border border-primary text-primary font-jetbrains text-[8px] px-2 py-0.5 uppercase backdrop-blur-sm">Focus Detail</div>
+</div>
+<div class="md:w-1/2 p-6 flex flex-col justify-between">
+<div>
+<div class="flex items-center gap-2 mb-2">
+<span class="w-2 h-2 rounded-full bg-primary"></span>
+<span class="font-jetbrains text-[10px] text-primary uppercase">Selected for Audit</span>
+</div>
+<h3 class="font-rajdhani text-2xl font-bold uppercase mb-2">Asset ID: 99402-A</h3>
+<p class="text-xs text-on-surface-variant leading-relaxed">High-resolution verification required for site-sector 7 transition. AI flagged potential missing lanyard clip in zone B.</p>
+</div>
+<div class="space-y-4">
+<div class="grid grid-cols-2 gap-4">
+<div>
+<p class="font-jetbrains text-[9px] text-white/40 uppercase">Watermark</p>
+<p class="font-jetbrains text-[10px]">VERIFIED_SEC_7</p>
+</div>
+<div>
+<p class="font-jetbrains text-[9px] text-white/40 uppercase">Geo-tag</p>
+<p class="font-jetbrains text-[10px]">34.0522 N, 118.2437 W</p>
+</div>
+</div>
+<button class="w-full py-2 bg-surface-container-highest border border-white/10 font-rajdhani text-xs font-bold uppercase tracking-widest hover:bg-primary hover:text-on-primary transition-all">
+                            Dispatch Field Review
+                        </button>
+</div>
+</div>
+</div>
+</div>
+<!-- Floating AI Analysis Modal Overlay (Hidden logic placeholder) -->
+<div class="fixed bottom-8 right-8 z-[60] glass-card border-l-4 border-primary p-6 industrial-shadow hidden lg:flex flex-col w-80 animate-slide-up">
+<div class="flex justify-between items-start mb-4">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary" data-icon="neurology">neurology</span>
+<span class="font-rajdhani font-bold uppercase tracking-widest text-sm">AI Processor</span>
+</div>
+<button class="text-white/40 hover:text-white">
+<span class="material-symbols-outlined text-sm" data-icon="close">close</span>
+</button>
+</div>
+<div class="space-y-4">
+<p class="text-[10px] font-jetbrains leading-tight text-on-surface-variant">Scanning 142 new media assets from Project Site Bomtempo Intelligence...</p>
+<div class="w-full bg-white/5 h-2 rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[45%]"></div>
+</div>
+<div class="flex justify-between font-jetbrains text-[8px] uppercase text-primary">
+<span>Searching for Helmets...</span>
+<span>45% Complete</span>
+</div>
+</div>
+</div>
+</main>
+<!-- Bottom Navigation (Mobile Only) -->
+<nav class="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-[#081210] border-t border-white/10 flex items-center justify-around z-50">
+<a class="flex flex-col items-center gap-1 text-primary" href="#">
+<span class="material-symbols-outlined" data-icon="folder_open">folder_open</span>
+<span class="text-[8px] font-jetbrains uppercase">Projects</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-gray-500" href="#">
+<span class="material-symbols-outlined" data-icon="monitoring">monitoring</span>
+<span class="text-[8px] font-jetbrains uppercase">Status</span>
+</a>
+<div class="-mt-8 bg-primary p-3 rounded-lg industrial-shadow text-on-primary-container">
+<span class="material-symbols-outlined" data-icon="add">add</span>
+</div>
+<a class="flex flex-col items-center gap-1 text-gray-500" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="text-[8px] font-jetbrains uppercase">Config</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-gray-500" href="#">
+<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+<span class="text-[8px] font-jetbrains uppercase">Me</span>
+</a>
+</nav>
+</body></html>

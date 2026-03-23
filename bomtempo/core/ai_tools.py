@@ -105,7 +105,19 @@ AI_TOOLS = [
 
 # --- Tool Execution Logic ---
 
-_BLOCKED_KEYWORDS = {"drop", "delete", "update", "insert", "truncate", "alter", "grant", "revoke", "create"}
+import re
+
+# Block mutating commands (word boundaries prevent partial matches like "selectall")
+_BLOCKED_CMD_RE = re.compile(
+    r"\b(drop|delete|update|insert|truncate|alter|grant|revoke|create)\b",
+    re.IGNORECASE,
+)
+
+# Tables that must never be accessed via AI SQL — regardless of RPC whitelist
+_SENSITIVE_TABLES = re.compile(
+    r"\b(login|roles|system_logs|llm_usage|information_schema)\b|pg_\w+",
+    re.IGNORECASE,
+)
 
 
 def execute_tool(name: str, args: dict):
@@ -115,10 +127,17 @@ def execute_tool(name: str, args: dict):
             query = args.get("query", "").strip()
             if not query:
                 return json.dumps({"error": "Query não fornecida."})
-            # Guard Python-side antes de chegar no Supabase
-            first_word = query.split()[0].lower()
-            if first_word in _BLOCKED_KEYWORDS:
-                return json.dumps({"error": f"Operação '{first_word.upper()}' não permitida. Apenas SELECT."})
+
+            # Strip SQL comments before checking (bypass prevention)
+            clean_query = re.sub(r"--[^\n]*", "", query)
+            clean_query = re.sub(r"/\*.*?\*/", "", clean_query, flags=re.DOTALL)
+
+            if _BLOCKED_CMD_RE.search(clean_query):
+                return json.dumps({"error": "Operação não permitida. Apenas SELECT é autorizado."})
+
+            if _SENSITIVE_TABLES.search(clean_query):
+                return json.dumps({"error": "Acesso a tabelas sensíveis não permitido via IA."})
+
             logger.info(f"🛠️ Tool: execute_sql → {query[:120]}")
             result = sb_rpc("execute_safe_query", {"query_string": query})
             return json.dumps(result or [])

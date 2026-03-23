@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;700&amp;family=Plus+Jakarta+Sans:wght@400;500;600&amp;family=Space+Grotesk:wght@500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "inverse-primary": "#835500",
+              "on-tertiary-container": "#422c00",
+              "on-primary": "#452b00",
+              "background": "#0b1513",
+              "on-tertiary-fixed-variant": "#5f4100",
+              "on-surface-variant": "#d5c4b0",
+              "error": "#ffb4ab",
+              "surface-tint": "#ffb955",
+              "surface-container": "#17221f",
+              "inverse-surface": "#dae5e1",
+              "on-secondary-fixed-variant": "#005048",
+              "on-primary-fixed-variant": "#633f00",
+              "surface-container-high": "#222c2a",
+              "secondary": "#2A9D8F",
+              "tertiary-fixed": "#ffdeac",
+              "on-primary-container": "#442a00",
+              "surface-container-low": "#131d1b",
+              "on-secondary-container": "#00302a",
+              "secondary-fixed-dim": "#6fd8c8",
+              "surface-variant": "#2c3734",
+              "on-secondary": "#003731",
+              "on-primary-fixed": "#291800",
+              "outline": "#9e8e7d",
+              "primary-fixed-dim": "#ffb955",
+              "outline-variant": "#514536",
+              "on-error-container": "#ffdad6",
+              "surface": "#0b1513",
+              "surface-dim": "#0b1513",
+              "on-error": "#690005",
+              "secondary-container": "#30a193",
+              "tertiary-container": "#c48e23",
+              "surface-container-highest": "#2c3734",
+              "surface-bright": "#313b39",
+              "inverse-on-surface": "#283230",
+              "on-tertiary-fixed": "#281900",
+              "primary": "#ffb955",
+              "tertiary-fixed-dim": "#f9bc4f",
+              "primary-container": "#c98b2a",
+              "surface-container-lowest": "#06100e",
+              "primary-fixed": "#ffddb4",
+              "on-secondary-fixed": "#00201c",
+              "secondary-fixed": "#8cf5e4",
+              "on-tertiary": "#432c00",
+              "on-surface": "#dae5e1",
+              "error-container": "#93000a",
+              "on-background": "#dae5e1",
+              "tertiary": "#f9bc4f"
+            },
+            fontFamily: {
+              "headline": ["Rajdhani"],
+              "body": ["Plus Jakarta Sans"],
+              "label": ["JetBrains Mono"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #030504; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #c98b2a; }
+        .glass-panel {
+            background: rgba(14, 26, 23, 0.6);
+            backdrop-filter: blur(12px);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-[#030504] text-on-surface font-body min-h-screen pb-24 custom-scrollbar">
+<!-- Top Navigation Shell -->
+<header class="bg-[#030504]/60 backdrop-blur-md sticky top-0 z-50 shadow-[0_20px_40px_rgba(0,0,0,0.4)]">
+<div class="flex flex-col w-full px-4 pt-4">
+<div class="flex justify-between items-center mb-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full border-2 border-primary-container overflow-hidden">
+<img alt="User profile avatar" data-alt="close-up portrait of a professional civil engineer wearing a safety helmet and reflective vest against an industrial background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCWkP9ugESQTSAA5WMs699bt6o_9lX-XqSS0R8fcTdQP3fCoev1yMbdZ9125jwS4fMyBdf62H3MR2YhsDS5MJkt_TO2Sh15CrBjPXWzQqMqfTnen8jdekdJlvDT2WEO4o2C8klE_pOx26SgI8Os9-zVOnU1YoqOoReNbmQFKJTjf1huSHVUlHcUBJfljxZNid36gS8gpHrFrqCXC-5W3sGFrRUxdYLTi3WLPORiJ5EiyamWtG6BA1hStH6YRLcuJ7v4EmNSTRRkFzc"/>
+</div>
+<span class="text-xl font-headline font-bold uppercase tracking-[0.05em] text-primary-container">FIELD_OPS</span>
+</div>
+<span class="material-symbols-outlined text-primary-container cursor-pointer" data-icon="settings">settings</span>
+</div>
+<nav class="flex border-b border-white/5">
+<button class="flex-1 py-3 text-center text-primary-container border-b-2 border-primary-container font-bold font-headline uppercase tracking-wider">
+                    NOVO RDO
+                </button>
+<button class="flex-1 py-3 text-center text-on-surface-variant/60 font-medium font-headline uppercase tracking-wider hover:text-primary-container transition-colors">
+                    MEUS RDOS
+                </button>
+</nav>
+</div>
+</header>
+<main class="p-4 space-y-6 max-w-2xl mx-auto">
+<!-- Section 1: Info -->
+<section class="space-y-4">
+<div class="flex items-center gap-2 mb-2">
+<span class="w-1 h-6 bg-primary-container"></span>
+<h2 class="font-headline text-xl font-bold uppercase tracking-tight">01. INFORMAÇÕES GERAIS</h2>
+</div>
+<div class="grid grid-cols-1 gap-4">
+<div class="bg-surface-container-low p-4 space-y-3">
+<div class="flex flex-col">
+<label class="font-headline text-xs text-primary-container uppercase tracking-widest mb-1">Contrato</label>
+<span class="font-label text-sm text-on-surface-variant uppercase">CN-2024-XP09-OFFSHORE</span>
+</div>
+<div class="flex flex-col">
+<label class="font-headline text-xs text-primary-container uppercase tracking-widest mb-1">Projeto</label>
+<span class="font-label text-sm text-on-surface-variant uppercase">EXPANSÃO TERMINAL LOGÍSTICO</span>
+</div>
+<div class="flex flex-col">
+<label class="font-headline text-xs text-primary-container uppercase tracking-widest mb-1">Localização</label>
+<span class="font-label text-sm text-on-surface-variant uppercase">CANTEIRO SUL - ZONA A4</span>
+</div>
+</div>
+<div class="bg-surface-container-highest p-4 grid grid-cols-2 gap-4">
+<div class="flex flex-col">
+<label class="font-headline text-xs text-primary-container uppercase tracking-widest mb-1">Data</label>
+<input class="bg-surface-container-lowest border-0 border-b-2 border-transparent focus:border-primary-container text-on-surface font-label text-sm p-2 outline-none" type="date" value="2024-05-24"/>
+</div>
+<div class="flex flex-col">
+<label class="font-headline text-xs text-primary-container uppercase tracking-widest mb-1">Clima</label>
+<select class="bg-surface-container-lowest border-0 border-b-2 border-transparent focus:border-primary-container text-on-surface font-label text-sm p-2 outline-none appearance-none">
+<option>ENSOLARADO</option>
+<option>NUBLADO</option>
+<option>CHOVA LEVE</option>
+</select>
+</div>
+<div class="flex flex-col">
+<label class="font-headline text-xs text-primary-container uppercase tracking-widest mb-1">Turno</label>
+<select class="bg-surface-container-lowest border-0 border-b-2 border-transparent focus:border-primary-container text-on-surface font-label text-sm p-2 outline-none appearance-none">
+<option>DIURNO</option>
+<option>NOTURNO</option>
+</select>
+</div>
+<div class="flex flex-col">
+<label class="font-headline text-xs text-primary-container uppercase tracking-widest mb-1">Orientação</label>
+<input class="bg-surface-container-lowest border-0 border-b-2 border-transparent focus:border-primary-container text-on-surface font-label text-sm p-2 outline-none" placeholder="DDS REALIZADO" type="text"/>
+</div>
+</div>
+</div>
+</section>
+<!-- Section 2: GPS Check -->
+<section class="grid grid-cols-2 gap-4">
+<button class="flex flex-col items-center justify-center p-4 bg-surface-container-highest border border-white/5 active:scale-95 transition-all">
+<span class="material-symbols-outlined text-secondary mb-2" data-icon="location_on">location_on</span>
+<span class="font-headline text-xs font-bold text-on-surface uppercase tracking-widest">CHECK-IN</span>
+<span class="font-label text-[10px] text-secondary mt-1">07:42 AM</span>
+</button>
+<button class="flex flex-col items-center justify-center p-4 bg-surface-container-highest border border-white/5 opacity-50">
+<span class="material-symbols-outlined text-primary-container mb-2" data-icon="logout">logout</span>
+<span class="font-headline text-xs font-bold text-on-surface uppercase tracking-widest">CHECK-OUT</span>
+<span class="font-label text-[10px] text-on-surface-variant/40 mt-1">PENDENTE</span>
+</button>
+</section>
+<!-- Section 3: PPE Photo -->
+<section class="space-y-3">
+<div class="flex items-center gap-2">
+<span class="w-1 h-6 bg-primary-container"></span>
+<h2 class="font-headline text-xl font-bold uppercase tracking-tight">02. FOTO EQUIPE (EPIs)</h2>
+</div>
+<div class="relative w-full aspect-video bg-surface-container-low border-2 border-dashed border-white/10 flex flex-col items-center justify-center cursor-pointer">
+<img class="absolute inset-0 w-full h-full object-cover opacity-60" data-alt="wide shot of a construction team standing in front of a heavy machinery crane wearing orange safety vests and white hard hats" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDK-m49o635vYKK8BYCsbmsOhMcbD_d834NYGqIHB4gD69oy2-J1K_5s938GhpKVXdI10H7r7SZlfBTuAJ0axuTIjgws2tfSUR_Q7woTHwL_g9qxJUldQuiIo5SgYAhlZqv4XjwyCRc7Yh3jvuzLhnzv83QaVubGJXvpSCyTWgbnXZmJgjNHb5-NcWmiThXD2hlvy55sDTRmSvRrX9gMomfbBjZPlOavSXcdnEN7OrsqQZYFH4Nfdj1JJMQS8FLfrNLqBjP9hpHlL0"/>
+<div class="relative z-10 flex flex-col items-center bg-black/40 p-4 backdrop-blur-sm">
+<span class="material-symbols-outlined text-3xl text-primary-container mb-2" data-icon="add_a_photo">add_a_photo</span>
+<span class="font-headline text-sm font-bold uppercase tracking-widest">ATUALIZAR FOTO</span>
+</div>
+</div>
+</section>
+<!-- Section 4: Executed Services -->
+<section class="space-y-4">
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-2">
+<span class="w-1 h-6 bg-primary-container"></span>
+<h2 class="font-headline text-xl font-bold uppercase tracking-tight">03. SERVIÇOS EXECUTADOS</h2>
+</div>
+<button class="bg-primary-container text-on-primary px-3 py-1 flex items-center gap-1">
+<span class="material-symbols-outlined text-sm" data-icon="add">add</span>
+<span class="font-headline text-xs font-bold uppercase">NOVO</span>
+</button>
+</div>
+<div class="space-y-3">
+<!-- Item 1 -->
+<div class="bg-surface-container p-4 border-l-4 border-secondary">
+<div class="flex justify-between items-start mb-2">
+<h3 class="font-headline text-sm font-bold text-on-surface uppercase">CONCRETAGEM BLOCO A1</h3>
+<span class="material-symbols-outlined text-on-surface-variant text-sm" data-icon="more_vert">more_vert</span>
+</div>
+<p class="font-body text-xs text-on-surface-variant mb-3">Lançamento de 40m³ de concreto usinado FCK 30 MPa.</p>
+<div class="flex items-center gap-4">
+<div class="flex-1">
+<div class="flex justify-between text-[10px] font-label text-primary-container uppercase mb-1">
+<span>PROGRESSO</span>
+<span>85%</span>
+</div>
+<div class="h-1 bg-surface-container-lowest w-full">
+<div class="h-1 bg-secondary w-[85%]"></div>
+</div>
+</div>
+<select class="bg-surface-container-highest border-0 text-[10px] font-headline font-bold uppercase p-1">
+<option>CONCLUÍDO</option>
+<option selected="">EM ANDAMENTO</option>
+<option>PARADO</option>
+</select>
+</div>
+</div>
+<!-- Item 2 -->
+<div class="bg-surface-container p-4 border-l-4 border-primary-container">
+<div class="flex justify-between items-start mb-2">
+<h3 class="font-headline text-sm font-bold text-on-surface uppercase">ARMADURA PILARES</h3>
+<span class="material-symbols-outlined text-on-surface-variant text-sm" data-icon="more_vert">more_vert</span>
+</div>
+<p class="font-body text-xs text-on-surface-variant mb-3">Montagem de estribos e barras longitudinais CA-50.</p>
+<div class="flex items-center gap-4">
+<div class="flex-1">
+<div class="flex justify-between text-[10px] font-label text-primary-container uppercase mb-1">
+<span>PROGRESSO</span>
+<span>30%</span>
+</div>
+<div class="h-1 bg-surface-container-lowest w-full">
+<div class="h-1 bg-primary-container w-[30%]"></div>
+</div>
+</div>
+<select class="bg-surface-container-highest border-0 text-[10px] font-headline font-bold uppercase p-1">
+<option>CONCLUÍDO</option>
+<option selected="">EM ANDAMENTO</option>
+<option>PARADO</option>
+</select>
+</div>
+</div>
+</div>
+</section>
+<!-- Section 5: Field Photos -->
+<section class="space-y-4">
+<div class="flex items-center gap-2">
+<span class="w-1 h-6 bg-primary-container"></span>
+<h2 class="font-headline text-xl font-bold uppercase tracking-tight">04. EVIDÊNCIAS (CAMPO)</h2>
+</div>
+<div class="grid grid-cols-2 gap-3">
+<div class="space-y-2">
+<div class="aspect-square bg-surface-container overflow-hidden border border-white/5 relative">
+<img class="w-full h-full object-cover" data-alt="close up of steel reinforcement bars tied together at a construction site with sunlight creating long shadows" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCv8iGVZeZ-_na9XhCZDAm5XtnpRzLezZwEWGhO3KiNCk1ui66tS9W1QfYtPjwSZuq0YQTp4mKFeGdHqUQiFibrFBPOsGp1gtUsaHJRh_FJ7TAtyBFwNWsVzYFulZalspYRcqKYRgcUiYn__8v7tpSsuyHtGTlWKtJPOGN8xXYdHcmO6JLbZnWVnQZT9bauXbJ1_wBcaiHI1ALkGryvFRoalh9ev8-N8lIj-NSsHAH-yQ6AmojEoQ4BTvUKAg9hl0JTPhsfJhfQq1Y"/>
+<button class="absolute top-1 right-1 bg-black/50 p-1 text-error"><span class="material-symbols-outlined text-sm" data-icon="close">close</span></button>
+</div>
+<input class="w-full bg-surface-container-lowest border-0 text-[10px] font-label p-1 uppercase" type="text" value="Armadura Pilares - Eixo C"/>
+</div>
+<div class="flex flex-col items-center justify-center aspect-square border-2 border-dashed border-white/10 bg-surface-container-low cursor-pointer hover:border-primary-container transition-colors group">
+<span class="material-symbols-outlined text-2xl text-on-surface-variant group-hover:text-primary-container" data-icon="add_circle">add_circle</span>
+<span class="font-headline text-[10px] font-bold uppercase tracking-tighter mt-1">ADICIONAR FOTO</span>
+</div>
+</div>
+</section>
+<!-- Section 6: Obs & Events -->
+<section class="space-y-6">
+<div class="space-y-3">
+<div class="flex items-center gap-2">
+<span class="w-1 h-6 bg-primary-container"></span>
+<h2 class="font-headline text-xl font-bold uppercase tracking-tight">05. OCORRÊNCIAS DO DIA</h2>
+</div>
+<div class="bg-surface-container-low p-4 space-y-4">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-6 h-6 border border-primary-container flex items-center justify-center bg-primary-container">
+<span class="material-symbols-outlined text-on-primary text-sm" data-icon="check">check</span>
+</div>
+<span class="font-headline text-sm font-bold uppercase">PLUVIOSIDADE (CHUVA)</span>
+</div>
+<select class="bg-surface-container-highest border-0 text-[10px] font-label p-1 outline-none">
+<option>MODERADA</option>
+<option>FORTE (PARALISAÇÃO)</option>
+</select>
+</div>
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-6 h-6 border border-white/20 flex items-center justify-center"></div>
+<span class="font-headline text-sm font-bold uppercase">INCIDENTE / ACIDENTE</span>
+</div>
+</div>
+</div>
+</div>
+<div class="space-y-2">
+<label class="font-headline text-xs text-primary-container uppercase tracking-widest">OBSERVAÇÕES GERAIS</label>
+<textarea class="w-full h-24 bg-surface-container-lowest border-0 border-b-2 border-white/10 focus:border-primary-container text-on-surface font-body text-sm p-3 outline-none resize-none" placeholder="Relate eventos significativos ou impedimentos..."></textarea>
+</div>
+</section>
+<!-- Section 7: Tools Cleanliness -->
+<section class="space-y-3">
+<div class="flex items-center gap-2">
+<span class="w-1 h-6 bg-primary-container"></span>
+<h2 class="font-headline text-xl font-bold uppercase tracking-tight">06. ORGANIZAÇÃO &amp; LIMPEZA</h2>
+</div>
+<div class="bg-surface-container-low p-4 flex gap-4 items-center">
+<div class="w-24 h-24 bg-surface-container-highest flex items-center justify-center border border-white/5">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="photo_camera">photo_camera</span>
+</div>
+<div class="flex-1">
+<p class="font-body text-xs text-on-surface-variant mb-2">Capture o estado final das ferramentas e área de trabalho.</p>
+<button class="text-primary-container font-headline text-xs font-bold uppercase border-b border-primary-container">TIRAR FOTO</button>
+</div>
+</div>
+</section>
+<!-- Section 8: Signature -->
+<section class="space-y-4">
+<div class="flex items-center gap-2">
+<span class="w-1 h-6 bg-primary-container"></span>
+<h2 class="font-headline text-xl font-bold uppercase tracking-tight">07. ASSINATURA DIGITAL</h2>
+</div>
+<div class="bg-surface-container-highest p-4 space-y-4">
+<div class="grid grid-cols-2 gap-4">
+<div class="flex flex-col">
+<label class="font-headline text-xs text-primary-container uppercase mb-1">Responsável</label>
+<input class="bg-surface-container-lowest border-0 border-b border-white/10 text-on-surface font-label text-sm p-1" type="text" value="CARLOS EDUARDO"/>
+</div>
+<div class="flex flex-col">
+<label class="font-headline text-xs text-primary-container uppercase mb-1">ID Registro</label>
+<input class="bg-surface-container-lowest border-0 border-b border-white/10 text-on-surface font-label text-sm p-1" type="text" value="ENG-09882"/>
+</div>
+</div>
+<div class="w-full h-32 bg-white/5 border border-white/10 relative">
+<div class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
+<span class="font-label text-xs uppercase italic">ÁREA PARA ASSINATURA</span>
+</div>
+<!-- Signature Mockup Line -->
+<svg class="absolute bottom-6 left-4 right-4 h-12 w-[calc(100%-32px)] text-primary opacity-60" viewbox="0 0 300 50">
+<path d="M10 40 Q 50 10, 80 30 T 150 20 T 220 40 T 290 10" fill="none" stroke="currentColor" stroke-width="2"></path>
+</svg>
+<div class="absolute bottom-2 right-2 flex gap-2">
+<button class="bg-error/20 text-error px-2 py-1 text-[10px] font-bold uppercase">LIMPAR</button>
+<button class="bg-secondary/20 text-secondary px-2 py-1 text-[10px] font-bold uppercase">CONFIRMAR</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Final Button -->
+<button class="w-full bg-primary-container text-on-primary py-4 mt-8 flex items-center justify-center gap-3 active:scale-95 transition-all shadow-[0_10px_20px_rgba(201,139,42,0.3)]">
+<span class="font-headline text-lg font-bold uppercase tracking-widest">FINALIZAR E ENVIAR RDO</span>
+<span class="material-symbols-outlined" data-icon="send">send</span>
+</button>
+</main>
+<!-- Bottom Navigation Shell -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center py-3 px-6 bg-[#030504]/80 backdrop-blur-lg z-50 border-t border-white/10 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
+<div class="flex flex-col items-center justify-center text-primary-container scale-110">
+<span class="material-symbols-outlined" data-icon="assignment" style="font-variation-settings: 'FILL' 1;">assignment</span>
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase mt-1">Tasks</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#dae5e1]/40">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase mt-1">Claims</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#dae5e1]/40">
+<span class="material-symbols-outlined" data-icon="event_repeat">event_repeat</span>
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase mt-1">RDO</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#dae5e1]/40">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase mt-1">Logs</span>
+</div>
+</nav>
+</body></html>

@@ -797,6 +797,65 @@ class EmailService:
             return False
 
     @staticmethod
+    def send_password_reset_email(recipient: str, reset_link: str) -> bool:
+        """Envia email com link de redefinição de senha."""
+        try:
+            if not recipient:
+                return False
+            if not Config.RDO_EMAIL_PASSWORD:
+                logger.error("❌ RDO_EMAIL_PASSWORD não configurado")
+                return False
+
+            msg = MIMEMultipart("alternative")
+            msg["From"] = Config.RDO_EMAIL_USER
+            msg["To"] = recipient
+            msg["Subject"] = "🔐 Redefinição de Senha | BOMTEMPO Intelligence"
+
+            body_html = f"""<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#030504;font-family:'Segoe UI',Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#030504;">
+  <tr><td align="center" style="padding:48px 16px;">
+    <table width="500" cellpadding="0" cellspacing="0"
+      style="max-width:500px;width:100%;background:#0e1a17;border-radius:16px;overflow:hidden;border:1px solid rgba(201,139,42,0.2);">
+      <tr><td style="background:linear-gradient(135deg,#1a0e00,#C98B2A);padding:32px;text-align:center;">
+        <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;">Recuperação de Acesso</h1>
+      </tr></td>
+      <tr><td style="padding:32px;">
+        <p style="margin:0 0 16px;color:#C8D8D4;font-size:15px;line-height:1.6;">
+          Olá, recebemos uma solicitação para redefinir a senha da sua conta no <strong style="color:#C98B2A;">BOMTEMPO Dashboard</strong>.
+        </p>
+        <p style="margin:0 0 24px;color:#889999;font-size:14px;line-height:1.6;">
+          Clique no botão abaixo para escolher uma nova senha. Este link expira em 1 hora.
+        </p>
+        <div style="text-align:center;margin-bottom:24px;">
+          <a href="{reset_link}" style="display:inline-block;background:#C98B2A;color:#000;font-weight:700;font-size:14px;text-decoration:none;padding:14px 32px;border-radius:8px;text-transform:uppercase;letter-spacing:0.05em;">Redefinir Senha</a>
+        </div>
+        <p style="margin:0;color:#4a5a58;font-size:12px;text-align:center;">
+          Se você não solicitou esta alteração, pode ignorar este email com segurança.
+        </p>
+      </td></tr>
+      <tr><td style="background:#081210;padding:16px;text-align:center;border-top:1px solid rgba(255,255,255,0.06);">
+        <p style="margin:0;color:#4a5a58;font-size:11px;">BOMTEMPO Intelligence · Sistema de Segurança</p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table></body></html>"""
+
+            msg.attach(MIMEText(body_html, "html", "utf-8"))
+
+            with smtplib.SMTP(Config.RDO_SMTP_SERVER, Config.RDO_SMTP_PORT) as server:
+                server.starttls()
+                server.login(Config.RDO_EMAIL_USER, Config.RDO_EMAIL_PASSWORD)
+                server.send_message(msg)
+
+            logger.info(f"✅ Reset email enviado para {recipient}")
+            return True
+        except Exception as e:
+            logger.error(f"❌ send_password_reset_email: {e}")
+            return False
+
+    @staticmethod
     def send_document_email(
         recipients: List[str],
         doc_label: str,

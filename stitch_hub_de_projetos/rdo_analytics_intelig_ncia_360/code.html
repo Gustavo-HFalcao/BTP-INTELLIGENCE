@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "surface-variant": "#2c3734",
+                        "background": "#0b1513",
+                        "secondary-fixed-dim": "#6fd8c8",
+                        "primary-fixed-dim": "#ffb955",
+                        "on-tertiary": "#432c00",
+                        "on-error-container": "#ffdad6",
+                        "surface-dim": "#0b1513",
+                        "outline": "#9e8e7d",
+                        "on-tertiary-fixed-variant": "#5f4100",
+                        "on-secondary-fixed-variant": "#005048",
+                        "on-secondary-fixed": "#00201c",
+                        "tertiary-fixed": "#ffdeac",
+                        "tertiary-container": "#c48e23",
+                        "surface": "#0b1513",
+                        "on-tertiary-container": "#422c00",
+                        "surface-container-highest": "#2c3734",
+                        "tertiary-fixed-dim": "#f9bc4f",
+                        "inverse-on-surface": "#283230",
+                        "inverse-surface": "#dae5e1",
+                        "error-container": "#93000a",
+                        "on-primary-fixed": "#291800",
+                        "surface-container-low": "#131d1b",
+                        "surface-container-lowest": "#06100e",
+                        "outline-variant": "#514536",
+                        "on-surface": "#dae5e1",
+                        "secondary": "#6fd8c8",
+                        "secondary-container": "#30a193",
+                        "on-background": "#dae5e1",
+                        "primary-container": "#c98b2a",
+                        "surface-container": "#17221f",
+                        "on-error": "#690005",
+                        "tertiary": "#f9bc4f",
+                        "on-secondary-container": "#00302a",
+                        "on-primary-container": "#442a00",
+                        "error": "#ffb4ab",
+                        "primary": "#ffb955",
+                        "primary-fixed": "#ffddb4",
+                        "on-surface-variant": "#d5c4b0",
+                        "surface-container-high": "#222c2a",
+                        "surface-bright": "#313b39",
+                        "inverse-primary": "#835500",
+                        "on-secondary": "#003731",
+                        "surface-tint": "#ffb955",
+                        "secondary-fixed": "#8cf5e4",
+                        "on-tertiary-fixed": "#281900",
+                        "on-primary-fixed-variant": "#633f00",
+                        "on-primary": "#452b00",
+                        "copper": "#C98B2A",
+                        "patina": "#2A9D8F",
+                        "void": "#030504"
+                    },
+                    fontFamily: {
+                        "headline": ["Rajdhani"],
+                        "body": ["Plus Jakarta Sans"],
+                        "label": ["JetBrains Mono"]
+                    },
+                    borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+        }
+        .glass-card {
+            background: rgba(14, 26, 23, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            transition: all 0.3s ease;
+        }
+        .glass-card:hover {
+            border-color: rgba(201, 139, 42, 0.4);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), 0 0 10px rgba(42, 157, 143, 0.05);
+        }
+        .copper-gradient {
+            background: linear-gradient(135deg, #C98B2A 0%, #835500 100%);
+        }
+    </style>
+</head>
+<body class="bg-void text-on-surface font-body selection:bg-copper/30">
+<!-- SideNavBar Anchor -->
+<aside class="fixed left-0 top-0 h-full flex flex-col py-6 h-screen w-64 bg-[#081210] shadow-[1px_0_0_0_rgba(255,255,255,0.08)] z-50">
+<div class="px-6 mb-10">
+<span class="font-['Rajdhani'] text-xl font-bold tracking-tighter text-[#C98B2A]">PROJECT_FOREMAN</span>
+<p class="font-['Rajdhani'] uppercase tracking-[0.05em] text-xs text-[#dae5e1]/40 mt-1">V-01 Terminal</p>
+</div>
+<nav class="flex-1 space-y-1 px-3">
+<a class="flex items-center gap-3 px-4 py-3 text-[#C98B2A] bg-white/5 border-l-2 border-[#C98B2A] font-['Rajdhani'] uppercase tracking-[0.05em] text-sm transition-all duration-300" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span>Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-[#dae5e1]/60 hover:text-[#dae5e1] hover:bg-white/5 font-['Rajdhani'] uppercase tracking-[0.05em] text-sm transition-all duration-300" href="#">
+<span class="material-symbols-outlined">construction</span>
+<span>Projetos</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-[#dae5e1]/60 hover:text-[#dae5e1] hover:bg-white/5 font-['Rajdhani'] uppercase tracking-[0.05em] text-sm transition-all duration-300" href="#">
+<span class="material-symbols-outlined">gavel</span>
+<span>Auditoria</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-[#dae5e1]/60 hover:text-[#dae5e1] hover:bg-white/5 font-['Rajdhani'] uppercase tracking-[0.05em] text-sm transition-all duration-300" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span>Relatórios</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-[#dae5e1]/60 hover:text-[#dae5e1] hover:bg-white/5 font-['Rajdhani'] uppercase tracking-[0.05em] text-sm transition-all duration-300" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span>Configurações</span>
+</a>
+</nav>
+<div class="px-6 pt-6 mt-auto border-t border-white/5">
+<button class="w-full copper-gradient text-on-primary py-2 font-headline font-bold uppercase tracking-wider text-sm flex items-center justify-center gap-2 active:opacity-80 scale-[0.99] transition-transform">
+<span class="material-symbols-outlined text-sm">add</span>
+                Novo Projeto
+            </button>
+<div class="mt-6 space-y-2">
+<a class="flex items-center gap-3 text-[#dae5e1]/40 hover:text-copper transition-colors text-xs font-headline uppercase tracking-widest" href="#">
+<span class="material-symbols-outlined text-sm">help</span>
+                    Suporte
+                </a>
+<a class="flex items-center gap-3 text-[#dae5e1]/40 hover:text-error transition-colors text-xs font-headline uppercase tracking-widest" href="#">
+<span class="material-symbols-outlined text-sm">logout</span>
+                    Logout
+                </a>
+</div>
+</div>
+</aside>
+<!-- TopAppBar Anchor -->
+<header class="fixed top-0 right-0 left-64 z-40 flex items-center justify-between px-8 w-full h-16 bg-[#0e1a17]/60 backdrop-blur-xl border-b border-white/10">
+<div class="flex items-center gap-6">
+<h1 class="font-headline font-black text-copper text-xl tracking-tight">SITE_TELEMETRY</h1>
+<div class="h-4 w-px bg-white/10"></div>
+<nav class="flex items-center gap-6">
+<a class="text-[#C98B2A] border-b-2 border-[#C98B2A] pb-1 font-headline text-sm font-medium" href="#">Visão Geral</a>
+<a class="text-[#dae5e1]/70 hover:text-[#C98B2A] transition-colors font-headline text-sm font-medium" href="#">Logs</a>
+<a class="text-[#dae5e1]/70 hover:text-[#C98B2A] transition-colors font-headline text-sm font-medium" href="#">Equipe</a>
+</nav>
+</div>
+<div class="flex items-center gap-6">
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-white/30 text-sm">search</span>
+<input class="bg-surface-container-lowest border-none focus:ring-1 focus:ring-copper text-xs font-label w-64 pl-9 py-1.5 placeholder:text-white/20" placeholder="BUSCAR TELEMETRIA..." type="text"/>
+</div>
+<div class="flex items-center gap-4 text-white/60">
+<button class="hover:text-copper transition-colors"><span class="material-symbols-outlined">notifications</span></button>
+<button class="hover:text-copper transition-colors"><span class="material-symbols-outlined">grid_view</span></button>
+<button class="px-4 py-1.5 border border-copper/30 text-copper font-headline text-xs uppercase tracking-widest hover:bg-copper hover:text-void transition-all">Sincronizar</button>
+</div>
+<img alt="Manager Avatar" class="w-8 h-8 rounded-full border border-copper/40" data-alt="Professional portrait of a site manager wearing a high-visibility vest and a hard hat, industrial background, cinematic lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDI6UEqJrXVGf07efdCEkAKO362RM-W1AMDXocAQRVsZaouaqlkuzs-zguK-WqZ076B5zHz7gG8FcxDQyL61DWOTSZKeaXorrYov-UhR2ve3aVkNM11daiVnaku8t_Ro9x8gjKB81XyotrJLdgbEKFT23npY-ws4nLUVBDCr1BNbFX3dGRgwfNm923RVPirK8kBXrmYZ6Ab89j03-oKmkBls3suoWPhwvqwF0k3MenJo9nZEz-rPqRL7zIBADvcSGie-kI1zHkQe1w"/>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="ml-64 pt-24 pb-12 px-8 min-h-screen">
+<!-- Header Section -->
+<div class="flex items-end justify-between mb-8">
+<div>
+<div class="flex items-center gap-3 mb-2">
+<span class="material-symbols-outlined text-copper text-3xl">bar_chart</span>
+<h2 class="font-headline text-4xl font-bold uppercase tracking-tight text-on-surface">RDO Analytics Dashboard</h2>
+</div>
+<p class="font-label text-sm text-patina uppercase tracking-widest opacity-80">Stream de dados em tempo real // Terminal de Controle v1.4.2</p>
+</div>
+<!-- Filters -->
+<div class="flex items-center gap-4">
+<div class="flex flex-col gap-1">
+<label class="font-headline text-[10px] uppercase tracking-widest text-white/40">Contrato</label>
+<select class="bg-surface-container-low border-none text-xs font-label text-on-surface focus:ring-1 focus:ring-copper py-2 pr-10">
+<option>TODOS OS CONTRATOS</option>
+<option>LOTE 04 - EXPANSÃO SUL</option>
+<option>LOTE 09 - INFRA NORTE</option>
+</select>
+</div>
+<div class="flex flex-col gap-1">
+<label class="font-headline text-[10px] uppercase tracking-widest text-white/40">Período</label>
+<select class="bg-surface-container-low border-none text-xs font-label text-on-surface focus:ring-1 focus:ring-copper py-2 pr-10">
+<option>ÚLTIMOS 30 DIAS</option>
+<option>ÚLTIMO TRIMESTRE</option>
+<option>ANO FISCAL 2024</option>
+</select>
+</div>
+<button class="self-end h-9 px-4 glass-card hover:bg-white/5 flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">filter_list</span>
+<span class="font-headline text-xs uppercase tracking-widest">Filtros Avançados</span>
+</button>
+</div>
+</div>
+<!-- KPI Row -->
+<div class="grid grid-cols-4 gap-6 mb-8">
+<div class="glass-card p-6 border-l-4 border-l-copper">
+<p class="font-headline text-xs uppercase tracking-[0.2em] text-white/40 mb-2">Total de RDOs</p>
+<div class="flex items-baseline justify-between">
+<span class="font-headline text-4xl font-bold text-on-surface">1,248</span>
+<span class="font-label text-xs text-patina">+12.4%</span>
+</div>
+<div class="mt-4 w-full h-1 bg-void overflow-hidden">
+<div class="h-full bg-copper w-3/4"></div>
+</div>
+</div>
+<div class="glass-card p-6">
+<p class="font-headline text-xs uppercase tracking-[0.2em] text-white/40 mb-2">Obras Ativas</p>
+<div class="flex items-baseline justify-between">
+<span class="font-headline text-4xl font-bold text-on-surface">14</span>
+<span class="font-label text-xs text-white/40">STABLE</span>
+</div>
+<div class="mt-4 w-full h-1 bg-void overflow-hidden">
+<div class="h-full bg-patina w-1/2"></div>
+</div>
+</div>
+<div class="glass-card p-6">
+<p class="font-headline text-xs uppercase tracking-[0.2em] text-white/40 mb-2">Enviados Hoje</p>
+<div class="flex items-baseline justify-between">
+<span class="font-headline text-4xl font-bold text-on-surface">08</span>
+<span class="font-label text-xs text-patina">UP</span>
+</div>
+<div class="mt-4 w-full h-1 bg-void overflow-hidden">
+<div class="h-full bg-copper w-1/4"></div>
+</div>
+</div>
+<div class="glass-card p-6">
+<p class="font-headline text-xs uppercase tracking-[0.2em] text-white/40 mb-2">Última Data</p>
+<div class="flex items-baseline justify-between">
+<span class="font-headline text-2xl font-bold text-on-surface">24 OUT 2023</span>
+<span class="font-label text-xs text-white/20">14:32</span>
+</div>
+<div class="mt-4 flex gap-1">
+<div class="h-1 flex-1 bg-patina"></div>
+<div class="h-1 flex-1 bg-patina"></div>
+<div class="h-1 flex-1 bg-patina"></div>
+<div class="h-1 flex-1 bg-void"></div>
+<div class="h-1 flex-1 bg-void"></div>
+</div>
+</div>
+</div>
+<!-- Charts Grid (Bento Style) -->
+<div class="grid grid-cols-12 gap-6 mb-8">
+<!-- Area Chart RDOs por Dia -->
+<div class="col-span-8 glass-card p-8 flex flex-col">
+<div class="flex items-center justify-between mb-8">
+<h3 class="font-headline text-lg font-bold uppercase tracking-widest text-on-surface">Volume de Relatórios Diários</h3>
+<div class="flex gap-4">
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-copper"></div>
+<span class="font-label text-[10px] text-white/40">PREVISTO</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-patina"></div>
+<span class="font-label text-[10px] text-white/40">REALIZADO</span>
+</div>
+</div>
+</div>
+<div class="flex-1 min-h-[300px] relative flex items-end justify-between gap-1 px-4">
+<!-- SVG Area Chart Placeholder -->
+<div class="absolute inset-0 flex items-end px-4 pointer-events-none opacity-20">
+<svg class="w-full h-full preserve-3d" viewbox="0 0 800 200">
+<path d="M0,180 Q100,120 200,160 T400,100 T600,140 T800,40 L800,200 L0,200 Z" fill="url(#grad1)"></path>
+<path d="M0,180 Q100,120 200,160 T400,100 T600,140 T800,40" fill="none" stroke="#C98B2A" stroke-width="3"></path>
+<defs>
+<lineargradient id="grad1" x1="0%" x2="0%" y1="0%" y2="100%">
+<stop offset="0%" style="stop-color:#C98B2A;stop-opacity:0.4"></stop>
+<stop offset="100%" style="stop-color:#C98B2A;stop-opacity:0"></stop>
+</lineargradient>
+</defs>
+</svg>
+</div>
+<!-- Data Points Visual Mockup -->
+<div class="flex-1 flex flex-col justify-end items-center group h-full">
+<div class="w-1 bg-copper/20 group-hover:bg-copper/60 transition-all" style="height: 40%"></div>
+<span class="font-label text-[9px] mt-2 text-white/30">SEG</span>
+</div>
+<div class="flex-1 flex flex-col justify-end items-center group h-full">
+<div class="w-1 bg-copper/20 group-hover:bg-copper/60 transition-all" style="height: 60%"></div>
+<span class="font-label text-[9px] mt-2 text-white/30">TER</span>
+</div>
+<div class="flex-1 flex flex-col justify-end items-center group h-full">
+<div class="w-1 bg-copper/20 group-hover:bg-copper/60 transition-all" style="height: 45%"></div>
+<span class="font-label text-[9px] mt-2 text-white/30">QUA</span>
+</div>
+<div class="flex-1 flex flex-col justify-end items-center group h-full">
+<div class="w-1 bg-copper group-hover:bg-copper/60 transition-all" style="height: 85%"></div>
+<span class="font-label text-[9px] mt-2 text-white/30">QUI</span>
+</div>
+<div class="flex-1 flex flex-col justify-end items-center group h-full">
+<div class="w-1 bg-copper/20 group-hover:bg-copper/60 transition-all" style="height: 70%"></div>
+<span class="font-label text-[9px] mt-2 text-white/30">SEX</span>
+</div>
+<div class="flex-1 flex flex-col justify-end items-center group h-full">
+<div class="w-1 bg-copper/20 group-hover:bg-copper/60 transition-all" style="height: 20%"></div>
+<span class="font-label text-[9px] mt-2 text-white/30">SAB</span>
+</div>
+</div>
+</div>
+<!-- Pie Charts (Combined Glass Card) -->
+<div class="col-span-4 space-y-6">
+<!-- Weather Chart -->
+<div class="glass-card p-6 flex flex-col h-[calc(50%-12px)]">
+<h3 class="font-headline text-sm font-bold uppercase tracking-widest text-white/60 mb-6 flex items-center gap-2">
+<span class="material-symbols-outlined text-xs">wb_sunny</span> Clima predominante
+                    </h3>
+<div class="flex items-center gap-8 justify-center">
+<div class="relative w-24 h-24 flex items-center justify-center">
+<svg class="w-full h-full -rotate-90" viewbox="0 0 36 36">
+<circle cx="18" cy="18" fill="transparent" r="15.9" stroke="#131d1b" stroke-width="3"></circle>
+<circle cx="18" cy="18" fill="transparent" r="15.9" stroke="#C98B2A" stroke-dasharray="60 100" stroke-width="3"></circle>
+<circle cx="18" cy="18" fill="transparent" r="15.9" stroke="#2A9D8F" stroke-dasharray="25 100" stroke-dashoffset="-60" stroke-width="3"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<span class="font-headline text-xl font-bold">22º</span>
+<span class="font-label text-[8px] opacity-40">AVG</span>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 bg-copper"></div>
+<span class="font-label text-[10px]">SOL (60%)</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 bg-patina"></div>
+<span class="font-label text-[10px]">NUBLADO (25%)</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 bg-white/10"></div>
+<span class="font-label text-[10px]">CHUVA (15%)</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Status Chart -->
+<div class="glass-card p-6 flex flex-col h-[calc(50%-12px)]">
+<h3 class="font-headline text-sm font-bold uppercase tracking-widest text-white/60 mb-6 flex items-center gap-2">
+<span class="material-symbols-outlined text-xs">task_alt</span> Status Atividades
+                    </h3>
+<div class="flex-1 flex flex-col justify-center gap-4">
+<div class="space-y-1">
+<div class="flex justify-between font-label text-[10px] text-white/40">
+<span>CONCLUÍDAS</span>
+<span class="text-patina">84%</span>
+</div>
+<div class="w-full h-1 bg-white/5 overflow-hidden">
+<div class="h-full bg-patina w-[84%]"></div>
+</div>
+</div>
+<div class="space-y-1">
+<div class="flex justify-between font-label text-[10px] text-white/40">
+<span>EM ANDAMENTO</span>
+<span class="text-copper">12%</span>
+</div>
+<div class="w-full h-1 bg-white/5 overflow-hidden">
+<div class="h-full bg-copper w-[12%]"></div>
+</div>
+</div>
+<div class="space-y-1">
+<div class="flex justify-between font-label text-[10px] text-white/40">
+<span>IMPEDIMENTOS</span>
+<span class="text-error">4%</span>
+</div>
+<div class="w-full h-1 bg-white/5 overflow-hidden">
+<div class="h-full bg-error w-[4%]"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Second Row Charts -->
+<div class="grid grid-cols-12 gap-6 mb-8">
+<div class="col-span-12 glass-card p-8">
+<div class="flex items-center justify-between mb-8">
+<h3 class="font-headline text-lg font-bold uppercase tracking-widest text-on-surface">Atividades por Contrato</h3>
+<div class="flex items-center gap-4">
+<span class="font-label text-xs text-white/30">Comparativo Global de Mão de Obra</span>
+<div class="h-4 w-px bg-white/10"></div>
+<button class="text-copper font-headline text-xs uppercase tracking-widest hover:underline">Ver Detalhes</button>
+</div>
+</div>
+<div class="space-y-8">
+<!-- Bar Chart Item -->
+<div class="flex items-center gap-6">
+<div class="w-64 font-headline text-xs text-white/60 uppercase tracking-widest truncate">CONT. EXPANSÃO NORTE 04</div>
+<div class="flex-1 h-3 bg-white/5 relative group">
+<div class="h-full bg-copper transition-all group-hover:brightness-125" style="width: 78%"></div>
+<div class="absolute -top-6 left-[78%] -translate-x-1/2 font-label text-[9px] text-copper">782 H/H</div>
+</div>
+</div>
+<!-- Bar Chart Item -->
+<div class="flex items-center gap-6">
+<div class="w-64 font-headline text-xs text-white/60 uppercase tracking-widest truncate">BR-101 ACESSO SUL</div>
+<div class="flex-1 h-3 bg-white/5 relative group">
+<div class="h-full bg-copper transition-all group-hover:brightness-125" style="width: 52%"></div>
+<div class="absolute -top-6 left-[52%] -translate-x-1/2 font-label text-[9px] text-copper">491 H/H</div>
+</div>
+</div>
+<!-- Bar Chart Item -->
+<div class="flex items-center gap-6">
+<div class="w-64 font-headline text-xs text-white/60 uppercase tracking-widest truncate">TUBULAÇÃO SECUNDÁRIA LOTE 2</div>
+<div class="flex-1 h-3 bg-white/5 relative group">
+<div class="h-full bg-copper transition-all group-hover:brightness-125" style="width: 91%"></div>
+<div class="absolute -top-6 left-[91%] -translate-x-1/2 font-label text-[9px] text-copper">924 H/H</div>
+</div>
+</div>
+<!-- Bar Chart Item -->
+<div class="flex items-center gap-6">
+<div class="w-64 font-headline text-xs text-white/60 uppercase tracking-widest truncate">SUBESTAÇÃO 13.8KV REV 02</div>
+<div class="flex-1 h-3 bg-white/5 relative group">
+<div class="h-full bg-copper transition-all group-hover:brightness-125" style="width: 34%"></div>
+<div class="absolute -top-6 left-[34%] -translate-x-1/2 font-label text-[9px] text-copper">210 H/H</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Data Table (The Last Reports) -->
+<div class="glass-card overflow-hidden">
+<div class="p-6 border-b border-white/5 flex items-center justify-between">
+<h3 class="font-headline text-lg font-bold uppercase tracking-widest text-on-surface">Últimos Relatórios Enviados</h3>
+<span class="bg-surface-container-highest px-3 py-1 font-label text-[10px] text-white/40">Showing 5 of 1248</span>
+</div>
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low font-headline text-[10px] uppercase tracking-[0.2em] text-white/40">
+<th class="px-6 py-4 font-semibold">Identificação</th>
+<th class="px-6 py-4 font-semibold">Data/Hora</th>
+<th class="px-6 py-4 font-semibold">Encarregado</th>
+<th class="px-6 py-4 font-semibold">Atividade Principal</th>
+<th class="px-6 py-4 font-semibold">Status</th>
+<th class="px-6 py-4 font-semibold text-right">Ações</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-white/5 font-body text-sm">
+<tr class="hover:bg-white/[0.02] transition-colors group">
+<td class="px-6 py-4 font-label text-xs text-copper">RDO-2023-0984</td>
+<td class="px-6 py-4 text-white/60">24 Out 2023 <span class="text-[10px] opacity-40 ml-1">08:14</span></td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded bg-copper/20 flex items-center justify-center text-[10px] font-bold text-copper">RM</div>
+<span>Ricardo Mendes</span>
+</div>
+</td>
+<td class="px-6 py-4 text-white/60">Concretagem Viga V104</td>
+<td class="px-6 py-4">
+<span class="px-2 py-0.5 bg-patina/10 text-patina border border-patina/20 text-[10px] font-bold uppercase tracking-widest">Validado</span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="bg-surface-container-highest hover:bg-copper hover:text-void p-2 transition-all">
+<span class="material-symbols-outlined text-sm">picture_as_pdf</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-white/[0.02] transition-colors">
+<td class="px-6 py-4 font-label text-xs text-copper">RDO-2023-0983</td>
+<td class="px-6 py-4 text-white/60">23 Out 2023 <span class="text-[10px] opacity-40 ml-1">17:45</span></td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded bg-copper/20 flex items-center justify-center text-[10px] font-bold text-copper">JS</div>
+<span>Juliana Silva</span>
+</div>
+</td>
+<td class="px-6 py-4 text-white/60">Escavação Valas Elétrica</td>
+<td class="px-6 py-4">
+<span class="px-2 py-0.5 bg-patina/10 text-patina border border-patina/20 text-[10px] font-bold uppercase tracking-widest">Validado</span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="bg-surface-container-highest hover:bg-copper hover:text-void p-2 transition-all">
+<span class="material-symbols-outlined text-sm">picture_as_pdf</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-white/[0.02] transition-colors">
+<td class="px-6 py-4 font-label text-xs text-copper">RDO-2023-0982</td>
+<td class="px-6 py-4 text-white/60">23 Out 2023 <span class="text-[10px] opacity-40 ml-1">16:10</span></td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded bg-copper/20 flex items-center justify-center text-[10px] font-bold text-copper">AT</div>
+<span>André Torres</span>
+</div>
+</td>
+<td class="px-6 py-4 text-white/60">Montagem de Andaimes S2</td>
+<td class="px-6 py-4">
+<span class="px-2 py-0.5 bg-copper/10 text-copper border border-copper/20 text-[10px] font-bold uppercase tracking-widest">Pendente</span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="bg-surface-container-highest hover:bg-copper hover:text-void p-2 transition-all">
+<span class="material-symbols-outlined text-sm">picture_as_pdf</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-white/[0.02] transition-colors">
+<td class="px-6 py-4 font-label text-xs text-copper">RDO-2023-0981</td>
+<td class="px-6 py-4 text-white/60">23 Out 2023 <span class="text-[10px] opacity-40 ml-1">11:02</span></td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded bg-copper/20 flex items-center justify-center text-[10px] font-bold text-copper">RM</div>
+<span>Ricardo Mendes</span>
+</div>
+</td>
+<td class="px-6 py-4 text-white/60">Cimbramento Pavimento 03</td>
+<td class="px-6 py-4">
+<span class="px-2 py-0.5 bg-patina/10 text-patina border border-patina/20 text-[10px] font-bold uppercase tracking-widest">Validado</span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="bg-surface-container-highest hover:bg-copper hover:text-void p-2 transition-all">
+<span class="material-symbols-outlined text-sm">picture_as_pdf</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-white/[0.02] transition-colors">
+<td class="px-6 py-4 font-label text-xs text-copper">RDO-2023-0980</td>
+<td class="px-6 py-4 text-white/60">22 Out 2023 <span class="text-[10px] opacity-40 ml-1">15:55</span></td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded bg-copper/20 flex items-center justify-center text-[10px] font-bold text-copper">FC</div>
+<span>Fabiana Costa</span>
+</div>
+</td>
+<td class="px-6 py-4 text-white/60">Instalação de Vidros Fachada</td>
+<td class="px-6 py-4">
+<span class="px-2 py-0.5 bg-error/10 text-error border border-error/20 text-[10px] font-bold uppercase tracking-widest">Impedido</span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="bg-surface-container-highest hover:bg-copper hover:text-void p-2 transition-all">
+<span class="material-symbols-outlined text-sm">picture_as_pdf</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+<div class="p-6 bg-surface-container-low flex justify-center">
+<button class="font-headline text-xs uppercase tracking-[0.2em] text-white/40 hover:text-copper transition-colors">Carregar Mais Relatórios</button>
+</div>
+</div>
+</main>
+<!-- Contextual FAB -->
+<button class="fixed bottom-10 right-10 w-16 h-16 copper-gradient text-on-primary rounded shadow-2xl flex items-center justify-center group active:scale-95 transition-all z-50">
+<span class="material-symbols-outlined text-3xl group-hover:rotate-90 transition-transform">add</span>
+<span class="absolute right-20 bg-surface-container-highest px-4 py-2 font-headline text-xs uppercase tracking-widest text-on-surface whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">Novo Relatório Diário</span>
+</button>
+</body></html>

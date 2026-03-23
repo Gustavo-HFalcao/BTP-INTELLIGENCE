@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="pt-br"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&amp;family=Outfit:wght@300;400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary-fixed": "#ffddb4",
+              "inverse-on-surface": "#283230",
+              "on-tertiary-container": "#422c00",
+              "surface-bright": "#313b39",
+              "secondary-container": "#30a193",
+              "on-error-container": "#ffdad6",
+              "on-primary-fixed-variant": "#633f00",
+              "inverse-surface": "#dae5e1",
+              "surface-variant": "#2c3734",
+              "inverse-primary": "#835500",
+              "on-surface-variant": "#d5c4b0",
+              "on-secondary-fixed-variant": "#005048",
+              "on-secondary": "#003731",
+              "background": "#0b1513",
+              "tertiary": "#f9bc4f",
+              "surface-container-highest": "#2c3734",
+              "on-primary": "#452b00",
+              "on-primary-container": "#442a00",
+              "on-secondary-fixed": "#00201c",
+              "primary-container": "#c98b2a",
+              "outline-variant": "#514536",
+              "surface-container-lowest": "#06100e",
+              "surface-container-high": "#222c2a",
+              "error": "#ffb4ab",
+              "surface-tint": "#ffb955",
+              "secondary": "#6fd8c8",
+              "on-background": "#dae5e1",
+              "tertiary-container": "#c48e23",
+              "primary": "#ffb955",
+              "surface-container": "#17221f",
+              "on-surface": "#dae5e1",
+              "on-error": "#690005",
+              "surface-dim": "#0b1513",
+              "primary-fixed-dim": "#ffb955",
+              "tertiary-fixed": "#ffdeac",
+              "on-tertiary-fixed-variant": "#5f4100",
+              "surface": "#0b1513",
+              "secondary-fixed-dim": "#6fd8c8",
+              "outline": "#9e8e7d",
+              "on-secondary-container": "#00302a",
+              "tertiary-fixed-dim": "#f9bc4f",
+              "on-tertiary-fixed": "#281900",
+              "secondary-fixed": "#8cf5e4",
+              "surface-container-low": "#131d1b",
+              "on-primary-fixed": "#291800",
+              "error-container": "#93000a",
+              "on-tertiary": "#432c00"
+            },
+            fontFamily: {
+              "headline": ["Rajdhani", "sans-serif"],
+              "body": ["Outfit", "sans-serif"],
+              "label": ["JetBrains Mono", "monospace"],
+              "display": ["Rajdhani", "sans-serif"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+        .glass-card {
+            background: rgba(14, 26, 23, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .glass-card:hover {
+            border-color: rgba(201, 139, 42, 0.4);
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-[#030504] text-on-surface font-body selection:bg-primary-container selection:text-on-primary">
+<!-- Sidebar Navigation -->
+<aside class="fixed left-0 top-0 h-full w-64 z-40 bg-[#081210] flex flex-col py-8 px-4 gap-y-2 shadow-[20px_0_40px_rgba(0,0,0,0.4)] hidden md:flex">
+<div class="mb-8 px-4">
+<h1 class="text-[#C98B2A] font-bold text-lg font-headline tracking-tighter">COMMAND_CENTER</h1>
+<p class="font-label text-[10px] text-[#dae5e1] opacity-50 tracking-widest">V.2.0_STABLE</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 text-[#dae5e1] hover:bg-white/5 font-headline font-medium tracking-widest text-xs transition-all hover:border-r-2 hover:border-[#C98B2A]/40" href="#">
+<span class="material-symbols-outlined text-lg">dashboard</span>
+                Principal
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-[#C98B2A] bg-[#0e1a17] border-r-2 border-[#C98B2A] font-headline font-medium tracking-widest text-xs translate-x-1" href="#">
+<span class="material-symbols-outlined text-lg">engineering</span>
+                Operacional
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-[#dae5e1] hover:bg-white/5 font-headline font-medium tracking-widest text-xs transition-all hover:border-r-2 hover:border-[#C98B2A]/40" href="#">
+<span class="material-symbols-outlined text-lg">description</span>
+                RDO
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-[#dae5e1] hover:bg-white/5 font-headline font-medium tracking-widest text-xs transition-all hover:border-r-2 hover:border-[#C98B2A]/40" href="#">
+<span class="material-symbols-outlined text-lg">admin_panel_settings</span>
+                Administração
+            </a>
+</nav>
+<div class="mt-auto space-y-1 border-t border-white/5 pt-4">
+<button class="w-full bg-primary-container text-on-primary font-headline font-bold py-3 mb-4 tracking-widest text-xs hover:bg-[#E0A63B] transition-colors shadow-[0_0_15px_rgba(201,139,42,0.3)]">
+                NEW_PROJECT
+            </button>
+<a class="flex items-center gap-3 px-4 py-3 text-[#dae5e1] opacity-70 hover:opacity-100 font-headline font-medium tracking-widest text-xs" href="#">
+<span class="material-symbols-outlined text-lg">smartphone</span>
+                Mobile App
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-[#dae5e1] opacity-70 hover:opacity-100 font-headline font-medium tracking-widest text-xs" href="#">
+<span class="material-symbols-outlined text-lg">logout</span>
+                Logout
+            </a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="md:ml-64 min-h-screen">
+<!-- Top Navigation -->
+<header class="flex justify-between items-center w-full px-8 h-16 border-b border-white/10 bg-[#030504] sticky top-0 z-50">
+<div class="flex items-center gap-4">
+<span class="font-headline uppercase tracking-[0.05em] text-sm text-[#dae5e1] opacity-70">Operacional / </span>
+<span class="font-headline uppercase tracking-[0.05em] text-sm text-[#C98B2A]">Reembolso Analytics</span>
+</div>
+<div class="flex items-center gap-6">
+<div class="relative hidden sm:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-sm opacity-50">search</span>
+<input class="bg-[#06100e] border-none border-b-2 border-transparent focus:border-primary-container focus:ring-0 font-headline text-xs tracking-widest w-64 pl-10 py-2" placeholder="BUSCAR REGISTRO..." type="text"/>
+</div>
+<div class="flex items-center gap-4">
+<button class="text-[#dae5e1] opacity-70 hover:text-[#C98B2A] transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="text-[#dae5e1] opacity-70 hover:text-[#C98B2A] transition-colors">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<div class="w-8 h-8 bg-surface-container-highest rounded-full overflow-hidden border border-white/10">
+<img class="w-full h-full object-cover" data-alt="close-up portrait of a professional foreman wearing a safety helmet and reflective vest in a high-tech industrial setting with blue and orange ambient lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBFCnqt0tw31HzYcSOc_eNmJNY3YpVYbWVpqW9DOmrtjmhluaNz9yCuCQOsFdJ2WvFhrPQU_n5IaYJefw6oaPczjDNJoFast0X2__CpZDv3Kwf_VsjqWTpssQnoPAOHcvFOFuKPfN8ANncJj-oUxLKOIomZNEQ0pMpgmIAe2nQhYvH3xwTtClI_56lBr0DEuOlNI2Jf-wSEAGnm2z4rfZOnGJQaltLMRS3C7nAfH71TsW8dOEnlWM0AuUgLCT-kTdz-FhxpAQ-1USg"/>
+</div>
+</div>
+</div>
+</header>
+<div class="p-8 space-y-8">
+<!-- KPI Grid -->
+<section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+<div class="glass-card p-6 relative overflow-hidden group">
+<div class="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
+<span class="material-symbols-outlined text-6xl">payments</span>
+</div>
+<p class="font-headline text-xs tracking-widest text-[#dae5e1] opacity-60 mb-2 uppercase">Total Requested</p>
+<h3 class="font-display text-4xl font-bold text-[#C98B2A] tracking-tighter">R$ 142.850,00</h3>
+<div class="mt-4 flex items-center gap-2">
+<span class="font-label text-[10px] text-[#2A9D8F] bg-[#2A9D8F]/10 px-2 py-0.5">+12.4%</span>
+<span class="font-label text-[10px] opacity-40">vs LAST_MONTH</span>
+</div>
+</div>
+<div class="glass-card p-6 relative overflow-hidden group">
+<div class="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
+<span class="material-symbols-outlined text-6xl">local_gas_station</span>
+</div>
+<p class="font-headline text-xs tracking-widest text-[#dae5e1] opacity-60 mb-2 uppercase">Avg Liters / Fuel</p>
+<h3 class="font-display text-4xl font-bold text-[#dae5e1] tracking-tighter">48.2 <span class="text-sm font-label opacity-40">L</span></h3>
+<div class="mt-4 flex items-center gap-2">
+<span class="font-label text-[10px] text-error bg-error/10 px-2 py-0.5">-2.1%</span>
+<span class="font-label text-[10px] opacity-40">STABLE_METRIC</span>
+</div>
+</div>
+<div class="glass-card p-6 relative overflow-hidden group border-r-2 border-[#2A9D8F]/30">
+<div class="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
+<span class="material-symbols-outlined text-6xl text-[#2A9D8F]">psychology</span>
+</div>
+<p class="font-headline text-xs tracking-widest text-[#dae5e1] opacity-60 mb-2 uppercase">AI Reliability Score</p>
+<h3 class="font-display text-4xl font-bold text-[#2A9D8F] tracking-tighter">98.4%</h3>
+<div class="w-full bg-[#030504] h-1 mt-4">
+<div class="bg-[#2A9D8F] h-full" style="width: 98.4%"></div>
+</div>
+</div>
+<div class="glass-card p-6 relative overflow-hidden group">
+<div class="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
+<span class="material-symbols-outlined text-6xl">verified_user</span>
+</div>
+<p class="font-headline text-xs tracking-widest text-[#dae5e1] opacity-60 mb-2 uppercase">Pending Validation</p>
+<h3 class="font-display text-4xl font-bold text-[#dae5e1] tracking-tighter">24 <span class="text-sm font-label opacity-40">FILES</span></h3>
+<div class="mt-4 flex items-center gap-2">
+<span class="font-label text-[10px] text-[#C98B2A] bg-[#C98B2A]/10 px-2 py-0.5">CRITICAL</span>
+<span class="font-label text-[10px] opacity-40">REQUIRES_HUMAN_OVR</span>
+</div>
+</div>
+</section>
+<!-- Charts Section -->
+<section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+<!-- Line Chart: Fuel Cost Trends -->
+<div class="lg:col-span-2 glass-card p-6">
+<div class="flex justify-between items-center mb-8">
+<div>
+<h4 class="font-headline text-lg font-bold tracking-tight text-[#dae5e1]">FUEL_COSTS_TRENDS</h4>
+<p class="font-label text-[10px] opacity-40 uppercase">Daily telemetry aggregate (BRL/KM)</p>
+</div>
+<div class="flex gap-2">
+<button class="px-3 py-1 bg-surface-container-highest text-[10px] font-label text-primary-container border border-primary-container/30">7D</button>
+<button class="px-3 py-1 bg-transparent text-[10px] font-label opacity-40 border border-white/5 hover:border-white/20 transition-colors">30D</button>
+</div>
+</div>
+<div class="h-64 flex items-end justify-between gap-2 px-2">
+<!-- Simulated Line Chart with Bars & Markers -->
+<div class="flex-1 flex flex-col justify-end items-center group">
+<div class="w-full bg-gradient-to-t from-[#C98B2A]/5 to-[#C98B2A]/20 h-32 relative border-t-2 border-[#C98B2A]">
+<div class="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-[#C98B2A] shadow-[0_0_10px_#C98B2A] opacity-0 group-hover:opacity-100 transition-opacity"></div>
+</div>
+<span class="font-label text-[8px] mt-2 opacity-30">MON</span>
+</div>
+<div class="flex-1 flex flex-col justify-end items-center group">
+<div class="w-full bg-gradient-to-t from-[#C98B2A]/5 to-[#C98B2A]/20 h-40 relative border-t-2 border-[#C98B2A]">
+<div class="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-[#C98B2A] shadow-[0_0_10px_#C98B2A] opacity-0 group-hover:opacity-100 transition-opacity"></div>
+</div>
+<span class="font-label text-[8px] mt-2 opacity-30">TUE</span>
+</div>
+<div class="flex-1 flex flex-col justify-end items-center group">
+<div class="w-full bg-gradient-to-t from-[#C98B2A]/5 to-[#C98B2A]/20 h-28 relative border-t-2 border-[#C98B2A]">
+<div class="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-[#C98B2A] shadow-[0_0_10px_#C98B2A] opacity-0 group-hover:opacity-100 transition-opacity"></div>
+</div>
+<span class="font-label text-[8px] mt-2 opacity-30">WED</span>
+</div>
+<div class="flex-1 flex flex-col justify-end items-center group">
+<div class="w-full bg-gradient-to-t from-[#C98B2A]/5 to-[#C98B2A]/20 h-36 relative border-t-2 border-[#C98B2A]">
+<div class="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-[#C98B2A] shadow-[0_0_10px_#C98B2A] opacity-0 group-hover:opacity-100 transition-opacity"></div>
+</div>
+<span class="font-label text-[8px] mt-2 opacity-30">THU</span>
+</div>
+<div class="flex-1 flex flex-col justify-end items-center group">
+<div class="w-full bg-gradient-to-t from-[#C98B2A]/5 to-[#C98B2A]/20 h-48 relative border-t-2 border-[#C98B2A]">
+<div class="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-[#C98B2A] shadow-[0_0_10px_#C98B2A] opacity-0 group-hover:opacity-100 transition-opacity"></div>
+</div>
+<span class="font-label text-[8px] mt-2 opacity-30">FRI</span>
+</div>
+<div class="flex-1 flex flex-col justify-end items-center group">
+<div class="w-full bg-gradient-to-t from-[#C98B2A]/5 to-[#C98B2A]/20 h-24 relative border-t-2 border-[#C98B2A]">
+<div class="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-[#C98B2A] shadow-[0_0_10px_#C98B2A] opacity-0 group-hover:opacity-100 transition-opacity"></div>
+</div>
+<span class="font-label text-[8px] mt-2 opacity-30">SAT</span>
+</div>
+<div class="flex-1 flex flex-col justify-end items-center group">
+<div class="w-full bg-gradient-to-t from-[#C98B2A]/5 to-[#C98B2A]/20 h-16 relative border-t-2 border-[#C98B2A]">
+<div class="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-[#C98B2A] shadow-[0_0_10px_#C98B2A] opacity-0 group-hover:opacity-100 transition-opacity"></div>
+</div>
+<span class="font-label text-[8px] mt-2 opacity-30">SUN</span>
+</div>
+</div>
+</div>
+<!-- Donut Chart: Fuel Type Distribution -->
+<div class="glass-card p-6 flex flex-col">
+<h4 class="font-headline text-lg font-bold tracking-tight text-[#dae5e1] mb-1">FUEL_DISTRIBUTION</h4>
+<p class="font-label text-[10px] opacity-40 uppercase mb-8">Volume by fuel identifier</p>
+<div class="flex-1 flex items-center justify-center relative mb-6">
+<!-- CSS-Only Donut Simulation -->
+<div class="w-40 h-40 rounded-full border-[12px] border-[#C98B2A] border-r-[#2A9D8F] border-b-[#835500] border-l-[#d5c4b0]/20 rotate-45 flex items-center justify-center">
+<div class="text-center -rotate-45">
+<p class="font-headline text-3xl font-bold">12.4k</p>
+<p class="font-label text-[10px] opacity-40">TOTAL_LITERS</p>
+</div>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between items-center px-2 py-1.5 bg-white/5">
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 bg-[#C98B2A]"></div>
+<span class="font-headline text-xs tracking-widest">GASOLINA</span>
+</div>
+<span class="font-label text-xs">54%</span>
+</div>
+<div class="flex justify-between items-center px-2 py-1.5">
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 bg-[#2A9D8F]"></div>
+<span class="font-headline text-xs tracking-widest">DIESEL S10</span>
+</div>
+<span class="font-label text-xs">28%</span>
+</div>
+<div class="flex justify-between items-center px-2 py-1.5">
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 bg-[#835500]"></div>
+<span class="font-headline text-xs tracking-widest">ETANOL</span>
+</div>
+<span class="font-label text-xs">12%</span>
+</div>
+<div class="flex justify-between items-center px-2 py-1.5 opacity-40">
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 bg-[#d5c4b0]"></div>
+<span class="font-headline text-xs tracking-widest">OUTROS</span>
+</div>
+<span class="font-label text-xs">6%</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Detailed History Table -->
+<section class="glass-card overflow-hidden">
+<div class="p-6 border-b border-white/5 flex justify-between items-center">
+<h4 class="font-headline text-lg font-bold tracking-tight text-[#dae5e1]">REIMBURSEMENT_LOG</h4>
+<div class="flex gap-4">
+<button class="flex items-center gap-2 text-[10px] font-headline tracking-widest uppercase opacity-60 hover:opacity-100 transition-all">
+<span class="material-symbols-outlined text-sm">filter_list</span>
+                            Filter_Results
+                        </button>
+<button class="flex items-center gap-2 text-[10px] font-headline tracking-widest uppercase opacity-60 hover:opacity-100 transition-all">
+<span class="material-symbols-outlined text-sm">download</span>
+                            Export_CSV
+                        </button>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-[#0e1a17]">
+<th class="px-6 py-4 font-headline text-[10px] tracking-[0.1em] uppercase opacity-50">Timestamp_ID</th>
+<th class="px-6 py-4 font-headline text-[10px] tracking-[0.1em] uppercase opacity-50">Personnel</th>
+<th class="px-6 py-4 font-headline text-[10px] tracking-[0.1em] uppercase opacity-50">Type</th>
+<th class="px-6 py-4 font-headline text-[10px] tracking-[0.1em] uppercase opacity-50 text-right">Amount</th>
+<th class="px-6 py-4 font-headline text-[10px] tracking-[0.1em] uppercase opacity-50 text-center">AI_Verification</th>
+<th class="px-6 py-4 font-headline text-[10px] tracking-[0.1em] uppercase opacity-50">Status_Node</th>
+<th class="px-6 py-4 font-headline text-[10px] tracking-[0.1em] uppercase opacity-50">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-white/5">
+<tr class="hover:bg-white/[0.02] transition-colors group">
+<td class="px-6 py-4">
+<span class="font-label text-xs opacity-70">2023-11-24 / 09:42</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-6 h-6 rounded bg-primary-container/20 flex items-center justify-center text-[10px] font-bold text-primary-container">RM</div>
+<span class="text-sm font-medium">RICARDO_MENDES</span>
+</div>
+</td>
+<td class="px-6 py-4 text-xs font-headline tracking-widest">GASOLINA</td>
+<td class="px-6 py-4 text-right">
+<span class="font-label text-sm text-[#C98B2A]">R$ 342,50</span>
+</td>
+<td class="px-6 py-4 text-center">
+<div class="flex flex-col items-center gap-1">
+<span class="font-label text-[10px] text-[#2A9D8F]">99.2%</span>
+<div class="w-16 bg-white/5 h-1">
+<div class="bg-[#2A9D8F] h-full" style="width: 99.2%"></div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-2 py-1 bg-[#2A9D8F]/10 text-[#2A9D8F] text-[10px] font-headline font-bold uppercase tracking-widest">
+<span class="w-1.5 h-1.5 rounded-full bg-[#2A9D8F]"></span>
+                                        Approved
+                                    </span>
+</td>
+<td class="px-6 py-4">
+<button class="opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-lg opacity-40 hover:opacity-100 hover:text-[#C98B2A]">visibility</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-white/[0.02] transition-colors group">
+<td class="px-6 py-4">
+<span class="font-label text-xs opacity-70">2023-11-24 / 08:15</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-6 h-6 rounded bg-primary-container/20 flex items-center justify-center text-[10px] font-bold text-primary-container">AS</div>
+<span class="text-sm font-medium">ALICE_SANTOS</span>
+</div>
+</td>
+<td class="px-6 py-4 text-xs font-headline tracking-widest">DIESEL S10</td>
+<td class="px-6 py-4 text-right">
+<span class="font-label text-sm text-[#C98B2A]">R$ 1.204,18</span>
+</td>
+<td class="px-6 py-4 text-center">
+<div class="flex flex-col items-center gap-1">
+<span class="font-label text-[10px] text-[#C98B2A]">82.5%</span>
+<div class="w-16 bg-white/5 h-1">
+<div class="bg-[#C98B2A] h-full" style="width: 82.5%"></div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-2 py-1 bg-[#C98B2A]/10 text-[#C98B2A] text-[10px] font-headline font-bold uppercase tracking-widest">
+<span class="w-1.5 h-1.5 rounded-full bg-[#C98B2A]"></span>
+                                        Pending
+                                    </span>
+</td>
+<td class="px-6 py-4">
+<button class="opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-lg opacity-40 hover:opacity-100 hover:text-[#C98B2A]">visibility</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-white/[0.02] transition-colors group">
+<td class="px-6 py-4">
+<span class="font-label text-xs opacity-70">2023-11-23 / 17:50</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-6 h-6 rounded bg-primary-container/20 flex items-center justify-center text-[10px] font-bold text-primary-container">JN</div>
+<span class="text-sm font-medium">JULIO_NETO</span>
+</div>
+</td>
+<td class="px-6 py-4 text-xs font-headline tracking-widest">ETANOL</td>
+<td class="px-6 py-4 text-right">
+<span class="font-label text-sm text-[#C98B2A]">R$ 180,00</span>
+</td>
+<td class="px-6 py-4 text-center">
+<div class="flex flex-col items-center gap-1">
+<span class="font-label text-[10px] text-error">42.1%</span>
+<div class="w-16 bg-white/5 h-1">
+<div class="bg-error h-full" style="width: 42.1%"></div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-2 py-1 bg-error/10 text-error text-[10px] font-headline font-bold uppercase tracking-widest">
+<span class="w-1.5 h-1.5 rounded-full bg-error"></span>
+                                        Denied
+                                    </span>
+</td>
+<td class="px-6 py-4">
+<button class="opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-lg opacity-40 hover:opacity-100 hover:text-[#C98B2A]">visibility</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-white/[0.02] transition-colors group border-b-0">
+<td class="px-6 py-4">
+<span class="font-label text-xs opacity-70">2023-11-23 / 16:22</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-6 h-6 rounded bg-primary-container/20 flex items-center justify-center text-[10px] font-bold text-primary-container">BP</div>
+<span class="text-sm font-medium">BRUNA_PIRES</span>
+</div>
+</td>
+<td class="px-6 py-4 text-xs font-headline tracking-widest">GASOLINA</td>
+<td class="px-6 py-4 text-right">
+<span class="font-label text-sm text-[#C98B2A]">R$ 412,20</span>
+</td>
+<td class="px-6 py-4 text-center">
+<div class="flex flex-col items-center gap-1">
+<span class="font-label text-[10px] text-[#2A9D8F]">97.8%</span>
+<div class="w-16 bg-white/5 h-1">
+<div class="bg-[#2A9D8F] h-full" style="width: 97.8%"></div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-2 py-1 bg-[#2A9D8F]/10 text-[#2A9D8F] text-[10px] font-headline font-bold uppercase tracking-widest">
+<span class="w-1.5 h-1.5 rounded-full bg-[#2A9D8F]"></span>
+                                        Approved
+                                    </span>
+</td>
+<td class="px-6 py-4">
+<button class="opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-lg opacity-40 hover:opacity-100 hover:text-[#C98B2A]">visibility</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-6 bg-[#081210] flex items-center justify-between border-t border-white/5">
+<span class="font-label text-[10px] opacity-40">SHOWING 1-4 OF 1,240 ENTRIES</span>
+<div class="flex gap-1">
+<button class="w-8 h-8 flex items-center justify-center border border-white/10 hover:border-primary-container transition-colors text-xs opacity-40 cursor-not-allowed">
+<span class="material-symbols-outlined text-sm">chevron_left</span>
+</button>
+<button class="w-8 h-8 flex items-center justify-center border border-primary-container bg-primary-container/10 text-primary-container text-[10px] font-label">1</button>
+<button class="w-8 h-8 flex items-center justify-center border border-white/10 hover:border-primary-container transition-colors text-[10px] font-label">2</button>
+<button class="w-8 h-8 flex items-center justify-center border border-white/10 hover:border-primary-container transition-colors text-[10px] font-label">3</button>
+<button class="w-8 h-8 flex items-center justify-center border border-white/10 hover:border-primary-container transition-colors text-xs">
+<span class="material-symbols-outlined text-sm">chevron_right</span>
+</button>
+</div>
+</div>
+</section>
+</div>
+</main>
+<!-- Mobile Navigation (Bottom Bar) -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full h-16 bg-[#081210] z-50 flex items-center justify-around px-4 border-t border-white/10">
+<a class="flex flex-col items-center gap-1 text-[#dae5e1] opacity-70" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-[9px] font-headline uppercase tracking-tighter">Principal</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-[#C98B2A]" href="#">
+<span class="material-symbols-outlined">engineering</span>
+<span class="text-[9px] font-headline uppercase tracking-tighter">Ops</span>
+</a>
+<div class="relative -top-6 w-12 h-12 bg-primary-container rounded-lg flex items-center justify-center text-on-primary shadow-lg shadow-primary-container/20 border border-on-primary/10">
+<span class="material-symbols-outlined">add</span>
+</div>
+<a class="flex flex-col items-center gap-1 text-[#dae5e1] opacity-70" href="#">
+<span class="material-symbols-outlined">description</span>
+<span class="text-[9px] font-headline uppercase tracking-tighter">RDO</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-[#dae5e1] opacity-70" href="#">
+<span class="material-symbols-outlined">account_circle</span>
+<span class="text-[9px] font-headline uppercase tracking-tighter">Perfil</span>
+</a>
+</nav>
+</body></html>

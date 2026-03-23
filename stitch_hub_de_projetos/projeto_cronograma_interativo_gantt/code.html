@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&amp;family=Outfit:wght@300;400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-error-container": "#ffdad6",
+                        "error-container": "#93000a",
+                        "surface": "#0b1513",
+                        "on-tertiary": "#432c00",
+                        "tertiary": "#f9bc4f",
+                        "surface-container-lowest": "#06100e",
+                        "outline": "#9e8e7d",
+                        "surface-container": "#17221f",
+                        "secondary": "#6fd8c8",
+                        "surface-tint": "#ffb955",
+                        "on-tertiary-fixed": "#281900",
+                        "on-error": "#690005",
+                        "tertiary-container": "#c48e23",
+                        "surface-container-low": "#131d1b",
+                        "primary": "#ffb955",
+                        "tertiary-fixed": "#ffdeac",
+                        "surface-container-highest": "#2c3734",
+                        "on-primary-fixed-variant": "#633f00",
+                        "on-secondary-fixed": "#00201c",
+                        "error": "#ffb4ab",
+                        "background": "#0b1513",
+                        "inverse-primary": "#835500",
+                        "surface-bright": "#313b39",
+                        "on-primary-container": "#442a00",
+                        "on-primary": "#452b00",
+                        "surface-container-high": "#222c2a",
+                        "secondary-fixed": "#8cf5e4",
+                        "on-primary-fixed": "#291800",
+                        "primary-fixed-dim": "#ffb955",
+                        "outline-variant": "#514536",
+                        "on-secondary-container": "#00302a",
+                        "on-background": "#dae5e1",
+                        "inverse-surface": "#dae5e1",
+                        "on-surface-variant": "#d5c4b0",
+                        "tertiary-fixed-dim": "#f9bc4f",
+                        "on-tertiary-container": "#422c00",
+                        "on-surface": "#dae5e1",
+                        "on-secondary": "#003731",
+                        "surface-dim": "#0b1513",
+                        "secondary-fixed-dim": "#6fd8c8",
+                        "primary-fixed": "#ffddb4",
+                        "surface-variant": "#2c3734",
+                        "on-tertiary-fixed-variant": "#5f4100",
+                        "on-secondary-fixed-variant": "#005048",
+                        "inverse-on-surface": "#283230",
+                        "secondary-container": "#30a193",
+                        "primary-container": "#c98b2a"
+                    },
+                    fontFamily: {
+                        "headline": ["Rajdhani"],
+                        "body": ["Outfit"],
+                        "label": ["JetBrains Mono"]
+                    },
+                    borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .gantt-grid {
+            background-size: 40px 100%;
+            background-image: linear-gradient(to right, rgba(218, 229, 225, 0.05) 1px, transparent 1px);
+        }
+        .glass-panel {
+            background: rgba(14, 26, 23, 0.6);
+            backdrop-filter: blur(12px);
+        }
+        .industrial-gradient {
+            background: linear-gradient(135deg, #C98B2A 0%, #835500 100%);
+        }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #030504; }
+        ::-webkit-scrollbar-thumb { background: #17221f; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #C98B2A; }
+    </style>
+</head>
+<body class="bg-[#030504] text-on-surface font-body selection:bg-primary-container selection:text-on-primary-container">
+<!-- SideNavBar (Rail) -->
+<nav class="fixed left-0 top-0 h-full z-50 flex flex-col items-center py-8 bg-[#081210] dark:bg-[#081210] w-20 border-r border-white/10">
+<div class="mb-12">
+<span class="font-['Rajdhani'] uppercase tracking-widest font-bold text-[#C98B2A] text-2xl">B</span>
+</div>
+<div class="flex flex-col gap-8 flex-1">
+<button class="group relative flex flex-col items-center gap-1 text-[#C98B2A] border-r-2 border-[#C98B2A] bg-[#0e1a17] py-3 w-full transition-transform active:scale-95">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">folder_open</span>
+<span class="font-label text-[10px] uppercase tracking-tighter">Projects</span>
+</button>
+<button class="group relative flex flex-col items-center gap-1 text-gray-500 hover:text-gray-300 hover:bg-[#0e1a17] transition-colors duration-200 py-3 w-full active:scale-95">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-label text-[10px] uppercase tracking-tighter">Settings</span>
+</button>
+<button class="group relative flex flex-col items-center gap-1 text-gray-500 hover:text-gray-300 hover:bg-[#0e1a17] transition-colors duration-200 py-3 w-full active:scale-95">
+<span class="material-symbols-outlined" data-icon="support_agent">support_agent</span>
+<span class="font-label text-[10px] uppercase tracking-tighter">Support</span>
+</button>
+</div>
+<div class="mt-auto">
+<div class="w-10 h-10 rounded-full border border-[#C98B2A]/30 p-0.5 overflow-hidden">
+<img class="w-full h-full object-cover grayscale hover:grayscale-0 transition-all" data-alt="User profile portrait" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAEnztPb5QUuQft6gIfm7ApoRnRXQqhEnxpp5zknyjtueg_6eLfx-pYGINnAPudJNTWvYWCN7DoyssEIikXHnIxIXZ7a6OzG0fqs_VTOigv3TzgEIAhNHlpcBelWbNgDnkZ0nHUfZZ5ktVAt70aZnhbipRovDHuAfaQcYNnpoVCP-dwU7lRAOVoJcAs5b5fvSqH96X7y4xqUulzBkQFfPTiImPdUzVWjT3j2pOew3ziMP8a7F_QgB6QdO8Kq8DXsSgOpSpUUlY1jOM"/>
+</div>
+</div>
+</nav>
+<!-- TopAppBar -->
+<header class="fixed top-0 right-0 left-20 z-40 flex h-16 items-center justify-between px-8 bg-[#0e1a17]/60 backdrop-blur-xl border-b border-white/5 shadow-[0_20px_40px_rgba(0,0,0,0.4),0_0_10px_rgba(42,157,143,0.05)]">
+<div class="flex items-center gap-8">
+<h1 class="text-xl font-['Rajdhani'] font-bold tracking-tighter text-[#dae5e1]">Unified Project Module</h1>
+<nav class="hidden md:flex items-center gap-6">
+<a class="text-[#dae5e1]/60 pb-1 hover:text-[#dae5e1] font-label text-xs uppercase transition-colors" href="#">Overview</a>
+<a class="text-[#C98B2A] border-b-2 border-[#C98B2A] pb-1 font-bold font-label text-xs uppercase" href="#">Timeline (Gantt)</a>
+<a class="text-[#dae5e1]/60 pb-1 hover:text-[#dae5e1] font-label text-xs uppercase transition-colors" href="#">Media Audit</a>
+<a class="text-[#dae5e1]/60 pb-1 hover:text-[#dae5e1] font-label text-xs uppercase transition-colors" href="#">Project Logs</a>
+<a class="text-[#dae5e1]/60 pb-1 hover:text-[#dae5e1] font-label text-xs uppercase transition-colors" href="#">Tutorial</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative group">
+<input class="bg-surface-container-lowest border-b border-white/10 text-on-surface font-label text-xs py-1 px-4 focus:outline-none focus:border-[#C98B2A] w-48 transition-all" placeholder="SEARCH CORE..." type="text"/>
+<span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-white/30 text-sm">search</span>
+</div>
+<button class="p-2 text-on-surface/60 hover:text-[#C98B2A] transition-colors"><span class="material-symbols-outlined">notifications</span></button>
+<button class="p-2 text-on-surface/60 hover:text-[#C98B2A] transition-colors"><span class="material-symbols-outlined">account_circle</span></button>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="pl-20 pt-16 min-h-screen">
+<div class="p-8 max-w-[1600px] mx-auto space-y-8">
+<!-- Page Header / IA Controls -->
+<section class="flex flex-col md:flex-row md:items-end justify-between gap-6">
+<div class="space-y-1">
+<span class="font-label text-xs text-[#C98B2A] tracking-[0.2em] uppercase">Intelligence Node: Alpha-9</span>
+<h2 class="text-4xl font-headline font-bold uppercase tracking-tight text-on-surface leading-none">Interactive Gantt Timeline</h2>
+<p class="text-on-surface/60 font-body">Project Status: <span class="text-secondary font-label">Active_Optimized</span></p>
+</div>
+<div class="flex flex-wrap gap-3">
+<button class="bg-[#C98B2A] text-on-primary font-headline font-bold px-6 py-2 uppercase tracking-wider flex items-center gap-2 industrial-gradient hover:brightness-110 transition-all active:scale-95">
+<span class="material-symbols-outlined text-sm">add</span>
+                        Add Activity
+                    </button>
+<button class="bg-surface-container-high border border-[#C98B2A]/30 text-[#C98B2A] font-headline font-bold px-6 py-2 uppercase tracking-wider flex items-center gap-2 hover:bg-[#C98B2A]/10 transition-all">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+                        Action IA: Weather Recalc
+                    </button>
+</div>
+</section>
+<!-- Gantt Dashboard Container -->
+<div class="bg-surface-container-low border border-white/5 shadow-2xl overflow-hidden">
+<!-- Timeline Header / Filters -->
+<div class="flex items-center justify-between p-4 bg-surface-container border-b border-white/5">
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2 bg-surface-container-lowest px-3 py-1.5 rounded border border-white/5">
+<span class="font-label text-[10px] text-white/40 uppercase">Category</span>
+<select class="bg-transparent border-none text-xs font-headline font-bold uppercase tracking-widest focus:ring-0 cursor-pointer">
+<option>All Streams</option>
+<option>Civil</option>
+<option>Electrical</option>
+<option>Infrastructure</option>
+</select>
+</div>
+<div class="h-6 w-px bg-white/10"></div>
+<div class="flex gap-2">
+<button class="px-3 py-1 bg-[#C98B2A] text-on-primary font-label text-[10px] uppercase">Week</button>
+<button class="px-3 py-1 bg-surface-container-highest text-white/60 font-label text-[10px] uppercase hover:text-white transition-colors">Month</button>
+<button class="px-3 py-1 bg-surface-container-highest text-white/60 font-label text-[10px] uppercase hover:text-white transition-colors">Quarter</button>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 bg-[#C98B2A] rounded-sm"></span>
+<span class="font-label text-[10px] uppercase text-white/60">Civil</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 bg-secondary rounded-sm"></span>
+<span class="font-label text-[10px] uppercase text-white/60">Electrical</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 bg-tertiary rounded-sm"></span>
+<span class="font-label text-[10px] uppercase text-white/60">Infrastructure</span>
+</div>
+</div>
+</div>
+<!-- The Gantt Matrix -->
+<div class="overflow-x-auto">
+<div class="min-w-[1200px]">
+<!-- Days Row -->
+<div class="flex border-b border-white/5">
+<div class="w-64 shrink-0 p-4 border-r border-white/10 bg-surface-container-low">
+<span class="font-headline font-bold uppercase tracking-widest text-xs opacity-50 text-[#C98B2A]">Activity Stack</span>
+</div>
+<div class="flex flex-1">
+<!-- Calendar Headers (Mock) -->
+<div class="flex-1 grid grid-cols-14 text-center">
+<div class="p-3 border-r border-white/5 font-label text-[10px] text-white/30 uppercase">Oct 12</div>
+<div class="p-3 border-r border-white/5 font-label text-[10px] text-white/30 uppercase">Oct 13</div>
+<div class="p-3 border-r border-white/5 font-label text-[10px] text-[#C98B2A] uppercase bg-[#C98B2A]/5">Oct 14 [NOW]</div>
+<div class="p-3 border-r border-white/5 font-label text-[10px] text-white/30 uppercase">Oct 15</div>
+<div class="p-3 border-r border-white/5 font-label text-[10px] text-white/30 uppercase">Oct 16</div>
+<div class="p-3 border-r border-white/5 font-label text-[10px] text-white/30 uppercase">Oct 17</div>
+<div class="p-3 border-r border-white/5 font-label text-[10px] text-white/30 uppercase">Oct 18</div>
+<div class="p-3 border-r border-white/5 font-label text-[10px] text-white/30 uppercase">Oct 19</div>
+<div class="p-3 border-r border-white/5 font-label text-[10px] text-white/30 uppercase">Oct 20</div>
+<div class="p-3 border-r border-white/5 font-label text-[10px] text-white/30 uppercase">Oct 21</div>
+<div class="p-3 border-r border-white/5 font-label text-[10px] text-white/30 uppercase">Oct 22</div>
+<div class="p-3 border-r border-white/5 font-label text-[10px] text-white/30 uppercase">Oct 23</div>
+<div class="p-3 border-r border-white/5 font-label text-[10px] text-white/30 uppercase">Oct 24</div>
+<div class="p-3 border-r border-white/5 font-label text-[10px] text-white/30 uppercase">Oct 25</div>
+</div>
+</div>
+</div>
+<!-- Row 1: Civil -->
+<div class="flex border-b border-white/5 group hover:bg-white/[0.02] transition-colors">
+<div class="w-64 shrink-0 p-4 border-r border-white/10 flex items-center justify-between">
+<div class="space-y-0.5">
+<div class="font-headline font-semibold text-sm uppercase">Foundation Pouring</div>
+<div class="font-label text-[9px] text-white/40">CIV-0492 | R. SANTOS</div>
+</div>
+<div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="text-white/40 hover:text-white"><span class="material-symbols-outlined text-sm">edit</span></button>
+<button class="text-white/40 hover:text-error"><span class="material-symbols-outlined text-sm">delete</span></button>
+</div>
+</div>
+<div class="flex-1 relative gantt-grid h-16">
+<!-- Gantt Bar -->
+<div class="absolute top-1/2 -translate-y-1/2 left-[40px] w-[320px] h-8 industrial-gradient group/bar cursor-pointer border border-white/20">
+<div class="h-full bg-black/30 w-[85%] relative">
+<span class="absolute left-2 top-1/2 -translate-y-1/2 font-label text-[10px] text-white font-bold">85% COMPLETE</span>
+</div>
+<!-- Tooltip / Detail Overlay (Visible on Bar Hover) -->
+<div class="absolute top-full left-0 mt-2 z-50 glass-panel border border-[#C98B2A]/50 p-4 w-72 opacity-0 pointer-events-none group-hover/bar:opacity-100 group-hover/bar:pointer-events-auto transition-all shadow-[0_20px_40px_rgba(0,0,0,0.8)]">
+<div class="flex justify-between items-start mb-3">
+<div>
+<h4 class="font-headline font-bold text-[#C98B2A] uppercase">Foundation Pouring</h4>
+<p class="font-label text-[10px] text-white/50">Lead: Ricardo Santos</p>
+</div>
+<span class="font-label text-secondary text-xs">85%</span>
+</div>
+<div class="bg-black/40 border-l-2 border-[#C98B2A] p-2 space-y-2">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[#C98B2A] text-xs">psychology</span>
+<span class="font-label text-[9px] uppercase tracking-wider text-[#C98B2A]">AI Suggestion</span>
+</div>
+<p class="text-[11px] leading-tight text-on-surface/80">Incoming rain forecast for Oct 15. Recommend accelerating finish to Oct 14 18:00 or delaying until Oct 17.</p>
+<button class="w-full mt-2 py-1 bg-[#C98B2A]/20 hover:bg-[#C98B2A]/40 border border-[#C98B2A]/30 text-[#C98B2A] font-label text-[9px] uppercase">Apply Realignment</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Row 2: Infrastructure -->
+<div class="flex border-b border-white/5 group hover:bg-white/[0.02] transition-colors">
+<div class="w-64 shrink-0 p-4 border-r border-white/10 flex items-center justify-between">
+<div class="space-y-0.5">
+<div class="font-headline font-semibold text-sm uppercase">Site Perimeter Fence</div>
+<div class="font-label text-[9px] text-white/40">INF-0120 | M. CHEN</div>
+</div>
+<div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="text-white/40 hover:text-white"><span class="material-symbols-outlined text-sm">edit</span></button>
+<button class="text-white/40 hover:text-error"><span class="material-symbols-outlined text-sm">delete</span></button>
+</div>
+</div>
+<div class="flex-1 relative gantt-grid h-16">
+<div class="absolute top-1/2 -translate-y-1/2 left-[200px] w-[160px] h-8 bg-tertiary/20 border border-tertiary/50 group/bar cursor-pointer">
+<div class="h-full bg-tertiary w-[30%] flex items-center px-2">
+<span class="font-label text-[10px] text-black font-bold">30%</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Row 3: Electrical -->
+<div class="flex border-b border-white/5 group hover:bg-white/[0.02] transition-colors">
+<div class="w-64 shrink-0 p-4 border-r border-white/10 flex items-center justify-between">
+<div class="space-y-0.5">
+<div class="font-headline font-semibold text-sm uppercase">HVAC Conduit Network</div>
+<div class="font-label text-[9px] text-white/40">ELE-0932 | J. DOE</div>
+</div>
+<div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="text-white/40 hover:text-white"><span class="material-symbols-outlined text-sm">edit</span></button>
+<button class="text-white/40 hover:text-error"><span class="material-symbols-outlined text-sm">delete</span></button>
+</div>
+</div>
+<div class="flex-1 relative gantt-grid h-16">
+<div class="absolute top-1/2 -translate-y-1/2 left-[360px] w-[440px] h-8 bg-secondary/10 border border-secondary/30 group/bar cursor-pointer">
+<div class="h-full bg-secondary w-[5%] flex items-center px-2">
+<span class="font-label text-[10px] text-black font-bold">5%</span>
+</div>
+<!-- AI Suggestion Badge -->
+<div class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-secondary rounded-full animate-pulse shadow-[0_0_8px_#6fd8c8]"></div>
+</div>
+</div>
+</div>
+<!-- Row 4: Civil (Dependency) -->
+<div class="flex border-b border-white/5 group hover:bg-white/[0.02] transition-colors">
+<div class="w-64 shrink-0 p-4 border-r border-white/10 flex items-center justify-between">
+<div class="space-y-0.5">
+<div class="font-headline font-semibold text-sm uppercase">Structural Beams</div>
+<div class="font-label text-[9px] text-white/40">CIV-0501 | R. SANTOS</div>
+</div>
+<div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="text-white/40 hover:text-white"><span class="material-symbols-outlined text-sm">edit</span></button>
+<button class="text-white/40 hover:text-error"><span class="material-symbols-outlined text-sm">delete</span></button>
+</div>
+</div>
+<div class="flex-1 relative gantt-grid h-16">
+<!-- Connecting Line (Visual Mockup) -->
+<svg class="absolute inset-0 pointer-events-none w-full h-full overflow-visible">
+<path d="M 360 32 L 340 32 L 340 0" fill="none" stroke="#C98B2A" stroke-dasharray="2 2" stroke-width="1"></path>
+</svg>
+<div class="absolute top-1/2 -translate-y-1/2 left-[360px] w-[280px] h-8 border border-white/10 bg-white/5 flex items-center justify-center">
+<span class="font-label text-[10px] text-white/20 uppercase">Awaiting Foundation</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Footer Summary -->
+<div class="bg-surface-container p-4 flex items-center justify-between border-t border-white/5">
+<div class="flex gap-12">
+<div>
+<span class="block font-label text-[10px] text-white/40 uppercase">Total Capacity</span>
+<span class="font-headline font-bold text-lg">94,200 <span class="text-xs font-normal text-white/40">MAN-HRS</span></span>
+</div>
+<div>
+<span class="block font-label text-[10px] text-white/40 uppercase">Resource Load</span>
+<div class="flex items-center gap-2">
+<span class="font-headline font-bold text-lg text-secondary">82%</span>
+<div class="w-20 h-1 bg-white/10 rounded-full overflow-hidden">
+<div class="h-full bg-secondary w-[82%]"></div>
+</div>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-2 text-[#C98B2A]">
+<span class="material-symbols-outlined animate-spin-slow text-sm">sync</span>
+<span class="font-label text-[10px] uppercase">Telemetry Sync Active</span>
+</div>
+</div>
+</div>
+<!-- Bento Grid Detail Cards -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<!-- Weather Intelligence -->
+<div class="bg-surface-container-low border border-white/5 p-6 space-y-4">
+<div class="flex justify-between items-start">
+<h3 class="font-headline font-bold uppercase tracking-wider text-[#C98B2A]">Weather Telemetry</h3>
+<span class="material-symbols-outlined text-white/20">cloud</span>
+</div>
+<div class="flex items-center gap-6">
+<div class="text-center">
+<span class="block font-label text-2xl font-bold">78%</span>
+<span class="text-[9px] font-label uppercase text-white/40">Humidity</span>
+</div>
+<div class="h-10 w-px bg-white/10"></div>
+<div class="text-center">
+<span class="block font-label text-2xl font-bold text-error">22<span class="text-sm">km/h</span></span>
+<span class="text-[9px] font-label uppercase text-white/40">Wind Shear</span>
+</div>
+</div>
+<div class="p-3 bg-error/10 border-l-2 border-error">
+<p class="text-[11px] font-body text-on-error-container">Critical Alert: Expected precipitation in 18 hours will impact 'Foundation Pouring' curing process.</p>
+</div>
+</div>
+<!-- Resource Optimization -->
+<div class="bg-surface-container-low border border-white/5 p-6 space-y-4 md:col-span-2">
+<div class="flex justify-between items-start">
+<h3 class="font-headline font-bold uppercase tracking-wider text-secondary">AI Resource Re-Routing</h3>
+<button class="font-label text-[10px] uppercase text-secondary border border-secondary/30 px-2 py-1 hover:bg-secondary/10">Run Optimization</button>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="space-y-2">
+<div class="flex justify-between text-[10px] font-label uppercase">
+<span>Steel Squad B</span>
+<span class="text-secondary">Optimal</span>
+</div>
+<div class="w-full h-1.5 bg-white/5">
+<div class="h-full bg-secondary w-[45%]"></div>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between text-[10px] font-label uppercase">
+<span>Excavation Team 1</span>
+<span class="text-error">Overloaded</span>
+</div>
+<div class="w-full h-1.5 bg-white/5">
+<div class="h-full bg-error w-[98%]"></div>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between text-[10px] font-label uppercase">
+<span>Electrical Unit 4</span>
+<span class="text-secondary">Optimal</span>
+</div>
+<div class="w-full h-1.5 bg-white/5">
+<div class="h-full bg-secondary w-[32%]"></div>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between text-[10px] font-label uppercase">
+<span>Paving Crew Alpha</span>
+<span class="text-tertiary">Idle</span>
+</div>
+<div class="w-full h-1.5 bg-white/5">
+<div class="h-full bg-tertiary w-[12%]"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Project Floating Action (Contextual) -->
+<button class="fixed bottom-8 right-8 w-14 h-14 industrial-gradient text-on-primary rounded-lg shadow-2xl flex items-center justify-center hover:scale-105 active:scale-95 transition-transform group">
+<span class="material-symbols-outlined text-3xl">chat_bubble</span>
+<div class="absolute right-16 px-4 py-2 glass-panel border border-[#C98B2A]/50 text-[#C98B2A] font-headline font-bold uppercase text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+            Ask Action IA
+        </div>
+</button>
+</body></html>

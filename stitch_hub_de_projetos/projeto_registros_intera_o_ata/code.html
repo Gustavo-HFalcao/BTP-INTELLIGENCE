@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Bomtempo Intelligence - Project Logs</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&amp;family=Outfit:wght@300;400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-error-container": "#ffdad6",
+                        "error-container": "#93000a",
+                        "surface": "#0b1513",
+                        "on-tertiary": "#432c00",
+                        "tertiary": "#f9bc4f",
+                        "surface-container-lowest": "#06100e",
+                        "outline": "#9e8e7d",
+                        "surface-container": "#17221f",
+                        "secondary": "#6fd8c8",
+                        "surface-tint": "#ffb955",
+                        "on-tertiary-fixed": "#281900",
+                        "on-error": "#690005",
+                        "tertiary-container": "#c48e23",
+                        "surface-container-low": "#131d1b",
+                        "primary": "#ffb955",
+                        "tertiary-fixed": "#ffdeac",
+                        "surface-container-highest": "#2c3734",
+                        "on-primary-fixed-variant": "#633f00",
+                        "on-secondary-fixed": "#00201c",
+                        "error": "#ffb4ab",
+                        "background": "#0b1513",
+                        "inverse-primary": "#835500",
+                        "surface-bright": "#313b39",
+                        "on-primary-container": "#442a00",
+                        "on-primary": "#452b00",
+                        "surface-container-high": "#222c2a",
+                        "secondary-fixed": "#8cf5e4",
+                        "on-primary-fixed": "#291800",
+                        "primary-fixed-dim": "#ffb955",
+                        "outline-variant": "#514536",
+                        "on-secondary-container": "#00302a",
+                        "on-background": "#dae5e1",
+                        "inverse-surface": "#dae5e1",
+                        "on-surface-variant": "#d5c4b0",
+                        "tertiary-fixed-dim": "#f9bc4f",
+                        "on-tertiary-container": "#422c00",
+                        "on-surface": "#dae5e1",
+                        "on-secondary": "#003731",
+                        "surface-dim": "#0b1513",
+                        "secondary-fixed-dim": "#6fd8c8",
+                        "primary-fixed": "#ffddb4",
+                        "surface-variant": "#2c3734",
+                        "on-tertiary-fixed-variant": "#5f4100",
+                        "on-secondary-fixed-variant": "#005048",
+                        "inverse-on-surface": "#283230",
+                        "secondary-container": "#30a193",
+                        "primary-container": "#c98b2a"
+                    },
+                    fontFamily: {
+                        "headline": ["Rajdhani"],
+                        "body": ["Outfit"],
+                        "label": ["JetBrains Mono"]
+                    },
+                    borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .copper-gradient-cta {
+            background: linear-gradient(135deg, #C98B2A 0%, #c98b2a 100%);
+        }
+        .glass-panel {
+            background: rgba(14, 26, 23, 0.6);
+            backdrop-filter: blur(12px);
+        }
+        .rajdhani-head {
+            font-family: 'Rajdhani', sans-serif;
+            letter-spacing: 0.05em;
+        }
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #030504;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #2c3734;
+        }
+    </style>
+</head>
+<body class="bg-[#030504] text-on-surface font-body selection:bg-primary-container selection:text-on-primary-container">
+<!-- SideNavBar (Execution from JSON) -->
+<aside class="fixed left-0 top-0 h-full z-50 flex flex-col items-center py-8 bg-[#081210] dark:bg-[#081210] w-20 border-r border-white/10">
+<div class="mb-12">
+<div class="font-['Rajdhani'] uppercase tracking-widest font-bold text-[#C98B2A] text-xs text-center">
+                Bomtempo<br/><span class="text-[10px] opacity-70 tracking-normal">Intelligence</span>
+</div>
+</div>
+<nav class="flex flex-col gap-8 flex-1">
+<!-- Active: Projects -->
+<button class="text-[#C98B2A] border-r-2 border-[#C98B2A] bg-[#0e1a17] p-3 transition-transform active:scale-95">
+<span class="material-symbols-outlined" data-icon="folder_open">folder_open</span>
+</button>
+<button class="text-gray-500 hover:text-gray-300 hover:bg-[#0e1a17] transition-colors duration-200 p-3">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+<button class="text-gray-500 hover:text-gray-300 hover:bg-[#0e1a17] transition-colors duration-200 p-3">
+<span class="material-symbols-outlined" data-icon="support_agent">support_agent</span>
+</button>
+</nav>
+<div class="mt-auto">
+<img alt="User profile" class="w-10 h-10 rounded-sm object-cover border border-white/10" data-alt="Close up portrait of a male engineer wearing safety glasses" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAUC5I9ZQV0fnZZidKDqA_psf5w7WWHREr2SfHGEo1hclwVq8f21vJAmYxsn6qOkPUjAA2m-OXn59k9esYXH-fPahLoOGmOEFHFytBlTUEe6yfOCYbiSMY510WsJkk1HPiJfvWF6TizvT-tMBATvhEYsShy7wagaC5_LDokAkPjOpycIjMhA6IvA44tY3VhguxxIrNwDKAGtSZK61J2XL0MdWTdOPXGMfwJXtdRRCpVK9nkfCVtD16wC1hjU1bMxB0C86-pdIr_Gr0"/>
+</div>
+</aside>
+<!-- TopAppBar (Execution from JSON) -->
+<header class="fixed top-0 right-0 left-20 z-40 flex h-16 items-center justify-between px-8 bg-[#0e1a17]/60 backdrop-blur-xl border-b border-white/5 shadow-[0_20px_40px_rgba(0,0,0,0.4),0_0_10px_rgba(42,157,143,0.05)]">
+<div class="flex items-center gap-8">
+<h1 class="text-xl font-['Rajdhani'] font-bold tracking-tighter text-[#dae5e1] uppercase">Unified Project Module</h1>
+<nav class="hidden md:flex items-center gap-6">
+<a class="text-[#dae5e1]/60 pb-2 hover:text-[#dae5e1] font-['JetBrains_Mono'] text-xs" href="#">Overview</a>
+<a class="text-[#dae5e1]/60 pb-2 hover:text-[#dae5e1] font-['JetBrains_Mono'] text-xs" href="#">Timeline (Gantt)</a>
+<a class="text-[#dae5e1]/60 pb-2 hover:text-[#dae5e1] font-['JetBrains_Mono'] text-xs" href="#">Media Audit</a>
+<a class="text-[#C98B2A] border-b-2 border-[#C98B2A] pb-2 font-bold font-['JetBrains_Mono'] text-xs" href="#">Project Logs</a>
+<a class="text-[#dae5e1]/60 pb-2 hover:text-[#dae5e1] font-['JetBrains_Mono'] text-xs" href="#">Tutorial</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative group">
+<input class="bg-surface-container-lowest border-0 border-b-2 border-transparent focus:border-primary-container focus:ring-0 text-sm font-['Rajdhani'] px-4 py-1 w-64 transition-all" placeholder="Filter by keyword" type="text"/>
+<span class="material-symbols-outlined absolute right-2 top-1.5 text-on-surface-variant text-sm" data-icon="search">search</span>
+</div>
+<button class="relative p-2 text-on-surface hover:bg-white/5 rounded-full transition-colors">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full border border-[#0e1a17]"></span>
+</button>
+<button class="p-2 text-on-surface hover:bg-white/5 rounded-full transition-colors">
+<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+</button>
+</div>
+</header>
+<!-- Main Canvas -->
+<main class="ml-20 pt-16 min-h-screen">
+<div class="max-w-6xl mx-auto p-8 flex flex-col lg:flex-row gap-8">
+<!-- Left Column: Interaction & Log Creation -->
+<div class="w-full lg:w-1/3 flex flex-col gap-6">
+<!-- Log Entry Card -->
+<div class="bg-surface-container-low p-6 rounded shadow-sm border-l-4 border-primary-container">
+<h2 class="rajdhani-head text-lg font-bold text-primary mb-4 uppercase">New Log Entry</h2>
+<div class="space-y-4">
+<div class="flex gap-2">
+<button class="px-3 py-1 bg-surface-container-highest text-[10px] font-['JetBrains_Mono'] text-on-surface-variant hover:text-primary border border-white/5 transition-colors">MEETING</button>
+<button class="px-3 py-1 bg-surface-container-highest text-[10px] font-['JetBrains_Mono'] text-on-surface-variant hover:text-error border border-white/5 transition-colors">FAILURE</button>
+<button class="px-3 py-1 bg-surface-container-highest text-[10px] font-['JetBrains_Mono'] text-on-surface-variant hover:text-secondary border border-white/5 transition-colors">MILESTONE</button>
+</div>
+<div class="relative">
+<textarea class="w-full bg-surface-container-lowest border-0 border-b-2 border-outline-variant focus:border-primary-container focus:ring-0 font-body text-sm resize-none p-3 placeholder:text-on-surface-variant/40" placeholder="Update technical logs... use @Name to mention team members" rows="4"></textarea>
+</div>
+<div class="flex items-center justify-between">
+<button class="flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg" data-icon="attach_file">attach_file</span>
+<span class="text-[10px] font-['JetBrains_Mono']">ATTACH MEDIA</span>
+</button>
+<button class="copper-gradient-cta px-6 py-2 text-on-primary text-xs font-bold rajdhani-head hover:shadow-[0_0_15px_rgba(201,139,42,0.3)] transition-all">
+                                SUBMIT LOG
+                            </button>
+</div>
+</div>
+</div>
+<!-- Industrial Metrics Widget -->
+<div class="bg-surface-container-low p-6 rounded border border-white/5">
+<h3 class="rajdhani-head text-xs font-bold text-on-surface-variant uppercase mb-4">Site Telemetry</h3>
+<div class="space-y-4">
+<div>
+<div class="flex justify-between text-[10px] font-['JetBrains_Mono'] mb-1">
+<span>PHASE COMPLETION</span>
+<span class="text-secondary">82.4%</span>
+</div>
+<div class="h-1 bg-surface-container-lowest overflow-hidden">
+<div class="h-full bg-secondary w-[82.4%]"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between text-[10px] font-['JetBrains_Mono'] mb-1">
+<span>UPTIME / AUDIT FREQUENCY</span>
+<span class="text-primary">99.1%</span>
+</div>
+<div class="h-1 bg-surface-container-lowest overflow-hidden">
+<div class="h-full bg-primary w-[99.1%]"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Column: Timeline / Project Logs -->
+<div class="flex-1 flex flex-col gap-6">
+<div class="flex items-center justify-between mb-2">
+<h2 class="rajdhani-head text-2xl font-bold tracking-widest text-[#dae5e1] uppercase">Audit Timeline</h2>
+<div class="text-[10px] font-['JetBrains_Mono'] text-on-surface-variant bg-surface-container-high px-3 py-1 border border-white/5">
+                        UTC-3: 14:02:44
+                    </div>
+</div>
+<!-- Timeline Container -->
+<div class="relative pl-8 border-l border-white/10 space-y-12">
+<!-- Timeline Item 1: Milestone -->
+<div class="relative">
+<!-- Connector Node -->
+<div class="absolute -left-[41px] top-0 w-4 h-4 rounded-full bg-secondary border-4 border-surface shadow-[0_0_10px_rgba(42,157,143,0.5)]"></div>
+<div class="flex flex-col gap-3">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<span class="text-[10px] font-['JetBrains_Mono'] text-secondary px-2 py-0.5 border border-secondary/30 bg-secondary/5 uppercase">Milestone</span>
+<span class="text-[10px] font-['JetBrains_Mono'] text-on-surface-variant">2023-OCT-24 10:45</span>
+</div>
+<div class="flex -space-x-2">
+<img class="w-6 h-6 rounded-full border border-surface object-cover" data-alt="Technical manager portrait" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCLxwMaRVI0SYKmGqGIeY4jfxPI6uW_Ws0aMR6avOpdi3b4N2VBSWDV2E_qFHUOPSrlaEclhd_LeXoV07gv1zVE9vlhj0Zi3CCLqtYx_jFO5WJ_rb-ko7DOkfWuL6wvDzFS6stgpbnbXQSsYfEkMQY32rHwf5PQ8GqmPd_sOgRhLSWtvLIdmlx4KJ8vcQUKhoQYPTu1oyao5C7EKKTE7bPHZA6xaExgMuKRctJuD8l6069_9uXxoLw24AD2pFH1_WPwpYQ1pg_c5jo"/>
+<img class="w-6 h-6 rounded-full border border-surface object-cover" data-alt="Architect profile picture" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDrB8EyIK3i6gc4qpJCrC00WmFfAJKQJoTL6k8XR_tkR_djojXwTqV9NxT7UrZEGSqJaMFPxEUmiWzMoB16XUyEW4S-mNr-UrkRHm9qCRPDnXOh2ljFdAbSjm5pT_pipm_Z_lhslAH2VZoD9aN_3tLahr3xLJP42GCgvNFodsF4ZufMf-qOV6hAcdtP178ei74bTS6fCmxX6Jx3Mo9sNeBNrI9x3fRccAiFENCC1C6OfvZ7rX6G0QZMsnq1DP60SXhzIKs5LDOkN9E"/>
+</div>
+</div>
+<div class="bg-surface-container-low p-5 rounded border border-white/5 hover:border-secondary/30 transition-colors">
+<h4 class="rajdhani-head font-bold text-on-surface mb-2">Structural Foundation Certification Passed</h4>
+<p class="text-sm text-on-surface-variant/80 mb-4 leading-relaxed">
+                                    Zone A-12 inspection completed by third-party audit team. All stress tests within nominal parameters (+0.02% variance). <span class="text-primary">@AlexChen</span> confirmed digital twin alignment.
+                                </p>
+<div class="flex gap-4">
+<div class="w-24 h-16 bg-surface-container-highest rounded-sm border border-white/5 relative overflow-hidden group cursor-pointer">
+<img class="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity" data-alt="Construction site foundation close up" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBQwaS8PscIgPZn8RxCINQnN3wtH6bYc7MrV2YMYa7B8kOY3JYrAV1gTcLSFQYOWqhFU4KSLRgGoy5zxoWo4Kn_kR_Uy-KwX7F6hVRVSXxPtF7wSIvizi_VbEaoyHdktxv314cclxZCmIDZ4EWmpAkH7ohz4Q7WJ83b_OMbnjmzZZK6PNFpbY-QaQmgXlvEiGLTSlOgc7N_N7fCiN7QR0Aixw07t0DUeeRUECrX4meLBGGf9JPTWsQDPYAcKsC3hW-EwR37zY5hALI"/>
+<div class="absolute inset-0 flex items-center justify-center">
+<span class="material-symbols-outlined text-white text-sm" data-icon="image">image</span>
+</div>
+</div>
+<div class="w-24 h-16 bg-surface-container-highest rounded-sm border border-white/5 relative overflow-hidden group cursor-pointer">
+<img class="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity" data-alt="Technical blueprint on digital screen" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBj8N0YWa1qRt_lCdlG1RpPsZLYysEf_gsC0BtMR54X55CFil01EnirWKhMFm8ZhnFBga9QlB2aITYcAQh1zeKE8sx4UaXTDC5c4UGV27U1WTHQmug0HStCry8aiOVegs9eBe7DJRRjbEhSolC_g-zEhPbzaZWsT5Uof7RfPhobWwZZ9Eu2UpUi6DEehCBJGKerI8Z1bQl9KBrw0xlnxS7mfIQcO9ljoaKiEjozrPdDEVDlWw-MymzUd9P5Eiw1Urz6nCb4f6ryyas"/>
+<div class="absolute inset-0 flex items-center justify-center">
+<span class="material-symbols-outlined text-white text-sm" data-icon="description">description</span>
+</div>
+</div>
+</div>
+<!-- Interaction: Comments -->
+<div class="mt-4 pt-4 border-t border-white/5 flex flex-col gap-3">
+<div class="flex gap-3">
+<div class="w-6 h-6 rounded bg-surface-container-highest flex items-center justify-center">
+<span class="text-[8px] font-['JetBrains_Mono']">AC</span>
+</div>
+<div class="flex-1 text-xs">
+<span class="font-bold text-on-surface">Alex Chen</span>
+<p class="text-on-surface-variant/70">Verified. Sensors reporting stable data points across all sectors.</p>
+</div>
+</div>
+<div class="flex items-center gap-2 mt-2">
+<input class="flex-1 bg-surface-container-lowest border-0 text-[10px] p-2 focus:ring-1 focus:ring-primary-container" placeholder="Add comment..." type="text"/>
+<button class="text-primary">
+<span class="material-symbols-outlined text-lg" data-icon="send">send</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Timeline Item 2: Failure -->
+<div class="relative">
+<div class="absolute -left-[41px] top-0 w-4 h-4 rounded-full bg-error border-4 border-surface shadow-[0_0_10px_rgba(255,180,171,0.5)]"></div>
+<div class="flex flex-col gap-3">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<span class="text-[10px] font-['JetBrains_Mono'] text-error px-2 py-0.5 border border-error/30 bg-error/5 uppercase">Failure</span>
+<span class="text-[10px] font-['JetBrains_Mono'] text-on-surface-variant">2023-OCT-24 08:12</span>
+</div>
+</div>
+<div class="bg-surface-container-low p-5 rounded border border-white/5 hover:border-error/30 transition-colors">
+<h4 class="rajdhani-head font-bold text-on-surface mb-2 text-error">Hydraulic System Malfunction - Crane 04</h4>
+<p class="text-sm text-on-surface-variant/80 mb-2 leading-relaxed">
+                                    Pressure drop detected in secondary line. Emergency shutdown initiated. Crew safety protocols active. Maintenance ticket <span class="font-['JetBrains_Mono'] text-xs text-primary">#AUD-9022</span> raised.
+                                </p>
+<div class="flex items-center gap-2 mt-4">
+<span class="material-symbols-outlined text-error text-lg" data-icon="warning">warning</span>
+<span class="text-[10px] font-['JetBrains_Mono'] text-error uppercase">Action Required: Immediate Inspection</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Timeline Item 3: Meeting -->
+<div class="relative">
+<div class="absolute -left-[41px] top-0 w-4 h-4 rounded-full bg-tertiary border-4 border-surface shadow-[0_0_10px_rgba(249,188,79,0.5)]"></div>
+<div class="flex flex-col gap-3">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<span class="text-[10px] font-['JetBrains_Mono'] text-tertiary px-2 py-0.5 border border-tertiary/30 bg-tertiary/5 uppercase">Meeting</span>
+<span class="text-[10px] font-['JetBrains_Mono'] text-on-surface-variant">2023-OCT-23 15:30</span>
+</div>
+</div>
+<div class="bg-surface-container-low p-5 rounded border border-white/5 hover:border-tertiary/30 transition-colors">
+<h4 class="rajdhani-head font-bold text-on-surface mb-2">Weekly Safety &amp; Quality Audit</h4>
+<p class="text-sm text-on-surface-variant/80 leading-relaxed">
+                                    Discussed Phase 2 logistics and potential supply chain bottlenecks for copper alloys. <span class="text-primary">@ProjectLeads</span> to review updated lead times. Minutes attached.
+                                </p>
+<div class="mt-4 flex items-center gap-2">
+<button class="bg-surface-container-highest px-3 py-1 rounded-sm text-[10px] font-['JetBrains_Mono'] flex items-center gap-2 hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined text-sm" data-icon="picture_as_pdf">picture_as_pdf</span>
+                                        SAFETY_REPORT_W43.PDF
+                                    </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Contextual FAB (Suppressed on Details as per instruction, but added for Home feel if requested - suppressing as per rules for focus) -->
+</body></html>

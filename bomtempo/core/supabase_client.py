@@ -149,15 +149,7 @@ def sb_select(
         )
         if resp.status_code == 200:
             result = resp.json()
-            if not result:
-                logger.warning(
-                    f"Supabase SELECT {table}: 200 OK porém 0 linhas retornadas. "
-                    f"Verifique se a tabela tem dados."
-                )
-            else:
-                logger.info(
-                    f"Supabase SELECT {table}: {len(result)} linhas, campos={list(result[0].keys())}"
-                )
+            logger.debug(f"Supabase SELECT {table}: {len(result)} linhas")
             return result
         logger.error(f"Supabase SELECT {table} → {resp.status_code}: {resp.text[:400]}")
         return []

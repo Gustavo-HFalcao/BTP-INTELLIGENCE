@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&amp;family=Outfit:wght@300;400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary-fixed": "#ffddb4",
+              "inverse-on-surface": "#283230",
+              "on-tertiary-container": "#422c00",
+              "surface-bright": "#313b39",
+              "secondary-container": "#30a193",
+              "on-error-container": "#ffdad6",
+              "on-primary-fixed-variant": "#633f00",
+              "inverse-surface": "#dae5e1",
+              "surface-variant": "#2c3734",
+              "inverse-primary": "#835500",
+              "on-surface-variant": "#d5c4b0",
+              "on-secondary-fixed-variant": "#005048",
+              "on-secondary": "#003731",
+              "background": "#0b1513",
+              "tertiary": "#f9bc4f",
+              "surface-container-highest": "#2c3734",
+              "on-primary": "#452b00",
+              "on-primary-container": "#442a00",
+              "on-secondary-fixed": "#00201c",
+              "primary-container": "#c98b2a",
+              "outline-variant": "#514536",
+              "surface-container-lowest": "#06100e",
+              "surface-container-high": "#222c2a",
+              "error": "#ffb4ab",
+              "surface-tint": "#ffb955",
+              "secondary": "#6fd8c8",
+              "on-background": "#dae5e1",
+              "tertiary-container": "#c48e23",
+              "primary": "#ffb955",
+              "surface-container": "#17221f",
+              "on-surface": "#dae5e1",
+              "on-error": "#690005",
+              "surface-dim": "#0b1513",
+              "primary-fixed-dim": "#ffb955",
+              "tertiary-fixed": "#ffdeac",
+              "on-tertiary-fixed-variant": "#5f4100",
+              "surface": "#0b1513",
+              "secondary-fixed-dim": "#6fd8c8",
+              "outline": "#9e8e7d",
+              "on-secondary-container": "#00302a",
+              "tertiary-fixed-dim": "#f9bc4f",
+              "on-tertiary-fixed": "#281900",
+              "secondary-fixed": "#8cf5e4",
+              "surface-container-low": "#131d1b",
+              "on-primary-fixed": "#291800",
+              "error-container": "#93000a",
+              "on-tertiary": "#432c00"
+            },
+            fontFamily: {
+              "headline": ["Rajdhani", "sans-serif"],
+              "body": ["Outfit", "sans-serif"],
+              "label": ["JetBrains Mono", "monospace"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: rgba(14, 26, 23, 0.6);
+            backdrop-filter: blur(12px);
+        }
+        .telemetry-bar-fill {
+            height: 2px;
+            background: #2A9D8F;
+        }
+        .telemetry-bar-track {
+            height: 2px;
+            background: #030504;
+        }
+    </style>
+</head>
+<body class="bg-[#030504] text-on-surface font-body selection:bg-primary-container selection:text-on-primary">
+<!-- TopNavBar -->
+<header class="fixed top-0 z-50 w-full h-16 px-6 bg-[#030504] border-b border-white/10 flex justify-between items-center">
+<div class="flex items-center gap-8">
+<span class="font-headline font-bold text-xl tracking-tighter text-[#C98B2A]">INTEL_FOREMAN</span>
+<nav class="hidden md:flex gap-6 items-center h-full">
+<a class="font-headline uppercase tracking-[0.05em] text-sm text-[#C98B2A] border-b-2 border-[#C98B2A] h-16 flex items-center" href="#">Principal</a>
+<a class="font-headline uppercase tracking-[0.05em] text-sm text-[#dae5e1] opacity-70 hover:text-[#C98B2A] transition-colors duration-200 h-16 flex items-center" href="#">Operacional</a>
+<a class="font-headline uppercase tracking-[0.05em] text-sm text-[#dae5e1] opacity-70 hover:text-[#C98B2A] transition-colors duration-200 h-16 flex items-center" href="#">RDO</a>
+<a class="font-headline uppercase tracking-[0.05em] text-sm text-[#dae5e1] opacity-70 hover:text-[#C98B2A] transition-colors duration-200 h-16 flex items-center" href="#">Administração</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative hidden sm:block">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-sm">search</span>
+<input class="bg-surface-container-lowest border-none border-b border-white/10 text-xs font-headline tracking-widest px-10 py-2 focus:ring-0 focus:border-primary-container w-64" placeholder="SEARCH_TELEMETRY..." type="text"/>
+</div>
+<button class="material-symbols-outlined text-[#dae5e1] opacity-70 hover:text-[#C98B2A] transition-colors">notifications</button>
+<button class="material-symbols-outlined text-[#dae5e1] opacity-70 hover:text-[#C98B2A] transition-colors">settings</button>
+<div class="w-8 h-8 rounded-sm bg-surface-container-highest overflow-hidden border border-white/10">
+<img alt="User profile avatar" class="w-full h-full object-cover" data-alt="close-up portrait of a high-tech foreman wearing tactical glass gear with glowing orange interface reflections" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAh2mPSrXhPZQ1ze5hTUCPzi2_8SB7FVN_nRS2E-7F-pDChf3_XU1qmlxt1bVT_nh97WifrCOFEqQ5BKKpUJyCQ0P9gM3wbWh4uWxmk2CTdHNFDer4vldoT1QJr95drFFkcbUGtzr6pC691DLcAovPcT-wdGB2wof4fobC9y22fWcnDJ_o4In1wU5Vz6zp2PZnE5BncFCLsTCof_IiBcDu5CDaguF3BgYSfCjCPJJntZdu6mffJOp0-U7WMQarZxZQLD7n8VcknXBw"/>
+</div>
+</div>
+</header>
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-full w-64 z-40 bg-[#081210] shadow-[20px_0_40px_rgba(0,0,0,0.4)] hidden md:flex flex-col py-8 px-4 pt-20">
+<div class="mb-8 px-2">
+<h2 class="text-[#C98B2A] font-headline font-bold text-lg tracking-widest">COMMAND_CENTER</h2>
+<p class="font-headline font-medium tracking-widest text-[10px] text-outline">V.2.0_STABLE</p>
+</div>
+<nav class="flex-grow flex flex-col gap-y-1">
+<a class="flex items-center gap-3 px-4 py-3 text-[#C98B2A] bg-[#0e1a17] border-r-2 border-[#C98B2A] font-headline tracking-widest text-xs transition-all translate-x-1" href="#">
+<span class="material-symbols-outlined text-sm" data-icon="dashboard">dashboard</span>
+                PRINCIPAL
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-[#dae5e1] hover:bg-white/5 font-headline tracking-widest text-xs transition-all hover:border-r-2 hover:border-[#C98B2A]/40 group" href="#">
+<span class="material-symbols-outlined text-sm group-hover:text-[#C98B2A]" data-icon="engineering">engineering</span>
+                OPERACIONAL
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-[#dae5e1] hover:bg-white/5 font-headline tracking-widest text-xs transition-all hover:border-r-2 hover:border-[#C98B2A]/40 group" href="#">
+<span class="material-symbols-outlined text-sm group-hover:text-[#C98B2A]" data-icon="description">description</span>
+                RDO
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-[#dae5e1] hover:bg-white/5 font-headline tracking-widest text-xs transition-all hover:border-r-2 hover:border-[#C98B2A]/40 group" href="#">
+<span class="material-symbols-outlined text-sm group-hover:text-[#C98B2A]" data-icon="admin_panel_settings">admin_panel_settings</span>
+                ADMINISTRAÇÃO
+            </a>
+</nav>
+<div class="mt-auto flex flex-col gap-1 border-t border-white/5 pt-4">
+<button class="bg-primary-container text-on-primary font-headline font-bold text-xs tracking-[0.1em] py-3 mb-4 flex items-center justify-center gap-2 hover:bg-[#E0A63B] transition-shadow hover:shadow-[0_0_15px_rgba(201,139,42,0.3)]">
+<span class="material-symbols-outlined text-sm">add</span>
+                NEW_PROJECT
+            </button>
+<a class="flex items-center gap-3 px-4 py-2 text-[#dae5e1] opacity-70 hover:opacity-100 font-headline tracking-widest text-[10px]" href="#">
+<span class="material-symbols-outlined text-sm" data-icon="smartphone">smartphone</span>
+                MOBILE APP
+            </a>
+<a class="flex items-center gap-3 px-4 py-2 text-[#dae5e1] opacity-70 hover:opacity-100 font-headline tracking-widest text-[10px]" href="#">
+<span class="material-symbols-outlined text-sm" data-icon="logout">logout</span>
+                LOGOUT
+            </a>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="md:pl-64 pt-16 min-h-screen">
+<div class="p-8 max-w-[1600px] mx-auto">
+<!-- Page Header -->
+<header class="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+<div>
+<div class="flex items-center gap-2 text-primary tracking-widest font-headline text-xs mb-1">
+<span class="material-symbols-outlined text-xs">monitoring</span>
+                        SYSTEM_OBSERVABILITY
+                    </div>
+<h1 class="font-headline font-bold text-4xl text-on-surface tracking-tight uppercase">LLM Analytics Engine</h1>
+</div>
+<div class="flex gap-2">
+<div class="bg-surface-container-low px-4 py-2 flex flex-col items-end border-r-2 border-[#C98B2A]">
+<span class="text-[10px] font-label text-outline uppercase">Live Sync</span>
+<span class="text-xs font-label text-secondary flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse"></span>
+                            ACTIVE_STREAM
+                        </span>
+</div>
+<button class="bg-surface-container-high hover:bg-surface-variant px-6 py-2 font-headline text-xs tracking-widest text-on-surface-variant transition-colors border border-white/5">
+                        REFRESH_DATA
+                    </button>
+</div>
+</header>
+<!-- KPI Row -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+<!-- KPI 1 -->
+<div class="bg-surface-container-low p-5 border border-white/5 relative group overflow-hidden">
+<div class="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-[#C98B2A]/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<div class="text-[10px] font-headline tracking-[0.2em] text-outline mb-2 uppercase">Total Calls</div>
+<div class="flex items-baseline justify-between">
+<span class="font-headline font-bold text-3xl text-on-surface">1.2M</span>
+<span class="font-label text-xs text-secondary">+12.4%</span>
+</div>
+<div class="telemetry-bar-track mt-4">
+<div class="telemetry-bar-fill w-[78%]"></div>
+</div>
+</div>
+<!-- KPI 2 -->
+<div class="bg-surface-container-low p-5 border border-white/5 relative group overflow-hidden">
+<div class="text-[10px] font-headline tracking-[0.2em] text-outline mb-2 uppercase">Total Cost</div>
+<div class="flex items-baseline justify-between">
+<span class="font-headline font-bold text-3xl text-on-surface">$4.2K</span>
+<span class="font-label text-xs text-secondary">-$210.00</span>
+</div>
+<div class="telemetry-bar-track mt-4">
+<div class="telemetry-bar-fill w-[45%] bg-[#C98B2A]"></div>
+</div>
+</div>
+<!-- KPI 3 -->
+<div class="bg-surface-container-low p-5 border border-white/5 relative group overflow-hidden">
+<div class="text-[10px] font-headline tracking-[0.2em] text-outline mb-2 uppercase">Tokens (Prompt/Comp)</div>
+<div class="flex items-baseline justify-between">
+<span class="font-headline font-bold text-3xl text-on-surface">840M</span>
+<span class="font-label text-[10px] text-outline">1:4 RATIO</span>
+</div>
+<div class="telemetry-bar-track mt-4">
+<div class="telemetry-bar-fill w-[62%]"></div>
+</div>
+</div>
+<!-- KPI 4 -->
+<div class="bg-surface-container-low p-5 border border-white/5 relative group overflow-hidden">
+<div class="text-[10px] font-headline tracking-[0.2em] text-outline mb-2 uppercase">Errors (Danger)</div>
+<div class="flex items-baseline justify-between">
+<span class="font-headline font-bold text-3xl text-error">0.04%</span>
+<span class="font-label text-xs text-error">CRITICAL_ST</span>
+</div>
+<div class="telemetry-bar-track mt-4 bg-error-container/20">
+<div class="telemetry-bar-fill w-[4%] bg-error"></div>
+</div>
+</div>
+<!-- KPI 5 -->
+<div class="bg-surface-container-low p-5 border border-white/5 relative group overflow-hidden">
+<div class="text-[10px] font-headline tracking-[0.2em] text-outline mb-2 uppercase">Avg Latency</div>
+<div class="flex items-baseline justify-between">
+<span class="font-headline font-bold text-3xl text-on-surface">842ms</span>
+<span class="font-label text-xs text-secondary-container">-45ms</span>
+</div>
+<div class="telemetry-bar-track mt-4">
+<div class="telemetry-bar-fill w-[32%] bg-secondary-container"></div>
+</div>
+</div>
+</div>
+<!-- Dashboard Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+<!-- Model Breakdown Table -->
+<div class="lg:col-span-4 bg-surface-container p-6 border border-white/5">
+<h3 class="font-headline font-bold text-sm tracking-widest text-on-surface mb-6 uppercase flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-sm">hub</span>
+                        Model distribution
+                    </h3>
+<div class="space-y-6">
+<div class="group">
+<div class="flex justify-between items-center mb-2">
+<span class="font-label text-xs text-on-surface">GPT-4-TURBO</span>
+<span class="font-label text-xs text-outline">542,120 CALLS</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-lowest">
+<div class="h-full bg-primary-container" style="width: 45%;"></div>
+</div>
+</div>
+<div class="group">
+<div class="flex justify-between items-center mb-2">
+<span class="font-label text-xs text-on-surface">CLAUDE-3-OPUS</span>
+<span class="font-label text-xs text-outline">320,040 CALLS</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-lowest">
+<div class="h-full bg-secondary" style="width: 28%;"></div>
+</div>
+</div>
+<div class="group">
+<div class="flex justify-between items-center mb-2">
+<span class="font-label text-xs text-on-surface">GPT-3.5-SONNET</span>
+<span class="font-label text-xs text-outline">184,500 CALLS</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-lowest">
+<div class="h-full bg-secondary-container" style="width: 15%;"></div>
+</div>
+</div>
+<div class="group">
+<div class="flex justify-between items-center mb-2">
+<span class="font-label text-xs text-on-surface">MISTRAL-LARGE</span>
+<span class="font-label text-xs text-outline">140,200 CALLS</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-lowest">
+<div class="h-full bg-outline" style="width: 12%;"></div>
+</div>
+</div>
+</div>
+<div class="mt-8 p-4 bg-surface-container-lowest border-l-2 border-primary">
+<div class="text-[10px] font-label text-primary uppercase mb-1">Efficiency Insight</div>
+<p class="text-xs text-outline-variant font-body">GPT-4 utilization has increased by 15% this cycle, primarily driven by complex reasoning tasks.</p>
+</div>
+</div>
+<!-- Call Logs Table -->
+<div class="lg:col-span-8 bg-surface-container border border-white/5 overflow-hidden">
+<div class="p-6 border-b border-white/5 flex justify-between items-center">
+<h3 class="font-headline font-bold text-sm tracking-widest text-on-surface uppercase flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-sm">list_alt</span>
+                            Real-time Call Logs
+                        </h3>
+<div class="flex gap-4">
+<select class="bg-surface-container-lowest border-none text-[10px] font-headline tracking-widest text-outline focus:ring-0 uppercase">
+<option>ALL MODELS</option>
+<option>GPT-4</option>
+<option>CLAUDE-3</option>
+</select>
+<select class="bg-surface-container-lowest border-none text-[10px] font-headline tracking-widest text-outline focus:ring-0 uppercase">
+<option>STATUS: ALL</option>
+<option>SUCCESS</option>
+<option>FAILURE</option>
+</select>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead class="bg-surface-container-high">
+<tr>
+<th class="px-6 py-3 font-headline text-[10px] tracking-widest text-outline uppercase">Status</th>
+<th class="px-6 py-3 font-headline text-[10px] tracking-widest text-outline uppercase">Timestamp</th>
+<th class="px-6 py-3 font-headline text-[10px] tracking-widest text-outline uppercase">Model</th>
+<th class="px-6 py-3 font-headline text-[10px] tracking-widest text-outline uppercase">Tokens</th>
+<th class="px-6 py-3 font-headline text-[10px] tracking-widest text-outline uppercase text-right">Cost</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-white/5">
+<tr class="hover:bg-white/5 cursor-pointer transition-colors group">
+<td class="px-6 py-4">
+<div class="w-2 h-2 rounded-full bg-secondary shadow-[0_0_8px_rgba(42,157,143,0.5)]"></div>
+</td>
+<td class="px-6 py-4 font-label text-[11px] text-on-surface">14:24:02.145</td>
+<td class="px-6 py-4 font-label text-[11px] text-on-surface-variant">gpt-4-turbo-2024</td>
+<td class="px-6 py-4 font-label text-[11px] text-outline">1,240 <span class="text-[9px] opacity-40">tk</span></td>
+<td class="px-6 py-4 font-label text-[11px] text-primary text-right">$0.0372</td>
+</tr>
+<tr class="hover:bg-white/5 cursor-pointer transition-colors group">
+<td class="px-6 py-4">
+<div class="w-2 h-2 rounded-full bg-secondary shadow-[0_0_8px_rgba(42,157,143,0.5)]"></div>
+</td>
+<td class="px-6 py-4 font-label text-[11px] text-on-surface">14:23:58.821</td>
+<td class="px-6 py-4 font-label text-[11px] text-on-surface-variant">claude-3-opus</td>
+<td class="px-6 py-4 font-label text-[11px] text-outline">428 <span class="text-[9px] opacity-40">tk</span></td>
+<td class="px-6 py-4 font-label text-[11px] text-primary text-right">$0.0064</td>
+</tr>
+<tr class="hover:bg-white/5 cursor-pointer transition-colors group">
+<td class="px-6 py-4">
+<div class="w-2 h-2 rounded-full bg-error shadow-[0_0_8px_rgba(255,180,171,0.5)]"></div>
+</td>
+<td class="px-6 py-4 font-label text-[11px] text-on-surface">14:23:55.002</td>
+<td class="px-6 py-4 font-label text-[11px] text-on-surface-variant">gpt-4-turbo-2024</td>
+<td class="px-6 py-4 font-label text-[11px] text-outline">0 <span class="text-[9px] opacity-40">tk</span></td>
+<td class="px-6 py-4 font-label text-[11px] text-error text-right">$0.0000</td>
+</tr>
+<tr class="hover:bg-white/5 cursor-pointer transition-colors group">
+<td class="px-6 py-4">
+<div class="w-2 h-2 rounded-full bg-secondary shadow-[0_0_8px_rgba(42,157,143,0.5)]"></div>
+</td>
+<td class="px-6 py-4 font-label text-[11px] text-on-surface">14:23:51.341</td>
+<td class="px-6 py-4 font-label text-[11px] text-on-surface-variant">gpt-3.5-sonnet</td>
+<td class="px-6 py-4 font-label text-[11px] text-outline">2,810 <span class="text-[9px] opacity-40">tk</span></td>
+<td class="px-6 py-4 font-label text-[11px] text-primary text-right">$0.0042</td>
+</tr>
+<tr class="hover:bg-white/5 cursor-pointer transition-colors group">
+<td class="px-6 py-4">
+<div class="w-2 h-2 rounded-full bg-secondary shadow-[0_0_8px_rgba(42,157,143,0.5)]"></div>
+</td>
+<td class="px-6 py-4 font-label text-[11px] text-on-surface">14:23:48.092</td>
+<td class="px-6 py-4 font-label text-[11px] text-on-surface-variant">claude-3-opus</td>
+<td class="px-6 py-4 font-label text-[11px] text-outline">892 <span class="text-[9px] opacity-40">tk</span></td>
+<td class="px-6 py-4 font-label text-[11px] text-primary text-right">$0.0133</td>
+</tr>
+<tr class="hover:bg-white/5 cursor-pointer transition-colors group">
+<td class="px-6 py-4">
+<div class="w-2 h-2 rounded-full bg-secondary shadow-[0_0_8px_rgba(42,157,143,0.5)]"></div>
+</td>
+<td class="px-6 py-4 font-label text-[11px] text-on-surface">14:23:44.210</td>
+<td class="px-6 py-4 font-label text-[11px] text-on-surface-variant">gpt-4-turbo-2024</td>
+<td class="px-6 py-4 font-label text-[11px] text-outline">56 <span class="text-[9px] opacity-40">tk</span></td>
+<td class="px-6 py-4 font-label text-[11px] text-primary text-right">$0.0016</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-4 bg-surface-container-high flex justify-between items-center">
+<span class="font-label text-[10px] text-outline">SHOWING 50 OF 1,242,110 RECORDS</span>
+<div class="flex gap-2">
+<button class="w-8 h-8 flex items-center justify-center bg-surface-container-lowest text-outline hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-sm">chevron_left</span>
+</button>
+<button class="w-8 h-8 flex items-center justify-center bg-surface-container-lowest text-outline hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-sm">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Side Detail Drawer -->
+<div class="fixed right-0 top-16 h-[calc(100%-4rem)] w-96 bg-surface-container shadow-[-20px_0_40px_rgba(0,0,0,0.5)] border-l border-white/10 z-30 transform transition-transform translate-x-0 glass-panel">
+<div class="p-6 border-b border-white/10 flex justify-between items-center">
+<div class="flex flex-col">
+<span class="text-[10px] font-label text-outline uppercase tracking-widest">Trace_ID: 9XF-2201</span>
+<h3 class="font-headline font-bold text-lg text-[#C98B2A]">CALL_DETAILS</h3>
+</div>
+<button class="material-symbols-outlined text-outline hover:text-on-surface transition-colors">close</button>
+</div>
+<div class="p-6 space-y-8 overflow-y-auto h-[calc(100%-5rem)]">
+<!-- Metadata Section -->
+<section>
+<div class="text-[10px] font-headline text-primary tracking-widest uppercase mb-4">Metadata</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="bg-surface-container-lowest p-3">
+<div class="text-[9px] font-label text-outline uppercase mb-1">Latency</div>
+<div class="text-sm font-label text-on-surface">1.2s</div>
+</div>
+<div class="bg-surface-container-lowest p-3">
+<div class="text-[9px] font-label text-outline uppercase mb-1">Status</div>
+<div class="text-sm font-label text-secondary uppercase">200 OK</div>
+</div>
+</div>
+</section>
+<!-- Request Section -->
+<section>
+<div class="flex justify-between items-center mb-4">
+<div class="text-[10px] font-headline text-primary tracking-widest uppercase">Request_Payload</div>
+<button class="material-symbols-outlined text-sm text-outline hover:text-primary">content_copy</button>
+</div>
+<div class="bg-surface-container-lowest p-4 font-label text-[11px] text-on-surface-variant leading-relaxed border-l border-primary/20">
+                    {
+                        "model": "gpt-4-turbo-2024",
+                        "messages": [
+                            {"role": "user", "content": "Analyze the structural integrity of the main support beam..."},
+                            {"role": "system", "content": "You are an industrial structural engineer foreman."}
+                        ],
+                        "temperature": 0.2
+                    }
+                </div>
+</section>
+<!-- Response Section -->
+<section>
+<div class="flex justify-between items-center mb-4">
+<div class="text-[10px] font-headline text-primary tracking-widest uppercase">Response_Content</div>
+<button class="material-symbols-outlined text-sm text-outline hover:text-primary">content_copy</button>
+</div>
+<div class="bg-surface-container-lowest p-4 font-label text-[11px] text-on-surface leading-relaxed border-l-2 border-primary">
+                    "Structural analysis suggests a fatigue failure at the weld joint B-22. Recommend immediate reinforcement using secondary bracing plates and ultrasonic testing for adjacent connections. Estimated remediation time: 4 hours."
+                </div>
+</section>
+<!-- Token Distribution -->
+<section>
+<div class="text-[10px] font-headline text-primary tracking-widest uppercase mb-4">Token_Telemetery</div>
+<div class="space-y-4">
+<div>
+<div class="flex justify-between text-[10px] font-label text-outline mb-1">
+<span>PROMPT</span>
+<span>420 TK</span>
+</div>
+<div class="h-1 w-full bg-surface-container-lowest">
+<div class="h-full bg-outline" style="width: 35%;"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between text-[10px] font-label text-outline mb-1">
+<span>COMPLETION</span>
+<span>820 TK</span>
+</div>
+<div class="h-1 w-full bg-surface-container-lowest">
+<div class="h-full bg-primary" style="width: 65%;"></div>
+</div>
+</div>
+</div>
+</section>
+</div>
+</div>
+</body></html>

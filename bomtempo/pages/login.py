@@ -102,7 +102,7 @@ def _brand_panel() -> rx.Component:
             # Brand hero image — width-driven (image is square 640×640)
             rx.image(
                 src="/banner.png",
-                width="clamp(180px, 38%, 380px)",
+                width="clamp(260px, 45%, 480px)",
                 height="auto",
                 object_fit="contain",
                 opacity="0.95",
@@ -234,17 +234,22 @@ def _auth_form() -> rx.Component:
                 placeholder="Digite seu usuário",
                 value=GlobalState.username_input,
                 on_change=GlobalState.set_username_input,
-                bg="rgba(255, 255, 255, 0.04)",
+                bg="#06100e", # surface-container-lowest
                 border=f"1px solid {S.BORDER_SUBTLE}",
                 color="white",
                 width="100%",
                 height="48px",
                 padding_x="14px",
-                border_radius=S.R_CONTROL,
+                border_radius="4px", # Industrial sm
                 font_family=S.FONT_MONO,
                 font_size="16px",
                 transition="border-color 0.15s ease",
                 is_disabled=GlobalState.is_authenticating,
+                _focus={
+                    "border": f"1px solid {S.BORDER_SUBTLE}",
+                    "border_bottom": f"2px solid {S.COPPER}",
+                    "outline": "none"
+                }
             ),
             spacing="2",
             align="start",
@@ -266,7 +271,7 @@ def _auth_form() -> rx.Component:
                 type="password",
                 value=GlobalState.password_input,
                 on_change=GlobalState.set_password_input,
-                bg="rgba(255, 255, 255, 0.04)",
+                bg="#06100e", # surface-container-lowest
                 border=rx.cond(
                     GlobalState.login_error != "",
                     "1px solid rgba(239, 68, 68, 0.5)",
@@ -276,16 +281,92 @@ def _auth_form() -> rx.Component:
                 width="100%",
                 height="48px",
                 padding_x="14px",
-                border_radius=S.R_CONTROL,
+                border_radius="4px", # Industrial sm
                 font_family=S.FONT_MONO,
                 font_size="16px",
                 on_key_down=GlobalState.check_login_on_enter,
                 transition="border-color 0.15s ease",
                 is_disabled=GlobalState.is_authenticating,
+                _focus={
+                    "border": f"1px solid {S.BORDER_SUBTLE}",
+                    "border_bottom": f"2px solid {S.COPPER}",
+                    "outline": "none"
+                }
+            ),
+            rx.hstack(
+                rx.spacer(),
+                rx.link(
+                    "Esqueci minha senha?",
+                    on_click=GlobalState.toggle_forgot_password,
+                    font_size="10px",
+                    color=S.PATINA,
+                    opacity="0.7",
+                    _hover={"opacity": "1", "text_decoration": "underline"},
+                ),
+                width="100%",
+                margin_top="1"
             ),
             spacing="2",
             align="start",
             width="100%",
+        ),
+        # Forgot Password Modal
+        rx.dialog.root(
+            rx.dialog.content(
+                rx.vstack(
+                    rx.dialog.title("Recuperar Acesso", color="white", font_family=S.FONT_TECH),
+                    rx.text(
+                        "Digite seu email para receber um link de redefinição de senha.",
+                        color=S.TEXT_MUTED,
+                        font_size="14px",
+                    ),
+                    rx.input(
+                        placeholder="seu@email.com",
+                        value=GlobalState.forgot_password_email,
+                        on_change=GlobalState.set_forgot_password_email,
+                        width="100%",
+                        bg="rgba(255,255,255,0.05)",
+                        border=f"1px solid {S.BORDER_SUBTLE}",
+                        color="white",
+                    ),
+                    rx.cond(
+                        GlobalState.forgot_password_error != "",
+                        rx.text(GlobalState.forgot_password_error, color="#F87171", font_size="12px"),
+                    ),
+                    rx.cond(
+                        GlobalState.forgot_password_success,
+                        rx.box(
+                            rx.text("✅ Link enviado com sucesso! Verifique sua caixa de entrada.", color=S.PATINA, font_size="13px", font_weight="600"),
+                            padding="12px",
+                            bg="rgba(42,157,143,0.1)",
+                            border_radius="8px",
+                            width="100%",
+                        ),
+                        rx.button(
+                            "Enviar Link de Redefinição",
+                            on_click=GlobalState.send_reset_link,
+                            is_loading=GlobalState.is_sending_reset,
+                            bg=S.COPPER,
+                            color="#0A1F1A",
+                            width="100%",
+                        ),
+                    ),
+                    rx.hstack(
+                        rx.spacer(),
+                        rx.dialog.close(
+                            rx.button("Fechar", variant="soft", color_scheme="gray", on_click=GlobalState.toggle_forgot_password)
+                        ),
+                        width="100%",
+                        margin_top="12px",
+                    ),
+                    spacing="4",
+                    align="start",
+                ),
+                bg=S.BG_SURFACE,
+                border=f"1px solid {S.BORDER_SUBTLE}",
+                max_width="450px",
+            ),
+            open=GlobalState.show_forgot_password,
         ),
         # Login button + progress bar
         rx.vstack(
@@ -525,7 +606,7 @@ def _mobile_login() -> rx.Component:
             # Banner image
             rx.image(
                 src="/banner.png",
-                width="clamp(160px, 55vw, 240px)",
+                width="clamp(240px, 60vw, 360px)",
                 height="auto",
                 object_fit="contain",
                 opacity="0.95",

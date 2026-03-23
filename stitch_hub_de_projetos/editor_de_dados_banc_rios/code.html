@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="pt-br"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&amp;family=Outfit:wght@300;400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary-fixed": "#ffddb4",
+                        "inverse-on-surface": "#283230",
+                        "on-tertiary-container": "#422c00",
+                        "surface-bright": "#313b39",
+                        "secondary-container": "#30a193",
+                        "on-error-container": "#ffdad6",
+                        "on-primary-fixed-variant": "#633f00",
+                        "inverse-surface": "#dae5e1",
+                        "surface-variant": "#2c3734",
+                        "inverse-primary": "#835500",
+                        "on-surface-variant": "#d5c4b0",
+                        "on-secondary-fixed-variant": "#005048",
+                        "on-secondary": "#003731",
+                        "background": "#0b1513",
+                        "tertiary": "#f9bc4f",
+                        "surface-container-highest": "#2c3734",
+                        "on-primary": "#452b00",
+                        "on-primary-container": "#442a00",
+                        "on-secondary-fixed": "#00201c",
+                        "primary-container": "#c98b2a",
+                        "outline-variant": "#514536",
+                        "surface-container-lowest": "#06100e",
+                        "surface-container-high": "#222c2a",
+                        "error": "#ffb4ab",
+                        "surface-tint": "#ffb955",
+                        "secondary": "#6fd8c8",
+                        "on-background": "#dae5e1",
+                        "tertiary-container": "#c48e23",
+                        "primary": "#ffb955",
+                        "surface-container": "#17221f",
+                        "on-surface": "#dae5e1",
+                        "on-error": "#690005",
+                        "surface-dim": "#0b1513",
+                        "primary-fixed-dim": "#ffb955",
+                        "tertiary-fixed": "#ffdeac",
+                        "on-tertiary-fixed-variant": "#5f4100",
+                        "surface": "#0b1513",
+                        "secondary-fixed-dim": "#6fd8c8",
+                        "outline": "#9e8e7d",
+                        "on-secondary-container": "#00302a",
+                        "tertiary-fixed-dim": "#f9bc4f",
+                        "on-tertiary-fixed": "#281900",
+                        "secondary-fixed": "#8cf5e4",
+                        "surface-container-low": "#131d1b",
+                        "on-primary-fixed": "#291800",
+                        "error-container": "#93000a",
+                        "on-tertiary": "#432c00"
+                    },
+                    fontFamily: {
+                        "headline": ["Rajdhani", "sans-serif"],
+                        "body": ["Outfit", "sans-serif"],
+                        "label": ["Space Grotesk", "sans-serif"],
+                        "mono": ["JetBrains Mono", "monospace"]
+                    },
+                    borderRadius: { "DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem" },
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .glass-panel {
+            background: rgba(14, 26, 23, 0.6);
+            backdrop-filter: blur(12px);
+        }
+        .copper-gradient {
+            background: linear-gradient(135deg, #C98B2A 0%, #835500 100%);
+        }
+    </style>
+</head>
+<body class="bg-[#030504] text-on-surface font-body min-h-screen flex">
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-full w-64 z-40 bg-[#081210] flex flex-col py-8 px-4 gap-y-2 shadow-[20px_0_40px_rgba(0,0,0,0.4)]">
+<div class="mb-8 px-2">
+<h1 class="text-[#C98B2A] font-bold text-lg font-headline tracking-tighter">COMMAND_CENTER</h1>
+<p class="font-headline font-medium tracking-widest text-xs text-[#dae5e1] opacity-50">V.2.0_STABLE</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-3 py-2 text-[#dae5e1] hover:bg-white/5 font-headline font-medium tracking-widest text-xs transition-all" href="#">
+<span class="material-symbols-outlined text-sm">dashboard</span>
+                Principal
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#C98B2A] bg-[#0e1a17] border-r-2 border-[#C98B2A] font-headline font-medium tracking-widest text-xs translate-x-1" href="#">
+<span class="material-symbols-outlined text-sm">engineering</span>
+                Operacional
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#dae5e1] hover:bg-white/5 font-headline font-medium tracking-widest text-xs transition-all" href="#">
+<span class="material-symbols-outlined text-sm">description</span>
+                RDO
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#dae5e1] hover:bg-white/5 font-headline font-medium tracking-widest text-xs transition-all" href="#">
+<span class="material-symbols-outlined text-sm">admin_panel_settings</span>
+                Administração
+            </a>
+</nav>
+<div class="mt-auto pt-6 space-y-1">
+<button class="w-full mb-4 copper-gradient text-on-primary font-headline font-bold py-2 tracking-widest text-xs hover:opacity-90 transition-opacity">
+                NEW_PROJECT
+            </button>
+<a class="flex items-center gap-3 px-3 py-2 text-[#dae5e1] hover:bg-white/5 font-headline font-medium tracking-widest text-xs" href="#">
+<span class="material-symbols-outlined text-sm">smartphone</span>
+                Mobile App
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#dae5e1] hover:bg-white/5 font-headline font-medium tracking-widest text-xs" href="#">
+<span class="material-symbols-outlined text-sm">logout</span>
+                Logout
+            </a>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="ml-64 flex-1 flex flex-col min-h-screen">
+<!-- TopAppBar -->
+<header class="bg-[#030504] flex justify-between items-center w-full px-8 h-16 border-b border-white/10 sticky top-0 z-50">
+<div class="flex items-center gap-8">
+<div class="font-headline font-bold text-xl tracking-tighter text-[#C98B2A]">INTEL_FOREMAN</div>
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">search</span>
+<input class="bg-surface-container-lowest border-none border-b-2 border-transparent focus:border-[#C98B2A] focus:ring-0 text-xs font-headline tracking-widest w-64 pl-10 h-9 transition-all" placeholder="BUSCAR REGISTROS..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 text-[#dae5e1] opacity-70 hover:opacity-100 hover:text-[#C98B2A] transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 text-[#dae5e1] opacity-70 hover:opacity-100 hover:text-[#C98B2A] transition-colors">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<div class="w-8 h-8 bg-surface-container-highest rounded-sm flex items-center justify-center border border-white/10">
+<img alt="User avatar" class="w-full h-full object-cover" data-alt="portrait of a professional foreman in a hard hat with industrial lighting and dark background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBV0MFV3pc4iXN7N8-EHVyBIb9VWc89plmeA7ACtHJVgTjBDvW4NBh80ayh2AHPsEdtcIRGcFjQqRN5sK9b0XjgiViEOWh1hvdm4lRp14gUaqv5fgY_-J8dA0AetKacFO7uZ__FLaxvGmFkV9wm64oAdOZQypG8qCZ3mEVfm7CHKd3QLHQAw55zfCi4IGAVGPzuyMaCPhB_eRT4icwrIWOBje0kMWoJTpKVl57lpvA59omXICgWwV2tXYb6emLa9G-Vq6ZMLhvRqqw"/>
+</div>
+</div>
+</header>
+<!-- Editor Workspace -->
+<div class="p-8 flex-1 flex flex-col gap-6">
+<!-- Breadcrumbs & Stats -->
+<div class="flex justify-between items-end">
+<div>
+<h2 class="font-headline text-3xl font-bold tracking-tight text-on-surface uppercase">Editar Dados Operacionais</h2>
+<p class="font-mono text-xs text-[#2A9D8F] flex items-center gap-2 mt-1">
+<span class="w-2 h-2 rounded-full bg-[#2A9D8F] animate-pulse"></span>
+                        SESSÃO ATIVA: DB_CON_POOL_04
+                    </p>
+</div>
+<div class="flex gap-4">
+<div class="bg-surface-container px-4 py-2 border-l-2 border-[#C98B2A]">
+<p class="font-headline text-[10px] tracking-widest text-on-surface-variant uppercase">Total de Registros</p>
+<p class="font-mono text-xl font-medium text-on-surface">1.284</p>
+</div>
+<div class="bg-surface-container px-4 py-2 border-l-2 border-[#ffb4ab]">
+<p class="font-headline text-[10px] tracking-widest text-on-surface-variant uppercase">Alterações Pendentes</p>
+<p class="font-mono text-xl font-medium text-[#ffb4ab]">12</p>
+</div>
+</div>
+</div>
+<!-- Toolbar -->
+<div class="glass-panel p-4 flex flex-wrap items-center justify-between gap-4 border border-white/5">
+<div class="flex items-center gap-3">
+<div class="flex flex-col">
+<label class="font-headline text-[10px] tracking-widest text-[#C98B2A] mb-1 px-1">FILTRAR POR STATUS</label>
+<select class="bg-surface-container-lowest border-none text-xs font-headline tracking-widest h-9 px-3 focus:ring-1 focus:ring-[#C98B2A] transition-all">
+<option>TODOS OS PROCESSOS</option>
+<option>EM EXECUÇÃO</option>
+<option>FINALIZADOS</option>
+<option>ERRO CRÍTICO</option>
+</select>
+</div>
+<div class="flex flex-col">
+<label class="font-headline text-[10px] tracking-widest text-[#C98B2A] mb-1 px-1">DATA INÍCIO</label>
+<input class="bg-surface-container-lowest border-none text-xs font-mono h-9 px-3 focus:ring-1 focus:ring-[#C98B2A] transition-all" type="date"/>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<button class="bg-surface-container-highest hover:bg-[#C98B2A]/20 text-[#C98B2A] border border-[#C98B2A]/30 font-headline text-xs tracking-widest px-4 h-9 flex items-center gap-2 transition-all">
+<span class="material-symbols-outlined text-sm">upload</span> IMPORT
+                    </button>
+<button class="bg-surface-container-highest hover:bg-[#C98B2A]/20 text-[#C98B2A] border border-[#C98B2A]/30 font-headline text-xs tracking-widest px-4 h-9 flex items-center gap-2 transition-all">
+<span class="material-symbols-outlined text-sm">download</span> EXPORT
+                    </button>
+<div class="w-px h-8 bg-white/10 mx-2"></div>
+<button class="bg-[#ffb4ab]/10 hover:bg-[#ffb4ab]/20 text-[#ffb4ab] border border-[#ffb4ab]/30 font-headline text-xs tracking-widest px-4 h-9 flex items-center gap-2 transition-all">
+<span class="material-symbols-outlined text-sm">delete</span> DELETE
+                    </button>
+<button class="bg-white/5 hover:bg-white/10 text-on-surface border border-white/20 font-headline text-xs tracking-widest px-4 h-9 flex items-center gap-2 transition-all">
+<span class="material-symbols-outlined text-sm">add</span> NEW_ROW
+                    </button>
+<button class="copper-gradient text-on-primary font-headline font-bold text-xs tracking-widest px-6 h-9 flex items-center gap-2 hover:opacity-90 active:scale-95 transition-all">
+<span class="material-symbols-outlined text-sm">save</span> SAVE_TO_DB
+                    </button>
+</div>
+</div>
+<!-- Data Grid / Empty State Logic -->
+<div class="flex-1 bg-surface-container-lowest border border-white/5 relative min-h-[400px]">
+<!-- Table View -->
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low border-b border-white/10">
+<th class="p-4 w-12 text-center">
+<input class="bg-transparent border-[#9e8e7d] rounded-sm focus:ring-[#C98B2A] text-[#C98B2A]" type="checkbox"/>
+</th>
+<th class="p-4 font-headline text-[10px] tracking-widest text-[#C98B2A] uppercase">ID_REF</th>
+<th class="p-4 font-headline text-[10px] tracking-widest text-[#C98B2A] uppercase">DESCR_ITEM</th>
+<th class="p-4 font-headline text-[10px] tracking-widest text-[#C98B2A] uppercase text-right">COORD_X</th>
+<th class="p-4 font-headline text-[10px] tracking-widest text-[#C98B2A] uppercase text-right">COORD_Y</th>
+<th class="p-4 font-headline text-[10px] tracking-widest text-[#C98B2A] uppercase">TIMESTAMP</th>
+<th class="p-4 font-headline text-[10px] tracking-widest text-[#C98B2A] uppercase">STATUS_PILL</th>
+</tr>
+</thead>
+<tbody class="font-mono text-xs">
+<!-- Sample Row 1 -->
+<tr class="border-b border-white/5 hover:bg-white/5 group transition-colors">
+<td class="p-4 text-center">
+<input class="bg-transparent border-[#9e8e7d] rounded-sm focus:ring-[#C98B2A] text-[#C98B2A]" type="checkbox"/>
+</td>
+<td class="p-4 text-on-surface-variant">#482-TX</td>
+<td class="p-4 text-on-surface">Escavação Norte Setor A</td>
+<td class="p-4 text-right">24.8192</td>
+<td class="p-4 text-right">-42.0019</td>
+<td class="p-4 text-on-surface-variant">2023-10-27 14:32:01</td>
+<td class="p-4">
+<span class="px-2 py-0.5 bg-[#2A9D8F]/10 text-[#2A9D8F] border border-[#2A9D8F]/30 text-[10px] uppercase font-headline font-bold">SYNKED</span>
+</td>
+</tr>
+<!-- Sample Row 2 (Unsaved) -->
+<tr class="border-b border-white/5 bg-[#C98B2A]/5 hover:bg-[#C98B2A]/10 group transition-colors">
+<td class="p-4 text-center">
+<input checked="" class="bg-transparent border-[#9e8e7d] rounded-sm focus:ring-[#C98B2A] text-[#C98B2A]" type="checkbox"/>
+</td>
+<td class="p-4 text-on-surface-variant">#483-TX</td>
+<td class="p-4 text-on-surface">
+<input class="bg-transparent border-none p-0 focus:ring-0 text-xs font-mono w-full" type="text" value="Nivelamento de Terreno B"/>
+</td>
+<td class="p-4 text-right">24.8195</td>
+<td class="p-4 text-right">-42.0022</td>
+<td class="p-4 text-on-surface-variant">2023-10-27 15:10:44</td>
+<td class="p-4">
+<span class="px-2 py-0.5 bg-[#C98B2A]/10 text-[#C98B2A] border border-[#C98B2A]/30 text-[10px] uppercase font-headline font-bold">UNSAVED</span>
+</td>
+</tr>
+<!-- Empty State Layer (Hidden by default, shown if no rows) -->
+<tr class="hidden">
+<td class="py-20" colspan="7">
+<div class="max-w-md mx-auto text-center">
+<div class="w-16 h-16 bg-surface-container rounded-full flex items-center justify-center mx-auto mb-6 border border-white/10">
+<span class="material-symbols-outlined text-[#C98B2A] text-3xl">database_off</span>
+</div>
+<h3 class="font-headline text-xl font-bold text-on-surface mb-2 tracking-widest uppercase">Nenhum Registro Encontrado</h3>
+<p class="text-on-surface-variant text-sm mb-8">Siga os passos abaixo para iniciar a edição de dados industriais.</p>
+<div class="grid grid-cols-3 gap-4 text-left">
+<div class="bg-surface-container p-4 border-t-2 border-[#C98B2A]">
+<span class="font-headline font-bold text-[#C98B2A] text-lg">01</span>
+<p class="font-headline text-[10px] tracking-widest mt-1 uppercase">Importar CSV/SQL</p>
+</div>
+<div class="bg-surface-container p-4 border-t-2 border-white/10">
+<span class="font-headline font-bold text-on-surface-variant text-lg">02</span>
+<p class="font-headline text-[10px] tracking-widest mt-1 uppercase">Validar Esquema</p>
+</div>
+<div class="bg-surface-container p-4 border-t-2 border-white/10">
+<span class="font-headline font-bold text-on-surface-variant text-lg">03</span>
+<p class="font-headline text-[10px] tracking-widest mt-1 uppercase">Commit Global</p>
+</div>
+</div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Footer / Telemetry Bar -->
+<div class="mt-auto flex items-center justify-between font-mono text-[10px] text-on-surface-variant/60">
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2">
+<span class="w-1.5 h-1.5 bg-[#2A9D8F]"></span>
+                        LATENCY: 14ms
+                    </div>
+<div class="flex items-center gap-2">
+<span class="w-1.5 h-1.5 bg-[#C98B2A]"></span>
+                        BUFFER: 82%
+                    </div>
+</div>
+<div class="flex items-center gap-4">
+<span>PÁGINA 1 DE 44</span>
+<div class="flex gap-1">
+<button class="w-6 h-6 border border-white/10 flex items-center justify-center hover:bg-white/5"><span class="material-symbols-outlined text-xs">chevron_left</span></button>
+<button class="w-6 h-6 border border-white/10 flex items-center justify-center hover:bg-white/5 bg-[#C98B2A]/20 text-[#C98B2A]">1</button>
+<button class="w-6 h-6 border border-white/10 flex items-center justify-center hover:bg-white/5">2</button>
+<button class="w-6 h-6 border border-white/10 flex items-center justify-center hover:bg-white/5">3</button>
+<button class="w-6 h-6 border border-white/10 flex items-center justify-center hover:bg-white/5"><span class="material-symbols-outlined text-xs">chevron_right</span></button>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Context Floating Notification -->
+<div class="fixed bottom-8 right-8 z-50 glass-panel border border-[#C98B2A]/40 p-4 shadow-xl flex items-center gap-4 max-w-xs">
+<div class="w-10 h-10 bg-[#C98B2A]/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-[#C98B2A]">warning</span>
+</div>
+<div>
+<p class="font-headline text-xs font-bold text-[#C98B2A] tracking-widest">ALERTA DE CONFLITO</p>
+<p class="text-[10px] text-on-surface opacity-70">2 registros foram alterados por outro usuário no servidor central.</p>
+</div>
+<button class="text-on-surface opacity-40 hover:opacity-100"><span class="material-symbols-outlined text-sm">close</span></button>
+</div>
+</body></html>

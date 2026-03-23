@@ -133,7 +133,7 @@ class FuelService:
         """
         try:
             all_records = sb_select(_TABLE, limit=500) or []
-            user_records = [r for r in all_records if r.get("user_id") == user_uuid]
+            user_records = sb_select(_TABLE, filters={"user_id": user_uuid}, limit=500) or []
 
             def _avg(records: list) -> Optional[float]:
                 vals = [_to_float(r.get("km_per_liter")) for r in records if r.get("km_per_liter")]
@@ -378,7 +378,8 @@ body { font-family: 'IBM Plex Sans', sans-serif; background: #fff; color: #1a1a1
             record = {
                 "user_id": user_uuid,
                 "created_at": data.get("data_abastecimento") or now,
-                "status": now,  # submitted_at
+                "status": "pendente",
+                "submitted_at": now,
                 "fuel_type": data.get("combustivel", ""),
                 "liters": _to_float(data.get("litros")) or None,
                 "price_per_liter": _to_float(data.get("valor_litro")) or None,
@@ -399,7 +400,7 @@ body { font-family: 'IBM Plex Sans', sans-serif; background: #fff; color: #1a1a1
                 "deviation_from_user_avg": deviations.get("deviation_from_user_avg"),
                 "deviation_from_fleet_avg": deviations.get("deviation_from_fleet_avg"),
                 # ── Novos campos ──────────────────────────────────────────────
-                "ai_score":            int(data.get("ai_score") or 0) or None,
+                "ai_score":            int(data["ai_score"]) if data.get("ai_score") is not None else None,
                 "centro_custo":        data.get("centro_custo") or None,
                 "image_hash":          data.get("image_hash") or None,
                 "signature_b64":       data.get("signature_b64") or None,

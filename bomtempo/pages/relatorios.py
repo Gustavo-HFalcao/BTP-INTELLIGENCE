@@ -462,7 +462,7 @@ def _preview_panel() -> rx.Component:
                     overflow_y="auto",
                     border_radius="12px",
                     border=f"1px solid {S.BORDER_SUBTLE}",
-                    bg="white",
+                    bg=S.BG_SURFACE,
                 ),
                 # AI Markdown: parchment card with proper report formatting
                 rx.box(

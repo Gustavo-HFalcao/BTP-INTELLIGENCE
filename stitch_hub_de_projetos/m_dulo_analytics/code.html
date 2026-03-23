@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="pt-br"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700;900&amp;family=Plus+Jakarta+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-secondary-fixed": "#00201c",
+              "error-container": "#93000a",
+              "primary-fixed-dim": "#ffb955",
+              "surface-container": "#17221f",
+              "error": "#ffb4ab",
+              "secondary": "#6fd8c8",
+              "surface-dim": "#0b1513",
+              "on-secondary-fixed-variant": "#005048",
+              "secondary-container": "#30a193",
+              "on-secondary": "#003731",
+              "tertiary-container": "#c48e23",
+              "surface-container-lowest": "#06100e",
+              "on-tertiary-container": "#422c00",
+              "surface-variant": "#2c3734",
+              "surface-bright": "#313b39",
+              "secondary-fixed-dim": "#6fd8c8",
+              "on-tertiary-fixed": "#281900",
+              "secondary-fixed": "#8cf5e4",
+              "primary": "#ffb955",
+              "background": "#0b1513",
+              "on-secondary-container": "#00302a",
+              "tertiary-fixed": "#ffdeac",
+              "tertiary": "#f9bc4f",
+              "inverse-primary": "#835500",
+              "on-primary": "#452b00",
+              "surface-tint": "#ffb955",
+              "primary-container": "#c98b2a",
+              "outline-variant": "#514536",
+              "on-primary-fixed-variant": "#633f00",
+              "on-primary-container": "#442a00",
+              "on-background": "#dae5e1",
+              "outline": "#9e8e7d",
+              "tertiary-fixed-dim": "#f9bc4f",
+              "inverse-surface": "#dae5e1",
+              "on-error-container": "#ffdad6",
+              "on-surface-variant": "#d5c4b0",
+              "surface-container-high": "#222c2a",
+              "on-primary-fixed": "#291800",
+              "surface-container-highest": "#2c3734",
+              "on-tertiary": "#432c00",
+              "inverse-on-surface": "#283230",
+              "primary-fixed": "#ffddb4",
+              "on-surface": "#dae5e1",
+              "surface-container-low": "#131d1b",
+              "on-tertiary-fixed-variant": "#5f4100",
+              "surface": "#0b1513",
+              "on-error": "#690005"
+            },
+            fontFamily: {
+              "headline": ["Rajdhani"],
+              "body": ["Plus Jakarta Sans"],
+              "label": ["Space Grotesk"],
+              "data": ["JetBrains Mono"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      .glass-card {
+        background: rgba(14, 26, 23, 0.6);
+        backdrop-filter: blur(12px);
+      }
+      .ghost-border {
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .ghost-border:hover {
+        border: 1px solid rgba(201, 139, 42, 0.4);
+      }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body selection:bg-primary selection:text-on-primary">
+<!-- SideNavBar Shell -->
+<aside class="fixed left-0 top-0 h-full z-40 bg-[#081210] w-20 lg:w-64 border-r border-white/5 shadow-[20px_0_40px_rgba(0,0,0,0.4)] flex flex-col">
+<div class="p-6">
+<span class="font-['Rajdhani'] font-bold text-xl text-[#C98B2A] tracking-tighter">FOREMAN_01</span>
+<p class="font-['Rajdhani'] uppercase tracking-[0.05em] text-xs text-[#dae5e1]/40 mt-1">Site Lead</p>
+</div>
+<nav class="flex-1 px-3 space-y-2 mt-4">
+<a class="flex items-center gap-4 px-4 py-3 font-['Rajdhani'] uppercase tracking-[0.05em] text-sm transition-all duration-200 ease-in-out text-[#dae5e1]/60 hover:text-[#dae5e1] hover:bg-[#0e1a17]/50 group" href="#">
+<span class="material-symbols-outlined" data-icon="construction">construction</span>
+<span class="hidden lg:block">Projects</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 font-['Rajdhani'] uppercase tracking-[0.05em] text-sm transition-all duration-200 ease-in-out text-[#dae5e1]/60 hover:text-[#dae5e1] hover:bg-[#0e1a17]/50 group" href="#">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+<span class="hidden lg:block">Finance</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 font-['Rajdhani'] uppercase tracking-[0.05em] text-sm transition-all duration-200 ease-in-out text-[#dae5e1]/60 hover:text-[#dae5e1] hover:bg-[#0e1a17]/50 group" href="#">
+<span class="material-symbols-outlined" data-icon="engineering">engineering</span>
+<span class="hidden lg:block">O&amp;M</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 font-['Rajdhani'] uppercase tracking-[0.05em] text-sm transition-all duration-200 ease-in-out bg-[#0e1a17] text-[#C98B2A] border-l-4 border-[#C98B2A] scale-95 active:scale-90 group" href="#">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+<span class="hidden lg:block">Analytics</span>
+</a>
+</nav>
+<div class="p-4 border-t border-white/5">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-sm overflow-hidden bg-surface-container-highest">
+<img alt="User Profile" class="w-full h-full object-cover" data-alt="professional male avatar in industrial safety gear, close-up with soft cinematic lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDP2EhOcP09Gp_ZyhfU3HNPW3JUw1CJqQCA9QuIYKwj5mJGHU6FWDA2aANK04J_j6N2wJxBWDMickdpoQD-1gIUfv2qeeAQ_Usm2s66t85awOBpuYH6zsjjXMg5tE6R6BOdwPImskFU48DLSBn5_ELVNOvvTkEGwhttU2blDkWY2d99pzJ8XKkJQnoJQ5nBFhyd9aw0D_CrCgr5d69oShyxTDAbEmGDFIPbOVC_3cyZmyk8HT4w1sk0KbjtGdbOPx_qvEyfLdTrgUA"/>
+</div>
+<div class="hidden lg:block">
+<p class="text-xs font-headline font-bold uppercase tracking-wider text-on-surface">M. SULLIVAN</p>
+<p class="text-[10px] font-data text-on-surface-variant">LVL-4 AUTH</p>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="ml-20 lg:ml-64 min-h-screen relative">
+<!-- TopAppBar Shell -->
+<header class="fixed top-0 right-0 left-20 lg:left-64 z-30 px-6 h-16 bg-[#030504]/80 backdrop-blur-xl border-b border-white/10 flex justify-between items-center">
+<div class="flex items-center gap-8">
+<h1 class="font-headline font-black text-[#C98B2A] text-xl tracking-tighter">PROJECT_ALPHA_7</h1>
+<nav class="hidden xl:flex gap-6">
+<a class="font-headline font-medium text-lg text-[#dae5e1]/70 hover:text-[#C98B2A] transition-colors duration-300" href="#">Overview</a>
+<a class="font-headline font-medium text-lg text-[#dae5e1]/70 hover:text-[#C98B2A] transition-colors duration-300" href="#">Resources</a>
+<a class="font-headline font-medium text-lg text-[#dae5e1]/70 hover:text-[#C98B2A] transition-colors duration-300" href="#">Timeline</a>
+<a class="font-headline font-medium text-lg text-[#dae5e1]/70 hover:text-[#C98B2A] transition-colors duration-300" href="#">Risk</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative hidden md:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm" data-icon="search">search</span>
+<input class="bg-surface-container-lowest border-none border-b-2 border-transparent focus:border-[#C98B2A] focus:ring-0 text-sm pl-10 w-64 transition-all duration-300 font-headline" placeholder="Telemetry Search..." type="text"/>
+</div>
+<button class="w-10 h-10 flex items-center justify-center hover:bg-white/5 transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="notifications">notifications</span>
+</button>
+<button class="w-10 h-10 flex items-center justify-center hover:bg-white/5 transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="settings">settings</span>
+</button>
+</div>
+</header>
+<!-- Page Content -->
+<div class="pt-24 px-8 pb-12 max-w-[1600px] mx-auto">
+<!-- Amber Mock Data Banner -->
+<div class="mb-8 flex items-center gap-4 bg-primary-container/20 border-l-4 border-primary p-4 glass-card">
+<span class="material-symbols-outlined text-primary" data-icon="construction">construction</span>
+<div>
+<h2 class="font-headline font-bold text-primary tracking-wider text-sm uppercase">DADOS MOCKADOS</h2>
+<p class="text-xs text-on-surface-variant font-label">ENVIRONMENT: STAGING_ALPHA // TELEMETRY SIMULATION ACTIVE</p>
+</div>
+<div class="ml-auto">
+<span class="font-data text-[10px] text-primary/60">TS: 2023.10.27_14:42:01</span>
+</div>
+</div>
+<!-- KPI Row -->
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
+<!-- Eficiência de Capéx -->
+<div class="glass-card ghost-border p-6 flex flex-col justify-between group transition-all duration-300">
+<div class="flex justify-between items-start mb-4">
+<p class="font-headline text-xs font-bold uppercase tracking-[0.1em] text-on-surface-variant">Eficiência de Capéx</p>
+<span class="material-symbols-outlined text-[#C98B2A]/50 group-hover:text-[#C98B2A] transition-colors" data-icon="account_balance_wallet">account_balance_wallet</span>
+</div>
+<div class="flex items-baseline gap-2">
+<span class="font-headline text-4xl font-black text-on-surface tracking-tighter">94.2</span>
+<span class="font-headline text-xl text-on-surface-variant">%</span>
+</div>
+<div class="mt-4 flex items-center gap-2">
+<span class="text-[10px] font-data text-secondary px-1.5 py-0.5 bg-secondary/10">+2.4%</span>
+<p class="text-[10px] font-label text-on-surface-variant uppercase">Vs Last Quarter</p>
+</div>
+</div>
+<!-- OEE Global -->
+<div class="glass-card ghost-border p-6 flex flex-col justify-between group transition-all duration-300">
+<div class="flex justify-between items-start mb-4">
+<p class="font-headline text-xs font-bold uppercase tracking-[0.1em] text-on-surface-variant">OEE Global</p>
+<span class="material-symbols-outlined text-[#C98B2A]/50 group-hover:text-[#C98B2A] transition-colors" data-icon="precision_manufacturing">precision_manufacturing</span>
+</div>
+<div class="flex items-baseline gap-2">
+<span class="font-headline text-4xl font-black text-on-surface tracking-tighter">88.7</span>
+<span class="font-headline text-xl text-on-surface-variant">%</span>
+</div>
+<div class="mt-4">
+<div class="w-full h-1 bg-surface-container-lowest overflow-hidden">
+<div class="h-full bg-secondary w-[88.7%] shadow-[0_0_8px_rgba(42,157,143,0.4)]"></div>
+</div>
+<p class="text-[10px] font-label text-on-surface-variant mt-2 uppercase">Uptime Reliability</p>
+</div>
+</div>
+<!-- SLA Cumprimento -->
+<div class="glass-card ghost-border p-6 flex flex-col justify-between group transition-all duration-300">
+<div class="flex justify-between items-start mb-4">
+<p class="font-headline text-xs font-bold uppercase tracking-[0.1em] text-on-surface-variant">SLA Cumprimento</p>
+<span class="material-symbols-outlined text-[#C98B2A]/50 group-hover:text-[#C98B2A] transition-colors" data-icon="verified">verified</span>
+</div>
+<div class="flex items-baseline gap-2">
+<span class="font-headline text-4xl font-black text-on-surface tracking-tighter">99.1</span>
+<span class="font-headline text-xl text-on-surface-variant">%</span>
+</div>
+<div class="mt-4 flex items-center gap-2">
+<span class="text-[10px] font-data text-secondary px-1.5 py-0.5 bg-secondary/10">STABLE</span>
+<p class="text-[10px] font-label text-on-surface-variant uppercase">Operational Target</p>
+</div>
+</div>
+<!-- Taxa de Retrabalho -->
+<div class="glass-card ghost-border p-6 flex flex-col justify-between group transition-all duration-300">
+<div class="flex justify-between items-start mb-4">
+<p class="font-headline text-xs font-bold uppercase tracking-[0.1em] text-on-surface-variant">Taxa de Retrabalho</p>
+<span class="material-symbols-outlined text-[#C98B2A]/50 group-hover:text-[#C98B2A] transition-colors" data-icon="history_edu">history_edu</span>
+</div>
+<div class="flex items-baseline gap-2">
+<span class="font-headline text-4xl font-black text-error tracking-tighter">3.14</span>
+<span class="font-headline text-xl text-error/60">%</span>
+</div>
+<div class="mt-4 flex items-center gap-2">
+<span class="text-[10px] font-data text-error px-1.5 py-0.5 bg-error/10">+0.8%</span>
+<p class="text-[10px] font-label text-on-surface-variant uppercase">Critical Review Needed</p>
+</div>
+</div>
+</div>
+<!-- Dashboard Visuals -->
+<div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
+<!-- Radar de Maturidade -->
+<div class="glass-card ghost-border p-8">
+<div class="flex justify-between items-center mb-10">
+<div>
+<h3 class="font-headline text-xl font-black text-[#C98B2A] uppercase tracking-wider">Radar de Maturidade</h3>
+<p class="text-xs font-label text-on-surface-variant">COMPARATIVO MULTIDIMENSIONAL OPERACIONAL</p>
+</div>
+<div class="flex gap-4">
+<div class="flex items-center gap-2">
+<div class="w-3 h-3 bg-[#C98B2A]"></div>
+<span class="text-[10px] font-headline font-bold uppercase tracking-widest">BOMTEMPO</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-3 h-3 bg-secondary"></div>
+<span class="text-[10px] font-headline font-bold uppercase tracking-widest text-on-surface-variant">MERCADO</span>
+</div>
+</div>
+</div>
+<div class="relative aspect-square max-w-[400px] mx-auto flex items-center justify-center">
+<!-- Simulated Radar Chart -->
+<div class="absolute inset-0 border border-white/5 rounded-full"></div>
+<div class="absolute inset-[15%] border border-white/5 rounded-full"></div>
+<div class="absolute inset-[30%] border border-white/5 rounded-full"></div>
+<div class="absolute inset-[45%] border border-white/5 rounded-full"></div>
+<!-- Axis Lines -->
+<div class="absolute h-full w-[1px] bg-white/5 rotate-0"></div>
+<div class="absolute h-full w-[1px] bg-white/5 rotate-60"></div>
+<div class="absolute h-full w-[1px] bg-white/5 rotate-120"></div>
+<!-- Labels -->
+<span class="absolute -top-6 font-headline font-bold text-[10px] uppercase text-on-surface-variant tracking-widest">Tecnologia</span>
+<span class="absolute -bottom-6 font-headline font-bold text-[10px] uppercase text-on-surface-variant tracking-widest">Segurança</span>
+<span class="absolute top-1/4 -right-12 font-headline font-bold text-[10px] uppercase text-on-surface-variant tracking-widest">Processos</span>
+<span class="absolute top-1/4 -left-12 font-headline font-bold text-[10px] uppercase text-on-surface-variant tracking-widest">Financeiro</span>
+<span class="absolute bottom-1/4 -right-12 font-headline font-bold text-[10px] uppercase text-on-surface-variant tracking-widest">Qualidade</span>
+<span class="absolute bottom-1/4 -left-12 font-headline font-bold text-[10px] uppercase text-on-surface-variant tracking-widest">ESG</span>
+<!-- Polygon Overlays (SVG) -->
+<svg class="absolute inset-0 w-full h-full overflow-visible drop-shadow-[0_0_15px_rgba(201,139,42,0.3)]" viewbox="0 0 100 100">
+<!-- Mercado PATINA -->
+<polygon fill="rgba(42, 157, 143, 0.15)" points="50,15 80,35 75,70 50,85 25,70 20,35" stroke="#2A9D8F" stroke-width="0.5"></polygon>
+<!-- Bomtempo COPPER -->
+<polygon fill="rgba(201, 139, 42, 0.25)" points="50,5 90,30 85,75 50,95 15,75 10,30" stroke="#C98B2A" stroke-width="1.5"></polygon>
+<!-- Key Points -->
+<circle cx="50" cy="5" fill="#C98B2A" r="1.5"></circle>
+<circle cx="90" cy="30" fill="#C98B2A" r="1.5"></circle>
+<circle cx="85" cy="75" fill="#C98B2A" r="1.5"></circle>
+<circle cx="50" cy="95" fill="#C98B2A" r="1.5"></circle>
+<circle cx="15" cy="75" fill="#C98B2A" r="1.5"></circle>
+<circle cx="10" cy="30" fill="#C98B2A" r="1.5"></circle>
+</svg>
+</div>
+</div>
+<!-- Benchmarking de Mercado -->
+<div class="glass-card ghost-border p-8">
+<div class="mb-10">
+<h3 class="font-headline text-xl font-black text-[#C98B2A] uppercase tracking-wider">Benchmarking de Mercado</h3>
+<p class="text-xs font-label text-on-surface-variant">DESEMPENHO RELATIVO POR VERTICAL DE OPERAÇÃO</p>
+</div>
+<div class="space-y-8">
+<!-- Logistics -->
+<div class="space-y-3">
+<div class="flex justify-between items-end">
+<span class="font-headline font-bold text-sm text-on-surface uppercase tracking-widest">Logística &amp; Supply</span>
+<span class="font-data text-xs text-on-surface-variant">DELTA: <span class="text-secondary">+12.4%</span></span>
+</div>
+<div class="space-y-1.5">
+<div class="w-full bg-surface-container-lowest h-6 relative flex items-center group">
+<div class="h-full bg-[#C98B2A]/20 border-r-2 border-[#C98B2A] transition-all duration-700 w-[92%]" style="width: 92%;"></div>
+<span class="absolute left-3 text-[10px] font-headline font-bold text-[#C98B2A] uppercase">BOMTEMPO ALPHA_7</span>
+<span class="absolute right-3 font-data text-xs text-on-surface">92.0</span>
+</div>
+<div class="w-full bg-surface-container-lowest h-6 relative flex items-center group">
+<div class="h-full bg-secondary/10 border-r-2 border-secondary transition-all duration-700 w-[78%]" style="width: 78%;"></div>
+<span class="absolute left-3 text-[10px] font-headline font-bold text-secondary uppercase">MARKET AVG</span>
+<span class="absolute right-3 font-data text-xs text-on-surface-variant">78.0</span>
+</div>
+</div>
+</div>
+<!-- Safety Index -->
+<div class="space-y-3">
+<div class="flex justify-between items-end">
+<span class="font-headline font-bold text-sm text-on-surface uppercase tracking-widest">Índice de Segurança (HSE)</span>
+<span class="font-data text-xs text-on-surface-variant">DELTA: <span class="text-secondary">+4.1%</span></span>
+</div>
+<div class="space-y-1.5">
+<div class="w-full bg-surface-container-lowest h-6 relative flex items-center group">
+<div class="h-full bg-[#C98B2A]/20 border-r-2 border-[#C98B2A] transition-all duration-700 w-[98.5%]" style="width: 98.5%;"></div>
+<span class="absolute left-3 text-[10px] font-headline font-bold text-[#C98B2A] uppercase">BOMTEMPO ALPHA_7</span>
+<span class="absolute right-3 font-data text-xs text-on-surface">98.5</span>
+</div>
+<div class="w-full bg-surface-container-lowest h-6 relative flex items-center group">
+<div class="h-full bg-secondary/10 border-r-2 border-secondary transition-all duration-700 w-[94.4%]" style="width: 94.4%;"></div>
+<span class="absolute left-3 text-[10px] font-headline font-bold text-secondary uppercase">MARKET AVG</span>
+<span class="absolute right-3 font-data text-xs text-on-surface-variant">94.4</span>
+</div>
+</div>
+</div>
+<!-- Project Speed -->
+<div class="space-y-3">
+<div class="flex justify-between items-end">
+<span class="font-headline font-bold text-sm text-on-surface uppercase tracking-widest">Velocidade de Execução</span>
+<span class="font-data text-xs text-on-surface-variant">DELTA: <span class="text-error">-2.1%</span></span>
+</div>
+<div class="space-y-1.5">
+<div class="w-full bg-surface-container-lowest h-6 relative flex items-center group">
+<div class="h-full bg-[#C98B2A]/20 border-r-2 border-[#C98B2A] transition-all duration-700 w-[84%]" style="width: 84%;"></div>
+<span class="absolute left-3 text-[10px] font-headline font-bold text-[#C98B2A] uppercase">BOMTEMPO ALPHA_7</span>
+<span class="absolute right-3 font-data text-xs text-on-surface">84.0</span>
+</div>
+<div class="w-full bg-surface-container-lowest h-6 relative flex items-center group">
+<div class="h-full bg-secondary/10 border-r-2 border-secondary transition-all duration-700 w-[86.1%]" style="width: 86.1%;"></div>
+<span class="absolute left-3 text-[10px] font-headline font-bold text-secondary uppercase">MARKET AVG</span>
+<span class="absolute right-3 font-data text-xs text-on-surface-variant">86.1</span>
+</div>
+</div>
+</div>
+</div>
+<div class="mt-10 p-4 bg-surface-container-low border border-white/5 flex items-center gap-4">
+<span class="material-symbols-outlined text-secondary" data-icon="info">info</span>
+<p class="text-[11px] font-label text-on-surface-variant leading-relaxed">
+                            Market data aggregates top 10 competitors in the EMEA construction sector. Telemetry normalized for site capacity and local labor index.
+                        </p>
+</div>
+</div>
+</div>
+</div>
+<!-- Floating Action Button (FAB) -->
+<button class="fixed bottom-8 right-8 w-14 h-14 bg-[#C98B2A] text-on-primary shadow-[0_0_25px_rgba(201,139,42,0.4)] flex items-center justify-center hover:scale-110 active:scale-90 transition-all duration-300 z-50 rounded-lg group">
+<span class="material-symbols-outlined font-variation-settings-'FILL' 1" data-icon="download" style="font-variation-settings: 'FILL' 1;">download</span>
+<span class="absolute right-full mr-4 bg-surface-container-highest text-on-surface text-[10px] font-headline font-bold uppercase tracking-widest py-2 px-4 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap border border-white/10">Export Report</span>
+</button>
+</main>
+<!-- Visual Polish: Grain Overlay -->
+<div class="fixed inset-0 pointer-events-none opacity-[0.03] mix-blend-overlay bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"></div>
+</body></html>

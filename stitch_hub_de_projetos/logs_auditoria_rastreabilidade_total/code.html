@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="pt-br"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&amp;family=Outfit:wght@300;400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            background-color: #030504;
+            color: #dae5e1;
+            font-family: 'Outfit', sans-serif;
+        }
+        .font-rajdhani { font-family: 'Rajdhani', sans-serif; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        .font-headline { font-family: 'Space Grotesk', sans-serif; }
+        
+        /* Custom Scrollbar for Industrial Feel */
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: #081210; }
+        ::-webkit-scrollbar-thumb { background: #2c3734; border-radius: 2px; }
+        ::-webkit-scrollbar-thumb:hover { background: #C98B2A; }
+
+        .glass-panel {
+            background: rgba(14, 26, 23, 0.6);
+            backdrop-filter: blur(12px);
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "surface-variant": "#2c3734",
+                        "background": "#030504",
+                        "secondary-fixed-dim": "#6fd8c8",
+                        "primary-fixed-dim": "#ffb955",
+                        "on-tertiary": "#432c00",
+                        "on-error-container": "#ffdad6",
+                        "surface-dim": "#0b1513",
+                        "outline": "#9e8e7d",
+                        "on-tertiary-fixed-variant": "#5f4100",
+                        "on-secondary-fixed-variant": "#005048",
+                        "on-secondary-fixed": "#00201c",
+                        "tertiary-fixed": "#ffdeac",
+                        "tertiary-container": "#c48e23",
+                        "surface": "#0b1513",
+                        "on-tertiary-container": "#422c00",
+                        "surface-container-highest": "#2c3734",
+                        "tertiary-fixed-dim": "#f9bc4f",
+                        "inverse-on-surface": "#283230",
+                        "inverse-surface": "#dae5e1",
+                        "error-container": "#93000a",
+                        "on-primary-fixed": "#291800",
+                        "surface-container-low": "#131d1b",
+                        "surface-container-lowest": "#06100e",
+                        "outline-variant": "#514536",
+                        "on-surface": "#dae5e1",
+                        "secondary": "#2A9D8F",
+                        "secondary-container": "#30a193",
+                        "on-background": "#dae5e1",
+                        "primary-container": "#c98b2a",
+                        "surface-container": "#17221f",
+                        "on-error": "#690005",
+                        "tertiary": "#f9bc4f",
+                        "on-secondary-container": "#00302a",
+                        "on-primary-container": "#442a00",
+                        "error": "#ffb4ab",
+                        "primary": "#C98B2A",
+                        "primary-fixed": "#ffddb4",
+                        "on-surface-variant": "#d5c4b0",
+                        "surface-container-high": "#222c2a",
+                        "surface-bright": "#313b39",
+                        "inverse-primary": "#835500",
+                        "on-secondary": "#003731",
+                        "surface-tint": "#ffb955",
+                        "secondary-fixed": "#8cf5e4",
+                        "on-tertiary-fixed": "#281900",
+                        "on-primary-fixed-variant": "#633f00",
+                        "on-primary": "#452b00"
+                    },
+                    fontFamily: {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Outfit"],
+                        "label": ["JetBrains Mono"]
+                    },
+                    borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+                },
+            },
+        }
+    </script>
+</head>
+<body class="flex min-h-screen">
+<!-- SideNavBar Prediction Execution -->
+<aside class="fixed left-0 top-0 h-full flex flex-col py-6 bg-[#081210] dark:bg-[#081210] h-screen w-64 border-r border-white/5 shadow-[1px_0_0_0_rgba(255,255,255,0.08)] z-50">
+<div class="px-6 mb-10">
+<div class="font-['Rajdhani'] text-xl font-bold tracking-tighter text-[#C98B2A]">PROJECT_FOREMAN</div>
+<div class="font-['Rajdhani'] uppercase tracking-[0.05em] text-[10px] text-[#dae5e1]/40 mt-1">V-01 Terminal</div>
+</div>
+<nav class="flex-1 px-4 space-y-2">
+<!-- Dashboard -->
+<a class="flex items-center gap-3 px-3 py-2 text-[#dae5e1]/60 hover:text-[#dae5e1] hover:bg-white/5 transition-all duration-300 font-['Rajdhani'] uppercase tracking-[0.05em] text-sm" href="#">
+<span class="material-symbols-outlined text-xl">dashboard</span>
+                Dashboard
+            </a>
+<!-- Projetos -->
+<a class="flex items-center gap-3 px-3 py-2 text-[#dae5e1]/60 hover:text-[#dae5e1] hover:bg-white/5 transition-all duration-300 font-['Rajdhani'] uppercase tracking-[0.05em] text-sm" href="#">
+<span class="material-symbols-outlined text-xl">construction</span>
+                Projetos
+            </a>
+<!-- Auditoria (ACTIVE) -->
+<a class="flex items-center gap-3 px-3 py-2 text-[#C98B2A] bg-white/5 border-l-2 border-[#C98B2A] transition-all duration-300 font-['Rajdhani'] uppercase tracking-[0.05em] text-sm" href="#">
+<span class="material-symbols-outlined text-xl">gavel</span>
+                Auditoria
+            </a>
+<!-- Relatórios -->
+<a class="flex items-center gap-3 px-3 py-2 text-[#dae5e1]/60 hover:text-[#dae5e1] hover:bg-white/5 transition-all duration-300 font-['Rajdhani'] uppercase tracking-[0.05em] text-sm" href="#">
+<span class="material-symbols-outlined text-xl">analytics</span>
+                Relatórios
+            </a>
+<!-- Configurações -->
+<a class="flex items-center gap-3 px-3 py-2 text-[#dae5e1]/60 hover:text-[#dae5e1] hover:bg-white/5 transition-all duration-300 font-['Rajdhani'] uppercase tracking-[0.05em] text-sm" href="#">
+<span class="material-symbols-outlined text-xl">settings</span>
+                Configurações
+            </a>
+</nav>
+<div class="px-4 mt-auto space-y-2">
+<button class="w-full bg-[#C98B2A] text-[#081210] font-bold py-2 text-xs font-['Rajdhani'] uppercase tracking-widest hover:opacity-90 active:scale-[0.98] transition-all">
+                Novo Projeto
+            </button>
+<div class="pt-4 border-t border-white/5">
+<a class="flex items-center gap-3 px-3 py-2 text-[#dae5e1]/60 hover:text-[#dae5e1] transition-all font-['Rajdhani'] uppercase tracking-[0.05em] text-sm" href="#">
+<span class="material-symbols-outlined text-xl">help</span>
+                    Suporte
+                </a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#dae5e1]/60 hover:text-[#dae5e1] transition-all font-['Rajdhani'] uppercase tracking-[0.05em] text-sm" href="#">
+<span class="material-symbols-outlined text-xl">logout</span>
+                    Logout
+                </a>
+</div>
+</div>
+</aside>
+<!-- TopAppBar Prediction Execution -->
+<header class="fixed top-0 right-0 left-64 z-40 flex items-center justify-between px-8 bg-[#0e1a17]/60 backdrop-blur-xl border-b border-white/10 w-[calc(100%-16rem)] h-16 shadow-lg">
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[#C98B2A]">shield</span>
+<span class="font-['Rajdhani'] font-black text-[#C98B2A] text-lg tracking-widest uppercase">SITE_TELEMETRY</span>
+</div>
+<nav class="hidden md:flex items-center gap-6">
+<a class="text-[#dae5e1]/70 hover:text-[#C98B2A] transition-colors font-['Rajdhani'] text-md font-medium" href="#">Visão Geral</a>
+<a class="text-[#C98B2A] border-b-2 border-[#C98B2A] pb-1 font-['Rajdhani'] text-md font-medium" href="#">Logs</a>
+<a class="text-[#dae5e1]/70 hover:text-[#C98B2A] transition-colors font-['Rajdhani'] text-md font-medium" href="#">Equipe</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="text-[#dae5e1]/70 hover:text-[#C98B2A] transition-all">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="bg-[#C98B2A]/10 text-[#C98B2A] border border-[#C98B2A]/20 px-4 py-1.5 font-['Rajdhani'] text-xs uppercase font-bold tracking-tighter hover:bg-[#C98B2A]/20 transition-all">
+                Sincronizar
+            </button>
+<div class="h-8 w-8 bg-surface-container-highest rounded border border-white/10 overflow-hidden">
+<img alt="Manager Avatar" class="w-full h-full object-cover" data-alt="Cyberpunk industrial worker avatar in a dark tech style" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCOYQaYyHP7KyXaHO_ECgKOppXUMoEfNFfgOCumX0To9H5kQuHBp03aPhBlKYLJtPXTBmUnOL1lMSlF4-KQdq5d2glAiqM6dWKWh1LR_aiYFFuVwJLACi1SYIwmAf1u2VzBfGiBd1bW9zXxGTIyBoc7BvL2ndNFErvyEAeZjWqedwo_cAKp5IlZa5OYTNNSl0yJCmYyK2CxVzfsjNWoMWNVwfG3h0ui2L4GqypZINNT0dkgKrgLGHPqpcoh9e-gN_a95OT9KJWf-Vs"/>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="ml-64 mt-16 p-8 flex-1 overflow-x-hidden relative">
+<!-- KPI Row: Bento Grid Style -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+<div class="bg-surface-container-low p-5 border-l-2 border-secondary/40 shadow-xl">
+<div class="flex justify-between items-start mb-2">
+<span class="font-rajdhani text-xs uppercase tracking-widest text-on-surface-variant/60">Eventos Hoje</span>
+<span class="material-symbols-outlined text-secondary text-lg">analytics</span>
+</div>
+<div class="font-rajdhani text-3xl font-bold text-on-surface">1.284</div>
+<div class="font-mono text-[10px] text-secondary mt-1">+12.4% vs ONT</div>
+</div>
+<div class="bg-surface-container-low p-5 border-l-2 border-primary/40 shadow-xl">
+<div class="flex justify-between items-start mb-2">
+<span class="font-rajdhani text-xs uppercase tracking-widest text-on-surface-variant/60">Logins Ativos</span>
+<span class="material-symbols-outlined text-primary text-lg">person_check</span>
+</div>
+<div class="font-rajdhani text-3xl font-bold text-on-surface">42</div>
+<div class="font-mono text-[10px] text-primary mt-1">SESSÕES ESTÁVEIS</div>
+</div>
+<div class="bg-surface-container-low p-5 border-l-2 border-outline/40 shadow-xl">
+<div class="flex justify-between items-start mb-2">
+<span class="font-rajdhani text-xs uppercase tracking-widest text-on-surface-variant/60">Edições / RDO</span>
+<span class="material-symbols-outlined text-outline text-lg">edit_note</span>
+</div>
+<div class="font-rajdhani text-3xl font-bold text-on-surface">312</div>
+<div class="font-mono text-[10px] text-outline mt-1">SINC. COMPLETO</div>
+</div>
+<div class="bg-surface-container-low p-5 border-l-2 border-error/40 shadow-xl">
+<div class="flex justify-between items-start mb-2">
+<span class="font-rajdhani text-xs uppercase tracking-widest text-on-surface-variant/60">Erros Sistema</span>
+<span class="material-symbols-outlined text-error text-lg" data-weight="fill">warning</span>
+</div>
+<div class="font-rajdhani text-3xl font-bold text-error">03</div>
+<div class="font-mono text-[10px] text-error mt-1">CRITICAL_LATENCY_DET</div>
+</div>
+</div>
+<!-- Filter Bar -->
+<div class="flex flex-col md:flex-row gap-4 items-center mb-6 bg-surface-container p-4">
+<div class="relative flex-1 group w-full">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/40 group-focus-within:text-primary transition-colors">search</span>
+<input class="w-full bg-surface-container-lowest border-0 border-b-2 border-white/5 focus:border-primary focus:ring-0 pl-10 text-xs font-rajdhani tracking-widest py-3 text-on-surface uppercase transition-all" placeholder="BUSCAR POR IP, USUÁRIO OU EVENTO..." type="text"/>
+</div>
+<div class="flex gap-2 flex-wrap items-center">
+<button class="bg-primary text-on-primary text-[10px] px-3 py-1 font-rajdhani font-bold uppercase tracking-tighter">Todos</button>
+<button class="bg-surface-container-highest text-on-surface-variant text-[10px] px-3 py-1 font-rajdhani font-bold uppercase tracking-tighter hover:bg-surface-variant transition-all">Logins</button>
+<button class="bg-surface-container-highest text-on-surface-variant text-[10px] px-3 py-1 font-rajdhani font-bold uppercase tracking-tighter hover:bg-secondary/20 hover:text-secondary transition-all">Data Edit</button>
+<button class="bg-surface-container-highest text-on-surface-variant text-[10px] px-3 py-1 font-rajdhani font-bold uppercase tracking-tighter hover:bg-tertiary/20 hover:text-tertiary transition-all">RDO</button>
+<button class="bg-surface-container-highest text-on-surface-variant text-[10px] px-3 py-1 font-rajdhani font-bold uppercase tracking-tighter hover:bg-error/20 hover:text-error transition-all">Erros</button>
+</div>
+<button class="ml-auto flex items-center gap-2 px-4 py-2 border border-white/10 font-rajdhani text-xs uppercase tracking-widest text-on-surface-variant hover:text-on-surface hover:bg-white/5 transition-all">
+<span class="material-symbols-outlined text-sm">filter_list</span>
+                Filtros Avançados
+            </button>
+</div>
+<!-- Log Table Section -->
+<div class="bg-surface-container-low overflow-hidden shadow-2xl mb-10">
+<div class="bg-white/5 px-6 py-3 border-b border-white/5 flex justify-between items-center">
+<h2 class="font-rajdhani text-sm font-bold tracking-widest uppercase text-on-surface-variant">Fluxo de Auditoria em Tempo Real</h2>
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
+<span class="font-mono text-[10px] text-secondary">LIVE_FEED</span>
+</div>
+</div>
+<table class="w-full text-left border-collapse">
+<thead class="bg-surface-container-lowest/50 border-b border-white/5">
+<tr class="font-rajdhani text-[10px] uppercase tracking-widest text-on-surface-variant/60">
+<th class="px-6 py-4 font-medium">Timestamp</th>
+<th class="px-6 py-4 font-medium">Evento</th>
+<th class="px-6 py-4 font-medium">Usuário</th>
+<th class="px-6 py-4 font-medium">IP Address</th>
+<th class="px-6 py-4 font-medium">Status</th>
+<th class="px-6 py-4 font-medium text-right">Ação</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-white/5 font-body text-xs">
+<tr class="hover:bg-white/[0.02] transition-colors group cursor-pointer">
+<td class="px-6 py-4 font-mono text-[10px] text-on-surface/80">2023-10-24 14:22:01.034</td>
+<td class="px-6 py-4">
+<span class="px-2 py-0.5 bg-secondary/10 text-secondary border border-secondary/20 text-[10px] font-bold font-rajdhani uppercase">DATA_EDIT</span>
+<span class="ml-2 text-on-surface">Atualização RDO #429</span>
+</td>
+<td class="px-6 py-4 font-rajdhani font-medium uppercase tracking-tight">ENG_RODRIGO_S</td>
+<td class="px-6 py-4 font-mono text-on-surface-variant/60">192.168.1.104</td>
+<td class="px-6 py-4">
+<span class="flex items-center gap-1.5 text-secondary">
+<span class="w-1 h-1 rounded-full bg-secondary"></span>
+<span class="font-rajdhani font-bold uppercase tracking-tighter text-[10px]">SUCCESS</span>
+</span>
+</td>
+<td class="px-6 py-4 text-right">
+<span class="material-symbols-outlined text-on-surface-variant/40 group-hover:text-primary transition-all">chevron_right</span>
+</td>
+</tr>
+<tr class="hover:bg-white/[0.02] transition-colors group bg-white/[0.01]">
+<td class="px-6 py-4 font-mono text-[10px] text-on-surface/80">2023-10-24 14:20:55.112</td>
+<td class="px-6 py-4">
+<span class="px-2 py-0.5 bg-primary/10 text-primary border border-primary/20 text-[10px] font-bold font-rajdhani uppercase">LOGIN</span>
+<span class="ml-2 text-on-surface">Nova Sessão Terminal V-01</span>
+</td>
+<td class="px-6 py-4 font-rajdhani font-medium uppercase tracking-tight">ADMIN_CENTRAL</td>
+<td class="px-6 py-4 font-mono text-on-surface-variant/60">10.0.0.42</td>
+<td class="px-6 py-4">
+<span class="flex items-center gap-1.5 text-secondary">
+<span class="w-1 h-1 rounded-full bg-secondary"></span>
+<span class="font-rajdhani font-bold uppercase tracking-tighter text-[10px]">SUCCESS</span>
+</span>
+</td>
+<td class="px-6 py-4 text-right">
+<span class="material-symbols-outlined text-on-surface-variant/40 group-hover:text-primary transition-all">chevron_right</span>
+</td>
+</tr>
+<tr class="hover:bg-white/[0.02] transition-colors group">
+<td class="px-6 py-4 font-mono text-[10px] text-on-surface/80">2023-10-24 14:18:22.901</td>
+<td class="px-6 py-4">
+<span class="px-2 py-0.5 bg-error/10 text-error border border-error/20 text-[10px] font-bold font-rajdhani uppercase">SYS_ERR</span>
+<span class="ml-2 text-on-surface">Falha de Integridade de Bloco #A9</span>
+</td>
+<td class="px-6 py-4 font-rajdhani font-medium uppercase tracking-tight">SYSTEM_DAEMON</td>
+<td class="px-6 py-4 font-mono text-on-surface-variant/60">127.0.0.1</td>
+<td class="px-6 py-4">
+<span class="flex items-center gap-1.5 text-error">
+<span class="w-1 h-1 rounded-full bg-error"></span>
+<span class="font-rajdhani font-bold uppercase tracking-tighter text-[10px]">DANGER</span>
+</span>
+</td>
+<td class="px-6 py-4 text-right">
+<span class="material-symbols-outlined text-on-surface-variant/40 group-hover:text-primary transition-all">chevron_right</span>
+</td>
+</tr>
+<tr class="hover:bg-white/[0.02] transition-colors group">
+<td class="px-6 py-4 font-mono text-[10px] text-on-surface/80">2023-10-24 14:15:10.003</td>
+<td class="px-6 py-4">
+<span class="px-2 py-0.5 bg-tertiary/10 text-tertiary border border-tertiary/20 text-[10px] font-bold font-rajdhani uppercase">RDO</span>
+<span class="ml-2 text-on-surface">Alteração de Cronograma</span>
+</td>
+<td class="px-6 py-4 font-rajdhani font-medium uppercase tracking-tight">PM_FERNANDA_L</td>
+<td class="px-6 py-4 font-mono text-on-surface-variant/60">172.16.254.1</td>
+<td class="px-6 py-4">
+<span class="flex items-center gap-1.5 text-tertiary">
+<span class="w-1 h-1 rounded-full bg-tertiary"></span>
+<span class="font-rajdhani font-bold uppercase tracking-tighter text-[10px]">WARNING</span>
+</span>
+</td>
+<td class="px-6 py-4 text-right">
+<span class="material-symbols-outlined text-on-surface-variant/40 group-hover:text-primary transition-all">chevron_right</span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Detail Side Panel (Fixed Right) -->
+<aside class="fixed right-0 top-16 bottom-0 w-80 bg-[#0e1a17] border-l border-white/10 shadow-[-20px_0_40px_rgba(0,0,0,0.4)] z-30 p-6 flex flex-col">
+<div class="flex justify-between items-center mb-6">
+<h3 class="font-rajdhani text-lg font-bold uppercase tracking-widest text-[#C98B2A]">Detalhes do Evento</h3>
+<button class="text-on-surface-variant/40 hover:text-on-surface transition-all">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+<!-- Profile Info Section -->
+<div class="mb-8">
+<div class="flex items-center gap-4 mb-4">
+<div class="h-12 w-12 bg-secondary/10 border border-secondary/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary">engineering</span>
+</div>
+<div>
+<div class="font-rajdhani font-bold text-on-surface uppercase tracking-tight">ENG_RODRIGO_S</div>
+<div class="font-mono text-[10px] text-on-surface-variant/60">UID: 992-AX-88</div>
+</div>
+</div>
+<div class="space-y-3">
+<div class="flex justify-between items-center">
+<span class="font-rajdhani text-[10px] uppercase text-on-surface-variant/60">IP Address</span>
+<span class="font-mono text-[10px] text-on-surface">192.168.1.104</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="font-rajdhani text-[10px] uppercase text-on-surface-variant/60">Geoloc</span>
+<span class="font-mono text-[10px] text-on-surface">São Paulo, BR</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="font-rajdhani text-[10px] uppercase text-on-surface-variant/60">Aparelho</span>
+<span class="font-mono text-[10px] text-on-surface">Dataliner Rugged T-1</span>
+</div>
+</div>
+</div>
+<!-- JSON Metadata Box (PATINA/Secondary colored box) -->
+<div class="flex-1 overflow-hidden flex flex-col">
+<div class="font-rajdhani text-[10px] uppercase tracking-widest text-secondary mb-2 flex items-center gap-2">
+<span class="material-symbols-outlined text-xs">code</span>
+                    Payload do Evento
+                </div>
+<div class="bg-secondary/5 border border-secondary/20 p-4 rounded-sm flex-1 overflow-y-auto">
+<pre class="font-mono text-[11px] text-secondary/90 leading-relaxed">{
+  "event_id": "EVT-44091-Z",
+  "category": "DATA_EDIT",
+  "target": "rdo_report_2023_429",
+  "changes": {
+    "weather": "Sunny",
+    "manpower": 12,
+    "status": "COMPLETED",
+    "notes": "Laje nível 4 concretada."
+  },
+  "auth_token": "bearer_*****928",
+  "integrity_hash": "sha256:8f92e..."
+}
+                    </pre>
+</div>
+</div>
+<!-- Action Button -->
+<button class="mt-6 w-full py-3 border border-secondary text-secondary font-rajdhani font-bold uppercase tracking-widest hover:bg-secondary hover:text-background transition-all">
+                Exportar Auditoria
+            </button>
+</aside>
+<!-- Decorative Telemetry Bar at the bottom -->
+<div class="fixed bottom-0 left-64 right-80 h-1 bg-background z-50">
+<div class="h-full bg-secondary w-2/3 shadow-[0_0_10px_rgba(42,157,143,0.5)]"></div>
+</div>
+</main>
+</body></html>

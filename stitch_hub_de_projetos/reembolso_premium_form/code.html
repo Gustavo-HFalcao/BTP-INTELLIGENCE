@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;700&amp;family=Plus+Jakarta+Sans:wght@400;500;600&amp;family=Space+Grotesk:wght@500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "inverse-primary": "#835500",
+              "on-tertiary-container": "#422c00",
+              "on-primary": "#452b00",
+              "background": "#0b1513",
+              "on-tertiary-fixed-variant": "#5f4100",
+              "on-surface-variant": "#d5c4b0",
+              "error": "#ffb4ab",
+              "surface-tint": "#ffb955",
+              "surface-container": "#17221f",
+              "inverse-surface": "#dae5e1",
+              "on-secondary-fixed-variant": "#005048",
+              "on-primary-fixed-variant": "#633f00",
+              "surface-container-high": "#222c2a",
+              "secondary": "#6fd8c8",
+              "tertiary-fixed": "#ffdeac",
+              "on-primary-container": "#442a00",
+              "surface-container-low": "#131d1b",
+              "on-secondary-container": "#00302a",
+              "secondary-fixed-dim": "#6fd8c8",
+              "surface-variant": "#2c3734",
+              "on-secondary": "#003731",
+              "on-primary-fixed": "#291800",
+              "outline": "#9e8e7d",
+              "primary-fixed-dim": "#ffb955",
+              "outline-variant": "#514536",
+              "on-error-container": "#ffdad6",
+              "surface": "#0b1513",
+              "surface-dim": "#0b1513",
+              "on-error": "#690005",
+              "secondary-container": "#30a193",
+              "tertiary-container": "#c48e23",
+              "surface-container-highest": "#2c3734",
+              "surface-bright": "#313b39",
+              "inverse-on-surface": "#283230",
+              "on-tertiary-fixed": "#281900",
+              "primary": "#ffb955",
+              "tertiary-fixed-dim": "#f9bc4f",
+              "primary-container": "#c98b2a",
+              "surface-container-lowest": "#06100e",
+              "primary-fixed": "#ffddb4",
+              "on-secondary-fixed": "#00201c",
+              "secondary-fixed": "#8cf5e4",
+              "on-tertiary": "#432c00",
+              "on-surface": "#dae5e1",
+              "error-container": "#93000a",
+              "on-background": "#dae5e1",
+              "tertiary": "#f9bc4f"
+            },
+            fontFamily: {
+              "headline": ["Rajdhani"],
+              "body": ["Plus Jakarta Sans"],
+              "label": ["JetBrains Mono"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      .glass-card {
+        background: rgba(14, 26, 23, 0.6);
+        backdrop-filter: blur(12px);
+      }
+      .industrial-border {
+        border-bottom: 2px solid #C98B2A;
+      }
+      .ghost-border {
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      ::-webkit-scrollbar { width: 4px; }
+      ::-webkit-scrollbar-track { background: #030504; }
+      ::-webkit-scrollbar-thumb { background: #C98B2A; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-[#030504] text-on-surface font-body min-h-screen pb-24 selection:bg-primary-container selection:text-on-primary">
+<!-- Top Navigation Anchor (Shared Component) -->
+<header class="bg-[#030504]/60 backdrop-blur-md sticky top-0 z-[100] w-full px-4 pt-4 shadow-[0_20px_40px_rgba(0,0,0,0.4)]">
+<div class="flex items-center justify-between mb-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full overflow-hidden border border-[#C98B2A]/30">
+<img alt="User Profile" data-alt="professional portrait of a construction supervisor wearing a hardhat and safety vest in an industrial setting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDsW8eiQdf2JwBEJEn85VpxZNv0gUK7-3oOBgkslTCCTmdYLuNKkYcy-LgYGl4qhkLL2DMe3LghiF2Ccu1txKBYz7rhTJg5pKoSCN_hcPO9bDq7rzcRmLU_uRbqM9Ew46gnnfe-S05a_RJ1p_VhJxDuHjLtNiH94dZPTxyWiqDmugHxUG7BUXUCfawm5PjISPbOQOpUnpVd6dSFGw9fBllcphQ0Zu0KxhhHqzov6OXdynaBcPGsuSESkylL7Il-R57UQRNmcubdgLI"/>
+</div>
+<h1 class="font-headline uppercase tracking-[0.05em] font-bold text-xl text-[#C98B2A]">FIELD_OPS</h1>
+</div>
+<span class="material-symbols-outlined text-[#C98B2A] cursor-pointer" data-icon="settings">settings</span>
+</div>
+<!-- Tab Navigation -->
+<nav class="flex w-full border-b border-white/5">
+<a class="flex-1 py-3 text-center text-sm font-headline tracking-widest text-[#C98B2A] border-b-2 border-[#C98B2A] font-bold" href="#">NOVO REEMBOLSO</a>
+<a class="flex-1 py-3 text-center text-sm font-headline tracking-widest text-[#dae5e1]/60 font-medium hover:text-[#C98B2A] transition-colors" href="#">HISTÓRICO</a>
+</nav>
+</header>
+<main class="p-4 space-y-6">
+<!-- Section 1: Supply Data -->
+<section class="space-y-4">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[#C98B2A] text-sm" data-icon="local_gas_station">local_gas_station</span>
+<h2 class="font-headline text-lg uppercase tracking-wider text-[#dae5e1]">DADOS DE ABASTECIMENTO</h2>
+</div>
+<div class="glass-card p-4 rounded-lg ghost-border space-y-4">
+<div class="grid grid-cols-2 gap-4">
+<div class="col-span-2">
+<label class="block font-headline text-xs uppercase text-[#C98B2A] mb-1">Combustível</label>
+<select class="w-full bg-surface-container-lowest border-0 border-b-2 border-transparent focus:border-[#C98B2A] focus:ring-0 text-on-surface font-body py-2">
+<option>Gasolina Comum</option>
+<option>Gasolina Aditivada</option>
+<option>Diesel S10</option>
+<option>Etanol</option>
+</select>
+</div>
+<div>
+<label class="block font-headline text-xs uppercase text-[#C98B2A] mb-1">Data</label>
+<input class="w-full bg-surface-container-lowest border-0 border-b-2 border-transparent focus:border-[#C98B2A] focus:ring-0 text-on-surface font-body py-2" type="date"/>
+</div>
+<div>
+<label class="block font-headline text-xs uppercase text-[#C98B2A] mb-1">Litros</label>
+<input class="w-full bg-surface-container-lowest border-0 border-b-2 border-transparent focus:border-[#C98B2A] focus:ring-0 text-on-surface font-label py-2" placeholder="0.00" step="0.01" type="number"/>
+</div>
+<div>
+<label class="block font-headline text-xs uppercase text-[#C98B2A] mb-1">Preço/Litro (R$)</label>
+<input class="w-full bg-surface-container-lowest border-0 border-b-2 border-transparent focus:border-[#C98B2A] focus:ring-0 text-on-surface font-label py-2" placeholder="0.00" step="0.01" type="number"/>
+</div>
+<div>
+<label class="block font-headline text-xs uppercase text-[#C98B2A] mb-1">Total Calculado</label>
+<div class="w-full bg-surface-container-highest/30 border-b-2 border-[#2A9D8F]/40 py-2 px-1 text-[#2A9D8F] font-label font-bold">
+                            R$ 0,00
+                        </div>
+</div>
+</div>
+</div>
+</section>
+<!-- Section 2 & 3: Location & GPS -->
+<section class="space-y-4">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[#C98B2A] text-sm" data-icon="location_on">location_on</span>
+<h2 class="font-headline text-lg uppercase tracking-wider text-[#dae5e1]">LOCALIZAÇÃO E CHECK-IN</h2>
+</div>
+<div class="glass-card p-4 rounded-lg ghost-border">
+<div class="grid grid-cols-3 gap-3 mb-4">
+<div class="col-span-2">
+<label class="block font-headline text-xs uppercase text-[#C98B2A] mb-1">Cidade</label>
+<input class="w-full bg-surface-container-lowest border-0 border-b-2 border-transparent focus:border-[#C98B2A] focus:ring-0 text-on-surface font-body py-2" placeholder="Ex: Curitiba" type="text"/>
+</div>
+<div>
+<label class="block font-headline text-xs uppercase text-[#C98B2A] mb-1">UF</label>
+<input class="w-full bg-surface-container-lowest border-0 border-b-2 border-transparent focus:border-[#C98B2A] focus:ring-0 text-on-surface font-label py-2 text-center" maxlength="2" placeholder="PR" type="text"/>
+</div>
+</div>
+<div class="relative w-full h-32 rounded bg-surface-container-highest overflow-hidden mb-4 flex items-center justify-center">
+<img class="absolute inset-0 w-full h-full object-cover opacity-40 mix-blend-luminosity" data-alt="stylized dark mode topographic map with orange grid lines and navigation pins showing an urban industrial zone" data-location="Curitiba" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCKKu1YUJpAOzCF4HcgHLZG3Ou3zBKkI151dqpXoYaEk153-H04qSCyORjz5L2DwSnoqpUeetYB7W2DT0toH4KB6du4zyREGFQnJALmomLtxk-au3JAsxmEtl-d3Ug9lzQn_UgWKIXMmZbgLFBJgGL02b8fudEh3PVMKrecNjKh2NGwrE5LILRG6LaI90Ybg78EGQvG-RFt6_X9n0NXlvbj_kT9-nTcNd1qP2ucKTda2wy1fJhQ5OG0cfKE7U3LCShui1RSZcM51LA"/>
+<button class="relative z-10 flex items-center gap-2 bg-[#C98B2A] text-[#030504] px-4 py-2 font-headline font-bold uppercase tracking-widest text-xs hover:bg-[#E0A63B] transition-all active:scale-95 shadow-[0_0_15px_rgba(201,139,42,0.3)]">
+<span class="material-symbols-outlined text-sm" data-icon="gps_fixed">gps_fixed</span>
+                        Validar GPS
+                    </button>
+</div>
+<div class="flex items-center justify-between text-[10px] font-label text-[#dae5e1]/40 uppercase tracking-tighter">
+<span>COORD: -25.4284, -49.2733</span>
+<span class="text-[#2A9D8F]">CHECK-IN REALIZADO</span>
+</div>
+</div>
+</section>
+<!-- Section 4: Odometer & Route -->
+<section class="space-y-4">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[#C98B2A] text-sm" data-icon="speed">speed</span>
+<h2 class="font-headline text-lg uppercase tracking-wider text-[#dae5e1]">ODÔMETRO E ROTA</h2>
+</div>
+<div class="glass-card p-4 rounded-lg ghost-border space-y-4">
+<div class="grid grid-cols-2 gap-4">
+<div>
+<label class="block font-headline text-xs uppercase text-[#C98B2A] mb-1">KM Inicial</label>
+<input class="w-full bg-surface-container-lowest border-0 border-b-2 border-transparent focus:border-[#C98B2A] focus:ring-0 text-on-surface font-label py-2" placeholder="000000" type="number"/>
+</div>
+<div>
+<label class="block font-headline text-xs uppercase text-[#C98B2A] mb-1">KM Final</label>
+<input class="w-full bg-surface-container-lowest border-0 border-b-2 border-transparent focus:border-[#C98B2A] focus:ring-0 text-on-surface font-label py-2" placeholder="000000" type="number"/>
+</div>
+</div>
+<div>
+<label class="block font-headline text-xs uppercase text-[#C98B2A] mb-1">Finalidade da Viagem</label>
+<select class="w-full bg-surface-container-lowest border-0 border-b-2 border-transparent focus:border-[#C98B2A] focus:ring-0 text-on-surface font-body py-2">
+<option>Visita Técnica</option>
+<option>Manutenção Preventiva</option>
+<option>Entrega de Materiais</option>
+<option>Emergência Operacional</option>
+</select>
+</div>
+<div>
+<label class="block font-headline text-xs uppercase text-[#C98B2A] mb-1">Descrição / Observações</label>
+<textarea class="w-full bg-surface-container-lowest border-0 border-b-2 border-transparent focus:border-[#C98B2A] focus:ring-0 text-on-surface font-body py-2 resize-none" placeholder="Detalhes do trajeto..." rows="3"></textarea>
+</div>
+</div>
+</section>
+<!-- Section 5: Invoice Photo -->
+<section class="space-y-4">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[#C98B2A] text-sm" data-icon="receipt_long">receipt_long</span>
+<h2 class="font-headline text-lg uppercase tracking-wider text-[#dae5e1]">CUPOM FISCAL</h2>
+</div>
+<div class="w-full aspect-video ghost-border rounded-lg bg-surface-container-lowest flex flex-col items-center justify-center border-dashed border-2 border-white/10 group cursor-pointer hover:border-[#C98B2A]/40 transition-all">
+<span class="material-symbols-outlined text-4xl text-[#dae5e1]/20 group-hover:text-[#C98B2A]/60 mb-2" data-icon="add_a_photo">add_a_photo</span>
+<p class="font-headline text-xs uppercase tracking-widest text-[#dae5e1]/40 group-hover:text-[#C98B2A]/80">Anexar Comprovante</p>
+<p class="text-[10px] text-[#dae5e1]/20 mt-1">PNG, JPG ou PDF (Máx 5MB)</p>
+</div>
+</section>
+<!-- Section 6: Signature -->
+<section class="space-y-4">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[#C98B2A] text-sm" data-icon="draw">draw</span>
+<h2 class="font-headline text-lg uppercase tracking-wider text-[#dae5e1]">ASSINATURA DO COLABORADOR</h2>
+</div>
+<div class="glass-card p-4 rounded-lg ghost-border">
+<div class="w-full h-40 bg-[#030504] rounded border border-white/5 relative overflow-hidden">
+<div class="absolute inset-0 opacity-10 flex items-center justify-center pointer-events-none">
+<span class="font-headline text-4xl uppercase tracking-[0.5em] rotate-12">ASSINATURA</span>
+</div>
+<canvas class="absolute inset-0 w-full h-full cursor-crosshair"></canvas>
+</div>
+<div class="flex justify-end mt-2">
+<button class="text-[10px] font-headline uppercase text-[#dae5e1]/40 hover:text-error transition-colors flex items-center gap-1">
+<span class="material-symbols-outlined text-xs" data-icon="delete_sweep">delete_sweep</span>
+                        Limpar Campo
+                    </button>
+</div>
+</div>
+</section>
+<!-- Submit Button -->
+<div class="pt-6">
+<button class="w-full bg-[#C98B2A] text-[#030504] py-4 font-headline font-bold text-lg uppercase tracking-[0.2em] shadow-[0_10px_30px_rgba(201,139,42,0.3)] active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+                ENVIAR REEMBOLSO
+                <span class="material-symbols-outlined" data-icon="send">send</span>
+</button>
+<p class="text-center text-[10px] font-label text-[#dae5e1]/20 mt-4 uppercase">Ao enviar, você declara a veracidade dos dados acima.</p>
+</div>
+</main>
+<!-- Bottom Navigation Shell (Shared Component) -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center py-3 px-6 bg-[#030504]/80 backdrop-blur-lg z-50 border-t border-white/10 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
+<a class="flex flex-col items-center justify-center text-[#dae5e1]/40 group hover:text-[#C98B2A]/80 transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="assignment">assignment</span>
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase mt-1">Tasks</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#C98B2A] scale-110 active:translate-y-[-2px] transition-transform" href="#">
+<span class="material-symbols-outlined" data-icon="payments" style="font-variation-settings: 'FILL' 1;">payments</span>
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase mt-1">Claims</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#dae5e1]/40 group hover:text-[#C98B2A]/80 transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="event_repeat">event_repeat</span>
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase mt-1">RDO</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#dae5e1]/40 group hover:text-[#C98B2A]/80 transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase mt-1">Logs</span>
+</a>
+</nav>
+</body></html>

@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Field Ops - Reimbursement History</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;700&amp;family=Plus+Jakarta+Sans:wght@400;500;600&amp;family=Space+Grotesk:wght@500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "inverse-primary": "#835500",
+            "on-tertiary-container": "#422c00",
+            "on-primary": "#452b00",
+            "background": "#030504",
+            "on-tertiary-fixed-variant": "#5f4100",
+            "on-surface-variant": "#d5c4b0",
+            "error": "#ffb4ab",
+            "surface-tint": "#ffb955",
+            "surface-container": "#17221f",
+            "inverse-surface": "#dae5e1",
+            "on-secondary-fixed-variant": "#005048",
+            "on-primary-fixed-variant": "#633f00",
+            "surface-container-high": "#222c2a",
+            "secondary": "#6fd8c8",
+            "tertiary-fixed": "#ffdeac",
+            "on-primary-container": "#442a00",
+            "surface-container-low": "#131d1b",
+            "on-secondary-container": "#00302a",
+            "secondary-fixed-dim": "#6fd8c8",
+            "surface-variant": "#2c3734",
+            "on-secondary": "#003731",
+            "on-primary-fixed": "#291800",
+            "outline": "#9e8e7d",
+            "primary-fixed-dim": "#ffb955",
+            "outline-variant": "#514536",
+            "on-error-container": "#ffdad6",
+            "surface": "#0b1513",
+            "surface-dim": "#0b1513",
+            "on-error": "#690005",
+            "secondary-container": "#30a193",
+            "tertiary-container": "#c48e23",
+            "surface-container-highest": "#2c3734",
+            "surface-bright": "#313b39",
+            "inverse-on-surface": "#283230",
+            "on-tertiary-fixed": "#281900",
+            "primary": "#ffb955",
+            "tertiary-fixed-dim": "#f9bc4f",
+            "primary-container": "#c98b2a",
+            "surface-container-lowest": "#06100e",
+            "primary-fixed": "#ffddb4",
+            "on-secondary-fixed": "#00201c",
+            "secondary-fixed": "#8cf5e4",
+            "on-tertiary": "#432c00",
+            "on-surface": "#dae5e1",
+            "error-container": "#93000a",
+            "on-background": "#dae5e1",
+            "tertiary": "#f9bc4f"
+          },
+          fontFamily: {
+            "headline": ["Rajdhani"],
+            "body": ["Plus Jakarta Sans"],
+            "label": ["JetBrains Mono"]
+          },
+          borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+        },
+      },
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+    .glass-card {
+      background: rgba(14, 26, 23, 0.6);
+      backdrop-filter: blur(12px);
+    }
+    .ghost-border {
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    body {
+      background-color: #030504;
+      color: #dae5e1;
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="flex flex-col min-h-screen">
+<!-- Shared Component: TopAppBar -->
+<header class="fixed top-0 left-0 w-full z-50 bg-[#030504]/60 backdrop-blur-md shadow-[0_20px_40px_rgba(0,0,0,0.4)]">
+<div class="flex flex-col w-full px-4 pt-4">
+<div class="flex items-center justify-between mb-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full overflow-hidden border border-[#C98B2A]/30">
+<img alt="Profile" data-alt="close-up portrait of a professional engineer in a dark tech environment with orange lighting accents" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA9f6yHIS_Tby9QCRfFJ9Ito-chx1xiOEr4sCIEIgzGeBonj9oKXMgsNurpO7W6WjEpyRDkWStRhZgNck3ph2drF4Eiq1MdxxHocZP1tM5We2oT4NPk-haix_gz65v0s5OZVs2gMS04gazs-UdWv5FkDwE5k2V95MzKwLmzYv3YS5-wpdkI5Ebe_igBYj5kkBicaHUoDQUbVk1CoKAELCFM4ZPFpnPsTizxCrpExjmVWApiiGyc4i7IilsM6DE2f7o6Q9YHwfSMnP4"/>
+</div>
+<h1 class="text-xl font-bold tracking-tighter text-[#C98B2A] font-['Rajdhani'] uppercase tracking-[0.05em]">FIELD_OPS</h1>
+</div>
+<button class="text-[#dae5e1]/60 hover:text-[#C98B2A] transition-colors">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+</div>
+<!-- Module Navigation Tabs -->
+<nav class="flex w-full border-b border-white/5">
+<button class="flex-1 py-3 text-center text-[#dae5e1]/60 font-medium font-['Rajdhani'] uppercase tracking-wider transition-colors hover:text-[#C98B2A]">
+          NOVO REEMBOLSO
+        </button>
+<button class="flex-1 py-3 text-center text-[#C98B2A] border-b-2 border-[#C98B2A] font-bold font-['Rajdhani'] uppercase tracking-wider">
+          HISTÓRICO
+        </button>
+</nav>
+</div>
+</header>
+<!-- Content Canvas -->
+<main class="flex-1 mt-32 px-4 pb-24">
+<!-- Summary Analytics (Bento Pattern) -->
+<div class="grid grid-cols-2 gap-3 mb-6">
+<div class="surface-container-low p-4 rounded shadow-lg border-l-2 border-[#C98B2A]">
+<p class="font-['JetBrains_Mono'] text-[10px] text-on-surface-variant/60 uppercase">Total Pending</p>
+<div class="flex items-baseline gap-2">
+<span class="font-['Rajdhani'] text-2xl font-bold text-[#C98B2A]">R$ 2.450</span>
+<span class="font-['JetBrains_Mono'] text-[10px] text-[#2A9D8F]">+12%</span>
+</div>
+</div>
+<div class="surface-container-low p-4 rounded shadow-lg">
+<p class="font-['JetBrains_Mono'] text-[10px] text-on-surface-variant/60 uppercase">Approved This Month</p>
+<div class="flex items-baseline gap-2">
+<span class="font-['Rajdhani'] text-2xl font-bold text-on-surface">R$ 8.120</span>
+</div>
+</div>
+</div>
+<!-- Filter/Search Bar -->
+<div class="mb-6 flex gap-2">
+<div class="flex-1 bg-[#06100e] ghost-border px-3 py-2 flex items-center gap-2">
+<span class="material-symbols-outlined text-on-surface-variant/40 text-sm" data-icon="search">search</span>
+<input class="bg-transparent border-none focus:ring-0 p-0 text-xs font-['JetBrains_Mono'] text-on-surface w-full uppercase placeholder:text-on-surface-variant/30" placeholder="SEARCH ID OR STATUS..." type="text"/>
+</div>
+<button class="bg-surface-container-highest ghost-border p-2">
+<span class="material-symbols-outlined text-[#C98B2A]" data-icon="filter_list">filter_list</span>
+</button>
+</div>
+<!-- Reimbursement List -->
+<div class="flex flex-col gap-4">
+<!-- Item 1: Pending -->
+<div class="glass-card ghost-border overflow-hidden">
+<div class="p-4">
+<div class="flex justify-between items-start mb-3">
+<div>
+<p class="font-['JetBrains_Mono'] text-[10px] text-[#C98B2A]">#REF-992834</p>
+<h3 class="font-['Rajdhani'] font-bold text-lg text-on-surface uppercase">Combustível &amp; Pedágio</h3>
+</div>
+<span class="bg-[#C98B2A]/10 text-[#C98B2A] text-[10px] px-2 py-0.5 font-bold font-['JetBrains_Mono'] rounded-sm">PENDENTE</span>
+</div>
+<div class="grid grid-cols-2 gap-4 mb-4">
+<div>
+<p class="font-['JetBrains_Mono'] text-[9px] text-on-surface-variant/40 uppercase">Date</p>
+<p class="font-['JetBrains_Mono'] text-xs text-on-surface">24/05/2024</p>
+</div>
+<div>
+<p class="font-['JetBrains_Mono'] text-[9px] text-on-surface-variant/40 uppercase">Value</p>
+<p class="font-['JetBrains_Mono'] text-sm font-bold text-on-surface">R$ 450,20</p>
+</div>
+</div>
+<div class="flex gap-2 pt-3 border-t border-white/5">
+<button class="flex-1 bg-surface-container-highest hover:bg-surface-variant text-on-surface py-2 text-[11px] font-bold font-['Rajdhani'] uppercase tracking-wider flex items-center justify-center gap-2 transition-all active:scale-95">
+<span class="material-symbols-outlined text-sm" data-icon="visibility">visibility</span>
+              View
+            </button>
+<button class="flex-1 ghost-border hover:border-[#C98B2A]/40 text-on-surface py-2 text-[11px] font-bold font-['Rajdhani'] uppercase tracking-wider flex items-center justify-center gap-2 transition-all active:scale-95">
+<span class="material-symbols-outlined text-sm" data-icon="picture_as_pdf">picture_as_pdf</span>
+              Download PDF
+            </button>
+</div>
+</div>
+</div>
+<!-- Item 2: Approved -->
+<div class="glass-card ghost-border overflow-hidden">
+<div class="p-4">
+<div class="flex justify-between items-start mb-3">
+<div>
+<p class="font-['JetBrains_Mono'] text-[10px] text-[#C98B2A]">#REF-992711</p>
+<h3 class="font-['Rajdhani'] font-bold text-lg text-on-surface uppercase">Hospedagem Técnica</h3>
+</div>
+<span class="bg-[#2A9D8F]/10 text-[#2A9D8F] text-[10px] px-2 py-0.5 font-bold font-['JetBrains_Mono'] rounded-sm">APROVADO</span>
+</div>
+<div class="grid grid-cols-2 gap-4 mb-4">
+<div>
+<p class="font-['JetBrains_Mono'] text-[9px] text-on-surface-variant/40 uppercase">Date</p>
+<p class="font-['JetBrains_Mono'] text-xs text-on-surface">18/05/2024</p>
+</div>
+<div>
+<p class="font-['JetBrains_Mono'] text-[9px] text-on-surface-variant/40 uppercase">Value</p>
+<p class="font-['JetBrains_Mono'] text-sm font-bold text-on-surface">R$ 1.280,00</p>
+</div>
+</div>
+<div class="flex gap-2 pt-3 border-t border-white/5">
+<button class="flex-1 bg-surface-container-highest hover:bg-surface-variant text-on-surface py-2 text-[11px] font-bold font-['Rajdhani'] uppercase tracking-wider flex items-center justify-center gap-2 transition-all active:scale-95">
+<span class="material-symbols-outlined text-sm" data-icon="visibility">visibility</span>
+              View
+            </button>
+<button class="flex-1 ghost-border hover:border-[#C98B2A]/40 text-on-surface py-2 text-[11px] font-bold font-['Rajdhani'] uppercase tracking-wider flex items-center justify-center gap-2 transition-all active:scale-95">
+<span class="material-symbols-outlined text-sm" data-icon="picture_as_pdf">picture_as_pdf</span>
+              Download PDF
+            </button>
+</div>
+</div>
+</div>
+<!-- Item 3: Rejected -->
+<div class="glass-card ghost-border overflow-hidden opacity-80">
+<div class="p-4">
+<div class="flex justify-between items-start mb-3">
+<div>
+<p class="font-['JetBrains_Mono'] text-[10px] text-[#C98B2A]">#REF-992502</p>
+<h3 class="font-['Rajdhani'] font-bold text-lg text-on-surface uppercase">Equipamento de Proteção</h3>
+</div>
+<span class="bg-error/10 text-error text-[10px] px-2 py-0.5 font-bold font-['JetBrains_Mono'] rounded-sm uppercase">Recusado</span>
+</div>
+<div class="grid grid-cols-2 gap-4 mb-4">
+<div>
+<p class="font-['JetBrains_Mono'] text-[9px] text-on-surface-variant/40 uppercase">Date</p>
+<p class="font-['JetBrains_Mono'] text-xs text-on-surface">12/05/2024</p>
+</div>
+<div>
+<p class="font-['JetBrains_Mono'] text-[9px] text-on-surface-variant/40 uppercase">Value</p>
+<p class="font-['JetBrains_Mono'] text-sm font-bold text-on-surface">R$ 315,90</p>
+</div>
+</div>
+<div class="flex gap-2 pt-3 border-t border-white/5">
+<button class="flex-1 bg-surface-container-highest hover:bg-surface-variant text-on-surface py-2 text-[11px] font-bold font-['Rajdhani'] uppercase tracking-wider flex items-center justify-center gap-2 transition-all active:scale-95">
+<span class="material-symbols-outlined text-sm" data-icon="visibility">visibility</span>
+              View
+            </button>
+<button class="flex-1 ghost-border hover:border-[#C98B2A]/40 text-on-surface py-2 text-[11px] font-bold font-['Rajdhani'] uppercase tracking-wider flex items-center justify-center gap-2 transition-all active:scale-95">
+<span class="material-symbols-outlined text-sm" data-icon="picture_as_pdf">picture_as_pdf</span>
+              Download PDF
+            </button>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Shared Component: BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 bg-[#030504]/80 backdrop-blur-lg border-t border-white/10 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
+<div class="flex justify-around items-center py-3 px-6 h-16">
+<div class="flex flex-col items-center justify-center text-[#dae5e1]/40 transition-colors">
+<span class="material-symbols-outlined text-xl mb-1" data-icon="assignment">assignment</span>
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase">Tasks</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#C98B2A] scale-110 transition-transform translate-y-[-2px]">
+<span class="material-symbols-outlined text-xl mb-1" data-icon="payments" style="font-variation-settings: 'FILL' 1;">payments</span>
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase">Claims</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#dae5e1]/40 transition-colors">
+<span class="material-symbols-outlined text-xl mb-1" data-icon="event_repeat">event_repeat</span>
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase">RDO</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#dae5e1]/40 transition-colors">
+<span class="material-symbols-outlined text-xl mb-1" data-icon="analytics">analytics</span>
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase">Logs</span>
+</div>
+</div>
+</nav>
+</body></html>
