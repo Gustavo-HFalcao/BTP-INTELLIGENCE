@@ -238,11 +238,12 @@ class RDOState(rx.State):
 
     async def init_page(self):
         """Chamado no on_load de /rdo-form."""
-        # Re-trigger signature canvas binding after SPA navigation (canvas may not exist yet)
+        # Re-trigger signature canvas binding after SPA navigation.
+        # force=true clears WeakMap so React-reused DOM nodes get rebound correctly.
         yield rx.call_script(
             "[500,1000,2000,4000].forEach(function(ms){"
             "setTimeout(function(){"
-            "if(window.sigCanvasRebind) window.sigCanvasRebind();"
+            "if(window.sigCanvasRebind) window.sigCanvasRebind(true);"
             "},ms);"
             "});"
         )
@@ -953,7 +954,6 @@ class RDOState(rx.State):
             return
         self.is_submitting = True
         self.show_confirm_dialog = False
-        yield rx.call_script("window.scrollTo({top:0,behavior:'smooth'})")
         yield RDOState.execute_submit
 
     @rx.event(background=True)

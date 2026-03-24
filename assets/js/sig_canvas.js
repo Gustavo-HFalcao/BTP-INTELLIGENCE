@@ -74,8 +74,15 @@
     _timer = setTimeout(_bind, 60);
   }
 
-  // Expose globally so Reflex can trigger rebind via rx.call_script
-  window.sigCanvasRebind = _bind;
+  // Expose globally so Reflex can trigger rebind via rx.call_script.
+  // Force=true clears the WeakMap entry first so React-reused DOM nodes get rebound.
+  window.sigCanvasRebind = function(force) {
+    if (force) {
+      var c = document.getElementById('sig-canvas');
+      if (c) _bound.delete(c);
+    }
+    _bind();
+  };
 
   // Start observer as soon as DOM is ready
   function _start() {

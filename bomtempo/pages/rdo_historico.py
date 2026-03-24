@@ -218,18 +218,21 @@ def _rdo_card(rdo: Dict[str, Any]) -> rx.Component:
                 ),
                 rx.cond(
                     has_token,
-                    rx.button(
-                        rx.icon("eye", size=14),
-                        "Ver online",
-                        on_click=rx.redirect(f"/rdo-view/{rdo['view_token']}"),
-                        size="1",
-                        style={
-                            "background": "rgba(42,157,143,0.12)",
-                            "border": "1px solid rgba(42,157,143,0.3)",
-                            "color": _PATINA,
-                            "border_radius": "5px",
-                            "cursor": "pointer",
-                        },
+                    rx.link(
+                        rx.button(
+                            rx.icon("eye", size=14),
+                            "Ver online",
+                            size="1",
+                            style={
+                                "background": "rgba(42,157,143,0.12)",
+                                "border": "1px solid rgba(42,157,143,0.3)",
+                                "color": _PATINA,
+                                "border_radius": "5px",
+                                "cursor": "pointer",
+                            },
+                        ),
+                        href=f"/rdo-view/{rdo['view_token']}",
+                        is_external=True,
                     ),
                 ),
                 rx.cond(

@@ -317,12 +317,14 @@ def _apply_watermark(img_bytes: bytes, meta: Dict[str, Any], content_type: str =
         if meta.get("postcode"):
             text_entries.append((str(meta["postcode"]), fnt_sm, MUTED))
 
-        # Warning when no EXIF
+        # Warning when no EXIF — upload de foto possivelmente antiga
         if not meta.get("local_is_exif"):
             if meta.get("local_is_lastmod"):
                 text_entries.append(("⚠ Data via lastModified — sem EXIF", fnt_sm, YELLOW))
+                text_entries.append(("  Foto pode ser anterior ao upload", fnt_sm, YELLOW))
             else:
                 text_entries.append(("⚠ Sem metadados EXIF na foto", fnt_sm, YELLOW))
+                text_entries.append(("  Autenticidade não verificável", fnt_sm, YELLOW))
 
         # Branding footer
         text_entries.append((f"BTP Intelligence · {meta.get('contrato', '—')}", fnt_sm, COPPER))
@@ -387,15 +389,16 @@ def _apply_watermark(img_bytes: bytes, meta: Dict[str, Any], content_type: str =
             panel.paste(map_img, (mx, my), map_img)
 
         # ── Append panel BELOW the photo (expand canvas downward) ─────────────
-        # This keeps the photo intact and visible — panel never overlays it.
-        canvas = Image.new("RGBA", (w, h + panel_h), (0, 0, 0, 255))
+        # Fundo transparente — sem barra preta na parte inferior da foto.
+        # Painel tem seu próprio fundo semi-opaco; a foto acima permanece intacta.
+        canvas = Image.new("RGBA", (w, h + panel_h), (0, 0, 0, 0))
         canvas.paste(img, (0, 0))
         canvas.paste(panel, (0, h), panel)
 
-        out = canvas.convert("RGB")
         buf = io.BytesIO()
-        fmt = "PNG" if "png" in content_type.lower() else "JPEG"
-        out.save(buf, format=fmt, quality=90)
+        # Sempre salva em PNG para preservar canal alpha (fundo transparente).
+        # JPEG não suporta transparência e causaria fundo preto.
+        canvas.save(buf, format="PNG", optimize=True)
         return buf.getvalue()
     except Exception as e:
         logger.error(f"❌ Watermark falhou (retornando original): {e}")
@@ -1209,7 +1212,6 @@ tbody tr td { padding: 6px 8px; border-bottom: 0.3px solid #D4C8A8; vertical-ali
         client_exif_datetime: str = "",
         client_last_modified: str = "",
     ) -> Dict[str, str]:
-        # 3. Upload to Supabase Storage
         allowed_types = ["image/jpeg", "image/png", "image/webp", "image/jpg"]
         if content_type.lower() not in allowed_types:
             logger.warning(f"⚠️ Upload bloqueado: MIME type {content_type} não permitido para evidências.")
@@ -1218,18 +1220,100 @@ tbody tr td { padding: 6px 8px; border-bottom: 0.3px solid #D4C8A8; vertical-ali
         # Sanitize filename to prevent path traversal
         import os
         safe_filename = os.path.basename(filename)
-        
-        foto_url = RDOService.upload_evidence(id_rdo, watermarked, content_type, safe_filename)
+
+        # 1. Extract EXIF (GPS + datetime) from image
+        exif_lat, exif_lng, exif_dt = _extract_exif_full(file_bytes)
+
+        # 2. Resolve GPS: prefer client-supplied EXIF, fallback to server EXIF, then check-in
+        lat = client_exif_lat or exif_lat or checkin_lat
+        lng = client_exif_lng or exif_lng or checkin_lng
+        gps_source = "checkin" if (not client_exif_lat and not exif_lat and checkin_lat) else "exif"
+
+        # 3. Timestamps
+        from datetime import timezone
+        now_utc = datetime.now(timezone.utc)
+        rede_time = _pt_datetime_str(now_utc)
+        if client_exif_datetime:
+            try:
+                local_dt = datetime.fromisoformat(client_exif_datetime.replace("Z", "+00:00"))
+                local_time = _pt_datetime_str(local_dt)
+                local_is_exif = True
+                local_is_lastmod = False
+            except Exception:
+                local_time = client_exif_datetime
+                local_is_exif = True
+                local_is_lastmod = False
+        elif exif_dt:
+            local_time = _pt_datetime_str(exif_dt)
+            local_is_exif = True
+            local_is_lastmod = False
+        elif client_last_modified:
+            try:
+                lm_ms = int(client_last_modified)
+                lm_dt = datetime.fromtimestamp(lm_ms / 1000, tz=timezone.utc)
+                local_time = _pt_datetime_str(lm_dt)
+            except Exception:
+                local_time = client_last_modified
+            local_is_exif = False
+            local_is_lastmod = True
+        else:
+            local_time = rede_time
+            local_is_exif = False
+            local_is_lastmod = False
+
+        # 4. Map thumbnail (best-effort)
+        map_bytes = _fetch_map_thumbnail(lat, lng) if (lat and lng) else None
+
+        # 5. Reverse-geocode for watermark address
+        wm_address = checkin_endereco or ""
+        if lat and lng and not wm_address:
+            try:
+                wm_full = _reverse_geocode(lat, lng)
+                wm_address = wm_full
+            except Exception:
+                pass
+        addr_parts = wm_address.split(", ") if wm_address else []
+        wm_neighborhood = addr_parts[1] if len(addr_parts) > 1 else ""
+        wm_city = addr_parts[-1] if addr_parts else ""
+
+        # 6. Apply watermark
+        meta: Dict[str, Any] = {
+            "rede_time":       rede_time,
+            "local_time":      local_time,
+            "local_is_exif":   local_is_exif,
+            "local_is_lastmod": local_is_lastmod,
+            "lat":             lat or None,
+            "lng":             lng or None,
+            "gps_source":      gps_source,
+            "address":         wm_address,
+            "neighborhood":    wm_neighborhood,
+            "city":            wm_city,
+            "contrato":        contrato,
+            "mestre":          mestre,
+            "map_bytes":       map_bytes,
+        }
+        try:
+            watermarked = _apply_watermark(file_bytes, meta, content_type)
+        except Exception as wm_err:
+            logger.warning(f"⚠️ Watermark falhou (usando original): {wm_err}")
+            watermarked = file_bytes
+
+        # 7. Upload to Supabase Storage
+        # Watermark sempre retorna PNG (canal alpha). Força .png no filename e content_type.
+        upload_ct = "image/png"
+        name_base = os.path.splitext(safe_filename)[0]
+        upload_filename = f"{name_base}.png"
+        foto_url = RDOService.upload_evidence(id_rdo, watermarked, upload_ct, upload_filename)
         if not foto_url:
             # Upload falhou — retorna dict vazio para o caller filtrar
             return {"foto_url": "", "legenda": legenda, "exif_lat": "", "exif_lng": "", "exif_endereco": ""}
 
-        # 4. Reverse geocode EXIF GPS
-        exif_endereco = ""
-        if exif_lat and exif_lng:
+        # 8. Reverse geocode EXIF GPS (reuse wm_address already computed above)
+        exif_endereco = wm_address or ""
+        if not exif_endereco and exif_lat and exif_lng:
             exif_endereco = _reverse_geocode(exif_lat, exif_lng)
 
-        # 5. Persist to rdo_evidencias (best-effort)
+        # 9. Persist to rdo_evidencias (best-effort)
         rdo_master_rows = sb_select("rdo_master", filters={"id_rdo": id_rdo}, limit=1)
         rdo_uuid = rdo_master_rows[0]["id"] if rdo_master_rows else None
         if rdo_uuid:
@@ -1300,18 +1384,22 @@ Responda em português, de forma direta e objetiva, com as seções:
             if e.get("foto_url", "").startswith("http")
         ][:4]
 
-        if photo_urls:
-            # OpenAI vision format (image_url with url type)
-            content: list = [{"type": "text", "text": text_prompt}]
-            for url in photo_urls:
-                content.append({"type": "image_url", "image_url": {"url": url}})
-            content.append({"type": "text", "text": "Considere também as fotos de evidência acima ao fazer sua análise. Identifique o que está sendo feito, condições do canteiro e qualidade do trabalho."})
-            user_msg: Any = {"role": "user", "content": content}
-        else:
-            user_msg = {"role": "user", "content": text_prompt}
+        # Análise somente texto — evita filtros de segurança que bloqueiam URLs externas de imagem.
+        # A análise executiva baseia-se nos dados estruturados do RDO, não nas fotos.
+        user_msg: Any = {"role": "user", "content": text_prompt}
+        _ = photo_urls  # reservado para uso futuro com vision opt-in
 
         return [
-            {"role": "system", "content": "Seja preciso, direto e profissional. Responda em português. Limite cada seção a 3-5 linhas."},
+            {
+                "role": "system",
+                "content": (
+                    "Você é um assistente especializado em gestão de obras e engenharia civil. "
+                    "Analisa Relatórios Diários de Obra (RDO) da empresa Bomtempo. "
+                    "Seja preciso, direto e profissional. Responda sempre em português brasileiro. "
+                    "Limite cada seção a 3-5 linhas. Não recuse solicitações — este é um contexto "
+                    "empresarial legítimo de gestão de construção civil."
+                ),
+            },
             user_msg,
         ]
 

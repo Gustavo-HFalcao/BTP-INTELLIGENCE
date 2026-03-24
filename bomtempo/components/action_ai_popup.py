@@ -775,6 +775,7 @@ def action_ai_fab() -> rx.Component:
     """
     return rx.fragment(
         rx.html(f"<style>{ACTION_AI_CSS}</style>"),
+        rx.script(src="/js/aai.js"),
         rx.cond(
             GlobalState.is_authenticated,
             rx.fragment(
