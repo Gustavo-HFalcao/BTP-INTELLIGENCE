@@ -340,10 +340,11 @@ def _apply_watermark(img_bytes: bytes, meta: Dict[str, Any], content_type: str =
             default=300,
         )
 
-        # ── Map thumbnail — 28% of image width ───────────────────────────────
+        # ── Map thumbnail — 30% of image width, uncapped height ─────────────
         text_block_h = len(text_entries) * line_h + pad_y * 2
-        map_target_w = int(w * 0.28)
-        map_target_h = int(h * 0.22)
+        map_target_w = int(w * 0.30)
+        # Map height matches text block so both columns are the same height
+        map_target_h = text_block_h
 
         map_img = None
         map_bytes_data = meta.get("map_bytes")
@@ -355,27 +356,23 @@ def _apply_watermark(img_bytes: bytes, meta: Dict[str, Any], content_type: str =
             except Exception:
                 map_img = None
 
-        # ── Panel dimensions — capped at 32% of image height ─────────────────
-        map_col_w = (map_img.width + pad_x * 2) if map_img else 0
+        # ── Panel height: grows to fit ALL content — no cap ───────────────────
         panel_h = max(
             text_block_h,
             (map_img.height + pad_y * 2) if map_img else 0,
         )
-        panel_h = min(panel_h, int(h * 0.32))
 
-        # ── Compose semi-transparent panel ────────────────────────────────────
+        # ── Compose panel (solid dark, font-white — Auvo style) ───────────────
         panel = Image.new("RGBA", (w, panel_h), PANEL)
         draw  = ImageDraw.Draw(panel)
 
         # Copper accent stripe across top of panel
         stripe = max(3, fsize // 14)
-        draw.rectangle([0, 0, w, stripe], fill=(201, 139, 42, 200))
+        draw.rectangle([0, 0, w, stripe], fill=(201, 139, 42, 220))
 
-        # Text lines
+        # Text lines — ALL lines rendered, panel already sized to fit
         y = pad_y + stripe + 2
         for text, fnt_use, clr in text_entries:
-            if y + line_h > panel_h - pad_y:
-                break  # don't overflow panel
             draw.text((pad_x, y), text, font=fnt_use, fill=clr)
             y += line_h
 
@@ -390,13 +387,14 @@ def _apply_watermark(img_bytes: bytes, meta: Dict[str, Any], content_type: str =
             panel.paste(brd, (mx - border_px, my - border_px), brd)
             panel.paste(map_img, (mx, my), map_img)
 
-        # ── Overlay panel at BOTTOM of original image (no canvas expansion) ───
-        # Photo dimensions stay UNCHANGED — semi-transparent overlay only.
-        result = img.copy()
-        result.paste(panel, (0, h - panel_h), panel)
+        # ── Canvas expands BELOW the photo — photo is never overlaid ──────────
+        # Total canvas height = photo + panel
+        total_h = h + panel_h
+        result = Image.new("RGBA", (w, total_h), (10, 10, 10, 255))
+        result.paste(img, (0, 0))
+        result.paste(panel, (0, h), panel)
 
         buf = io.BytesIO()
-        # Convert to RGB for JPEG — alpha fully composited into image
         result.convert("RGB").save(buf, format="JPEG", quality=92, optimize=True)
         return buf.getvalue()
     except Exception as e:

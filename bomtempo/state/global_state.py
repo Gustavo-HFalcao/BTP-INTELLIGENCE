@@ -482,6 +482,12 @@ class GlobalState(rx.State):
     financeiro_cockpit_chart: List[Dict[str, Any]] = []
     financeiro_scurve_chart: List[Dict[str, Any]] = []
 
+    # ── KPI Popup rows cache — calculado em load_data e set_fin_project_filter ──
+    # Substitui @rx.var com DataFrame+groupby que rodavam em CADA render
+    fin_contrato_rows: List[Dict[str, Any]] = []
+    fin_cockpit_popup_rows: List[Dict[str, Any]] = []
+    contratos_ativos_rows: List[Dict[str, Any]] = []
+
     # Weather State
     weather_data: Dict[str, Any] = {}
     weather_loading: bool = False
@@ -726,125 +732,78 @@ class GlobalState(rx.State):
                 return True
         return False
 
-    # ── KPI Detail Popup Computed Vars ──────────────────────────────────────────
+    # ── KPI Detail Popup rows — populados em _recompute_popup_rows() ────────────
+    # (declarados no bloco de vars acima junto com financeiro_cockpit_chart)
 
-    @rx.var
-    def fin_contrato_rows(self) -> List[Dict[str, Any]]:
-        """Per-contract financial breakdown for detail popups."""
+    def _recompute_popup_rows(self):
+        """Recalcula as 3 listas de popup KPI. Chamado em load_data e set_fin_project_filter."""
         data = self.financeiro_list
         if self.fin_project_filter and self.fin_project_filter != "Todos":
             data = [f for f in data if f.get("contrato") == self.fin_project_filter]
-        if not data:
-            return []
-        df = pd.DataFrame(data)
-        money_cols = ["servico_contratado", "material_contratado", "servico_realizado", "material_realizado"]
-        for col in money_cols:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
-        if "contrato" not in df.columns:
-            return []
-        grouped = (
-            df.groupby("contrato")
-            .agg(
-                {
-                    "servico_contratado": "sum",
-                    "material_contratado": "sum",
-                    "servico_realizado": "sum",
-                    "material_realizado": "sum",
-                }
-            )
-            .reset_index()
-        )
-        grouped["total_contratado"] = grouped["servico_contratado"] + grouped["material_contratado"]
-        grouped["total_realizado"] = grouped["servico_realizado"] + grouped["material_realizado"]
-        grouped["saldo"] = grouped["total_contratado"] - grouped["total_realizado"]
-        grouped["pct_medido"] = (
-            (grouped["total_realizado"] / grouped["total_contratado"] * 100).fillna(0).round(1)
-        )
-        result = []
-        for _, row in grouped.iterrows():
-            val_cont = float(row["total_contratado"])
-            val_real = float(row["total_realizado"])
-            saldo_v = float(row["saldo"])
-            pct = float(row["pct_medido"])
-            result.append(
-                {
-                    "contrato": str(row["contrato"]),
-                    "total_contratado_fmt": self._fmt_money(val_cont),
-                    "total_realizado_fmt": self._fmt_money(val_real),
-                    "saldo_fmt": self._fmt_money(saldo_v),
-                    "pct_medido": f"{pct:.1f}%",
-                }
-            )
-        return result
 
-    @rx.var
-    def fin_cockpit_popup_rows(self) -> List[Dict[str, Any]]:
-        """Per-cockpit breakdown with formatted money for Total Medido popup."""
-        data = self.financeiro_list
-        if self.fin_project_filter and self.fin_project_filter != "Todos":
-            data = [f for f in data if f.get("contrato") == self.fin_project_filter]
+        # ── fin_contrato_rows ──────────────────────────────────────────────────
         if not data:
-            return []
-        df = pd.DataFrame(data)
-        money_cols = ["servico_contratado", "material_contratado", "servico_realizado", "material_realizado"]
-        for col in money_cols:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
-        if "cockpit" not in df.columns:
-            return []
-        grouped = (
-            df.groupby("cockpit")
-            .agg(
-                {
-                    "servico_contratado": "sum",
-                    "material_contratado": "sum",
-                    "servico_realizado": "sum",
-                    "material_realizado": "sum",
-                }
-            )
-            .reset_index()
-        )
-        grouped["total_contratado"] = grouped["servico_contratado"] + grouped["material_contratado"]
-        grouped["total_realizado"] = grouped["servico_realizado"] + grouped["material_realizado"]
-        grouped["pct_medido"] = (
-            (grouped["total_realizado"] / grouped["total_contratado"] * 100).fillna(0).round(1)
-        )
-        grouped = grouped.sort_values("total_contratado", ascending=False)
-        result = []
-        for _, row in grouped.iterrows():
-            val_cont = float(row["total_contratado"])
-            val_real = float(row["total_realizado"])
-            pct = float(row["pct_medido"])
-            result.append(
-                {
-                    "cockpit": str(row["cockpit"]) or "—",
-                    "total_contratado_fmt": self._fmt_money(val_cont),
-                    "total_realizado_fmt": self._fmt_money(val_real),
-                    "pct_medido": f"{pct:.1f}%",
-                }
-            )
-        return result
+            self.fin_contrato_rows = []
+            self.fin_cockpit_popup_rows = []
+        else:
+            df = pd.DataFrame(data)
+            # Normalizar colunas novas de fin_custos
+            for col in ["valor_previsto", "valor_executado"]:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+                else:
+                    df[col] = 0.0
 
-    @rx.var
-    def contratos_ativos_rows(self) -> List[Dict[str, Any]]:
-        """Active contracts for the Contratos Ativos detail popup."""
-        active = [
-            c for c in self.contratos_list
-            if str(c.get("status", "")).strip() == "Em Execução"
+            if "contrato" in df.columns:
+                grouped = (
+                    df.groupby("contrato")
+                    .agg({"valor_previsto": "sum", "valor_executado": "sum"})
+                    .reset_index()
+                )
+                grouped["total_contratado"] = grouped["valor_previsto"]
+                grouped["total_realizado"] = grouped["valor_executado"]
+                grouped["saldo"] = grouped["total_contratado"] - grouped["total_realizado"]
+                grouped["pct_medido"] = (
+                    (grouped["total_realizado"] / grouped["total_contratado"].replace(0, float("nan")) * 100)
+                    .fillna(0).round(1)
+                )
+                result = []
+                for _, row in grouped.iterrows():
+                    vc, vr, vs, pct = float(row["total_contratado"]), float(row["total_realizado"]), float(row["saldo"]), float(row["pct_medido"])
+                    result.append({"contrato": str(row["contrato"]), "total_contratado_fmt": self._fmt_money(vc), "total_realizado_fmt": self._fmt_money(vr), "saldo_fmt": self._fmt_money(vs), "pct_medido": f"{pct:.1f}%"})
+                self.fin_contrato_rows = result
+            else:
+                self.fin_contrato_rows = []
+
+            # Cockpit popup: agora agrupa por categoria_nome
+            group_col2 = "categoria_nome" if "categoria_nome" in df.columns else None
+            if group_col2:
+                grouped2 = (
+                    df.groupby(group_col2)
+                    .agg({"valor_previsto": "sum", "valor_executado": "sum"})
+                    .reset_index()
+                )
+                grouped2["total_contratado"] = grouped2["valor_previsto"]
+                grouped2["total_realizado"] = grouped2["valor_executado"]
+                grouped2["pct_medido"] = (
+                    (grouped2["total_realizado"] / grouped2["total_contratado"].replace(0, float("nan")) * 100)
+                    .fillna(0).round(1)
+                )
+                grouped2 = grouped2.sort_values("total_contratado", ascending=False)
+                result2 = []
+                for _, row in grouped2.iterrows():
+                    vc, vr, pct = float(row["total_contratado"]), float(row["total_realizado"]), float(row["pct_medido"])
+                    result2.append({"cockpit": str(row[group_col2]) or "—", "total_contratado_fmt": self._fmt_money(vc), "total_realizado_fmt": self._fmt_money(vr), "pct_medido": f"{pct:.1f}%"})
+                self.fin_cockpit_popup_rows = result2
+            else:
+                self.fin_cockpit_popup_rows = []
+
+        # ── contratos_ativos_rows ──────────────────────────────────────────────
+        active = [c for c in self.contratos_list if str(c.get("status", "")).strip() == "Em Execução"]
+        self.contratos_ativos_rows = [
+            {"contrato": str(c.get("contrato", "—")), "cliente": str(c.get("cliente", "—")), "status": str(c.get("status", "—")), "valor_fmt": self._fmt_money(float(c.get("valor_contratado", 0) or 0))}
+            for c in active[:25]
         ]
-        result = []
-        for c in active[:25]:
-            val = float(c.get("valor_contratado", 0) or 0)
-            result.append(
-                {
-                    "contrato": str(c.get("contrato", "—")),
-                    "cliente": str(c.get("cliente", "—")),
-                    "status": str(c.get("status", "—")),
-                    "valor_fmt": self._fmt_money(val),
-                }
-            )
-        return result
 
     def _sanitize_markdown(self, text: str) -> str:
         """Extreme Failsafe: Fixes mashed tables, missing pipes, and broken column alignment."""
@@ -1274,6 +1233,7 @@ class GlobalState(rx.State):
 
     def _recompute_fin_charts(self):
         """Recalcula os gráficos financeiros pesados e armazena em state vars.
+        Usa fin_custos (migrado): colunas valor_previsto, valor_executado, categoria_nome.
         Chamado apenas ao carregar dados ou mudar filtro — nunca em cada render.
         """
         data = self.financeiro_list
@@ -1286,34 +1246,34 @@ class GlobalState(rx.State):
             return
 
         df = pd.DataFrame(data)
-        if "cockpit" not in df.columns:
+
+        # Normalizar colunas de valor (vêm como float do Supabase)
+        for col in ["valor_previsto", "valor_executado"]:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+            else:
+                df[col] = 0.0
+
+        # Usar categoria_nome como agrupador (equivale ao antigo "cockpit")
+        group_col = "categoria_nome" if "categoria_nome" in df.columns else None
+        if group_col is None:
             self.financeiro_cockpit_chart = []
             self.financeiro_scurve_chart = []
             return
 
-        money_cols = ["servico_contratado", "material_contratado", "servico_realizado", "material_realizado"]
-        for col in money_cols:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
-
         grouped = (
-            df.groupby("cockpit")
-            .agg({c: "sum" for c in money_cols if c in df.columns})
+            df.groupby(group_col)
+            .agg({"valor_previsto": "sum", "valor_executado": "sum"})
             .reset_index()
         )
-        grouped["total_contratado"] = (
-            grouped.get("servico_contratado", 0) + grouped.get("material_contratado", 0)
-        )
-        grouped["total_realizado"] = (
-            grouped.get("servico_realizado", 0) + grouped.get("material_realizado", 0)
-        )
+        grouped.rename(columns={group_col: "cockpit"}, inplace=True)
+        grouped["total_contratado"] = grouped["valor_previsto"].round(2)
+        grouped["total_realizado"] = grouped["valor_executado"].round(2)
         grouped["margem"] = grouped["total_contratado"] - grouped["total_realizado"]
         grouped["margem_pct"] = (
             (grouped["margem"] / grouped["total_contratado"].replace(0, float("nan")) * 100)
             .fillna(0).round(1)
         )
-        grouped["total_contratado"] = grouped["total_contratado"].round(2)
-        grouped["total_realizado"] = grouped["total_realizado"].round(2)
         grouped["formatted_total"] = grouped["total_contratado"].apply(
             lambda x: (
                 f"R$ {x/1_000_000:.1f}M".replace(".", ",")
@@ -1323,7 +1283,7 @@ class GlobalState(rx.State):
         )
         self.financeiro_cockpit_chart = grouped.to_dict("records")
 
-        # S-Curve
+        # S-Curve acumulada por categoria (ordenada por total)
         g2 = grouped.copy().sort_values("total_contratado")
         g2["cumulative_planned"] = g2["total_contratado"].cumsum().round(0)
         g2["cumulative_actual"] = g2["total_realizado"].cumsum().round(0)
@@ -1332,6 +1292,7 @@ class GlobalState(rx.State):
     def set_fin_project_filter(self, value: str):
         self.fin_project_filter = value
         self._recompute_fin_charts()
+        self._recompute_popup_rows()
 
     def load_data(self):
         """Carrega dados iniciais com guard de autentização"""
@@ -1442,8 +1403,9 @@ class GlobalState(rx.State):
 
             # RDO dados agora são lidos do Supabase diretamente (rdo_service.py / rdo_historico.py)
 
-            # Recalcula gráficos financeiros pesados uma única vez após carga
+            # Recalcula gráficos e popups financeiros pesados uma única vez após carga
             self._recompute_fin_charts()
+            self._recompute_popup_rows()
 
             # ── #12: Guard de tamanho — aviso se listas excederem threshold ──
             # financeiro_list é serializada ao browser; mais de 500 linhas é sinal
@@ -2260,19 +2222,16 @@ class GlobalState(rx.State):
         data = self._financeiro_filtered
         if not data:
             return 0.0
-        # Use pandas on small filtered list is OK, or sum dicts
-        s = sum(float(d.get("servico_contratado", 0) or 0) for d in data)
-        m = sum(float(d.get("material_contratado", 0) or 0) for d in data)
-        return s + m
+        # fin_custos: valor_previsto = planejado/contratado
+        return sum(float(d.get("valor_previsto", 0) or 0) for d in data)
 
     @rx.var
     def total_financeiro_realizado(self) -> float:
         data = self._financeiro_filtered
         if not data:
             return 0.0
-        s = sum(float(d.get("servico_realizado", 0) or 0) for d in data)
-        m = sum(float(d.get("material_realizado", 0) or 0) for d in data)
-        return s + m
+        # fin_custos: valor_executado = medido/realizado
+        return sum(float(d.get("valor_executado", 0) or 0) for d in data)
 
     @rx.var
     def margem_bruta(self) -> float:
@@ -2307,6 +2266,70 @@ class GlobalState(rx.State):
     @rx.var
     def margem_pct_fmt(self) -> str:
         return f"{self.margem_pct:.1f}%"
+
+    @rx.var
+    def fin_total_itens(self) -> int:
+        return len(self._financeiro_filtered)
+
+    @rx.var
+    def fin_itens_concluidos(self) -> int:
+        return sum(1 for d in self._financeiro_filtered if d.get("status") == "concluido")
+
+    @rx.var
+    def fin_itens_andamento(self) -> int:
+        return sum(1 for d in self._financeiro_filtered if d.get("status") == "em_andamento")
+
+    @rx.var
+    def fin_itens_previstos(self) -> int:
+        return sum(1 for d in self._financeiro_filtered if d.get("status") == "previsto")
+
+    @rx.var
+    def fin_pct_concluido_fmt(self) -> str:
+        total = self.fin_total_itens
+        if total == 0:
+            return "0.0%"
+        return f"{self.fin_itens_concluidos / total * 100:.1f}%"
+
+    @rx.var
+    def fin_contratos_com_custo(self) -> int:
+        """Nº de contratos distintos com pelo menos 1 custo registrado."""
+        return len({d.get("contrato", "") for d in self._financeiro_filtered if d.get("contrato")})
+
+    @rx.var
+    def fin_status_dist(self) -> List[Dict[str, Any]]:
+        """Distribuição de itens por status para donut chart."""
+        from collections import Counter
+        counts = Counter(d.get("status", "previsto") for d in self._financeiro_filtered)
+        color_map = {
+            "previsto":     "#C98B2A",
+            "em_andamento": "#3B82F6",
+            "concluido":    "#22c55e",
+            "cancelado":    "#EF4444",
+        }
+        label_map = {
+            "previsto":     "Previsto",
+            "em_andamento": "Em Andamento",
+            "concluido":    "Concluído",
+            "cancelado":    "Cancelado",
+        }
+        return [
+            {"name": label_map.get(k, k), "value": v, "fill": color_map.get(k, "#889999")}
+            for k, v in counts.items() if v > 0
+        ]
+
+    @rx.var
+    def fin_top_categoria(self) -> str:
+        """Categoria com maior valor previsto."""
+        data = self._financeiro_filtered
+        if not data:
+            return "—"
+        cat_totals: dict = {}
+        for d in data:
+            cat = d.get("categoria_nome", "Outros") or "Outros"
+            cat_totals[cat] = cat_totals.get(cat, 0.0) + float(d.get("valor_previsto", 0) or 0)
+        if not cat_totals:
+            return "—"
+        return max(cat_totals, key=lambda k: cat_totals[k])
 
     # ── Obras ────────────────────────────────────────────────────
 
@@ -2690,8 +2713,6 @@ class GlobalState(rx.State):
             cols["realizado"] = ("realizado_pct", "mean")
         if not cols:
             return []
-        agg = {v[0]: v[1] for v in cols.values()}
-        rename = {v[0]: k for k, v in cols.items()}
         grp = sub.groupby("data").agg(**{k: pd.NamedAgg(column=v[0], aggfunc=v[1]) for k, v in cols.items()}).reset_index()
         grp["data"] = grp["data"].dt.strftime("%d/%m")
         for col in cols.keys():
@@ -3252,9 +3273,11 @@ class GlobalState(rx.State):
             yield GlobalState.generate_obra_insight_bg
             # Pre-load HubState modules for the selected project
             from bomtempo.state.hub_state import HubState
+            from bomtempo.state.fin_state import FinState
             yield HubState.load_cronograma(code)
             yield HubState.load_auditoria(code)
             yield HubState.load_timeline(code)
+            yield FinState.load_financeiro(code)
 
     @rx.event(background=True)
     async def deselect_project(self):

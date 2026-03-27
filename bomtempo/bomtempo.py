@@ -79,6 +79,7 @@ from bomtempo.pages.app_mobile import app_mobile_page
 from bomtempo.pages.observabilidade import observabilidade_page
 from bomtempo.state.observability_state import ObservabilityState
 from bomtempo.state.action_ai_state import ActionAIState
+from bomtempo.state.fin_state import FinState
 
 # Start proactive alerts background scheduler
 start_alert_scheduler()

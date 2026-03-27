@@ -14,6 +14,7 @@ from bomtempo.components.windy_map_widget import windy_map_widget
 from bomtempo.core import styles as S
 from bomtempo.state.global_state import GlobalState
 from bomtempo.state.hub_state import HubState, AUDIT_CATEGORIES, ENTRY_TYPES
+from bomtempo.state.fin_state import FinState, FIN_STATUS_LABELS, FIN_STATUS_OPTIONS
 
 # ── Local glass card variants ──────────────────────────────────────────────────
 _GLASS_COMPACT = {**S.GLASS_CARD, "padding": "16px 20px"}
@@ -492,6 +493,7 @@ def _hub_navbar() -> rx.Component:
                 _tab("Cronograma", "cronograma", "calendar-range"),
                 _tab("Auditoria", "auditoria", "scan-eye"),
                 _tab("Timeline", "timeline", "git-branch"),
+                _tab("Financeiro", "financeiro", "wallet"),
                 spacing="6",
                 align="end",
                 display=rx.breakpoints(initial="none", lg="flex"),
@@ -2596,8 +2598,10 @@ def _tab_cronograma() -> rx.Component:
             rx.hstack(
                 rx.icon(tag="search", size=14, color=S.TEXT_MUTED),
                 rx.el.input(
-                    value=HubState.cron_search,
-                    on_change=HubState.set_cron_search,
+                    default_value=HubState.cron_search,
+                    on_change=HubState.set_cron_search_input,
+                    on_blur=HubState.commit_cron_search,
+                    on_key_down=HubState.handle_cron_search_key,
                     placeholder="Buscar atividade, responsável, fase...",
                     style={"background": "transparent", "border": "none", "color": "white", "fontSize": "13px", "outline": "none", "flex": "1", "minWidth": "180px"},
                 ),
@@ -3246,7 +3250,9 @@ def _tab_timeline() -> rx.Component:
                 rx.icon(tag="search", size=13, color=S.TEXT_MUTED, position="absolute", left="10px", top="50%", transform="translateY(-50%)", pointer_events="none"),
                 rx.el.input(
                     placeholder="Pesquisar registros...",
-                    on_change=HubState.set_tl_search,
+                    on_change=HubState.set_tl_search_input,
+                    on_blur=HubState.commit_tl_search,
+                    on_key_down=HubState.handle_tl_search_key,
                     style={"background": "rgba(14,26,23,0.6)", "border": f"1px solid {S.BORDER_SUBTLE}", "borderRadius": S.R_CONTROL, "color": "white", "padding": "7px 10px 7px 30px", "fontSize": "13px", "width": "100%", "outline": "none"},
                 ),
                 position="relative", width="100%",
@@ -3332,17 +3338,520 @@ def _project_breadcrumb() -> rx.Component:
     )
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 6 — FINANCEIRO POR PROJETO
+# ══════════════════════════════════════════════════════════════════════════════
+
+_FIN_STATUS_COLORS = {
+    "previsto":     ("#C98B2A", "rgba(201,139,42,0.12)"),
+    "em_andamento": ("#3B82F6", "rgba(59,130,246,0.12)"),
+    "concluido":    ("#22c55e", "rgba(34,197,94,0.12)"),
+    "cancelado":    ("#EF4444", "rgba(239,68,68,0.12)"),
+}
+
+_INPUT_STYLE = {
+    "background": "rgba(14,26,23,0.8)",
+    "border": f"1px solid rgba(255,255,255,0.08)",
+    "borderRadius": "3px",
+    "color": "white",
+    "padding": "8px 10px",
+    "fontSize": "13px",
+    "width": "100%",
+    "outline": "none",
+}
+
+
+def _fin_kpi_card(icon_tag: str, label: str, value, subtitle: str = "", color: str = "var(--text-main)") -> rx.Component:
+    return rx.box(
+        rx.text(label, font_size="9px", font_family=S.FONT_MONO, color=S.TEXT_MUTED, text_transform="uppercase", letter_spacing="0.1em", margin_bottom="6px"),
+        rx.hstack(
+            rx.center(rx.icon(tag=icon_tag, size=14, color=color), width="28px", height="28px", bg="rgba(255,255,255,0.04)", border_radius="4px", flex_shrink="0"),
+            rx.text(value, font_family=S.FONT_TECH, font_size="1.4rem", font_weight="700", color=color, line_height="1"),
+            spacing="2", align="center", margin_bottom="4px",
+        ),
+        rx.cond(subtitle != "", rx.text(subtitle, font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_BODY)),
+        **_GLASS_COMPACT,
+        flex="1",
+        min_width="160px",
+    )
+
+
+def _fin_status_badge(status: str) -> rx.Component:
+    label = rx.match(
+        status,
+        ("previsto",     rx.text("Previsto",     font_size="10px", font_weight="700", font_family=S.FONT_MONO)),
+        ("em_andamento", rx.text("Em Andamento", font_size="10px", font_weight="700", font_family=S.FONT_MONO)),
+        ("concluido",    rx.text("Concluído",    font_size="10px", font_weight="700", font_family=S.FONT_MONO)),
+        ("cancelado",    rx.text("Cancelado",    font_size="10px", font_weight="700", font_family=S.FONT_MONO)),
+        rx.text(status, font_size="10px", font_family=S.FONT_MONO),
+    )
+    color = rx.match(
+        status,
+        ("previsto",     S.COPPER),
+        ("em_andamento", "#3B82F6"),
+        ("concluido",    "#22c55e"),
+        ("cancelado",    S.DANGER),
+        S.TEXT_MUTED,
+    )
+    bg = rx.match(
+        status,
+        ("previsto",     "rgba(201,139,42,0.12)"),
+        ("em_andamento", "rgba(59,130,246,0.12)"),
+        ("concluido",    "rgba(34,197,94,0.12)"),
+        ("cancelado",    "rgba(239,68,68,0.12)"),
+        "rgba(255,255,255,0.05)",
+    )
+    return rx.box(
+        label,
+        color=color, bg=bg,
+        padding="2px 8px", border_radius="3px",
+        border=rx.cond(status == "previsto", f"1px solid rgba(201,139,42,0.3)",
+               rx.cond(status == "em_andamento", "1px solid rgba(59,130,246,0.3)",
+               rx.cond(status == "concluido", "1px solid rgba(34,197,94,0.3)",
+               rx.cond(status == "cancelado", "1px solid rgba(239,68,68,0.3)",
+               f"1px solid {S.BORDER_SUBTLE}")))),
+    )
+
+
+def _fin_custo_row(item: dict) -> rx.Component:
+    return rx.hstack(
+        # Categoria badge
+        rx.box(
+            rx.text(item["categoria_nome"], font_size="10px", font_weight="700", font_family=S.FONT_MONO, color=S.COPPER, white_space="nowrap"),
+            padding="2px 8px", border_radius="3px",
+            bg=S.COPPER_GLOW, border=f"1px solid rgba(201,139,42,0.2)",
+            flex_shrink="0", max_width="140px", overflow="hidden", text_overflow="ellipsis",
+        ),
+        # Description
+        rx.text(item["descricao"], font_size="13px", color="var(--text-main)", font_family=S.FONT_BODY, flex="1", overflow="hidden", text_overflow="ellipsis", white_space="nowrap", min_width="0"),
+        # Date
+        rx.text(item["data_custo"], font_size="10px", color=S.TEXT_MUTED, font_family=S.FONT_MONO, white_space="nowrap", display=rx.breakpoints(initial="none", md="block")),
+        # Previsto
+        rx.vstack(
+            rx.text("PREV", font_size="8px", color=S.TEXT_MUTED, font_family=S.FONT_MONO, letter_spacing="0.06em"),
+            rx.text(item["valor_previsto_fmt"], font_size="12px", font_weight="700", color=S.COPPER, font_family=S.FONT_MONO, white_space="nowrap"),
+            spacing="0", align="end", flex_shrink="0",
+        ),
+        # Executado
+        rx.vstack(
+            rx.text("EXEC", font_size="8px", color=S.TEXT_MUTED, font_family=S.FONT_MONO, letter_spacing="0.06em"),
+            rx.text(item["valor_executado_fmt"], font_size="12px", font_weight="700", color="#22c55e", font_family=S.FONT_MONO, white_space="nowrap"),
+            spacing="0", align="end", flex_shrink="0",
+        ),
+        # Status
+        _fin_status_badge(item["status"]),
+        # Actions
+        rx.hstack(
+            rx.icon_button(rx.icon(tag="pencil", size=12), size="1", variant="ghost", on_click=FinState.open_fin_edit(item["id"]), cursor="pointer", _hover={"bg": "rgba(201,139,42,0.15)"}),
+            rx.icon_button(rx.icon(tag="trash-2", size=12, color=S.DANGER), size="1", variant="ghost", on_click=FinState.request_fin_delete(item["id"]), cursor="pointer", _hover={"bg": "rgba(239,68,68,0.12)"}),
+            spacing="1", flex_shrink="0",
+        ),
+        padding="10px 14px",
+        border_radius=S.R_CONTROL,
+        border=f"1px solid {S.BORDER_SUBTLE}",
+        bg="rgba(255,255,255,0.02)",
+        _hover={"bg": "rgba(255,255,255,0.04)", "border_color": S.BORDER_ACCENT},
+        transition="all 0.15s ease",
+        width="100%", align="center", spacing="3", overflow="hidden",
+    )
+
+
+def _fin_custo_dialog() -> rx.Component:
+    return rx.dialog.root(
+        rx.dialog.content(
+            rx.vstack(
+                rx.hstack(
+                    rx.icon(tag=rx.cond(FinState.fin_edit_id == "", "circle-plus", "pencil"), size=16, color=S.COPPER),
+                    rx.dialog.title(FinState.fin_dialog_title, font_family=S.FONT_TECH, font_size="1rem", font_weight="700", color="var(--text-main)"),
+                    rx.spacer(),
+                    rx.dialog.close(rx.icon_button(rx.icon(tag="x", size=14), size="1", variant="ghost", cursor="pointer")),
+                    align="center", width="100%",
+                ),
+                rx.divider(border_color=S.BORDER_SUBTLE),
+                # Row 1: Categoria + Status
+                rx.flex(
+                    rx.vstack(
+                        rx.text("Categoria", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                        rx.select.root(
+                            rx.select.trigger(placeholder="Selecionar categoria...", style={"width": "100%", "background": "rgba(14,26,23,0.8)", "border": f"1px solid {S.BORDER_SUBTLE}", "borderRadius": S.R_CONTROL, "color": "white", "cursor": "pointer"}),
+                            rx.select.content(
+                                rx.foreach(
+                                    FinState.fin_categorias,
+                                    lambda c: rx.select.item(c["nome"], value=c["id"]),
+                                ),
+                                bg=S.BG_ELEVATED, border=f"1px solid {S.BORDER_SUBTLE}",
+                            ),
+                            value=FinState.fin_edit_categoria_id,
+                            on_change=FinState.set_fin_edit_categoria,
+                        ),
+                        spacing="1", flex="1",
+                    ),
+                    rx.vstack(
+                        rx.text("Status", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                        rx.select.root(
+                            rx.select.trigger(style={"width": "100%", "background": "rgba(14,26,23,0.8)", "border": f"1px solid {S.BORDER_SUBTLE}", "borderRadius": S.R_CONTROL, "color": "white", "cursor": "pointer"}),
+                            rx.select.content(
+                                rx.select.item("Previsto",     value="previsto"),
+                                rx.select.item("Em Andamento", value="em_andamento"),
+                                rx.select.item("Concluído",    value="concluido"),
+                                rx.select.item("Cancelado",    value="cancelado"),
+                                bg=S.BG_ELEVATED, border=f"1px solid {S.BORDER_SUBTLE}",
+                            ),
+                            value=FinState.fin_edit_status,
+                            on_change=FinState.set_fin_edit_status,
+                        ),
+                        spacing="1", flex="1",
+                    ),
+                    gap="12px", flex_wrap="wrap", width="100%",
+                ),
+                # Row 2: Descrição
+                rx.vstack(
+                    rx.text("Descrição *", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                    rx.el.input(
+                        default_value=FinState.fin_edit_descricao,
+                        on_blur=FinState.set_fin_edit_descricao,
+                        placeholder="Ex: Concreto para fundações...",
+                        style=_INPUT_STYLE,
+                    ),
+                    spacing="1", width="100%",
+                ),
+                # Row 3: Valor Previsto + Valor Executado
+                rx.flex(
+                    rx.vstack(
+                        rx.text("Valor Previsto (R$)", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                        rx.el.input(
+                            default_value=FinState.fin_edit_valor_previsto,
+                            on_blur=FinState.set_fin_edit_valor_previsto,
+                            placeholder="0.00",
+                            type="text",
+                            style=_INPUT_STYLE,
+                        ),
+                        spacing="1", flex="1",
+                    ),
+                    rx.vstack(
+                        rx.text("Valor Executado (R$)", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                        rx.el.input(
+                            default_value=FinState.fin_edit_valor_executado,
+                            on_blur=FinState.set_fin_edit_valor_executado,
+                            placeholder="0.00",
+                            type="text",
+                            style=_INPUT_STYLE,
+                        ),
+                        spacing="1", flex="1",
+                    ),
+                    gap="12px", flex_wrap="wrap", width="100%",
+                ),
+                # Row 4: Data + Atividade vinculada
+                rx.flex(
+                    rx.vstack(
+                        rx.text("Data do Custo", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                        rx.el.input(
+                            value=FinState.fin_edit_data,
+                            on_change=FinState.set_fin_edit_data,
+                            type="date",
+                            style={**_INPUT_STYLE, "colorScheme": "dark"},
+                        ),
+                        spacing="1", flex="1",
+                    ),
+                    rx.vstack(
+                        rx.text("Atividade Vinculada", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                        rx.select.root(
+                            rx.select.trigger(placeholder="Nenhuma...", style={"width": "100%", "background": "rgba(14,26,23,0.8)", "border": f"1px solid {S.BORDER_SUBTLE}", "borderRadius": S.R_CONTROL, "color": "white", "cursor": "pointer"}),
+                            rx.select.content(
+                                rx.select.item("Nenhuma", value="__none__"),
+                                rx.foreach(
+                                    FinState.fin_atividade_options,
+                                    lambda a: rx.select.item(a["label"], value=a["id"]),
+                                ),
+                                bg=S.BG_ELEVATED, border=f"1px solid {S.BORDER_SUBTLE}",
+                            ),
+                            value=rx.cond(FinState.fin_edit_atividade_id == "", "__none__", FinState.fin_edit_atividade_id),
+                            on_change=FinState.set_fin_edit_atividade,
+                        ),
+                        spacing="1", flex="1",
+                    ),
+                    gap="12px", flex_wrap="wrap", width="100%",
+                ),
+                # Row 5: Observações
+                rx.vstack(
+                    rx.text("Observações", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                    rx.el.textarea(
+                        default_value=FinState.fin_edit_observacoes,
+                        on_blur=FinState.set_fin_edit_observacoes,
+                        placeholder="Notas adicionais...",
+                        rows="2",
+                        style={**_INPUT_STYLE, "resize": "vertical", "fontFamily": S.FONT_BODY},
+                    ),
+                    spacing="1", width="100%",
+                ),
+                # Error
+                rx.cond(FinState.fin_error != "", rx.text(FinState.fin_error, font_size="12px", color=S.DANGER)),
+                # Actions
+                rx.hstack(
+                    rx.dialog.close(rx.button("Cancelar", variant="ghost", size="2", cursor="pointer", on_click=FinState.close_fin_dialog)),
+                    rx.button(
+                        rx.cond(FinState.fin_saving, rx.spinner(size="2"), rx.hstack(rx.icon(tag="save", size=13), rx.text("Salvar"), spacing="1")),
+                        on_click=FinState.save_fin_custo,
+                        size="2",
+                        disabled=FinState.fin_saving,
+                        style={"background": S.COPPER, "color": S.BG_VOID, "fontFamily": S.FONT_TECH, "fontWeight": "700", "cursor": "pointer"},
+                    ),
+                    justify="end", spacing="2", width="100%",
+                ),
+                spacing="4", width="100%",
+            ),
+            bg=S.BG_ELEVATED, border=f"1px solid {S.BORDER_SUBTLE}", border_radius=S.R_CARD,
+            max_width="560px", width="95vw",
+        ),
+        open=FinState.fin_show_dialog,
+        on_open_change=FinState.set_fin_show_dialog,
+    )
+
+
+def _fin_delete_dialog() -> rx.Component:
+    return rx.dialog.root(
+        rx.dialog.content(
+            rx.vstack(
+                rx.hstack(
+                    rx.icon(tag="trash-2", size=16, color=S.DANGER),
+                    rx.dialog.title("Excluir Custo", font_family=S.FONT_TECH, font_weight="700", color="var(--text-main)"),
+                    spacing="2", align="center",
+                ),
+                rx.text("Tem certeza que deseja excluir o custo:", font_size="13px", color=S.TEXT_MUTED),
+                rx.text(FinState.fin_delete_desc, font_size="13px", font_weight="700", color=S.DANGER),
+                rx.text("Esta ação não pode ser desfeita.", font_size="11px", color=S.TEXT_MUTED),
+                rx.hstack(
+                    rx.button("Cancelar", variant="ghost", size="2", cursor="pointer", on_click=FinState.cancel_fin_delete),
+                    rx.button(
+                        rx.hstack(rx.icon(tag="trash-2", size=13), rx.text("Excluir"), spacing="1"),
+                        on_click=FinState.confirm_fin_delete, size="2",
+                        style={"background": S.DANGER, "color": "white", "cursor": "pointer"},
+                    ),
+                    justify="end", spacing="2", width="100%",
+                ),
+                spacing="3", width="100%",
+            ),
+            bg=S.BG_ELEVATED, border=f"1px solid rgba(239,68,68,0.3)", border_radius=S.R_CARD, max_width="420px", width="90vw",
+        ),
+        open=FinState.fin_show_delete,
+    )
+
+
+def _fin_scurve_chart() -> rx.Component:
+    """S-Curve chart: cumulative previsto vs executado over time."""
+    return rx.box(
+        rx.hstack(
+            rx.icon(tag="trending-up", size=14, color=S.COPPER),
+            rx.text("CURVA S — EVOLUÇÃO ACUMULADA", font_family=S.FONT_TECH, font_size="0.8rem", font_weight="700", color="var(--text-main)", letter_spacing="0.06em"),
+            spacing="2", align="center", margin_bottom="16px",
+        ),
+        rx.recharts.responsive_container(
+            rx.recharts.area_chart(
+                rx.recharts.cartesian_grid(stroke_dasharray="3 3", stroke="rgba(255,255,255,0.05)"),
+                rx.recharts.x_axis(
+                    data_key="data",
+                    tick={"fill": "#889999", "fontSize": 10, "fontFamily": "'JetBrains Mono', monospace"},
+                    axisLine=False, tickLine=False,
+                ),
+                rx.recharts.y_axis(
+                    tick={"fill": "#889999", "fontSize": 10, "fontFamily": "'JetBrains Mono', monospace"},
+                    axisLine=False, tickLine=False,
+                    width=65,
+                ),
+                rx.recharts.tooltip(
+                    content_style={"background": "#142420", "border": "1px solid rgba(255,255,255,0.08)", "borderRadius": "4px", "color": "white", "fontFamily": "'JetBrains Mono', monospace", "fontSize": "12px"},
+                    label_style={"color": "#C98B2A"},
+                ),
+                rx.recharts.legend(
+                    wrapper_style={"fontSize": "11px", "fontFamily": "'JetBrains Mono', monospace", "color": "#889999"},
+                ),
+                rx.recharts.area(
+                    data_key="previsto_acum",
+                    name="Previsto Acum.",
+                    stroke=S.COPPER, fill="rgba(201,139,42,0.12)",
+                    stroke_width=2, type="monotone",
+                ),
+                rx.recharts.area(
+                    data_key="executado_acum",
+                    name="Executado Acum.",
+                    stroke="#22c55e", fill="rgba(34,197,94,0.08)",
+                    stroke_width=2, type="monotone",
+                ),
+                data=FinState.fin_scurve,
+            ),
+            width="100%", height=220,
+        ),
+        **_GLASS_PANEL,
+        width="100%",
+    )
+
+
+def _fin_by_cat_chart() -> rx.Component:
+    """Bar chart: previsto vs executado per categoria."""
+    return rx.box(
+        rx.hstack(
+            rx.icon(tag="bar-chart-2", size=14, color=S.COPPER),
+            rx.text("PREVISTO × EXECUTADO POR CATEGORIA", font_family=S.FONT_TECH, font_size="0.8rem", font_weight="700", color="var(--text-main)", letter_spacing="0.06em"),
+            spacing="2", align="center", margin_bottom="16px",
+        ),
+        rx.recharts.responsive_container(
+            rx.recharts.bar_chart(
+                rx.recharts.cartesian_grid(stroke_dasharray="3 3", stroke="rgba(255,255,255,0.05)"),
+                rx.recharts.x_axis(
+                    data_key="categoria",
+                    tick={"fill": "#889999", "fontSize": 10, "fontFamily": "'JetBrains Mono', monospace"},
+                    axisLine=False, tickLine=False,
+                ),
+                rx.recharts.y_axis(
+                    tick={"fill": "#889999", "fontSize": 10, "fontFamily": "'JetBrains Mono', monospace"},
+                    axisLine=False, tickLine=False,
+                    width=65,
+                ),
+                rx.recharts.tooltip(
+                    content_style={"background": "#142420", "border": "1px solid rgba(255,255,255,0.08)", "borderRadius": "4px", "color": "white", "fontFamily": "'JetBrains Mono', monospace", "fontSize": "12px"},
+                ),
+                rx.recharts.legend(
+                    wrapper_style={"fontSize": "11px", "fontFamily": "'JetBrains Mono', monospace", "color": "#889999"},
+                ),
+                rx.recharts.bar(data_key="previsto", name="Previsto", fill=S.COPPER, radius=[3, 3, 0, 0]),
+                rx.recharts.bar(data_key="executado", name="Executado", fill="#22c55e", radius=[3, 3, 0, 0]),
+                data=FinState.fin_by_cat,
+                bar_category_gap="30%",
+            ),
+            width="100%", height=200,
+        ),
+        **_GLASS_PANEL,
+        width="100%",
+    )
+
+
+def _tab_financeiro() -> rx.Component:
+    return rx.vstack(
+        # Dialogs
+        _fin_custo_dialog(),
+        _fin_delete_dialog(),
+
+        # ── KPI Strip ─────────────────────────────────────────────────────────
+        rx.cond(
+            FinState.fin_loading,
+            rx.center(rx.vstack(rx.spinner(size="3"), rx.text("Carregando dados financeiros...", font_size="12px", color=S.TEXT_MUTED), spacing="2", align="center"), padding="60px", width="100%"),
+            rx.vstack(
+                # KPI cards row
+                rx.flex(
+                    _fin_kpi_card("trending-up", "Total Previsto",  FinState.fin_kpis["total_previsto"],  color=S.COPPER),
+                    _fin_kpi_card("check-circle", "Total Executado", FinState.fin_kpis["total_executado"], color="#22c55e"),
+                    _fin_kpi_card("minus-circle", "Saldo a Executar", FinState.fin_kpis["saldo"],          color="#3B82F6"),
+                    rx.box(
+                        rx.text("% EXECUTADO", font_size="9px", font_family=S.FONT_MONO, color=S.TEXT_MUTED, text_transform="uppercase", letter_spacing="0.1em", margin_bottom="6px"),
+                        rx.text(FinState.fin_kpis["pct_executado"] + "%", font_family=S.FONT_TECH, font_size="1.4rem", font_weight="700", color=S.COPPER, line_height="1", margin_bottom="4px"),
+                        rx.box(
+                            rx.box(
+                                width=FinState.fin_kpis["pct_executado"] + "%",
+                                height="100%",
+                                bg=S.COPPER,
+                                border_radius="2px",
+                                transition="width 1s ease-out",
+                                max_width="100%",
+                            ),
+                            height="4px", bg="rgba(255,255,255,0.06)", border_radius="2px", overflow="hidden", width="100%",
+                        ),
+                        **_GLASS_COMPACT, flex="1", min_width="140px",
+                    ),
+                    gap="12px", flex_wrap="wrap", width="100%",
+                ),
+
+                # ── Toolbar ───────────────────────────────────────────────────
+                rx.hstack(
+                    # Search
+                    rx.hstack(
+                        rx.icon(tag="search", size=14, color=S.TEXT_MUTED),
+                        rx.el.input(
+                            default_value=FinState.fin_search,
+                            on_change=FinState.set_fin_search_input,
+                            on_blur=FinState.commit_fin_search,
+                            on_key_down=FinState.handle_fin_search_key,
+                            placeholder="Buscar descrição, categoria...",
+                            style={"background": "transparent", "border": "none", "color": "white", "fontSize": "13px", "outline": "none", "flex": "1", "minWidth": "150px"},
+                        ),
+                        padding="8px 12px", border_radius=S.R_CONTROL,
+                        border=f"1px solid {S.BORDER_SUBTLE}",
+                        bg="rgba(255,255,255,0.02)", flex="1", align="center",
+                    ),
+                    # Status filter
+                    rx.select.root(
+                        rx.select.trigger(placeholder="Todos os status", style={"background": "rgba(14,26,23,0.7)", "border": f"1px solid {S.BORDER_SUBTLE}", "borderRadius": S.R_CONTROL, "color": "white", "cursor": "pointer", "minWidth": "150px"}),
+                        rx.select.content(
+                            rx.select.item("Todos",        value="__none__"),
+                            rx.select.item("Previsto",     value="previsto"),
+                            rx.select.item("Em Andamento", value="em_andamento"),
+                            rx.select.item("Concluído",    value="concluido"),
+                            rx.select.item("Cancelado",    value="cancelado"),
+                            bg=S.BG_ELEVATED, border=f"1px solid {S.BORDER_SUBTLE}",
+                        ),
+                        value=rx.cond(FinState.fin_filter_status == "", "__none__", FinState.fin_filter_status),
+                        on_change=FinState.set_fin_filter_status,
+                    ),
+                    # Nova button
+                    rx.button(
+                        rx.hstack(rx.icon(tag="plus", size=13), rx.text("Novo Custo"), spacing="1"),
+                        on_click=FinState.open_fin_new,
+                        size="2",
+                        style={"background": S.COPPER, "color": S.BG_VOID, "fontFamily": S.FONT_TECH, "fontWeight": "700", "cursor": "pointer"},
+                    ),
+                    width="100%", align="center", flex_wrap="wrap", gap="10px",
+                ),
+
+                # ── Cost list ─────────────────────────────────────────────────
+                rx.cond(
+                    FinState.filtered_custos.length() == 0,
+                    rx.center(
+                        rx.vstack(
+                            rx.icon(tag="wallet", size=32, color=S.BORDER_SUBTLE),
+                            rx.text("Nenhum custo encontrado", font_size="13px", color=S.TEXT_MUTED),
+                            rx.text("Clique em 'Novo Custo' para começar", font_size="11px", color=S.TEXT_MUTED, opacity="0.7"),
+                            rx.button(
+                                rx.hstack(rx.icon(tag="plus", size=13), rx.text("Criar Primeiro Custo"), spacing="1"),
+                                on_click=FinState.open_fin_new, size="2", variant="soft",
+                                style={"cursor": "pointer", "marginTop": "8px"},
+                            ),
+                            spacing="2", align="center",
+                        ), padding="40px",
+                    ),
+                    rx.vstack(
+                        rx.foreach(FinState.filtered_custos, _fin_custo_row),
+                        spacing="1", width="100%",
+                    ),
+                ),
+
+                # ── Charts ────────────────────────────────────────────────────
+                rx.cond(
+                    FinState.fin_scurve.length() > 0,
+                    _fin_scurve_chart(),
+                ),
+                rx.cond(
+                    FinState.fin_by_cat.length() > 0,
+                    _fin_by_cat_chart(),
+                ),
+
+                spacing="4", width="100%", class_name="animate-fade-in",
+            ),
+        ),
+        spacing="0", width="100%",
+    )
+
+
 def hub_project_detail() -> rx.Component:
     """Renders the correct sub-page tab based on GlobalState.project_hub_tab."""
     return rx.vstack(
         _project_breadcrumb(),
         rx.match(
             GlobalState.project_hub_tab,
-            ("visao_geral", rx.box(_tab_visao_geral(), width="100%", class_name="animate-fade-in")),
-            ("dashboard",   rx.box(_tab_dashboard(),   width="100%", class_name="animate-fade-in")),
-            ("cronograma",  rx.box(_tab_cronograma(),  width="100%", class_name="animate-fade-in")),
-            ("auditoria",   rx.box(_tab_auditoria(),   width="100%", class_name="animate-fade-in")),
-            ("timeline",    rx.box(_tab_timeline(),    width="100%", class_name="animate-fade-in")),
+            ("visao_geral", rx.box(_tab_visao_geral(),   width="100%", class_name="animate-fade-in")),
+            ("dashboard",   rx.box(_tab_dashboard(),     width="100%", class_name="animate-fade-in")),
+            ("cronograma",  rx.box(_tab_cronograma(),    width="100%", class_name="animate-fade-in")),
+            ("auditoria",   rx.box(_tab_auditoria(),     width="100%", class_name="animate-fade-in")),
+            ("timeline",    rx.box(_tab_timeline(),      width="100%", class_name="animate-fade-in")),
+            ("financeiro",  rx.box(_tab_financeiro(),    width="100%", class_name="animate-fade-in")),
             # Default
             rx.box(_tab_visao_geral(), width="100%"),
         ),

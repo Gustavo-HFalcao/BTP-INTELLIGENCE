@@ -119,6 +119,7 @@ class HubState(rx.State):
     # Filter
     cron_fase_filter: str = ""
     cron_search: str = ""
+    cron_search_input: str = ""  # UI-only: updated on_change, committed on_blur/Enter
     cron_show_only_critical: bool = False
 
     # Inline edit dialog
@@ -199,6 +200,7 @@ class HubState(rx.State):
     # Filter + search
     tl_filter_tipo: str = ""
     tl_search: str = ""            # busca por título/descrição
+    tl_search_input: str = ""  # UI-only input buffer
 
     # ══════════════════════════════════════════════════════════════════════════
     # MACRO/MICRO hierarchy
@@ -549,6 +551,18 @@ class HubState(rx.State):
 
     def set_cron_search(self, value: str):
         self.cron_search = value
+
+    def commit_cron_search(self, _value: str = ""):
+        """Commit search from blur or Enter key — only then triggers filtered_cron_rows recalc."""
+        self.cron_search = self.cron_search_input
+
+    def set_cron_search_input(self, value: str):
+        """Update local input var without triggering filtered_cron_rows recalc."""
+        self.cron_search_input = value
+
+    def handle_cron_search_key(self, key: str):
+        if key == "Enter":
+            self.cron_search = self.cron_search_input
 
     def toggle_cron_critical(self):
         self.cron_show_only_critical = not self.cron_show_only_critical
@@ -1154,6 +1168,12 @@ class HubState(rx.State):
     def set_tl_filter_tipo(self, v: str):
         self.tl_filter_tipo = "" if self.tl_filter_tipo == v else v
     def set_tl_search(self, v: str): self.tl_search = v
+    def set_tl_search_input(self, v: str): self.tl_search_input = v
+    def commit_tl_search(self, _v: str = ""):
+        self.tl_search = self.tl_search_input
+    def handle_tl_search_key(self, key: str):
+        if key == "Enter":
+            self.tl_search = self.tl_search_input
     def set_tl_custo_valor(self, v: str): self.tl_custo_valor = v
     def set_tl_custo_categoria(self, v: str): self.tl_custo_categoria = v
 

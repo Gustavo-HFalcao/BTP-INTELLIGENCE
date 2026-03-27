@@ -972,28 +972,22 @@ class RDOState(rx.State):
         self.rdo_novas_atividades = [r for r in self.rdo_novas_atividades if r.get("_key", "") != key]
 
     def set_nova_atividade_nome(self, key: str, v: str):
-        new_list = [dict(r) for r in self.rdo_novas_atividades]
-        for row in new_list:
-            if row.get("_key") == key:
-                row["nome"] = v
-                break
-        self.rdo_novas_atividades = new_list
+        self.rdo_novas_atividades = [
+            {**r, "nome": v} if r.get("_key") == key else r
+            for r in self.rdo_novas_atividades
+        ]
 
     def set_nova_atividade_fase(self, key: str, v: str):
-        new_list = [dict(r) for r in self.rdo_novas_atividades]
-        for row in new_list:
-            if row.get("_key") == key:
-                row["fase"] = v
-                break
-        self.rdo_novas_atividades = new_list
+        self.rdo_novas_atividades = [
+            {**r, "fase": v} if r.get("_key") == key else r
+            for r in self.rdo_novas_atividades
+        ]
 
     def set_nova_atividade_progresso(self, key: str, v: str):
-        new_list = [dict(r) for r in self.rdo_novas_atividades]
-        for row in new_list:
-            if row.get("_key") == key:
-                row["progresso"] = str(v)
-                break
-        self.rdo_novas_atividades = new_list
+        self.rdo_novas_atividades = [
+            {**r, "progresso": str(v)} if r.get("_key") == key else r
+            for r in self.rdo_novas_atividades
+        ]
 
     def add_extra_atividade(self):
         """Add a new blank extra activity slot with a unique key."""
@@ -1009,26 +1003,22 @@ class RDOState(rx.State):
 
     def set_extra_atividade_id(self, key: str, v: str):
         """Set activity id by _key."""
-        new_list = [dict(r) for r in self.rdo_extra_atividades]
         real_v = "" if v == "__none__" else v
         opt = next((o for o in self.hub_atividades_options if o.get("id") == real_v), None)
-        for row in new_list:
-            if row.get("_key", "") == key:
-                row["id"] = real_v
-                row["nome"] = opt["label"] if opt else ""
-                if opt:
-                    row["progresso"] = opt.get("pct", "0")
-                break
-        self.rdo_extra_atividades = new_list
+        nome = opt["label"] if opt else ""
+        pct = opt.get("pct", "0") if opt else None
+        self.rdo_extra_atividades = [
+            {**r, "id": real_v, "nome": nome, **({"progresso": pct} if pct is not None else {})}
+            if r.get("_key", "") == key else r
+            for r in self.rdo_extra_atividades
+        ]
 
     def set_extra_atividade_progresso(self, key: str, v: str):
         """Set progress by _key."""
-        new_list = [dict(r) for r in self.rdo_extra_atividades]
-        for row in new_list:
-            if row.get("_key", "") == key:
-                row["progresso"] = str(v)
-                break
-        self.rdo_extra_atividades = new_list
+        self.rdo_extra_atividades = [
+            {**r, "progresso": str(v)} if r.get("_key", "") == key else r
+            for r in self.rdo_extra_atividades
+        ]
 
     @rx.event(background=True)
     async def load_hub_atividades(self, contrato: str):

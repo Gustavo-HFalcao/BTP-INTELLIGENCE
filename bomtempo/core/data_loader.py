@@ -77,7 +77,7 @@ class DataLoader:
             ("contratos",     "contratos"),
             ("hub_atividades", "projeto"),
             ("projects",      "obras"),
-            ("financeiro",    "financeiro"),
+            ("fin_custos",    "financeiro"),   # migrado: fin_custos substitui financeiro
             ("om",            "om"),
         ]
         sucesso = False
