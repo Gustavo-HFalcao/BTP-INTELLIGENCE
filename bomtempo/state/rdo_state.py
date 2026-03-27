@@ -133,11 +133,13 @@ class RDOState(rx.State):
     rdo_atividade_id: str = ""
     rdo_atividade_nome: str = ""
     rdo_progresso_atividade: str = "0"
-    # If no existing activity: create a pending one
+    # If no existing activity: create a pending one (legacy single — kept for reset compat)
     rdo_nova_atividade: bool = False
     rdo_nova_atividade_nome: str = ""
     rdo_nova_atividade_fase: str = ""
-    # Extra activities (list of {id, nome, progresso})
+    # List of unmapped activities to create as pending {_key, nome, fase, progresso}
+    rdo_novas_atividades: List[Dict[str, str]] = []
+    # Extra activities (list of {id, nome, progresso, _key})
     rdo_extra_atividades: List[Dict[str, str]] = []
 
     # ── Options ───────────────────────────────────────────────
@@ -947,38 +949,85 @@ class RDOState(rx.State):
     def set_rdo_atividade_id(self, v: str):
         real_v = "" if v == "__none__" else v
         self.rdo_atividade_id = real_v
-        # Also update display name from options
         opt = next((o for o in self.hub_atividades_options if o.get("id") == real_v), None)
         self.rdo_atividade_nome = opt["label"] if opt else ""
+        # Pre-fill with current DB progress so user continues from where it left off
+        if opt:
+            current_pct = opt.get("pct", "0")
+            self.rdo_progresso_atividade = current_pct
 
     def set_rdo_progresso_atividade(self, v): self.rdo_progresso_atividade = str(v)
     def toggle_rdo_nova_atividade(self): self.rdo_nova_atividade = not self.rdo_nova_atividade
     def set_rdo_nova_atividade_nome(self, v: str): self.rdo_nova_atividade_nome = v
     def set_rdo_nova_atividade_fase(self, v: str): self.rdo_nova_atividade_fase = v
 
+    def add_nova_atividade_nao_mapeada(self):
+        """Add a new unmapped activity slot."""
+        import time
+        new_list = list(self.rdo_novas_atividades)
+        new_list.append({"_key": str(int(time.time() * 1000) + len(new_list)), "nome": "", "fase": "", "progresso": "0"})
+        self.rdo_novas_atividades = new_list
+
+    def remove_nova_atividade(self, key: str):
+        self.rdo_novas_atividades = [r for r in self.rdo_novas_atividades if r.get("_key", "") != key]
+
+    def set_nova_atividade_nome(self, key: str, v: str):
+        new_list = [dict(r) for r in self.rdo_novas_atividades]
+        for row in new_list:
+            if row.get("_key") == key:
+                row["nome"] = v
+                break
+        self.rdo_novas_atividades = new_list
+
+    def set_nova_atividade_fase(self, key: str, v: str):
+        new_list = [dict(r) for r in self.rdo_novas_atividades]
+        for row in new_list:
+            if row.get("_key") == key:
+                row["fase"] = v
+                break
+        self.rdo_novas_atividades = new_list
+
+    def set_nova_atividade_progresso(self, key: str, v: str):
+        new_list = [dict(r) for r in self.rdo_novas_atividades]
+        for row in new_list:
+            if row.get("_key") == key:
+                row["progresso"] = str(v)
+                break
+        self.rdo_novas_atividades = new_list
+
     def add_extra_atividade(self):
-        """Add a new blank extra activity slot."""
+        """Add a new blank extra activity slot with a unique key."""
+        import time
         new_list = list(self.rdo_extra_atividades)
-        new_list.append({"id": "", "nome": "", "progresso": "0"})
+        new_list.append({"id": "", "nome": "", "progresso": "0", "_key": str(int(time.time() * 1000) + len(new_list))})
         self.rdo_extra_atividades = new_list
 
-    def remove_extra_atividade(self, idx: int):
-        new_list = [r for i, r in enumerate(self.rdo_extra_atividades) if i != idx]
+    def remove_extra_atividade(self, key: str):
+        """Remove extra activity by its _key."""
+        new_list = [r for r in self.rdo_extra_atividades if r.get("_key", "") != key]
         self.rdo_extra_atividades = new_list
 
-    def set_extra_atividade_id(self, idx: int, v: str):
+    def set_extra_atividade_id(self, key: str, v: str):
+        """Set activity id by _key."""
         new_list = [dict(r) for r in self.rdo_extra_atividades]
-        if idx < len(new_list):
-            real_v = "" if v == "__none__" else v
-            opt = next((o for o in self.hub_atividades_options if o.get("id") == real_v), None)
-            new_list[idx]["id"] = real_v
-            new_list[idx]["nome"] = opt["label"] if opt else ""
+        real_v = "" if v == "__none__" else v
+        opt = next((o for o in self.hub_atividades_options if o.get("id") == real_v), None)
+        for row in new_list:
+            if row.get("_key", "") == key:
+                row["id"] = real_v
+                row["nome"] = opt["label"] if opt else ""
+                if opt:
+                    row["progresso"] = opt.get("pct", "0")
+                break
         self.rdo_extra_atividades = new_list
 
-    def set_extra_atividade_progresso(self, idx: int, v: str):
+    def set_extra_atividade_progresso(self, key: str, v: str):
+        """Set progress by _key."""
         new_list = [dict(r) for r in self.rdo_extra_atividades]
-        if idx < len(new_list):
-            new_list[idx]["progresso"] = str(v)
+        for row in new_list:
+            if row.get("_key", "") == key:
+                row["progresso"] = str(v)
+                break
         self.rdo_extra_atividades = new_list
 
     @rx.event(background=True)
@@ -1002,6 +1051,7 @@ class RDOState(rx.State):
                 {
                     "id": str(r.get("id", "")),
                     "label": f"{r.get('fase_macro', '')} — {r.get('atividade', '')}",
+                    "pct": str(int(r.get("conclusao_pct", 0) or 0)),
                 }
                 for r in (rows or [])
                 if r.get("id") and r.get("atividade")
@@ -1176,6 +1226,7 @@ class RDOState(rx.State):
                 _nova_nome = str(self.rdo_nova_atividade_nome)
                 _nova_fase = str(self.rdo_nova_atividade_fase)
                 _extra_ativs = [dict(r) for r in self.rdo_extra_atividades]
+                _novas_ativs = [dict(r) for r in self.rdo_novas_atividades]
 
             if _ativ_id:
                 try:
@@ -1213,6 +1264,29 @@ class RDOState(rx.State):
                     logger.info(f"✅ Atividade pendente criada: '{_nova_nome}'")
                 except Exception as e:
                     logger.warning(f"⚠️ Create pending activity: {e}")
+
+            # 5b-novas. Create unmapped (pending) activities
+            for _na in _novas_ativs:
+                _na_nome = _na.get("nome", "").strip()
+                _na_fase = _na.get("fase", "").strip() or "Geral"
+                _na_pct = int(_na.get("progresso", "0") or "0")
+                if not _na_nome:
+                    continue
+                try:
+                    from bomtempo.core.supabase_client import sb_insert as _sb_ins_na
+                    await loop.run_in_executor(None, lambda n=_na_nome, f=_na_fase, p=_na_pct: _sb_ins_na("hub_atividades", {
+                        "contrato": contrato,
+                        "atividade": n,
+                        "fase_macro": f,
+                        "conclusao_pct": p,
+                        "critico": False,
+                        "nivel": "macro",
+                        "pendente_aprovacao": True,
+                        "created_by": user_name,
+                    }))
+                    logger.info(f"✅ Atividade não mapeada criada: '{_na_nome}'")
+                except Exception as e:
+                    logger.warning(f"⚠️ Create unmapped activity: {e}")
 
             # 5b-extra. Process additional activity updates
             for _extra in _extra_ativs:
@@ -1284,7 +1358,7 @@ class RDOState(rx.State):
             try:
                 rows = await loop.run_in_executor(
                     None,
-                    lambda: _sb_select("email_sender", filters={"contract": contrato}),
+                    lambda: _sb_select("email_sender", filters={"module": "rdo"}),
                 )
                 recipients = [r.get("email", "").strip() for r in (rows or []) if r.get("email", "").strip()]
             except Exception:
@@ -1430,6 +1504,7 @@ class RDOState(rx.State):
         self.rdo_nova_atividade_nome = ""
         self.rdo_nova_atividade_fase = ""
         self.rdo_extra_atividades = []
+        self.rdo_novas_atividades = []
         self.hub_atividades_options = []
         self.signatory_name        = ""
         self.signatory_doc         = ""

@@ -317,8 +317,9 @@ def _apply_watermark(img_bytes: bytes, meta: Dict[str, Any], content_type: str =
         if meta.get("postcode"):
             text_entries.append((str(meta["postcode"]), fnt_sm, MUTED))
 
-        # Warning when no EXIF — upload de foto possivelmente antiga
-        if not meta.get("local_is_exif"):
+        # Warning only when no EXIF AND no checkin GPS
+        has_gps = bool(meta.get("lat") and meta.get("lng"))
+        if not meta.get("local_is_exif") and not has_gps:
             if meta.get("local_is_lastmod"):
                 text_entries.append(("⚠ Data via lastModified — sem EXIF", fnt_sm, YELLOW))
                 text_entries.append(("  Foto pode ser anterior ao upload", fnt_sm, YELLOW))
@@ -339,41 +340,42 @@ def _apply_watermark(img_bytes: bytes, meta: Dict[str, Any], content_type: str =
             default=300,
         )
 
-        # ── Map thumbnail — 35% of image width, same height as text block ────
+        # ── Map thumbnail — 28% of image width ───────────────────────────────
         text_block_h = len(text_entries) * line_h + pad_y * 2
-        map_target_w = int(w * 0.35)
-        map_target_h = text_block_h - 16  # 8px margin top+bottom
+        map_target_w = int(w * 0.28)
+        map_target_h = int(h * 0.22)
 
         map_img = None
-        map_bytes = meta.get("map_bytes")
-        if map_bytes and map_target_w > 60 and map_target_h > 40:
+        map_bytes_data = meta.get("map_bytes")
+        if map_bytes_data and map_target_w > 50 and map_target_h > 40:
             try:
-                raw_map = Image.open(io.BytesIO(map_bytes)).convert("RGBA")
-                # Fit inside target box preserving aspect ratio
+                raw_map = Image.open(io.BytesIO(map_bytes_data)).convert("RGBA")
                 raw_map.thumbnail((map_target_w, map_target_h), Image.LANCZOS)
                 map_img = raw_map
             except Exception:
                 map_img = None
 
-        # ── Panel dimensions — FULL width of image ────────────────────────────
-        map_col_w  = (map_img.width + pad_x * 2) if map_img else 0
-        text_col_w = w - map_col_w             # text takes remaining width
-        panel_h    = max(
+        # ── Panel dimensions — capped at 32% of image height ─────────────────
+        map_col_w = (map_img.width + pad_x * 2) if map_img else 0
+        panel_h = max(
             text_block_h,
-            (map_img.height + 16) if map_img else 0,
+            (map_img.height + pad_y * 2) if map_img else 0,
         )
+        panel_h = min(panel_h, int(h * 0.32))
 
-        # ── Compose panel ─────────────────────────────────────────────────────
+        # ── Compose semi-transparent panel ────────────────────────────────────
         panel = Image.new("RGBA", (w, panel_h), PANEL)
         draw  = ImageDraw.Draw(panel)
 
         # Copper accent stripe across top of panel
-        stripe = max(4, fsize // 12)
-        draw.rectangle([0, 0, w, stripe], fill=(201, 139, 42, 220))
+        stripe = max(3, fsize // 14)
+        draw.rectangle([0, 0, w, stripe], fill=(201, 139, 42, 200))
 
         # Text lines
-        y = pad_y + stripe + 4
+        y = pad_y + stripe + 2
         for text, fnt_use, clr in text_entries:
+            if y + line_h > panel_h - pad_y:
+                break  # don't overflow panel
             draw.text((pad_x, y), text, font=fnt_use, fill=clr)
             y += line_h
 
@@ -381,24 +383,21 @@ def _apply_watermark(img_bytes: bytes, meta: Dict[str, Any], content_type: str =
         if map_img:
             mx = w - map_img.width - pad_x
             my = (panel_h - map_img.height) // 2
-            # Copper border frame
-            border_px = max(3, fsize // 20)
-            brd_w, brd_h = map_img.width + border_px * 2, map_img.height + border_px * 2
-            brd = Image.new("RGBA", (brd_w, brd_h), (201, 139, 42, 200))
+            border_px = max(2, fsize // 22)
+            brd_w = map_img.width + border_px * 2
+            brd_h = map_img.height + border_px * 2
+            brd = Image.new("RGBA", (brd_w, brd_h), (201, 139, 42, 180))
             panel.paste(brd, (mx - border_px, my - border_px), brd)
             panel.paste(map_img, (mx, my), map_img)
 
-        # ── Append panel BELOW the photo (expand canvas downward) ─────────────
-        # Fundo transparente — sem barra preta na parte inferior da foto.
-        # Painel tem seu próprio fundo semi-opaco; a foto acima permanece intacta.
-        canvas = Image.new("RGBA", (w, h + panel_h), (0, 0, 0, 0))
-        canvas.paste(img, (0, 0))
-        canvas.paste(panel, (0, h), panel)
+        # ── Overlay panel at BOTTOM of original image (no canvas expansion) ───
+        # Photo dimensions stay UNCHANGED — semi-transparent overlay only.
+        result = img.copy()
+        result.paste(panel, (0, h - panel_h), panel)
 
         buf = io.BytesIO()
-        # Sempre salva em PNG para preservar canal alpha (fundo transparente).
-        # JPEG não suporta transparência e causaria fundo preto.
-        canvas.save(buf, format="PNG", optimize=True)
+        # Convert to RGB for JPEG — alpha fully composited into image
+        result.convert("RGB").save(buf, format="JPEG", quality=92, optimize=True)
         return buf.getvalue()
     except Exception as e:
         logger.error(f"❌ Watermark falhou (retornando original): {e}")

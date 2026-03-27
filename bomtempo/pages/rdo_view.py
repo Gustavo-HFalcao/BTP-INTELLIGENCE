@@ -1,12 +1,9 @@
 """
-RDO Public View — Visualização pública e interativa do RDO (sem login).
+RDO Public View — Visualização interativa e rica do RDO (sem login).
 Rota: /rdo-view/[token]
 
-Renderiza os dados nativamente (não iframe) com:
-- Fotos clicáveis em lightbox com zoom
-- Layout responsivo mobile
-- AI summary inline
-- Botão baixar PDF
+Mostra todas as seções do formulário: GPS, equipe, EPI, ferramentas,
+fotos do dia, atividades, materiais, observações, AI summary.
 """
 
 import asyncio
@@ -19,20 +16,23 @@ from bomtempo.core.rdo_service import RDOService
 
 logger = get_logger(__name__)
 
-_BG     = "#0B1A15"
-_COPPER = "#C98B2A"
-_PATINA = "#2A9D8F"
-_TEXT   = "#E8F0EE"
-_MUTED  = "#6B9090"
-_BORDER = "rgba(255,255,255,0.10)"
-_CARD   = "rgba(255,255,255,0.04)"
-_SURFACE = "#0E1A17"
+_BG      = "#0B1A15"
+_SURFACE = "#0E2118"
+_CARD    = "rgba(255,255,255,0.04)"
+_CARD2   = "rgba(255,255,255,0.06)"
+_COPPER  = "#C98B2A"
+_COPPER2 = "rgba(201,139,42,0.15)"
+_PATINA  = "#2A9D8F"
+_TEXT    = "#E8F0EE"
+_MUTED   = "#6B9090"
+_BORDER  = "rgba(255,255,255,0.08)"
+_BORDER2 = "rgba(201,139,42,0.25)"
 
 
 # ── State ────────────────────────────────────────────────────────────────────
 
 class RDOViewState(rx.State):
-    rdo_html: str = ""           # kept for print fallback
+    rdo_html: str = ""
     rdo_id: str = ""
     rdo_contrato: str = ""
     rdo_data: str = ""
@@ -44,26 +44,40 @@ class RDOViewState(rx.State):
     rdo_mestre: str = ""
     rdo_observacoes: str = ""
     rdo_orientacao: str = ""
+    rdo_houve_chuva: str = ""
+    # GPS
     rdo_checkin_endereco: str = ""
     rdo_checkin_timestamp: str = ""
+    rdo_checkin_lat: str = ""
+    rdo_checkin_lng: str = ""
     rdo_checkout_endereco: str = ""
     rdo_checkout_timestamp: str = ""
+    # Fotos especiais
+    rdo_epi_foto_url: str = ""
+    rdo_ferramentas_foto_url: str = ""
+    # PDF
     pdf_url: str = ""
     ai_summary: str = ""
     is_loading: bool = True
     not_found: bool = False
-    # Evidences for interactive gallery
+    # Listas
     evidencias: List[Dict[str, str]] = []
-    # Atividades
     atividades: List[Dict[str, str]] = []
     # Lightbox
     lightbox_url: str = ""
+    lightbox_label: str = ""
 
     def open_lightbox(self, url: str):
         self.lightbox_url = url
+        self.lightbox_label = ""
+
+    def open_lightbox_labeled(self, data: Dict[str, str]):
+        self.lightbox_url = data.get("url", "")
+        self.lightbox_label = data.get("label", "")
 
     def close_lightbox(self):
         self.lightbox_url = ""
+        self.lightbox_label = ""
 
     @rx.event(background=True)
     async def load_rdo(self):
@@ -84,7 +98,7 @@ class RDOViewState(rx.State):
                 self.not_found = True
             return
 
-        # Extract evidence list
+        # Evidence list (fotos do dia genéricas)
         evidencias_raw = data.get("evidencias") or []
         ev_list = []
         for e in evidencias_raw:
@@ -93,54 +107,96 @@ class RDOViewState(rx.State):
             if url:
                 ev_list.append({"url": url, "legenda": legenda})
 
-        # Extract atividades
+        # Atividades
         atividades_raw = data.get("atividades") or []
         at_list = []
         for a in atividades_raw:
+            pct = str(a.get("progresso_percentual") or a.get("percentual_conclusao") or a.get("pct") or "")
             at_list.append({
                 "descricao": str(a.get("atividade") or a.get("descricao") or a.get("description") or ""),
                 "status": str(a.get("status") or ""),
-                "percentual": str(a.get("progresso_percentual") or a.get("percentual_conclusao") or a.get("pct") or ""),
+                "percentual": pct,
             })
 
-        # Build HTML for print
-        html = await loop.run_in_executor(
-            None,
-            lambda: RDOService.build_html(data, is_preview=False),
-        )
+        def _fmt_date(val: str) -> str:
+            v = str(val or "")[:10]
+            if len(v) == 10 and v[4] == "-":
+                try:
+                    p = v.split("-")
+                    return f"{p[2]}/{p[1]}/{p[0]}"
+                except Exception:
+                    pass
+            return v
 
         async with self:
-            self.rdo_html             = html
-            self.rdo_id               = data.get("id_rdo", "")
-            self.rdo_contrato         = data.get("contrato", "")
-            self.rdo_data             = str(data.get("data", ""))
-            self.rdo_status           = data.get("status", "")
-            self.rdo_projeto          = str(data.get("projeto") or "")
-            self.rdo_cliente          = str(data.get("cliente") or "")
-            self.rdo_clima            = str(data.get("condicao_climatica") or data.get("clima") or "")
-            self.rdo_turno            = str(data.get("turno") or "")
-            self.rdo_mestre           = str(data.get("mestre_id") or "")
-            self.rdo_observacoes      = str(data.get("observacoes") or "")
-            self.rdo_orientacao       = str(data.get("orientacao") or "")
-            self.rdo_checkin_endereco = str(data.get("checkin_endereco") or "")
+            self.rdo_id                = str(data.get("id_rdo", ""))
+            self.rdo_contrato          = str(data.get("contrato", ""))
+            self.rdo_data              = _fmt_date(str(data.get("data", "")))
+            self.rdo_status            = str(data.get("status", ""))
+            self.rdo_projeto           = str(data.get("projeto") or "")
+            self.rdo_cliente           = str(data.get("cliente") or "")
+            self.rdo_clima             = str(data.get("condicao_climatica") or data.get("clima") or "")
+            self.rdo_turno             = str(data.get("turno") or "")
+            self.rdo_mestre            = str(data.get("mestre_id") or "")
+            self.rdo_observacoes       = str(data.get("observacoes") or "")
+            self.rdo_orientacao        = str(data.get("orientacao") or "")
+            self.rdo_houve_chuva       = "Sim" if data.get("houve_chuva") else "Não"
+            self.rdo_checkin_endereco  = str(data.get("checkin_endereco") or "")
             self.rdo_checkin_timestamp = str(data.get("checkin_timestamp") or "")
+            self.rdo_checkin_lat       = str(data.get("checkin_lat") or "")
+            self.rdo_checkin_lng       = str(data.get("checkin_lng") or "")
             self.rdo_checkout_endereco = str(data.get("checkout_endereco") or "")
             self.rdo_checkout_timestamp = str(data.get("checkout_timestamp") or "")
-            self.pdf_url              = data.get("pdf_url", "")
-            self.ai_summary           = data.get("ai_summary", "")
-            self.evidencias           = ev_list
-            self.atividades           = at_list
-            self.is_loading           = False
+            self.rdo_epi_foto_url      = str(data.get("epi_foto_url") or "")
+            self.rdo_ferramentas_foto_url = str(data.get("ferramentas_foto_url") or "")
+            self.pdf_url               = str(data.get("pdf_url") or "")
+            self.ai_summary            = str(data.get("ai_summary") or "")
+            self.evidencias            = ev_list
+            self.atividades            = at_list
+            self.is_loading            = False
 
 
-# ── Components ───────────────────────────────────────────────────────────────
+# ── Helpers ──────────────────────────────────────────────────────────────────
 
-def _info_row(label: str, value: rx.Component | str) -> rx.Component:
+def _section_header(title: str, icon: str, color: str = _COPPER) -> rx.Component:
     return rx.hstack(
-        rx.text(label, size="1", color=_MUTED, width="110px", flex_shrink="0"),
-        rx.text(value, size="2", color=_TEXT, weight="medium") if isinstance(value, str) else value,
-        spacing="3",
-        align="start",
+        rx.box(
+            rx.icon(icon, size=14, color=color),
+            width="30px", height="30px",
+            border_radius="6px",
+            bg=f"rgba({','.join(str(int(color.lstrip('#')[i:i+2], 16)) for i in (0,2,4))},0.12)" if color.startswith('#') else "rgba(201,139,42,0.12)",
+            display="flex", align_items="center", justify_content="center",
+            flex_shrink="0",
+        ),
+        rx.text(
+            title,
+            font_size="11px",
+            font_weight="700",
+            letter_spacing="0.1em",
+            text_transform="uppercase",
+            color=color,
+            font_family="'Rajdhani', sans-serif",
+        ),
+        spacing="2", align="center",
+        margin_bottom="14px",
+    )
+
+
+def _kv(label: str, value, muted: bool = False) -> rx.Component:
+    return rx.hstack(
+        rx.text(label, size="1", color=_MUTED, width="120px", flex_shrink="0", white_space="nowrap"),
+        rx.text(value, size="2", color=_MUTED if muted else _TEXT, weight="medium", flex="1") if isinstance(value, str) else value,
+        spacing="2", align="start", width="100%",
+    )
+
+
+def _card(*children, accent: bool = False) -> rx.Component:
+    return rx.box(
+        *children,
+        padding="18px 20px",
+        background=_CARD,
+        border=f"1px solid {_BORDER2 if accent else _BORDER}",
+        border_radius="12px",
         width="100%",
     )
 
@@ -148,8 +204,49 @@ def _info_row(label: str, value: rx.Component | str) -> rx.Component:
 def _badge_status() -> rx.Component:
     return rx.cond(
         RDOViewState.rdo_status == "finalizado",
-        rx.badge("Finalizado", color_scheme="teal", variant="soft", size="1"),
-        rx.badge("Rascunho", color_scheme="amber", variant="outline", size="1"),
+        rx.badge("✓ Finalizado", color_scheme="teal", variant="soft", size="2"),
+        rx.badge("● Rascunho", color_scheme="amber", variant="outline", size="2"),
+    )
+
+
+def _clima_icon(clima: rx.Var) -> rx.Component:
+    return rx.cond(
+        clima.contains("chuv") | clima.contains("Chuv"),
+        rx.icon("cloud-rain", size=14, color="#60A5FA"),
+        rx.cond(
+            clima.contains("nub") | clima.contains("Nub"),
+            rx.icon("cloud", size=14, color=_MUTED),
+            rx.icon("sun", size=14, color="#FBBF24"),
+        ),
+    )
+
+
+# ── Photo card with click-to-lightbox ────────────────────────────────────────
+
+def _photo_card(url: str, label: str) -> rx.Component:
+    """Static photo card — used for EPI and ferramentas."""
+    return rx.box(
+        rx.image(
+            src=url,
+            width="100%",
+            height="180px",
+            object_fit="cover",
+            border_radius="8px 8px 0 0",
+            cursor="zoom-in",
+            on_click=RDOViewState.open_lightbox(url),
+        ),
+        rx.box(
+            rx.text(label, size="1", color=_MUTED, font_weight="500"),
+            padding="6px 10px",
+            background="rgba(0,0,0,0.4)",
+            border_radius="0 0 8px 8px",
+        ),
+        border_radius="8px",
+        border=f"1px solid {_BORDER}",
+        overflow="hidden",
+        cursor="zoom-in",
+        transition="border-color 0.15s",
+        style={"_hover": {"border_color": _BORDER2}},
     )
 
 
@@ -158,196 +255,244 @@ def _ev_card(ev: Dict[str, str]) -> rx.Component:
         rx.image(
             src=ev["url"],
             width="100%",
-            height="200px",
+            height="180px",
             object_fit="cover",
             border_radius="8px 8px 0 0",
             cursor="zoom-in",
-            on_click=RDOViewState.open_lightbox(ev["url"]),
-            style={"transition": "opacity 0.15s", "_hover": {"opacity": "0.88"}},
+            on_click=RDOViewState.open_lightbox_labeled({"url": ev["url"], "label": ev["legenda"]}),
         ),
         rx.cond(
             ev["legenda"] != "",
             rx.box(
                 rx.text(ev["legenda"], size="1", color=_MUTED),
                 padding="6px 10px",
-                background="rgba(0,0,0,0.3)",
+                background="rgba(0,0,0,0.4)",
                 border_radius="0 0 8px 8px",
             ),
+            rx.box(height="0px"),
         ),
         border_radius="8px",
         border=f"1px solid {_BORDER}",
         overflow="hidden",
-        style={
-            "_hover": {"border_color": "rgba(201,139,42,0.4)"},
-            "transition": "border-color 0.15s",
-        },
+        cursor="zoom-in",
+        transition="border-color 0.15s",
+        style={"_hover": {"border_color": _BORDER2}},
     )
 
 
 def _at_row(at: Dict[str, str]) -> rx.Component:
     status_color = rx.cond(
         at["status"] == "Concluído",
-        "#2A9D8F",
+        _PATINA,
         rx.cond(at["status"] == "Em andamento", _COPPER, _MUTED),
     )
-    return rx.hstack(
-        rx.box(
-            width="8px", height="8px",
-            border_radius="50%",
-            background=status_color,
-            flex_shrink="0",
-            margin_top="6px",
-        ),
+    return rx.box(
         rx.vstack(
-            rx.text(at["descricao"], size="2", color=_TEXT),
             rx.hstack(
-                rx.text(at["status"], size="1", color=status_color),
-                rx.cond(
-                    at["percentual"] != "",
-                    rx.text(f"· {at['percentual']}%", size="1", color=_MUTED),
+                rx.box(
+                    width="8px", height="8px",
+                    border_radius="50%",
+                    background=status_color,
+                    flex_shrink="0",
+                    margin_top="4px",
                 ),
-                spacing="1",
+                rx.vstack(
+                    rx.text(at["descricao"], size="2", color=_TEXT, weight="medium"),
+                    rx.hstack(
+                        rx.text(at["status"], size="1", color=status_color),
+                        rx.cond(
+                            at["percentual"] != "",
+                            rx.text("·", size="1", color=_MUTED),
+                            rx.fragment(),
+                        ),
+                        rx.cond(
+                            at["percentual"] != "",
+                            rx.text(at["percentual"] + "%", size="1", color=_MUTED),
+                            rx.fragment(),
+                        ),
+                        spacing="1",
+                    ),
+                    spacing="1", align="start",
+                ),
+                spacing="2", align="start", width="100%",
             ),
-            spacing="1",
-            align="start",
+            # Progress bar
+            rx.cond(
+                at["percentual"] != "",
+                rx.box(
+                    rx.box(
+                        width=at["percentual"] + "%",
+                        height="3px",
+                        background=rx.cond(
+                            at["percentual"].to(int) == 100,
+                            _PATINA,
+                            _COPPER,
+                        ),
+                        border_radius="2px",
+                        transition="width 0.3s ease",
+                    ),
+                    width="100%",
+                    height="3px",
+                    background="rgba(255,255,255,0.06)",
+                    border_radius="2px",
+                    margin_top="4px",
+                ),
+                rx.fragment(),
+            ),
+            spacing="1", width="100%",
         ),
-        spacing="3",
-        align="start",
+        padding="12px 14px",
+        background="rgba(255,255,255,0.02)",
+        border=f"1px solid {_BORDER}",
+        border_radius="8px",
         width="100%",
     )
 
+
+
+# ── Lightbox ─────────────────────────────────────────────────────────────────
 
 def _lightbox() -> rx.Component:
     return rx.cond(
         RDOViewState.lightbox_url != "",
         rx.box(
             rx.box(
+                # Image — constrained to viewport
                 rx.image(
                     src=RDOViewState.lightbox_url,
-                    max_width="95vw",
-                    max_height="90vh",
+                    max_width="92vw",
+                    max_height="80vh",
                     object_fit="contain",
-                    border_radius="8px",
-                    box_shadow="0 24px 64px rgba(0,0,0,0.9)",
+                    border_radius="10px",
+                    box_shadow="0 32px 80px rgba(0,0,0,0.95)",
+                    display="block",
                 ),
+                # Label below image
+                rx.cond(
+                    RDOViewState.lightbox_label != "",
+                    rx.box(
+                        rx.text(RDOViewState.lightbox_label, size="2", color=_MUTED, text_align="center"),
+                        padding="8px 0 0 0",
+                    ),
+                    rx.fragment(),
+                ),
+                # Close button
                 rx.button(
-                    rx.icon("x", size=18),
+                    rx.icon("x", size=16),
                     on_click=RDOViewState.close_lightbox,
                     position="absolute",
-                    top="12px",
-                    right="12px",
+                    top="-14px",
+                    right="-14px",
                     style={
-                        "background": "rgba(0,0,0,0.7)",
-                        "border": "1px solid rgba(255,255,255,0.2)",
-                        "color": "#fff",
-                        "border_radius": "50%",
-                        "width": "36px",
-                        "height": "36px",
+                        "background": "rgba(14,26,23,0.95)",
+                        "border": f"1px solid {_BORDER2}",
+                        "color": _COPPER,
+                        "borderRadius": "50%",
+                        "width": "32px",
+                        "height": "32px",
                         "cursor": "pointer",
                         "display": "flex",
-                        "align_items": "center",
-                        "justify_content": "center",
+                        "alignItems": "center",
+                        "justifyContent": "center",
+                        "flexShrink": "0",
                     },
                 ),
+                # Download
                 rx.link(
                     rx.button(
-                        rx.icon("download", size=14),
+                        rx.icon("download", size=12),
                         "Baixar",
                         size="1",
                         style={
-                            "background": "rgba(201,139,42,0.8)",
+                            "background": f"linear-gradient(135deg,{_COPPER},#9B6820)",
                             "color": "#fff",
-                            "border_radius": "6px",
+                            "borderRadius": "6px",
+                            "fontSize": "11px",
                         },
                     ),
                     href=RDOViewState.lightbox_url,
                     is_external=True,
                     position="absolute",
-                    bottom="12px",
-                    right="12px",
+                    bottom="-12px",
+                    right="-12px",
                 ),
                 position="relative",
-                display="inline-block",
+                display="inline-flex",
+                flex_direction="column",
+                align_items="center",
             ),
             position="fixed",
             top="0", left="0", right="0", bottom="0",
-            background="rgba(0,0,0,0.92)",
+            background="rgba(0,0,0,0.94)",
             display="flex",
             align_items="center",
             justify_content="center",
             z_index="99999",
             on_click=RDOViewState.close_lightbox,
-            style={"backdropFilter": "blur(6px)", "cursor": "zoom-out"},
+            style={"backdropFilter": "blur(8px)", "cursor": "zoom-out"},
         ),
     )
 
 
-def _section(title: str, icon: str, children: list) -> rx.Component:
-    return rx.box(
-        rx.hstack(
-            rx.icon(icon, size=15, color=_COPPER),
-            rx.text(title, size="2", weight="bold", color=_COPPER,
-                    letter_spacing="0.05em", text_transform="uppercase"),
-            spacing="2", align="center", margin_bottom="12px",
-        ),
-        *children,
-        padding="18px 20px",
-        background=_CARD,
-        border=f"1px solid {_BORDER}",
-        border_radius="10px",
-        width="100%",
-    )
-
+# ── Page ─────────────────────────────────────────────────────────────────────
 
 def rdo_view_page() -> rx.Component:
     return rx.box(
         _lightbox(),
-        # Top bar
-        rx.hstack(
+        # ── Top bar ──────────────────────────────────────────────────────────
+        rx.box(
             rx.hstack(
-                rx.text("BOMTEMPO", weight="bold", size="4", color="#fff"),
-                rx.text("·", color=_MUTED),
-                rx.text("RDO Online", size="2", color=_MUTED),
-                spacing="2", align="center",
-            ),
-            rx.spacer(),
-            rx.cond(
-                RDOViewState.pdf_url != "",
-                rx.link(
-                    rx.button(
-                        rx.icon("download", size=14),
-                        "Baixar PDF",
-                        size="2",
-                        style={
-                            "background": f"linear-gradient(135deg,{_COPPER},#9B6820)",
-                            "color": "#fff",
-                            "border_radius": "6px",
-                            "font_weight": "600",
-                        },
+                rx.hstack(
+                    rx.image(src="/icon.png", width="24px", height="24px", border_radius="4px", object_fit="cover"),
+                    rx.vstack(
+                        rx.text("BOMTEMPO", weight="bold", size="2", color="#fff", line_height="1"),
+                        rx.text("Relatório Diário de Obra", size="1", color=_MUTED, line_height="1"),
+                        spacing="0",
                     ),
-                    href=RDOViewState.pdf_url,
-                    is_external=True,
+                    spacing="2", align="center",
                 ),
+                rx.spacer(),
+                rx.cond(
+                    RDOViewState.pdf_url != "",
+                    rx.link(
+                        rx.button(
+                            rx.icon("download", size=14),
+                            "Baixar PDF",
+                            size="2",
+                            style={
+                                "background": f"linear-gradient(135deg,{_COPPER},#9B6820)",
+                                "color": "#fff",
+                                "borderRadius": "6px",
+                                "fontWeight": "600",
+                            },
+                        ),
+                        href=RDOViewState.pdf_url,
+                        is_external=True,
+                    ),
+                    rx.fragment(),
+                ),
+                align="center", width="100%",
             ),
-            padding="12px 20px",
-            background="rgba(11,26,21,0.96)",
+            padding="10px 20px",
+            background="rgba(11,26,21,0.97)",
             border_bottom=f"1px solid {_BORDER}",
-            style={"backdropFilter": "blur(12px)"},
+            style={"backdropFilter": "blur(14px)"},
             position="sticky",
             top="0",
             z_index="50",
             width="100%",
         ),
-        # Content
+
+        # ── Content ──────────────────────────────────────────────────────────
         rx.cond(
             RDOViewState.is_loading,
             rx.center(
                 rx.vstack(
-                    rx.spinner(size="3", color=_COPPER),
+                    rx.spinner(size="3", color_scheme="amber"),
                     rx.text("Carregando relatório…", size="3", color=_MUTED),
                     spacing="3", align="center",
                 ),
-                min_height="60vh",
+                min_height="70vh",
             ),
             rx.cond(
                 RDOViewState.not_found,
@@ -357,122 +502,195 @@ def rdo_view_page() -> rx.Component:
                         rx.text("Relatório não encontrado", size="5", weight="bold", color=_TEXT),
                         rx.text("O link pode ter expirado ou o RDO não existe.", size="2", color=_MUTED),
                         rx.link(
-                            rx.button("Ir para o Dashboard", size="2",
-                                      style={"background": f"linear-gradient(135deg,{_COPPER},#9B6820)",
-                                             "color": "#fff", "border_radius": "6px"}),
+                            rx.button(
+                                "Ir para o Dashboard", size="2",
+                                style={"background": f"linear-gradient(135deg,{_COPPER},#9B6820)", "color": "#fff", "borderRadius": "6px"},
+                            ),
                             href="/",
                         ),
                         spacing="3", align="center",
                     ),
-                    min_height="60vh",
+                    min_height="70vh",
                 ),
-                # Main interactive content
+                # ── Main content ─────────────────────────────────────────────
                 rx.vstack(
-                    # Header card
+
+                    # ── 1. Header card ─────────────────────────────────────
                     rx.box(
+                        # Copper glow background
+                        rx.box(
+                            position="absolute", top="0", left="0", right="0", bottom="0",
+                            background=f"linear-gradient(135deg, rgba(201,139,42,0.05) 0%, transparent 60%)",
+                            border_radius="14px",
+                            pointer_events="none",
+                        ),
                         rx.vstack(
                             rx.hstack(
                                 rx.vstack(
-                                    rx.text(RDOViewState.rdo_contrato, size="5", weight="bold", color=_COPPER),
+                                    rx.hstack(
+                                        rx.text(RDOViewState.rdo_contrato, size="5", weight="bold", color=_COPPER, font_family="'Rajdhani', sans-serif"),
+                                        _badge_status(),
+                                        spacing="3", align="center",
+                                    ),
                                     rx.text(RDOViewState.rdo_projeto, size="2", color=_MUTED),
-                                    spacing="0", align="start",
+                                    spacing="1", align="start",
                                 ),
                                 rx.spacer(),
                                 rx.vstack(
-                                    _badge_status(),
-                                    rx.text(RDOViewState.rdo_data, size="2", color=_TEXT),
-                                    spacing="1", align="end",
+                                    rx.box(
+                                        rx.text(RDOViewState.rdo_data, size="3", weight="bold", color=_TEXT, font_family="'JetBrains Mono', monospace"),
+                                        padding="6px 12px",
+                                        background=_COPPER2,
+                                        border=f"1px solid {_BORDER2}",
+                                        border_radius="8px",
+                                    ),
+                                    spacing="0", align="end",
                                 ),
                                 align="start", width="100%",
                             ),
-                            rx.divider(color_scheme="gray", opacity="0.2"),
-                            rx.hstack(
-                                _info_row("Cliente", RDOViewState.rdo_cliente),
-                                _info_row("Mestre", RDOViewState.rdo_mestre),
-                                flex_wrap="wrap",
-                                gap="8px",
-                                width="100%",
-                            ),
-                            rx.hstack(
-                                _info_row("Clima", RDOViewState.rdo_clima),
-                                _info_row("Turno", RDOViewState.rdo_turno),
-                                flex_wrap="wrap",
+                            rx.separator(border_color=_BORDER),
+                            rx.grid(
+                                _kv("Cliente", RDOViewState.rdo_cliente),
+                                _kv("Mestre de Obras", RDOViewState.rdo_mestre),
+                                _kv("Turno", RDOViewState.rdo_turno),
+                                rx.hstack(
+                                    rx.text("Clima", size="1", color=_MUTED, width="120px", flex_shrink="0"),
+                                    _clima_icon(RDOViewState.rdo_clima),
+                                    rx.text(RDOViewState.rdo_clima, size="2", color=_TEXT, weight="medium"),
+                                    spacing="2", align="center",
+                                ),
+                                _kv("Chuva no dia", RDOViewState.rdo_houve_chuva),
+                                _kv("ID RDO", RDOViewState.rdo_id, muted=True),
+                                columns=rx.breakpoints(initial="1", md="2"),
                                 gap="8px",
                                 width="100%",
                             ),
                             spacing="3",
                         ),
-                        padding="20px",
+                        padding="22px 24px",
                         background=_CARD,
-                        border=f"2px solid rgba(201,139,42,0.3)",
-                        border_radius="12px",
+                        border=f"2px solid {_BORDER2}",
+                        border_radius="14px",
                         width="100%",
+                        position="relative",
+                        overflow="hidden",
                     ),
 
-                    # GPS Check-in / Check-out
+                    # ── 2. GPS Check-in / Check-out ───────────────────────
                     rx.cond(
                         RDOViewState.rdo_checkin_endereco != "",
-                        _section("GPS", "map-pin", [
-                            rx.hstack(
+                        _card(
+                            _section_header("GPS — Presença em Campo", "map-pin"),
+                            rx.grid(
+                                # Check-in
                                 rx.vstack(
-                                    rx.text("Check-in", size="1", color=_MUTED, weight="bold"),
+                                    rx.hstack(
+                                        rx.box(width="8px", height="8px", border_radius="50%", bg=_PATINA, flex_shrink="0"),
+                                        rx.text("Check-in", size="1", color=_PATINA, weight="bold", text_transform="uppercase", letter_spacing="0.06em"),
+                                        spacing="2", align="center",
+                                    ),
                                     rx.text(RDOViewState.rdo_checkin_endereco, size="2", color=_TEXT),
-                                    rx.text(RDOViewState.rdo_checkin_timestamp, size="1", color=_MUTED),
+                                    rx.text(RDOViewState.rdo_checkin_timestamp, size="1", color=_MUTED, font_family="'JetBrains Mono', monospace"),
+                                    # Map link
+                                    rx.cond(
+                                        RDOViewState.rdo_checkin_lat != "",
+                                        rx.link(
+                                            rx.hstack(
+                                                rx.icon("external-link", size=11, color=_COPPER),
+                                                rx.text("Ver no mapa", size="1", color=_COPPER),
+                                                spacing="1", align="center",
+                                            ),
+                                            href="https://www.openstreetmap.org/?mlat=" + RDOViewState.rdo_checkin_lat + "&mlon=" + RDOViewState.rdo_checkin_lng,
+                                            is_external=True,
+                                        ),
+                                        rx.fragment(),
+                                    ),
                                     spacing="1", align="start",
+                                    padding="12px",
+                                    background="rgba(42,157,143,0.06)",
+                                    border=f"1px solid rgba(42,157,143,0.2)",
+                                    border_radius="8px",
+                                    width="100%",
                                 ),
+                                # Check-out
                                 rx.cond(
                                     RDOViewState.rdo_checkout_endereco != "",
                                     rx.vstack(
-                                        rx.text("Check-out", size="1", color=_MUTED, weight="bold"),
+                                        rx.hstack(
+                                            rx.box(width="8px", height="8px", border_radius="50%", bg=_COPPER, flex_shrink="0"),
+                                            rx.text("Check-out", size="1", color=_COPPER, weight="bold", text_transform="uppercase", letter_spacing="0.06em"),
+                                            spacing="2", align="center",
+                                        ),
                                         rx.text(RDOViewState.rdo_checkout_endereco, size="2", color=_TEXT),
-                                        rx.text(RDOViewState.rdo_checkout_timestamp, size="1", color=_MUTED),
+                                        rx.text(RDOViewState.rdo_checkout_timestamp, size="1", color=_MUTED, font_family="'JetBrains Mono', monospace"),
                                         spacing="1", align="start",
+                                        padding="12px",
+                                        background=_COPPER2,
+                                        border=f"1px solid {_BORDER2}",
+                                        border_radius="8px",
+                                        width="100%",
                                     ),
+                                    rx.fragment(),
                                 ),
-                                spacing="6", flex_wrap="wrap", width="100%",
+                                columns=rx.breakpoints(initial="1", sm="2"),
+                                gap="10px",
+                                width="100%",
                             ),
-                        ]),
+                        ),
+                        rx.fragment(),
                     ),
 
-                    # Atividades
+                    # ── 3. Atividades do dia ──────────────────────────────
                     rx.cond(
                         RDOViewState.atividades.length() > 0,
-                        _section("Atividades", "clipboard-list", [
+                        _card(
+                            _section_header("Serviços Executados", "clipboard-check"),
                             rx.vstack(
                                 rx.foreach(RDOViewState.atividades, _at_row),
-                                spacing="3", width="100%",
+                                spacing="2", width="100%",
                             ),
-                        ]),
+                        ),
+                        rx.fragment(),
                     ),
 
-                    # Observações
+                    # ── 4. EPI + Ferramentas ──────────────────────────────
                     rx.cond(
-                        RDOViewState.rdo_observacoes != "",
-                        _section("Observações", "message-square", [
-                            rx.text(RDOViewState.rdo_observacoes, size="2", color=_TEXT,
-                                    line_height="1.7", white_space="pre-wrap"),
-                        ]),
+                        (RDOViewState.rdo_epi_foto_url != "") | (RDOViewState.rdo_ferramentas_foto_url != ""),
+                        _card(
+                            _section_header("Segurança e Equipamentos", "shield-check"),
+                            rx.grid(
+                                rx.cond(
+                                    RDOViewState.rdo_epi_foto_url != "",
+                                    _photo_card(RDOViewState.rdo_epi_foto_url, "Equipe com EPIs"),
+                                    rx.fragment(),
+                                ),
+                                rx.cond(
+                                    RDOViewState.rdo_ferramentas_foto_url != "",
+                                    _photo_card(RDOViewState.rdo_ferramentas_foto_url, "Ferramentas Limpas e Organizadas"),
+                                    rx.fragment(),
+                                ),
+                                columns=rx.breakpoints(initial="1", sm="2"),
+                                gap="12px",
+                                width="100%",
+                            ),
+                        ),
+                        rx.fragment(),
                     ),
 
-                    # Orientações
-                    rx.cond(
-                        RDOViewState.rdo_orientacao != "",
-                        _section("Orientações", "lightbulb", [
-                            rx.text(RDOViewState.rdo_orientacao, size="2", color=_TEXT,
-                                    line_height="1.7", white_space="pre-wrap"),
-                        ]),
-                    ),
-
-                    # Evidências — gallery with click-to-zoom
+                    # ── 6. Fotos do dia ───────────────────────────────────
                     rx.cond(
                         RDOViewState.evidencias.length() > 0,
-                        rx.box(
+                        _card(
                             rx.hstack(
-                                rx.icon("camera", size=15, color=_COPPER),
-                                rx.text("Evidências Fotográficas", size="2", weight="bold", color=_COPPER,
-                                        letter_spacing="0.05em", text_transform="uppercase"),
-                                rx.text("(toque para ampliar)", size="1", color=_MUTED),
-                                spacing="2", align="center", margin_bottom="12px",
+                                _section_header("Evidências de Campo", "camera"),
+                                rx.spacer(),
+                                rx.text(
+                                    RDOViewState.evidencias.length().to_string() + " foto(s)",
+                                    size="1", color=_MUTED,
+                                ),
+                                margin_bottom="14px",
+                                width="100%",
+                                align="center",
                             ),
                             rx.grid(
                                 rx.foreach(RDOViewState.evidencias, _ev_card),
@@ -480,46 +698,106 @@ def rdo_view_page() -> rx.Component:
                                 gap="10px",
                                 width="100%",
                             ),
-                            padding="18px 20px",
-                            background=_CARD,
-                            border=f"1px solid {_BORDER}",
-                            border_radius="10px",
-                            width="100%",
                         ),
+                        rx.fragment(),
                     ),
 
-                    # AI Analysis
+                    # ── 7. Observações ────────────────────────────────────
+                    rx.cond(
+                        RDOViewState.rdo_observacoes != "",
+                        _card(
+                            _section_header("Observações", "message-square"),
+                            rx.box(
+                                rx.text(
+                                    RDOViewState.rdo_observacoes,
+                                    size="2", color=_TEXT,
+                                    line_height="1.75",
+                                    white_space="pre-wrap",
+                                ),
+                                padding="12px 14px",
+                                background="rgba(255,255,255,0.02)",
+                                border=f"1px solid {_BORDER}",
+                                border_radius="8px",
+                            ),
+                        ),
+                        rx.fragment(),
+                    ),
+
+                    # ── 8. Orientações ────────────────────────────────────
+                    rx.cond(
+                        RDOViewState.rdo_orientacao != "",
+                        _card(
+                            _section_header("Orientações / Pendências", "lightbulb", color=_PATINA),
+                            rx.box(
+                                rx.text(
+                                    RDOViewState.rdo_orientacao,
+                                    size="2", color=_TEXT,
+                                    line_height="1.75",
+                                    white_space="pre-wrap",
+                                ),
+                                padding="12px 14px",
+                                background="rgba(42,157,143,0.04)",
+                                border=f"1px solid rgba(42,157,143,0.15)",
+                                border_radius="8px",
+                            ),
+                        ),
+                        rx.fragment(),
+                    ),
+
+                    # ── 9. AI Summary ─────────────────────────────────────
                     rx.cond(
                         RDOViewState.ai_summary != "",
                         rx.box(
                             rx.hstack(
-                                rx.icon("bot", size=16, color=_PATINA),
-                                rx.text("Análise BTP Intelligence", size="2", weight="bold", color=_PATINA),
-                                spacing="2", align="center", margin_bottom="12px",
+                                rx.box(
+                                    rx.icon("bot", size=14, color=_PATINA),
+                                    width="28px", height="28px",
+                                    border_radius="6px",
+                                    bg="rgba(42,157,143,0.12)",
+                                    display="flex", align_items="center", justify_content="center",
+                                    flex_shrink="0",
+                                ),
+                                rx.vstack(
+                                    rx.text("Análise BTP Intelligence", size="2", weight="bold", color=_PATINA),
+                                    rx.text("Gerado automaticamente por IA", size="1", color=_MUTED),
+                                    spacing="0", align="start",
+                                ),
+                                spacing="2", align="center",
+                                margin_bottom="14px",
                             ),
                             rx.box(
                                 rx.markdown(RDOViewState.ai_summary),
-                                style={"color": _TEXT, "font_size": "14px", "line_height": "1.7"},
+                                style={"color": _TEXT, "fontSize": "14px", "lineHeight": "1.7"},
                             ),
                             padding="18px 20px",
-                            background="rgba(42,157,143,0.06)",
-                            border=f"1px solid rgba(42,157,143,0.25)",
+                            background="rgba(42,157,143,0.04)",
+                            border=f"1px solid rgba(42,157,143,0.2)",
                             border_left=f"3px solid {_PATINA}",
-                            border_radius="10px",
+                            border_radius="12px",
                             width="100%",
                         ),
+                        rx.fragment(),
                     ),
 
-                    # Footer
+                    # ── Footer ────────────────────────────────────────────
                     rx.center(
-                        rx.text("Gerado por BTP Intelligence · Bomtempo Engenharia",
-                                size="1", color=_MUTED),
-                        padding_y="24px",
+                        rx.vstack(
+                            rx.divider(border_color=_BORDER),
+                            rx.hstack(
+                                rx.image(src="/icon.png", width="16px", height="16px", border_radius="3px", object_fit="cover"),
+                                rx.text("Gerado por BTP Intelligence · Bomtempo Engenharia", size="1", color=_MUTED),
+                                spacing="2", align="center",
+                            ),
+                            spacing="2", align="center", width="100%",
+                        ),
+                        padding_y="28px",
+                        width="100%",
                     ),
+
                     spacing="4",
                     width="100%",
                     padding=["16px", "24px 28px"],
-                    max_width="900px",
+                    max_width="920px",
                     margin="0 auto",
                 ),
             ),

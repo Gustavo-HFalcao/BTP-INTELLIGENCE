@@ -277,7 +277,7 @@ def sidebar() -> rx.Component:
         top="0",
         left="0",
         bg=S.BG_ELEVATED,
-        box_shadow=f"1px 0 0 {S.BORDER_SUBTLE}",
+        border_right=f"1px solid {S.BORDER_SUBTLE}",
         z_index="50",
         transition="width 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
         display=["none", "none", "block"],

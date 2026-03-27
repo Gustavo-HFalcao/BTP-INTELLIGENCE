@@ -549,7 +549,7 @@ def top_bar() -> rx.Component:
         # Fixed positioning — dynamically offset by sidebar width
         position="fixed",
         top="0",
-        left=rx.cond(GlobalState.sidebar_open, "236px", "64px"),
+        left=rx.cond(GlobalState.sidebar_open, "237px", "65px"),
         right="0",
         height="56px",
         background="rgba(14,26,23,0.92)",

@@ -32,6 +32,12 @@ class RDOHistoricoState(rx.State):
     is_loading: bool = False
     filter_status: str = "todos"  # todos | rascunho | finalizado
 
+    # ── Email notification management ─────────────────────────
+    emails_list: List[Dict[str, str]] = []
+    emails_loading: bool = False
+    new_email_input: str = ""
+    emails_error: str = ""
+
     @rx.var
     def filtered_rdos(self) -> List[Dict[str, str]]:
         if self.filter_status == "todos":
@@ -120,6 +126,62 @@ class RDOHistoricoState(rx.State):
 
     def set_filter(self, status: str):
         self.filter_status = status
+
+    def set_new_email_input(self, v: str):
+        self.new_email_input = v
+
+    def handle_email_keydown(self, key: str):
+        if key == "Enter":
+            return RDOHistoricoState.add_email
+
+    @rx.event(background=True)
+    async def load_emails(self):
+        async with self:
+            self.emails_loading = True
+            self.emails_error = ""
+        from bomtempo.core.supabase_client import sb_select as _sel
+        try:
+            rows = _sel("email_sender", filters={"module": "rdo"}, order="created_at.asc", limit=50) or []
+            normalized = [{"id": str(r.get("id", "")), "email": str(r.get("email", ""))} for r in rows]
+        except Exception as e:
+            normalized = []
+            async with self:
+                self.emails_error = f"Erro ao carregar e-mails: {str(e)[:80]}"
+        async with self:
+            self.emails_list = normalized
+            self.emails_loading = False
+
+    @rx.event(background=True)
+    async def add_email(self):
+        email = ""
+        async with self:
+            email = self.new_email_input.strip().lower()
+        if not email or "@" not in email:
+            async with self:
+                self.emails_error = "E-mail inválido."
+            return
+        from bomtempo.core.supabase_client import sb_insert as _ins
+        try:
+            _ins("email_sender", {"module": "rdo", "email": email})
+        except Exception as e:
+            async with self:
+                self.emails_error = f"Erro ao adicionar: {str(e)[:80]}"
+            return
+        async with self:
+            self.new_email_input = ""
+            self.emails_error = ""
+        yield RDOHistoricoState.load_emails
+
+    @rx.event(background=True)
+    async def remove_email(self, email_id: str):
+        from bomtempo.core.supabase_client import sb_delete as _del
+        try:
+            _del("email_sender", filters={"id": email_id})
+        except Exception as e:
+            async with self:
+                self.emails_error = f"Erro ao remover: {str(e)[:80]}"
+            return
+        yield RDOHistoricoState.load_emails
 
     def open_external_url(self, url: str):
         """Abre URL em nova aba via JS — bypassa o router SPA/PWA."""
@@ -291,6 +353,83 @@ def _rdo_card(rdo: Dict[str, Any]) -> rx.Component:
 
 # ── Page ─────────────────────────────────────────────────────────────────────
 
+def _email_row(item: Dict[str, str]) -> rx.Component:
+    return rx.hstack(
+        rx.icon("mail", size=13, color=_MUTED),
+        rx.text(item["email"], size="2", color=_TEXT, flex="1"),
+        rx.icon_button(
+            rx.icon("trash-2", size=13),
+            variant="ghost", size="1",
+            on_click=RDOHistoricoState.remove_email(item["id"]),
+            style={"color": "#EF4444", "cursor": "pointer"},
+        ),
+        spacing="2", align="center", width="100%",
+        padding="8px 12px",
+        border_radius="6px",
+        background="rgba(255,255,255,0.03)",
+        border=f"1px solid {_BORDER}",
+    )
+
+
+def _tab_emails() -> rx.Component:
+    return rx.vstack(
+        rx.text(
+            "Defina quem recebe notificações por e-mail quando um RDO for finalizado.",
+            size="2", color=_MUTED, margin_bottom="16px",
+        ),
+        # Add email row
+        rx.hstack(
+            rx.input(
+                placeholder="novo@email.com",
+                value=RDOHistoricoState.new_email_input,
+                on_change=RDOHistoricoState.set_new_email_input,
+                on_key_down=RDOHistoricoState.handle_email_keydown,
+                style={
+                    "background": "rgba(255,255,255,0.06)",
+                    "border": f"1px solid {_BORDER}",
+                    "border_radius": "6px",
+                    "color": _TEXT,
+                    "flex": "1",
+                },
+            ),
+            rx.button(
+                rx.icon("plus", size=14),
+                "Adicionar",
+                on_click=RDOHistoricoState.add_email,
+                size="2",
+                style={"background": _BTN_PRI, "color": "#fff", "border_radius": "6px", "cursor": "pointer"},
+            ),
+            spacing="2", width="100%",
+        ),
+        rx.cond(
+            RDOHistoricoState.emails_error != "",
+            rx.text(RDOHistoricoState.emails_error, size="1", color="#EF4444"),
+        ),
+        rx.separator(width="100%", margin_y="12px"),
+        # List
+        rx.cond(
+            RDOHistoricoState.emails_loading,
+            rx.center(rx.spinner(size="2"), padding="24px"),
+            rx.cond(
+                RDOHistoricoState.emails_list.length() == 0,
+                rx.center(
+                    rx.vstack(
+                        rx.icon("inbox", size=28, color=_MUTED),
+                        rx.text("Nenhum e-mail cadastrado", size="2", color=_MUTED),
+                        spacing="2", align="center",
+                    ),
+                    padding="32px",
+                ),
+                rx.vstack(
+                    rx.foreach(RDOHistoricoState.emails_list, _email_row),
+                    spacing="2", width="100%",
+                ),
+            ),
+        ),
+        spacing="3", width="100%",
+    )
+
+
 def rdo_historico_page() -> rx.Component:
     return rx.box(
         # Header
@@ -321,58 +460,82 @@ def rdo_historico_page() -> rx.Component:
             gap="12px",
             margin_bottom="20px",
         ),
-        # Filter tabs
-        rx.hstack(
-            _filter_tab("Todos", "todos", RDOHistoricoState.filter_status),
-            _filter_tab("Finalizados", "finalizado", RDOHistoricoState.filter_status),
-            _filter_tab("Rascunhos", "rascunho", RDOHistoricoState.filter_status),
-            rx.spacer(),
-            rx.button(
-                rx.icon("refresh-cw", size=14),
-                on_click=RDOHistoricoState.load_rdos,
-                size="1",
-                variant="ghost",
-                color=_MUTED,
-            ),
-            spacing="2",
-            align="center",
-            margin_bottom="16px",
-        ),
-        # List
-        rx.cond(
-            RDOHistoricoState.is_loading,
-            rx.center(
-                rx.vstack(
-                    rx.spinner(size="3"),
-                    rx.text("Carregando RDOs…", size="2", color=_MUTED),
-                    spacing="2",
-                    align="center",
+        # Main tabs: RDOs | E-mails
+        rx.tabs.root(
+            rx.tabs.list(
+                rx.tabs.trigger(
+                    rx.hstack(rx.icon("file-text", size=14), rx.text("Meus RDOs"), spacing="2", align="center"),
+                    value="rdos",
+                    style={"cursor": "pointer"},
                 ),
-                padding="60px",
+                rx.tabs.trigger(
+                    rx.hstack(rx.icon("mail", size=14), rx.text("E-mails de Notificação"), spacing="2", align="center"),
+                    value="emails",
+                    on_click=RDOHistoricoState.load_emails,
+                    style={"cursor": "pointer"},
+                ),
+                margin_bottom="16px",
             ),
-            rx.cond(
-                RDOHistoricoState.filtered_rdos.length() == 0,
-                rx.center(
-                    rx.vstack(
-                        rx.icon("inbox", size=40, color=_MUTED),
-                        rx.text("Nenhum RDO encontrado", size="3", color=_MUTED),
+            # Tab: RDOs
+            rx.tabs.content(
+                rx.vstack(
+                    # Filter bar
+                    rx.hstack(
+                        _filter_tab("Todos", "todos", RDOHistoricoState.filter_status),
+                        _filter_tab("Finalizados", "finalizado", RDOHistoricoState.filter_status),
+                        _filter_tab("Rascunhos", "rascunho", RDOHistoricoState.filter_status),
+                        rx.spacer(),
                         rx.button(
-                            "Criar primeiro RDO",
-                            on_click=rx.redirect("/rdo-form"),
-                            size="2",
-                            style={"background": _BTN_PRI, "color": "#fff", "border_radius": "6px"},
+                            rx.icon("refresh-cw", size=14),
+                            on_click=RDOHistoricoState.load_rdos,
+                            size="1", variant="ghost", color=_MUTED,
                         ),
-                        spacing="3",
-                        align="center",
+                        spacing="2", align="center",
                     ),
-                    padding="60px",
+                    # List
+                    rx.cond(
+                        RDOHistoricoState.is_loading,
+                        rx.center(
+                            rx.vstack(
+                                rx.spinner(size="3"),
+                                rx.text("Carregando RDOs…", size="2", color=_MUTED),
+                                spacing="2", align="center",
+                            ),
+                            padding="60px",
+                        ),
+                        rx.cond(
+                            RDOHistoricoState.filtered_rdos.length() == 0,
+                            rx.center(
+                                rx.vstack(
+                                    rx.icon("inbox", size=40, color=_MUTED),
+                                    rx.text("Nenhum RDO encontrado", size="3", color=_MUTED),
+                                    rx.button(
+                                        "Criar primeiro RDO",
+                                        on_click=rx.redirect("/rdo-form"),
+                                        size="2",
+                                        style={"background": _BTN_PRI, "color": "#fff", "border_radius": "6px"},
+                                    ),
+                                    spacing="3", align="center",
+                                ),
+                                padding="60px",
+                            ),
+                            rx.vstack(
+                                rx.foreach(RDOHistoricoState.filtered_rdos, _rdo_card),
+                                spacing="2", width="100%",
+                            ),
+                        ),
+                    ),
+                    spacing="3", width="100%",
                 ),
-                rx.vstack(
-                    rx.foreach(RDOHistoricoState.filtered_rdos, _rdo_card),
-                    spacing="2",
-                    width="100%",
-                ),
+                value="rdos",
             ),
+            # Tab: E-mails
+            rx.tabs.content(
+                _tab_emails(),
+                value="emails",
+            ),
+            default_value="rdos",
+            width="100%",
         ),
         padding=["16px", "28px"],
         max_width="960px",

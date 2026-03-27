@@ -3396,16 +3396,15 @@ class GlobalState(rx.State):
             {"role": "user", "content": context},
         ]
 
-        result: Dict[str, Any] = {"text": ""}
+        import asyncio as _asyncio
 
         def run_ai():
             try:
                 from bomtempo.core.ai_client import ai_client as _ai
-
-                result["text"] = _ai.query(messages)
+                return _ai.query(messages)
             except Exception:
                 risco_lvl = "crítico" if risco >= 60 else ("moderado" if risco >= 30 else "controlado")
-                result["text"] = (
+                return (
                     f"Obra com risco {risco_lvl} ({risco}/100). "
                     f"Avanço físico em {avanco:.0f}% com orçamento {budget_status}. "
                     + (
@@ -3415,12 +3414,11 @@ class GlobalState(rx.State):
                     )
                 )
 
-        t = threading.Thread(target=run_ai, daemon=True)
-        t.start()
-        t.join(timeout=30)
+        loop = _asyncio.get_running_loop()
+        ai_text = await loop.run_in_executor(None, run_ai)
 
         async with self:
-            self.obra_insight_text = result["text"] or "Análise em processamento..."
+            self.obra_insight_text = ai_text or "Análise em processamento..."
             self.obra_insight_loading = False
 
     async def select_obra_and_load_weather(self, value: str):

@@ -870,10 +870,9 @@ class HubState(rx.State):
             def _run_analysis():
                 try:
                     # Use direct AI call
-                    from bomtempo.core.ai_client import BomtempoAIClient
-                    client = BomtempoAIClient()
+                    from bomtempo.core.ai_client import ai_client
                     full_text = ""
-                    for chunk in client.query_stream(messages):
+                    for chunk in ai_client.query_stream(messages):
                         full_text += chunk
                     result_queue.put(("ok", full_text))
                 except Exception as ex:
@@ -1158,7 +1157,7 @@ class HubState(rx.State):
     def set_tl_custo_valor(self, v: str): self.tl_custo_valor = v
     def set_tl_custo_categoria(self, v: str): self.tl_custo_categoria = v
 
-    async def upload_tl_anexo(self, files: list):
+    async def upload_tl_anexo(self, files: list[rx.UploadFile]):
         """Upload file attachment to Supabase Storage bucket 'timeline-anexos'."""
         if not files:
             return

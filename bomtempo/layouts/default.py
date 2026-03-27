@@ -12,6 +12,7 @@ from bomtempo.components.top_bar import top_bar
 from bomtempo.core import styles as S
 from bomtempo.pages.login import login_page
 from bomtempo.state.global_state import GlobalState
+from bomtempo.state.rdo_state import RDOState
 from bomtempo.state.usuarios_state import AVATAR_ICONS
 
 
@@ -757,6 +758,77 @@ def _kpi_detail_dialog() -> rx.Component:
     )
 
 
+_MUTED_OVERLAY = "rgba(255,255,255,0.45)"
+_COPPER_OVERLAY = "#C98B2A"
+
+
+def _rdo_submit_overlay() -> rx.Component:
+    """Full-screen RDO submit overlay — rendered at root level so position:fixed covers full viewport."""
+    steps = [
+        ("💾", "Salvando RDO no banco de dados…"),
+        ("📄", "Gerando PDF…"),
+        ("☁️", "Enviando PDF para a nuvem…"),
+        ("✅", "Finalizando e enviando e-mails…"),
+    ]
+
+    def _step_row(icon: str, label: str) -> rx.Component:
+        active = RDOState.submit_status.contains(icon)
+        return rx.hstack(
+            rx.text(icon, font_size="18px"),
+            rx.text(
+                label, size="2",
+                color=rx.cond(active, "white", _MUTED_OVERLAY),
+                font_weight=rx.cond(active, "600", "400"),
+            ),
+            spacing="3",
+            align="center",
+            opacity=rx.cond(active, "1", "0.45"),
+            style={"transition": "opacity 0.3s"},
+        )
+
+    return rx.cond(
+        RDOState.is_submitting,
+        rx.box(
+            rx.vstack(
+                rx.spinner(size="3", color=_COPPER_OVERLAY),
+                rx.text(
+                    "Processando seu RDO",
+                    size="4", weight="bold", color="white",
+                    font_family="'Rajdhani', sans-serif",
+                    letter_spacing="0.5px",
+                ),
+                rx.vstack(
+                    *[_step_row(icon, label) for icon, label in steps],
+                    spacing="3",
+                    padding="16px 20px",
+                    background="rgba(255,255,255,0.05)",
+                    border="1px solid rgba(255,255,255,0.1)",
+                    border_radius="10px",
+                    width="100%",
+                ),
+                rx.text("Não feche esta tela", size="1", color=_MUTED_OVERLAY, opacity="0.6"),
+                spacing="4",
+                align="center",
+                padding="32px 28px",
+                background="#0d2219",
+                border="1px solid rgba(201,139,42,0.35)",
+                border_radius="16px",
+                max_width="340px",
+                width="90vw",
+                box_shadow="0 32px 80px rgba(0,0,0,0.8)",
+            ),
+            position="fixed",
+            top="0", left="0", right="0", bottom="0",
+            display="flex",
+            align_items="center",
+            justify_content="center",
+            background="rgba(0,0,0,0.75)",
+            z_index="9999",
+            style={"backdropFilter": "blur(4px)"},
+        ),
+    )
+
+
 def default_layout(content: rx.Component) -> rx.Component:
     """Default layout matching React reference: sidebar + content (Mobile Responsive)"""
 
@@ -1282,6 +1354,8 @@ def default_layout(content: rx.Component) -> rx.Component:
             # ── Unauthenticated view ────────────────────────────────────────────
             login_page(),
         ),  # End rx.cond(is_authenticated)
+        # ── RDO Submit overlay (global — position:fixed must be at root level) ─
+        _rdo_submit_overlay(),
         # ── KPI Detail Popup (global, accessible from all pages) ─────────────
         _kpi_detail_dialog(),
         # ── Meu Perfil Modal (avatar + senha) ────────────────────────────────
