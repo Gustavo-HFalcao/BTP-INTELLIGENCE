@@ -8,6 +8,7 @@ from bomtempo.components.loading_screen import (
     skeleton_kpi_grid,
 )
 from bomtempo.components.sidebar import mobile_sidebar, sidebar
+from bomtempo.components.top_bar import top_bar
 from bomtempo.core import styles as S
 from bomtempo.pages.login import login_page
 from bomtempo.state.global_state import GlobalState
@@ -867,61 +868,90 @@ def default_layout(content: rx.Component) -> rx.Component:
             GlobalState.is_authenticated,
             # ── Authenticated view ──────────────────────────────────────────────
             rx.box(
+                # ── Fixed top bar — desktop (outside flex so position:fixed works) ──
+                rx.cond(~GlobalState.is_fullscreen_page, top_bar()),
+                # ── Fixed mobile top bar ─────────────────────────────────────────
+                rx.cond(~GlobalState.is_fullscreen_page, rx.box(
+                    rx.hstack(
+                        rx.cond(
+                            (GlobalState.current_user_role == "Administrador")
+                            | (GlobalState.current_user_role == "Engenheiro")
+                            | (GlobalState.current_user_role == "Gestão-Mobile")
+                            | (GlobalState.current_user_role == "engenheiro")
+                            | (GlobalState.current_user_role == ""),
+                            mobile_sidebar(),
+                            rx.box(width="24px"),
+                        ),
+                        rx.spacer(),
+                        rx.image(src="/icon.png", width="28px", height="28px", border_radius="4px", object_fit="cover"),
+                        rx.spacer(),
+                        rx.hstack(
+                            rx.cond(
+                                GlobalState.allowed_modules.contains("alertas"),
+                                rx.box(rx.icon("bell", size=18, color=S.TEXT_MUTED), on_click=rx.redirect("/alertas"), padding="6px", cursor="pointer", border_radius="6px", _hover={"bg": "rgba(255,255,255,0.05)"}),
+                                rx.fragment(),
+                            ),
+                            rx.box(
+                                rx.cond(
+                                    GlobalState.current_user_avatar_type == "icon",
+                                    rx.box(rx.icon(tag=GlobalState.effective_avatar_icon, size=13, color="white"), width="28px", height="28px", border_radius="6px", background=f"linear-gradient(135deg, {S.COPPER}, {S.PATINA})", display="flex", align_items="center", justify_content="center"),
+                                    rx.avatar(fallback=GlobalState.avatar_fallback, size="1", style={"width": "28px", "height": "28px", "border_radius": "6px", "background": f"linear-gradient(135deg, {S.COPPER}, {S.PATINA})", "font_family": S.FONT_TECH, "font_weight": "700", "font_size": "12px"}),
+                                ),
+                                on_click=rx.redirect("/perfil"), cursor="pointer", border_radius="6px", border=f"1px solid {S.BORDER_SUBTLE}", padding="2px",
+                            ),
+                            spacing="1", align="center",
+                        ),
+                        align="center", width="100%", padding_x="12px",
+                    ),
+                    position="fixed", top="0", left="0", right="0",
+                    height="calc(52px + env(safe-area-inset-top, 0px))",
+                    padding_top="env(safe-area-inset-top, 0px)",
+                    background="rgba(14,26,23,0.95)",
+                    style={"backdrop_filter": "blur(20px)", "-webkit-backdrop-filter": "blur(20px)"},
+                    border_bottom=f"1px solid rgba(255,255,255,0.06)",
+                    box_shadow="0 1px 0 rgba(255,255,255,0.02), 0 4px 24px rgba(0,0,0,0.3)",
+                    z_index="100",
+                    display=["flex", "flex", "none"],
+                )),
                 rx.flex(
-                    # Desktop Sidebar (Conditionally Hidden for Restricted Roles & Mobile)
+                    # Desktop Sidebar
                     rx.cond(
-                        (GlobalState.current_user_role == "Administrador")
-                        | (GlobalState.current_user_role == "Engenheiro")
-                        | (GlobalState.current_user_role == "Gestão-Mobile")
-                        | (GlobalState.current_user_role == "engenheiro")
-                        | (GlobalState.current_user_role == ""),
+                        ~GlobalState.is_fullscreen_page
+                        & (
+                            (GlobalState.current_user_role == "Administrador")
+                            | (GlobalState.current_user_role == "Engenheiro")
+                            | (GlobalState.current_user_role == "Gestão-Mobile")
+                            | (GlobalState.current_user_role == "engenheiro")
+                            | (GlobalState.current_user_role == "")
+                        ),
                         sidebar(),
                     ),
-                    # Main Content Area
+                    # Main Content Area — no fixed elements inside
                     rx.box(
-                        # Mobile sidebar trigger (fixed top-left, mobile only)
-                        rx.box(
-                            rx.cond(
-                                (GlobalState.current_user_role == "Administrador")
-                                | (GlobalState.current_user_role == "Engenheiro")
-                                | (GlobalState.current_user_role == "Gestão-Mobile")
-                                | (GlobalState.current_user_role == "engenheiro")
-                                | (GlobalState.current_user_role == ""),
-                                mobile_sidebar(),
+                        rx.cond(
+                            GlobalState.is_loading,
+                            rx.vstack(
+                                skeleton_kpi_grid(),
+                                skeleton_chart(height="260px"),
+                                skeleton_chart(height="200px"),
+                                spacing="6", width="100%", padding_y="8px",
                             ),
-                            position="fixed",
-                            top="calc(16px + env(safe-area-inset-top, 0px))",
-                            left="16px",
-                            z_index="100",
-                            display=["block", "block", "none"],
+                            rx.box(content, class_name="animate-enter"),
                         ),
-                        # Page content
-                        rx.box(
-                            rx.cond(
-                                GlobalState.is_loading,
-                                rx.vstack(
-                                    skeleton_kpi_grid(),
-                                    skeleton_chart(height="260px"),
-                                    skeleton_chart(height="200px"),
-                                    spacing="6",
-                                    width="100%",
-                                    padding_y="8px",
-                                ),
-                                rx.box(
-                                    content,
-                                    class_name="animate-enter",
-                                ),
-                            ),
-                            max_width="1600px",
-                            margin_x="auto",
-                            width="100%",
-                            transition="all 0.3s ease-in-out",
-                            padding_x=["16px", "16px", "32px"],
-                        ),
-                        **S.MAIN_CONTENT_STYLE,
+                        max_width="1600px",
+                        margin_x="auto",
                         width="100%",
+                        transition="all 0.3s ease-in-out",
+                        padding_x=rx.cond(GlobalState.is_fullscreen_page, "0px", rx.breakpoints(initial="16px", md="32px")),
+                        padding_top=rx.cond(
+                            GlobalState.is_fullscreen_page,
+                            "0px",
+                            "calc(56px + 2rem)",
+                        ),
+                        padding_bottom="2rem",
+                        flex="1",
+                        min_width="0",
                         min_height="100vh",
-                        overflow_y="auto",
                     ),
                     # Analysis Dialog
                     rx.dialog.root(
@@ -1256,9 +1286,13 @@ def default_layout(content: rx.Component) -> rx.Component:
         _kpi_detail_dialog(),
         # ── Meu Perfil Modal (avatar + senha) ────────────────────────────────
         _avatar_modal(),
-        # ── Action AI — Escutador Executivo (substitui FAB de Insights) ──────
+        # ── Action AI FAB — oculto em páginas de preenchimento ───────────────
         rx.cond(
-            ~GlobalState.router.page.path.contains("editar_dados"),
+            ~GlobalState.router.page.path.contains("editar_dados")
+            & ~GlobalState.router.page.path.contains("editar-dados")
+            & ~GlobalState.router.page.path.contains("rdo-form")
+            & ~GlobalState.router.page.path.contains("rdo_form")
+            & ~GlobalState.router.page.path.contains("reembolso"),
             action_ai_fab(),
         ),
         # Outer box props

@@ -29,6 +29,34 @@ from bomtempo.core.auth_utils import verify_password
 
 logger = get_logger(__name__)
 
+from datetime import timezone
+_BRT = timezone(timedelta(hours=-3))
+
+
+def _fmt_date_br(ts: str) -> str:
+    """YYYY-MM-DD (or ISO timestamp) → DD/MM/YYYY. Returns '—' for empty/invalid."""
+    if not ts or ts in ("—", "None", "nan"):
+        return "—"
+    try:
+        parts = ts[:10].split("-")
+        if len(parts) == 3 and len(parts[0]) == 4:
+            return f"{parts[2]}/{parts[1]}/{parts[0]}"
+    except Exception:
+        pass
+    return ts[:10]
+
+
+def _fmt_datetime_brt(ts: str) -> str:
+    """ISO UTC timestamp → DD/MM/YYYY HH:MM (BRT, UTC-3)."""
+    if not ts or ts in ("—", "None", "nan"):
+        return "—"
+    try:
+        dt = datetime.fromisoformat(ts.replace("Z", "+00:00")[:32])
+        brt = dt.astimezone(_BRT)
+        return brt.strftime("%d/%m/%Y %H:%M")
+    except Exception:
+        return ts[:16].replace("T", " ")
+
 
 def _msg(role: str, content: str, chart_json: str = "", chart_id: str = "") -> dict:
     """Cria um dict de mensagem com todos os campos esperados pelo chat_bubble."""
@@ -417,7 +445,6 @@ class GlobalState(rx.State):
 
     # Preferências de UI
     sidebar_open: bool = True
-    theme_mode: str = "dark"
 
     # Projetos page state
     selected_contrato: str = ""
@@ -437,6 +464,10 @@ class GlobalState(rx.State):
     project_status_filter: str = ""     # Status filter
     project_campo_rdos: List[Dict[str, Any]] = []
     project_campo_loading: bool = False
+
+    # ── Hub de Operações (replaces separate obras/projetos) ──────────────────
+    hub_tab: str = "visao_geral"  # visao_geral|dashboard|cronograma|auditoria|timeline
+    global_search: str = ""
 
     # O&M page state
     om_time_filter: str = ""  # Empty = no time filter applied
@@ -480,141 +511,138 @@ class GlobalState(rx.State):
         if not is_open:
             self.show_kpi_detail = ""
 
+    @rx.event(background=True)
     async def analyze_current_view(self):
-        """Processes current page KPIs."""
-        path = self.router.url.strip("/") or "index"
+        """Processes current page KPIs — fully non-blocking background event."""
+        # ── Step 1: Read all state vars inside lock ───────────────────────────
         data = {}
         page_name = "Visão Geral"
 
-        if path in ["index", "visão geral", ""]:
-            page_name = "Dashboard Estratégico"
-            data = {
-                "Total Contratos": self.total_contratos,
-                "Valor em Carteira": self.valor_carteira_formatado,
-                "Avanço Físico Global": self.avanco_fisico_geral_fmt,
-                "Obras em Atraso": self.obras_atrasadas_count,
-                "Margem Operacional Global": self.margem_pct_fmt,
-            }
-        elif "obras" in path:
-            page_name = "Operações de Campo"
-            data = {
-                "Total de Obras": self.total_obras_andamento,
-                "Avanço Físico Médio": self.avanco_fisico_geral_fmt,
-                "Obras em Atraso": self.obras_atrasadas_count,
-            }
-            if self.obras_selected_contract:
-                data["Recorte"] = f"Contrato: {self.obras_selected_contract}"
-                # Only add high-level summary of selected obra
-                data["Status da Obra Selecionada"] = self.obra_selected_data.get(
-                    "status", "Em Execução"
-                )
-        elif "financeiro" in path:
-            page_name = "Performance Financeira"
-            data = {
-                "Volume Contratado": self.financeiro_contratado_fmt,
-                "Volume Realizado": self.financeiro_realizado_fmt,
-                "Saldo de Medição": self.margem_bruta_fmt,
-                "Margem Perc.": self.margem_pct_fmt,
-            }
-        elif "projetos" in path:
-            if self.selected_contrato:
-                # Compute KPIs scoped to THIS contract from filtered activities
-                acts = self.filtered_projetos
-                total_acts = len(acts)
-                avg_progress = round(
-                    sum(float(p.get("conclusao_pct", 0) or 0) for p in acts) / max(total_acts, 1), 1
-                )
-                criticos = len([p for p in acts if str(p.get("critico", "")).lower() == "sim"])
-                atrasados = len([
-                    p for p in acts
-                    if str(p.get("critico", "")).lower() == "sim"
-                    and float(p.get("conclusao_pct", 0) or 0) < 100
-                ])
-                page_name = f"Projeto: {self.selected_contrato_data.get('cliente', self.selected_contrato)}"
+        async with self:
+            path = self.router.url.strip("/") or "index"
+            if path in ["index", "visão geral", ""]:
+                page_name = "Dashboard Estratégico"
                 data = {
-                    "Contrato": self.selected_contrato_data.get("contrato", self.selected_contrato),
-                    "Status Atual": self.selected_contrato_data.get("status", "Em Execução"),
-                    "Progresso Global": f"{avg_progress}%",
-                    "Total de Atividades": total_acts,
-                    "Marcos Críticos (total)": criticos,
-                    "Marcos Críticos (pendentes)": atrasados,
-                    "Atividades Concluídas": len([p for p in acts if float(p.get("conclusao_pct", 0) or 0) >= 100]),
+                    "Total Contratos": self.total_contratos,
+                    "Valor em Carteira": self.valor_carteira_formatado,
+                    "Avanço Físico Global": self.avanco_fisico_geral_fmt,
+                    "Obras em Atraso": self.obras_atrasadas_count,
+                    "Margem Operacional Global": self.margem_pct_fmt,
+                }
+            elif "obras" in path:
+                page_name = "Operações de Campo"
+                data = {
+                    "Total de Obras": self.total_obras_andamento,
+                    "Avanço Físico Médio": self.avanco_fisico_geral_fmt,
+                    "Obras em Atraso": self.obras_atrasadas_count,
+                }
+                if self.obras_selected_contract:
+                    data["Recorte"] = f"Contrato: {self.obras_selected_contract}"
+                    data["Status da Obra Selecionada"] = self.obra_selected_data.get("status", "Em Execução")
+            elif "financeiro" in path:
+                page_name = "Performance Financeira"
+                data = {
+                    "Volume Contratado": self.financeiro_contratado_fmt,
+                    "Volume Realizado": self.financeiro_realizado_fmt,
+                    "Saldo de Medição": self.margem_bruta_fmt,
+                    "Margem Perc.": self.margem_pct_fmt,
+                }
+            elif "projetos" in path or "hub" in path:
+                if self.selected_contrato:
+                    acts = list(self.filtered_projetos)
+                    total_acts = len(acts)
+                    avg_progress = round(sum(float(p.get("conclusao_pct", 0) or 0) for p in acts) / max(total_acts, 1), 1)
+                    criticos = len([p for p in acts if str(p.get("critico", "")).lower() == "sim"])
+                    atrasados = len([p for p in acts if str(p.get("critico", "")).lower() == "sim" and float(p.get("conclusao_pct", 0) or 0) < 100])
+                    page_name = f"Projeto: {self.selected_contrato_data.get('cliente', self.selected_contrato)}"
+                    data = {
+                        "Contrato": self.selected_contrato_data.get("contrato", self.selected_contrato),
+                        "Status Atual": self.selected_contrato_data.get("status", "Em Execução"),
+                        "Progresso Global": f"{avg_progress}%",
+                        "Total de Atividades": total_acts,
+                        "Marcos Críticos (total)": criticos,
+                        "Marcos Críticos (pendentes)": atrasados,
+                        "Atividades Concluídas": len([p for p in acts if float(p.get("conclusao_pct", 0) or 0) >= 100]),
+                    }
+                else:
+                    page_name = "Hub de Operações"
+                    data = {
+                        "Total Atividades": self.total_atividades,
+                        "Atividades Concluídas": self.atividades_concluidas,
+                        "Caminho Crítico (Alertas)": self.atividades_criticas_count,
+                    }
+            elif "om" in path:
+                page_name = "O&M - Performance Energética"
+                data = {
+                    "Energia Injetada (Total)": self.om_energia_injetada_fmt,
+                    "Performance Hidráulica/Solar": self.om_performance_fmt,
+                    "Faturamento Líquido": self.om_fat_liquido_fmt,
+                    "Geração Acumulada": self.om_acumulado_fmt,
+                }
+            elif "analytics" in path:
+                page_name = "Análise Preditiva"
+                data = {
+                    "Atraso Médio Estimado": f"{self.analytics_atraso_medio}%",
+                    "Risco de Churn": self.analytics_churn_risk,
+                    "Eficiência de Entrega": f"{self.analytics_conclusao_rate}%",
                 }
             else:
-                page_name = "Gestão de Portfólio"
+                # Fallback
                 data = {
-                    "Total Atividades": self.total_atividades,
-                    "Atividades Concluídas": self.atividades_concluidas,
-                    "Caminho Crítico (Alertas)": self.atividades_criticas_count,
+                    "Visão": "Geral da Plataforma",
+                    "Total Contratos": self.total_contratos,
+                    "Valor Carteira": self.valor_carteira_formatado,
                 }
-        elif "om" in path:
-            page_name = "O&M - Performance Energética"
-            data = {
-                "Energia Injetada (Total)": self.om_energia_injetada_fmt,
-                "Performance Hidráulica/Solar": self.om_performance_fmt,
-                "Faturamento Líquido": self.om_fat_liquido_fmt,
-                "Geração Acumulada": self.om_acumulado_fmt,
-            }
-        elif "analytics" in path:
-            page_name = "Análise Preditiva"
-            data = {
-                "Atraso Médio Estimado": f"{self.analytics_atraso_medio}%",
-                "Risco de Churn": self.analytics_churn_risk,
-                "Eficiência de Entrega": f"{self.analytics_conclusao_rate}%",
-            }
-        elif "rdo" in path:
-            page_name = "Dashboard RDO Analytics"
+
+        # ── Step 2: Heavy I/O outside lock ───────────────────────────────────
+        if "rdo" in path and not data:
             try:
                 from bomtempo.core.rdo_service import RDOService
-                from bomtempo.core.supabase_client import sb_select
-
-                rdos = RDOService.get_all_rdos(limit=200)
-                mo = sb_select("rdo_mao_obra", limit=1000) or []
-                eq = sb_select("rdo_equipamentos", limit=1000) or []
+                from bomtempo.core.supabase_client import sb_select as _sbsel
+                import asyncio
+                loop = asyncio.get_running_loop()
+                rdos, mo, eq = await asyncio.gather(
+                    loop.run_in_executor(None, lambda: RDOService.get_all_rdos(limit=200)),
+                    loop.run_in_executor(None, lambda: _sbsel("rdo_mao_obra", limit=1000) or []),
+                    loop.run_in_executor(None, lambda: _sbsel("rdo_equipamentos", limit=1000) or []),
+                )
+                page_name = "Dashboard RDO Analytics"
                 data = {
                     "Total de RDOs Emitidos": len(rdos),
-                    "Obras Operando": len(
-                        set(r.get("contrato") for r in rdos if r.get("contrato"))
-                    ),
+                    "Obras Operando": len(set(r.get("contrato") for r in rdos if r.get("contrato"))),
                     "Profissionais em Campo": sum(int(r.get("Quantidade", 0) or 0) for r in mo),
                     "Registros de Equipamentos": len(eq),
                 }
             except Exception as e:
                 logger.warning(f"Erro KPI RDO: {e}")
-                data = {"Seção": "RDO Analytics", "Status": "Carregando RDOs..."}
+                data = {"Seção": "RDO Analytics", "Status": "Erro ao carregar dados"}
 
-        # Fallback
         if not data:
-            data = {
-                "Visão": "Geral da Plataforma",
-                "Total Contratos": self.total_contratos,
-                "Valor Carteira": self.valor_carteira_formatado,
-            }
+            data = {"Visão": "Geral da Plataforma"}
 
-        self.current_page_kpis = data
-        self._pending_page_name = page_name
+        # ── Step 3: Set up dialog + kick off streaming inline ────────────────
+        async with self:
+            self.current_page_kpis = data
+            self._pending_page_name = page_name
+            self.is_analyzing = True
+            self.show_analysis_dialog = True
+            self.analysis_result = ""
 
-        if not self.current_page_kpis:
-            yield rx.window_alert("Não há dados mapeados nesta página para analisar.")
-            return
-
-        self.is_analyzing = True
-        self.show_analysis_dialog = True
-        self.analysis_result = ""
-        yield  # flush loading state + dialog to frontend
-
-        # Trigger background streaming event (true char-by-char streaming)
-        yield GlobalState.stream_analysis_bg
+        await self._run_streaming(page_name, data)
 
     @rx.event(background=True)
     async def stream_analysis_bg(self):
-        """True AI streaming via thread + asyncio.Queue — updates every 50ms."""
-        import threading
-        import time
-
+        """Background streaming event — reads pending state then delegates to _run_streaming."""
         async with self:
             page_name = self._pending_page_name
             kpis = dict(self.current_page_kpis)
+
+        await self._run_streaming(page_name, kpis)
+
+    async def _run_streaming(self, page_name: str, kpis: dict):
+        """Core streaming logic — safe to call from both background events."""
+        import threading
+        import time
 
         if not kpis:
             async with self:
@@ -667,18 +695,15 @@ class GlobalState(rx.State):
             full_text += chunk
 
             now = time.monotonic()
-            # On first chunk: hide spinner and switch to streaming text view
-            # Then batch every 200ms for smooth, readable reveal
             if not received_first_chunk or (now - last_update >= 0.35):
                 async with self:
                     if not received_first_chunk:
-                        self.is_analyzing = False  # Spinner → streaming text
+                        self.is_analyzing = False
                         self.is_streaming = True
                         received_first_chunk = True
-                    self.analysis_result = full_text + "▌"  # typing cursor
+                    self.analysis_result = full_text + "▌"
                 last_update = now
 
-        # Streaming done: render final sanitized markdown, remove cursor
         async with self:
             self.analysis_result = self._sanitize_markdown(full_text)
             self.is_streaming = False
@@ -688,9 +713,18 @@ class GlobalState(rx.State):
 
     @rx.var
     def show_progress_bar(self) -> bool:
-        """True quando está navegando entre páginas OU carregando dados.
-        Usado no layout para exibir a top-loading-bar de forma null-safe."""
+        """True quando está navegando entre páginas OU carregando dados."""
         return self.is_loading or self.is_navigating
+
+    @rx.var
+    def is_fullscreen_page(self) -> bool:
+        """True para páginas de preenchimento — sem sidebar/header."""
+        path = self.router.page.path
+        _fullscreen_paths = ["/rdo-form", "/rdo_form", "/reembolso"]
+        for p in _fullscreen_paths:
+            if path == p or path.startswith(p + "/"):
+                return True
+        return False
 
     # ── KPI Detail Popup Computed Vars ──────────────────────────────────────────
 
@@ -937,6 +971,11 @@ class GlobalState(rx.State):
     contact_error: str = ""
     contact_success: bool = False
 
+    # ── In-app Notifications ─────────────────────────────────
+    # Each dict: {id, message, source_type, source_id, contrato, read, created_at_fmt}
+    notifications_list: List[Dict[str, str]] = []
+    notif_unread_count: int = 0
+
     async def check_login_on_enter(self, key: str):
         """Login apenas se Enter for pressionado"""
         if key == "Enter":
@@ -976,6 +1015,82 @@ class GlobalState(rx.State):
         # Limpa sessão de chat para não vazar histórico entre usuários
         self.chat_session_id = ""
         self.chat_history = []
+        # Clear notifications
+        self.notifications_list = []
+        self.notif_unread_count = 0
+
+    # ── Notifications ─────────────────────────────────────────
+
+    @rx.event(background=True)
+    async def load_notifications(self):
+        """Load unread @mention notifications for the current user from user_notifications."""
+        username = ""
+        async with self:
+            username = str(self.current_user_name)
+        if not username:
+            return
+
+        from bomtempo.core.supabase_client import sb_select as _sel, sb_update as _upd
+        try:
+            rows = _sel(
+                "user_notifications",
+                filters={"recipient": username},
+                order="created_at.desc",
+                limit=50,
+            )
+        except Exception as e:
+            logger.warning(f"load_notifications error: {e}")
+            return
+
+        def _fmt_ts(ts: str) -> str:
+            if not ts:
+                return ""
+            try:
+                from datetime import timezone, timedelta
+                _brt = timezone(timedelta(hours=-3))
+                from datetime import datetime as _dt
+                d = _dt.fromisoformat(ts.replace("Z", "+00:00")[:32]).astimezone(_brt)
+                return d.strftime("%d/%m %H:%M")
+            except Exception:
+                return ts[:16]
+
+        notifs = [
+            {
+                "id": str(r.get("id", "")),
+                "message": str(r.get("message", "")),
+                "source_type": str(r.get("source_type", "mention")),
+                "source_id": str(r.get("source_id", "")),
+                "contrato": str(r.get("contrato", "")),
+                "read": "1" if str(r.get("read", "false")).lower() in ("true", "1") else "0",
+                "created_at_fmt": _fmt_ts(str(r.get("created_at", ""))),
+                "sender": str(r.get("sender", "")),
+            }
+            for r in (rows or [])
+        ]
+        unread = sum(1 for n in notifs if n["read"] == "0")
+
+        async with self:
+            self.notifications_list = notifs
+            self.notif_unread_count = unread
+
+    @rx.event(background=True)
+    async def mark_all_notifs_read(self):
+        """Mark all notifications as read for the current user."""
+        username = ""
+        async with self:
+            username = str(self.current_user_name)
+        if not username:
+            return
+        from bomtempo.core.supabase_client import sb_update as _upd
+        try:
+            _upd("user_notifications", filters={"recipient": username}, data={"read": True})
+        except Exception as e:
+            logger.warning(f"mark_all_notifs_read error: {e}")
+        async with self:
+            self.notif_unread_count = 0
+            self.notifications_list = [
+                dict(n, read="1") for n in self.notifications_list
+            ]
 
     def set_current_path(self, path: str):
         self.current_path = path
@@ -1425,14 +1540,6 @@ class GlobalState(rx.State):
     def toggle_sidebar(self):
         self.sidebar_open = not self.sidebar_open
 
-    async def toggle_theme(self):
-        self.theme_mode = "light" if self.theme_mode == "dark" else "dark"
-        mode = self.theme_mode
-        yield rx.call_script(
-            f"document.documentElement.setAttribute('data-theme', '{mode}');"
-            f"try{{localStorage.setItem('bomtempo-theme', '{mode}');}}catch(e){{}}"
-        )
-
     def set_navigating(self):
         """Seta is_navigating=True para exibir top-bar imediatamente ao clicar na sidebar.
         A navegação SPA em si é feita pelo rx.link(href=...) — não usamos redirect aqui
@@ -1456,7 +1563,7 @@ class GlobalState(rx.State):
                 elif route in ("/rdo-dashboard",):
                     sb_select("rdo_master", limit=1)
                 elif route in ("/reembolso-dash",):
-                    sb_select("fuel_requests", limit=1)
+                    sb_select("fuel_reimbursements", limit=1)
             except Exception:
                 pass
 
@@ -1508,10 +1615,7 @@ class GlobalState(rx.State):
             from bomtempo.core.supabase_client import sb_select
 
             # Busca apenas o usuário específico — não carrega tabela inteira
-            # Try 'user' column first (original schema), fallback to 'username'
-            user_rows = sb_select("login", filters={"user": username}, limit=1)
-            if not user_rows:
-                user_rows = sb_select("login", filters={"username": username}, limit=1)
+            user_rows = sb_select("login", filters={"username": username}, limit=1)
             logger.info(f"Supabase login: query filtrada p/ '{username}' → {len(user_rows)} linha(s)")
 
             def _get_password_field(row: dict) -> str:
@@ -1567,7 +1671,7 @@ class GlobalState(rx.State):
             role = _get_role_field(matched)
             self.is_authenticated = True
             self.current_user_name = str(
-                matched.get("user") or matched.get("username") or matched.get("login") or username
+                matched.get("username") or matched.get("user") or matched.get("login") or username
             )
             self.current_user_role = role
             self.current_user_contrato = str(
@@ -1624,11 +1728,12 @@ class GlobalState(rx.State):
             )
 
             yield GlobalState.load_initial_data_smooth
+            yield GlobalState.load_notifications
 
             if role == "Gestão-Mobile":
                 yield rx.redirect("/mobile-chat")
             elif role == "Mestre de Obras":
-                yield rx.redirect("/rdo-form")
+                yield rx.redirect("/rdo-historico")
             elif role == "solicitacao_reembolso":
                 yield rx.redirect("/reembolso")
             elif role == "engenheiro":
@@ -1659,7 +1764,7 @@ class GlobalState(rx.State):
             return
 
         if self.current_user_role == "Mestre de Obras":
-            yield rx.redirect("/rdo-form")
+            yield rx.redirect("/rdo-historico")
             return
         if self.current_user_role == "solicitacao_reembolso":
             yield rx.redirect("/reembolso")
@@ -1968,6 +2073,71 @@ class GlobalState(rx.State):
                 if p.get("critico") == "Sim" and p.get("conclusao_pct", 0) < 100
             ]
         )
+
+    @rx.var
+    def project_fase_macros(self) -> List[str]:
+        """Unique fase_macro values for the selected contract, sorted."""
+        if not self.selected_contrato or not self.projetos_list:
+            return []
+        seen = []
+        for p in self.projetos_list:
+            if p.get("contrato") == self.selected_contrato:
+                fase = str(p.get("fase_macro") or "").strip()
+                if fase and fase not in seen:
+                    seen.append(fase)
+        return seen
+
+    @rx.var
+    def gantt_rows(self) -> List[Dict[str, str]]:
+        """
+        Real Gantt data for filtered activities.
+        Each row: {label, color, start_iso, end_iso, pct, critico, responsavel}
+        """
+        import datetime as _dt
+
+        COLOR_MAP = {
+            "civil": "#C98B2A",
+            "eletrica": "#3B82F6",
+            "elétrica": "#3B82F6",
+            "hidraulica": "#2A9D8F",
+            "hidráulica": "#2A9D8F",
+            "estrutural": "#E89845",
+            "mecanica": "#A855F7",
+            "mecânica": "#A855F7",
+        }
+
+        rows = []
+        activities = self.filtered_projetos
+        for act in activities[:20]:  # Cap at 20 rows for readability
+            label = str(act.get("atividade") or act.get("fase") or "Atividade")[:30]
+            fase = str(act.get("fase") or "").lower().strip()
+            critico = str(act.get("critico") or "").strip()
+            color = "#EF4444" if critico == "Sim" else COLOR_MAP.get(fase, "#889999")
+            pct = str(int(float(act.get("conclusao_pct") or 0)))
+            responsavel = str(act.get("responsavel") or "—")
+
+            # Parse dates — stored as pandas Timestamp or ISO string
+            start_raw = act.get("inicio_previsto") or act.get("inicio") or ""
+            end_raw = act.get("termino_previsto") or act.get("termino") or ""
+
+            def _iso(v: object) -> str:
+                if not v or str(v) in ("NaT", "nan", "None", ""):
+                    return ""
+                s = str(v)
+                # pandas Timestamp repr: '2025-01-15 00:00:00'
+                return s[:10]
+
+            rows.append({
+                "label": label,
+                "color": color,
+                "start_iso": _iso(start_raw),
+                "end_iso": _iso(end_raw),
+                "pct": pct,
+                "critico": "1" if critico == "Sim" else "0",
+                "responsavel": responsavel,
+                "fase": str(act.get("fase") or "—"),
+            })
+        return rows
 
     @rx.var
     def atividades_por_fase_chart(self) -> List[Dict[str, Any]]:
@@ -2535,7 +2705,7 @@ class GlobalState(rx.State):
         return [
             {
                 "id": str(r.get("id", "")),
-                "data_rdo": str(r.get("data_rdo", "—"))[:10],
+                "data_rdo": _fmt_date_br(str(r.get("data_rdo", "—"))),
                 "responsavel": str(r.get("responsavel_tecnico", r.get("responsavel", "—"))),
                 "atividade": str(r.get("atividade_principal", r.get("descricao", "—")))[:60],
                 "pdf_url": str(r.get("pdf_url", r.get("pdf_path", ""))),
@@ -3069,7 +3239,9 @@ class GlobalState(rx.State):
             self.selected_project = code
             self.selected_contrato = code            # drives filtered_projetos / activity_timeline
             self.obras_selected_contract = code      # drives obra_kpi_fmt / disciplina_gauges_list
+            self.hub_tab = "visao_geral"
             self.project_hub_tab = "visao_geral"
+            self.projetos_fase_filter = ""
             self.obra_insight_text = ""
             self.obra_insight_loading = True
             self.weather_loading = True
@@ -3078,6 +3250,11 @@ class GlobalState(rx.State):
             self.project_campo_loading = False
             yield GlobalState.load_weather_data
             yield GlobalState.generate_obra_insight_bg
+            # Pre-load HubState modules for the selected project
+            from bomtempo.state.hub_state import HubState
+            yield HubState.load_cronograma(code)
+            yield HubState.load_auditoria(code)
+            yield HubState.load_timeline(code)
 
     @rx.event(background=True)
     async def deselect_project(self):
@@ -3091,6 +3268,17 @@ class GlobalState(rx.State):
             self.project_hub_tab = "visao_geral"
             self.project_campo_rdos = []
             self.project_campo_loading = False
+
+    def set_hub_selected_project(self, contrato: str):
+        """Select a project in the Hub de Operações — maps to existing selected_project."""
+        self.selected_project = contrato
+        self.hub_tab = "visao_geral"
+        self.project_hub_tab = "visao_geral"
+
+    def set_hub_tab(self, tab: str):
+        """Set hub sub-page tab — mirrors project_hub_tab."""
+        self.hub_tab = tab
+        self.project_hub_tab = tab
 
     @rx.event(background=True)
     async def load_project_campo_rdos(self):

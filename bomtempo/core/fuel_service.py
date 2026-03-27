@@ -39,6 +39,220 @@ def _user_uuid(username: str) -> str:
     return str(uuid.uuid5(uuid.NAMESPACE_DNS, f"bomtempo-{username.lower()}"))
 
 
+_FR_HTML_TEMPLATE = """<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<title>COMPROVANTE DE REEMBOLSO - ___PROTOCOLO___</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          "copper": "#C98B2A",
+          "patina": "#2A9D8F",
+          "ink": "#081210",
+          "paper": "#ffffff"
+        },
+        fontFamily: {
+          "headline": ["Rajdhani", "sans-serif"],
+          "body": ["Plus Jakarta Sans", "sans-serif"],
+          "label": ["JetBrains Mono", "monospace"]
+        }
+      }
+    }
+  }
+</script>
+<style>
+  @page { size: A4; margin: 0; }
+  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background-color: #f3f4f6; }
+  @media print { body { background-color: white !important; } .no-print { display: none !important; } }
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    vertical-align: middle; line-height: 1;
+  }
+  .section-title {
+    display: flex; align-items: center; gap: 0.5rem;
+    font-family: 'Rajdhani', sans-serif; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.05em; color: #081210;
+    border-bottom: 2px solid #e4e4e7; padding-bottom: 0.5rem; margin-bottom: 1rem;
+    font-size: 14px;
+  }
+</style>
+</head>
+<body class="font-body text-ink">
+
+<!-- Main Document Canvas -->
+<main style="width:210mm;min-height:297mm;margin:1.5rem auto;background:white;padding:16mm 20mm;box-shadow:0 10px 25px -5px rgba(0,0,0,0.1);">
+
+<!-- 1. HEADER -->
+<header class="flex justify-between items-start mb-10 pb-6" style="border-bottom:4px solid #C98B2A;">
+  <div class="flex flex-col">
+    <div class="font-headline text-2xl font-bold tracking-tighter text-copper leading-none">BOMTEMPO</div>
+    <div class="font-headline text-2xl font-bold tracking-tighter text-ink leading-none -mt-1">ENGENHARIA</div>
+    <div class="font-label text-[9px] text-zinc-500 uppercase tracking-[0.2em] mt-2">Sistema de Gestão de Campo</div>
+    <div class="inline-block mt-2 px-2 py-0.5" style="background:#C98B2A18;border:1px solid #C98B2A40;">
+      <span class="font-label text-[9px] font-bold text-copper">___BADGE_TEXT___</span>
+    </div>
+  </div>
+  <div class="text-right">
+    <h1 class="font-headline text-3xl font-bold text-ink leading-none mb-2">COMPROVANTE DE DESPESA</h1>
+    <p class="font-headline text-base font-medium text-zinc-500 tracking-widest uppercase">Reembolso de Combustível</p>
+    <div class="inline-block bg-copper/10 border border-copper/20 px-3 py-1 mt-2">
+      <span class="font-label text-xs font-bold text-copper">PROTOCOLO #___PROTOCOLO___</span>
+    </div>
+  </div>
+</header>
+
+<!-- 2. DADOS DO COLABORADOR -->
+<section class="mb-8">
+  <h2 class="section-title">
+    <span class="material-symbols-outlined text-copper">person</span>
+    Dados do Colaborador
+  </h2>
+  <div class="grid grid-cols-3 gap-6 bg-zinc-50 p-5 rounded-lg border border-zinc-200">
+    <div>
+      <label class="font-label text-[9px] uppercase text-zinc-500 block mb-1">Nome Completo</label>
+      <p class="font-semibold text-sm">___NOME___</p>
+    </div>
+    <div>
+      <label class="font-label text-[9px] uppercase text-zinc-500 block mb-1">Finalidade da Viagem</label>
+      <p class="font-semibold text-sm">___FINALIDADE___</p>
+    </div>
+    <div>
+      <label class="font-label text-[9px] uppercase text-zinc-500 block mb-1">Data do Abastecimento</label>
+      <p class="font-label font-bold text-sm">___DATA_ABAST___</p>
+    </div>
+  </div>
+</section>
+
+<!-- 3. DETALHES DO ABASTECIMENTO -->
+<section class="mb-8">
+  <h2 class="section-title">
+    <span class="material-symbols-outlined text-copper">local_gas_station</span>
+    Detalhes do Abastecimento
+  </h2>
+  <div class="overflow-hidden border border-zinc-200 rounded-lg">
+    <table class="w-full text-left">
+      <thead>
+        <tr style="background:#081210;">
+          <th class="px-5 py-3 font-headline text-[10px] uppercase tracking-widest text-white border-r border-white/10">Combustível</th>
+          <th class="px-5 py-3 font-headline text-[10px] uppercase tracking-widest text-white border-r border-white/10">Litros</th>
+          <th class="px-5 py-3 font-headline text-[10px] uppercase tracking-widest text-white border-r border-white/10">Preço / Litro</th>
+          <th class="px-5 py-3 font-headline text-[10px] uppercase tracking-widest text-white text-right">Valor Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="border-b border-zinc-100">
+          <td class="px-5 py-4 text-sm font-medium">___COMBUSTIVEL___</td>
+          <td class="px-5 py-4 text-sm font-label">___LITROS___ L</td>
+          <td class="px-5 py-4 text-sm font-label">R$ ___VALOR_LITRO___</td>
+          <td class="px-5 py-4 text-xl font-bold text-right text-copper font-label">R$ ___VALOR_TOTAL___</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 4. KPI BAR -->
+<section class="mb-8">
+  <div class="grid grid-cols-5 rounded-sm overflow-hidden" style="background:#081210;">
+    <div class="flex flex-col items-center py-4 border-r border-white/10">
+      <span class="font-label text-lg font-bold text-copper">___LITROS___ L</span>
+      <span class="font-headline text-[8px] text-white/50 uppercase tracking-widest mt-1">Litros</span>
+    </div>
+    <div class="flex flex-col items-center py-4 border-r border-white/10">
+      <span class="font-label text-lg font-bold text-copper">R$ ___VALOR_LITRO___</span>
+      <span class="font-headline text-[8px] text-white/50 uppercase tracking-widest mt-1">Preço/Litro</span>
+    </div>
+    <div class="flex flex-col items-center py-4 border-r border-white/10">
+      <span class="font-label text-lg font-bold text-copper">___KM_DRIVEN___ km</span>
+      <span class="font-headline text-[8px] text-white/50 uppercase tracking-widest mt-1">KM Rodados</span>
+    </div>
+    <div class="flex flex-col items-center py-4 border-r border-white/10">
+      <span class="font-label text-lg font-bold text-copper">___KM_PER_LITER___ km/L</span>
+      <span class="font-headline text-[8px] text-white/50 uppercase tracking-widest mt-1">Eficiência</span>
+    </div>
+    <div class="flex flex-col items-center py-4">
+      <span class="font-label text-lg font-bold text-copper">R$ ___COST_PER_KM___</span>
+      <span class="font-headline text-[8px] text-white/50 uppercase tracking-widest mt-1">Custo/KM</span>
+    </div>
+  </div>
+</section>
+
+<!-- 5. LOCALIZAÇÃO E ROTA -->
+<section class="mb-8">
+  <h2 class="section-title">
+    <span class="material-symbols-outlined text-copper">route</span>
+    Localização e Rota
+  </h2>
+  <div class="grid grid-cols-2 gap-6">
+    <div class="space-y-3">
+      <div class="flex gap-3 p-4 border border-zinc-200 rounded-lg">
+        <span class="material-symbols-outlined text-zinc-400">location_on</span>
+        <div>
+          <label class="font-label text-[9px] uppercase text-zinc-500 block mb-1">Localização</label>
+          <p class="text-sm font-semibold">___CIDADE___, ___ESTADO___</p>
+        </div>
+      </div>
+      <div class="p-4 border border-zinc-200 rounded-lg">
+        <label class="font-label text-[9px] uppercase text-zinc-500 block mb-1">Rota</label>
+        <p class="text-sm italic text-zinc-600">___ROTA___</p>
+      </div>
+    </div>
+    <div class="grid grid-cols-2 gap-3">
+      <div class="p-4 bg-zinc-50 border border-zinc-200 rounded-lg">
+        <label class="font-label text-[9px] uppercase text-zinc-500 block mb-1">KM Inicial</label>
+        <p class="text-xl font-label font-bold">___KM_INICIAL___</p>
+      </div>
+      <div class="p-4 bg-zinc-50 border border-zinc-200 rounded-lg">
+        <label class="font-label text-[9px] uppercase text-zinc-500 block mb-1">KM Final</label>
+        <p class="text-xl font-label font-bold">___KM_FINAL___</p>
+      </div>
+      <div class="col-span-2 p-4 rounded-lg flex items-center justify-between" style="background:#C98B2A0d;border:1px solid #C98B2A33;">
+        <label class="font-label text-[10px] uppercase font-bold text-copper">Distância Percorrida</label>
+        <p class="text-2xl font-label font-bold text-copper">___KM_DRIVEN___ KM</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 6. AI SECTION (conditional) -->
+___AI_SECTION___
+
+<!-- 7. ASSINATURAS -->
+<section class="mt-14">
+  <div class="grid grid-cols-2 gap-16">
+    <div class="text-center">
+      <div class="h-16 mb-4 flex items-end justify-center" style="border-bottom:1px solid #d4d4d8;">
+        <span class="font-headline text-[10px] text-zinc-400 italic uppercase tracking-widest">Assinado Digitalmente</span>
+      </div>
+      <p class="font-headline font-bold text-xs uppercase tracking-[0.2em] mb-1">Solicitante</p>
+      <p class="font-label text-[9px] text-zinc-500 uppercase">___NOME___</p>
+    </div>
+    <div class="text-center">
+      <div class="h-16 mb-4" style="border-bottom:1px solid #d4d4d8;"></div>
+      <p class="font-headline font-bold text-xs uppercase tracking-[0.2em] mb-1">Aprovador Financeiro</p>
+      <p class="font-label text-[9px] text-zinc-500 uppercase">Gestão de Operações de Campo</p>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="mt-10 pt-5 flex justify-between items-center" style="border-top:2px solid #C98B2A;">
+  <span class="font-headline text-[9px] font-bold text-copper uppercase tracking-widest">BOMTEMPO ENGENHARIA</span>
+  <span class="font-label text-[8px] text-zinc-400 uppercase tracking-tighter">___FOOTER_CONTENT___</span>
+  <span class="font-label text-[8px] text-zinc-400">Página 01 / 01</span>
+</footer>
+
+</main>
+</body>
+</html>"""
+
+
 class FuelService:
     """Serviço centralizado para o módulo de Reembolso de Combustível."""
 
@@ -163,156 +377,76 @@ class FuelService:
             return _html_mod.escape(str(s) if s is not None else "—")
 
         submitted_by = e(data.get("submitted_by") or "—")
-        combustivel = e(data.get("combustivel") or "—")
-        litros = _to_float(data.get("litros"))
-        valor_litro = _to_float(data.get("valor_litro"))
-        valor_total = _to_float(data.get("valor_total"))
-        km_inicial = _to_float(data.get("km_inicial"))
-        km_final = _to_float(data.get("km_final"))
-        km_driven = _to_float(data.get("km_driven"))
+        combustivel  = e(data.get("combustivel") or "—")
+        litros       = _to_float(data.get("litros"))
+        valor_litro  = _to_float(data.get("valor_litro"))
+        valor_total  = _to_float(data.get("valor_total"))
+        km_inicial   = _to_float(data.get("km_inicial"))
+        km_final     = _to_float(data.get("km_final"))
+        km_driven    = _to_float(data.get("km_driven"))
         km_per_liter = _to_float(data.get("km_per_liter"))
-        cost_per_km = _to_float(data.get("cost_per_km"))
-        rota = e(data.get("rota") or "—")
-        finalidade = e(data.get("finalidade") or "—")
-        cidade = e(data.get("cidade") or "—")
-        estado = e(data.get("estado") or "—")
-        data_abast = e(data.get("data_abastecimento") or datetime.now().strftime("%Y-%m-%d"))
-        ai_insight = (data.get("ai_insight_text") or "").strip()
-        ai_verified = bool(data.get("ai_verified", False))
-        id_label = e(id_fr) if id_fr else ""
-        emissao = datetime.now().strftime("%d/%m/%Y às %H:%M")
+        cost_per_km  = _to_float(data.get("cost_per_km"))
+        rota         = e(data.get("rota") or "—")
+        finalidade   = e(data.get("finalidade") or "—")
+        cidade       = e(data.get("cidade") or "—")
+        estado       = e(data.get("estado") or "—")
+        data_abast   = e(data.get("data_abastecimento") or datetime.now().strftime("%Y-%m-%d"))
+        ai_insight   = (data.get("ai_insight_text") or "").strip()
+        ai_verified  = bool(data.get("ai_verified", False))
+        id_label     = e(id_fr) if id_fr else ""
+        emissao      = datetime.now().strftime("%d/%m/%Y às %H:%M")
 
         badge_color = "#27AE60" if ai_verified else "#888888"
-        badge_text = "NF VERIFICADA ✓ IA" if ai_verified else "NF NÃO VERIFICADA"
+        badge_text  = "NF VERIFICADA ✓ IA" if ai_verified else "NF NÃO VERIFICADA"
 
-        ai_section = ""
+        # AI section (conditional)
         if ai_insight:
-            ai_section = f"""
-  <div class="section-hdr" style="border-left-color:{badge_color};">
-    <div class="sec-badge" style="background:{badge_color};">IA</div>
-    <div class="sec-title">Análise da Nota Fiscal (IA)</div>
-  </div>
-  <div class="obs-box">{e(ai_insight)}</div>"""
+            ai_section = (
+                '<section class="mb-8">'
+                '<h2 class="section-title">'
+                f'<span class="material-symbols-outlined" style="color:{badge_color};">smart_toy</span>'
+                'Análise da Nota Fiscal (IA)'
+                '</h2>'
+                f'<div style="background:#fafafa;border:1px solid #e4e4e7;border-radius:4px;padding:14px 16px;border-left:3px solid {badge_color};">'
+                f'<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">'
+                f'<div style="width:22px;height:22px;border-radius:50%;background:{badge_color};display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:700;">IA</div>'
+                f'<span style="font-family:\'Rajdhani\',sans-serif;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:{badge_color};">{badge_text}</span>'
+                '</div>'
+                f'<p style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:12px;color:#3f3f46;line-height:1.7;">{e(ai_insight)}</p>'
+                '</div></section>'
+            )
+        else:
+            ai_section = ""
 
-        css = """
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'IBM Plex Sans', sans-serif; background: #fff; color: #1a1a1a; font-size: 9pt; line-height: 1.4; }
+        footer_content = (
+            f"Reembolso Combustível · {id_label} · " if id_label else "Reembolso Combustível · "
+        ) + f"{submitted_by} · {data_abast} · Emitido em {emissao}"
 
-.header { background: #0B1A15; color: #fff; padding: 14px 20px 12px; border-top: 3px solid #C98B2A; border-bottom: 2px solid #2A9D8F; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
-.hdr-left { flex: 1; }
-.brand { display: flex; align-items: baseline; gap: 8px; }
-.brand-main { font-size: 21pt; font-weight: 700; color: #fff; letter-spacing: -0.5px; }
-.brand-accent { font-size: 21pt; font-weight: 700; color: #C98B2A; letter-spacing: -0.5px; }
-.hdr-sub { font-size: 8.5pt; color: #CCC; margin-top: 3px; }
-.ai-badge { display: inline-block; color: #fff; font-size: 6.5pt; font-weight: 700; padding: 2px 10px; border-radius: 3px; letter-spacing: 0.5px; margin-top: 6px; }
-.hdr-box { background: #162820; border-radius: 8px; padding: 10px 20px; text-align: center; min-width: 168px; }
-.hdr-box-lbl { font-size: 6pt; color: #C98B2A; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; }
-.hdr-box-val { font-size: 15pt; font-weight: 700; color: #fff; margin-top: 3px; font-family: 'IBM Plex Mono', monospace; }
-.hdr-box-sub { font-size: 7.5pt; color: #AAA; margin-top: 2px; }
-.hdr-box-date { font-size: 7pt; color: #2A9D8F; margin-top: 2px; }
-
-.content { padding: 10px 20px 0; }
-
-.info-grid { display: grid; grid-template-columns: 92px 1fr 92px 1fr; border: 0.5px solid #D4C8A8; margin-bottom: 8px; }
-.info-label { background: #ECEAE0; font-weight: 600; font-size: 7pt; text-transform: uppercase; letter-spacing: 0.3px; padding: 6px 8px; border-bottom: 0.3px solid #D4C8A8; border-right: 0.5px solid #D4C8A8; display: flex; align-items: center; }
-.info-value { background: #F8F7F2; font-size: 8pt; padding: 6px 8px; border-bottom: 0.3px solid #D4C8A8; border-right: 0.5px solid #D4C8A8; display: flex; align-items: center; }
-.span-3 { grid-column: span 3; }
-
-.kpi-bar { background: #162820; display: flex; border-radius: 6px; overflow: hidden; margin-bottom: 8px; }
-.kpi-item { flex: 1; text-align: center; padding: 10px 6px; border-right: 0.5px solid #334040; }
-.kpi-item:last-child { border-right: none; }
-.kpi-val { font-size: 11pt; font-weight: 700; color: #C98B2A; display: block; font-family: 'IBM Plex Mono', monospace; }
-.kpi-lbl { font-size: 6pt; color: #AAA; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; display: block; }
-
-.section-hdr { background: #0B1A15; color: #fff; padding: 7px 12px; display: flex; align-items: center; gap: 10px; margin-top: 8px; border-left: 3px solid #C98B2A; }
-.sec-badge { background: #C98B2A; color: #fff; font-size: 7pt; font-weight: 700; width: 18px; height: 18px; border-radius: 3px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.sec-title { font-size: 8.5pt; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; }
-
-.hodo-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; border: 0.5px solid #D4C8A8; }
-.hodo-lbl { background: #2A9D8F; color: #fff; font-weight: 600; font-size: 7.5pt; text-transform: uppercase; letter-spacing: 0.3px; padding: 7px 8px; border-right: 0.5px solid rgba(255,255,255,0.2); text-align: center; }
-.hodo-val { background: #F8F7F2; font-size: 14pt; font-weight: 700; padding: 8px; border-right: 0.5px solid #D4C8A8; text-align: center; font-family: 'IBM Plex Mono', monospace; color: #0B1A15; }
-.hodo-lbl:last-child, .hodo-val:last-child { border-right: none; }
-
-.obs-box { background: #F8F7F2; border: 0.5px solid #D4C8A8; padding: 10px 12px; font-size: 8.5pt; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
-
-.signatures { display: flex; gap: 16px; margin-top: 12px; }
-.sig-box { flex: 1; border: 0.5px solid #D4C8A8; background: #F8F7F2; padding: 8px 10px; min-height: 52px; }
-.sig-lbl { font-weight: 700; font-size: 6.5pt; text-transform: uppercase; color: #0B1A15; }
-.sig-sub { font-size: 6.5pt; color: #888; margin-top: 20px; border-top: 0.5px solid #D4C8A8; padding-top: 4px; }
-
-.footer { background: #0B1A15; color: #fff; padding: 6px 20px; display: flex; justify-content: space-between; align-items: center; margin-top: 12px; border-top: 1px solid #C98B2A; }
-.footer-l { font-weight: 700; font-size: 7pt; }
-.footer-c { font-size: 6.5pt; color: #AAA; }
-.footer-r { font-size: 7pt; color: #C98B2A; font-weight: 700; }
-"""
-
-        return f"""<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-<meta charset="UTF-8">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-<style>{css}</style>
-</head>
-<body>
-<div class="header">
-  <div class="hdr-left">
-    <div class="brand"><span class="brand-main">BOMTEMPO</span><span class="brand-accent">ENGENHARIA</span></div>
-    <div class="hdr-sub">Comprovante de Reembolso de Combustível</div>
-    <div class="ai-badge" style="background:{badge_color};">{badge_text}</div>
-  </div>
-  <div class="hdr-box">
-    <div class="hdr-box-lbl">Total Reembolso</div>
-    <div class="hdr-box-val">R$ {valor_total:.2f}</div>
-    <div class="hdr-box-sub">{combustivel}</div>
-    <div class="hdr-box-date">{data_abast}</div>
-  </div>
-</div>
-
-<div class="content">
-  <div class="info-grid">
-    <div class="info-label">Solicitante</div><div class="info-value">{submitted_by}</div>
-    <div class="info-label">Finalidade</div><div class="info-value">{finalidade}</div>
-    <div class="info-label">Combustível</div><div class="info-value">{combustivel}</div>
-    <div class="info-label">Data</div><div class="info-value">{data_abast}</div>
-    <div class="info-label">Cidade</div><div class="info-value">{cidade}</div>
-    <div class="info-label">Estado</div><div class="info-value">{estado}</div>
-    <div class="info-label">Rota</div><div class="info-value span-3">{rota}</div>
-  </div>
-
-  <div class="kpi-bar">
-    <div class="kpi-item"><span class="kpi-val">{litros:.2f} L</span><span class="kpi-lbl">Litros</span></div>
-    <div class="kpi-item"><span class="kpi-val">R$ {valor_litro:.3f}</span><span class="kpi-lbl">Preço / Litro</span></div>
-    <div class="kpi-item"><span class="kpi-val">{km_driven:.0f} km</span><span class="kpi-lbl">KM Rodados</span></div>
-    <div class="kpi-item"><span class="kpi-val">{km_per_liter:.2f} km/L</span><span class="kpi-lbl">Eficiência</span></div>
-    <div class="kpi-item"><span class="kpi-val">R$ {cost_per_km:.3f}</span><span class="kpi-lbl">Custo / KM</span></div>
-  </div>
-
-  <div class="section-hdr"><div class="sec-badge">KM</div><div class="sec-title">Hodômetro</div></div>
-  <div class="hodo-grid">
-    <div class="hodo-lbl">KM Inicial</div><div class="hodo-lbl">KM Final</div><div class="hodo-lbl">KM Rodados</div>
-    <div class="hodo-val">{km_inicial:,.0f}</div><div class="hodo-val">{km_final:,.0f}</div><div class="hodo-val">{km_driven:,.0f}</div>
-  </div>
-{ai_section}
-  <div class="signatures">
-    <div class="sig-box">
-      <div class="sig-lbl">Solicitante</div>
-      <div class="sig-sub">{submitted_by}</div>
-    </div>
-    <div class="sig-box">
-      <div class="sig-lbl">Aprovado por / Gestor</div>
-      <div class="sig-sub">Data: {data_abast}</div>
-    </div>
-  </div>
-</div>
-
-<div class="footer">
-  <div class="footer-l">BOMTEMPO INTELLIGENCE</div>
-  <div class="footer-c">Reembolso Combustível{f" · {id_label}" if id_label else ""} · {submitted_by} · {data_abast} · Emitido em {emissao}</div>
-  <div class="footer-r">Comprovante de Reembolso</div>
-</div>
-</body>
-</html>"""
+        replacements = {
+            "___PROTOCOLO___":    id_label or "—",
+            "___BADGE_TEXT___":   badge_text,
+            "___NOME___":         submitted_by,
+            "___FINALIDADE___":   finalidade,
+            "___DATA_ABAST___":   data_abast,
+            "___COMBUSTIVEL___":  combustivel,
+            "___LITROS___":       f"{litros:.2f}",
+            "___VALOR_LITRO___":  f"{valor_litro:.3f}",
+            "___VALOR_TOTAL___":  f"{valor_total:.2f}",
+            "___KM_DRIVEN___":    f"{km_driven:.0f}",
+            "___KM_PER_LITER___": f"{km_per_liter:.2f}",
+            "___COST_PER_KM___":  f"{cost_per_km:.3f}",
+            "___KM_INICIAL___":   f"{km_inicial:,.0f}",
+            "___KM_FINAL___":     f"{km_final:,.0f}",
+            "___CIDADE___":       cidade,
+            "___ESTADO___":       estado,
+            "___ROTA___":         rota,
+            "___AI_SECTION___":   ai_section,
+            "___FOOTER_CONTENT___": footer_content,
+        }
+        html = _FR_HTML_TEMPLATE
+        for key, val in replacements.items():
+            html = html.replace(key, str(val) if val is not None else "")
+        return html
 
     @staticmethod
     def generate_pdf(data: dict, id_fr: str = "") -> tuple:
@@ -336,7 +470,11 @@ body { font-family: 'IBM Plex Sans', sans-serif; background: #fff; color: #1a1a1
             pdf_path = Config.FR_PDF_DIR / filename
 
             html = FuelService._build_fuel_html(data, id_fr)
-            html_to_pdf(html, pdf_path)
+            html_to_pdf(
+                html, pdf_path,
+                margin={"top": "0", "right": "0", "bottom": "0", "left": "0"},
+                display_header_footer=False,
+            )
 
             logger.info(f"✅ FR PDF gerado: {pdf_path.name}")
             return str(pdf_path), ""

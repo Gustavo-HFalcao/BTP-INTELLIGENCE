@@ -34,6 +34,10 @@ class RDOState(rx.State):
     has_draft_to_resume: bool = False  # banner de oferta de retomar
     pending_draft_id: str = ""      # ID do rascunho pendente de retomada
 
+    # ── Seleção de contrato (admin/gestor) ────────────────────
+    # True quando o usuário logado pode escolher qualquer contrato
+    can_choose_contrato: bool = False
+
     # ── Cabeçalho ─────────────────────────────────────────────
     rdo_data: str = ""
     rdo_contrato: str = ""
@@ -120,6 +124,21 @@ class RDOState(rx.State):
     # ── UI toggles ────────────────────────────────────────────
     section_atividades_open: bool = True
     section_observacoes_open: bool = True
+
+    # ── Cronograma integration (feature #20) ──────────────────
+    # Loaded activities from hub_atividades for the selected contract
+    hub_atividades_options: List[Dict[str, str]] = []   # [{id, label}]
+    hub_atividades_loading: bool = False
+    # Primary activity to update
+    rdo_atividade_id: str = ""
+    rdo_atividade_nome: str = ""
+    rdo_progresso_atividade: str = "0"
+    # If no existing activity: create a pending one
+    rdo_nova_atividade: bool = False
+    rdo_nova_atividade_nome: str = ""
+    rdo_nova_atividade_fase: str = ""
+    # Extra activities (list of {id, nome, progresso})
+    rdo_extra_atividades: List[Dict[str, str]] = []
 
     # ── Options ───────────────────────────────────────────────
     clima_options: List[str] = ["Ensolarado", "Parcialmente Nublado", "Nublado", "Chuvoso", "Chuvoso Forte", "Nevando"]
@@ -250,7 +269,13 @@ class RDOState(rx.State):
         from bomtempo.state.global_state import GlobalState
         gs = await self.get_state(GlobalState)
         user = str(gs.current_user_name)
+        role = str(gs.current_user_role or "")
         contrato = str(gs.current_user_contrato).strip()
+
+        # Admin/Gestor podem escolher qualquer contrato
+        _free_roles = {"Administrador", "admin", "Gestão-Mobile"}
+        _free_by_project = contrato in ("", "nan", "None", "Todos")
+        self.can_choose_contrato = role in _free_roles or _free_by_project
 
         # Carregar feature flags direto do banco (sempre fresco, nunca stale do login)
         try:
@@ -266,7 +291,8 @@ class RDOState(rx.State):
         # Defaults
         if not self.rdo_data:
             self.rdo_data = datetime.now().strftime("%Y-%m-%d")
-        if not self.rdo_contrato and contrato and contrato not in ("nan", "None", ""):
+        # Só pre-preenche contrato se o usuário não pode escolher (peão vinculado)
+        if not self.can_choose_contrato and not self.rdo_contrato and contrato not in ("nan", "None", ""):
             self.rdo_contrato = contrato
 
         # Pre-fill projeto/cliente/localizacao do GlobalState
@@ -277,6 +303,10 @@ class RDOState(rx.State):
                     self.rdo_cliente   = str(c.get("cliente", "") or c.get("nome_cliente", "") or "")
                     self.rdo_localizacao = str(c.get("cidade", "") or c.get("localizacao", "") or "")
                     break
+
+        # Load hub atividades for cronograma integration if contrato already set
+        if self.rdo_contrato and not self.can_choose_contrato:
+            yield RDOState.load_hub_atividades(self.rdo_contrato)
 
         # Verificar rascunho ativo — skip if already tracking a draft in this session
         if user and not self.draft_id_rdo:
@@ -377,6 +407,25 @@ class RDOState(rx.State):
 
     def discard_draft_offer(self):
         self.has_draft_to_resume = False
+
+    async def select_rdo_contrato(self, value: str):
+        """Admin/gestor escolhe o contrato — auto-preenche projeto, cliente, localização."""
+        if value == "__none__":
+            self.rdo_contrato = ""
+            self.rdo_projeto = ""
+            self.rdo_cliente = ""
+            self.rdo_localizacao = ""
+            return
+        self.rdo_contrato = value
+        from bomtempo.state.global_state import GlobalState
+        gs = await self.get_state(GlobalState)
+        for c in (gs.contratos_list or []):
+            if str(c.get("contrato", "")).strip() == value:
+                self.rdo_projeto = str(c.get("projeto", "") or c.get("nome_projeto", "") or "")
+                self.rdo_cliente = str(c.get("cliente", "") or c.get("nome_cliente", "") or "")
+                self.rdo_localizacao = str(c.get("cidade", "") or c.get("localizacao", "") or "")
+                break
+        yield RDOState.load_hub_atividades(value)
 
     @rx.event(background=True)
     async def delete_current_draft(self):
@@ -740,6 +789,9 @@ class RDOState(rx.State):
                 _name = getattr(f, "filename", "epi.jpg")
                 _ct   = getattr(f, "content_type", None) or "image/jpeg"
                 _b, _n, _c = file_bytes, _name, _ct
+                _ci_lat = float(self.checkin_lat or 0.0)
+                _ci_lng = float(self.checkin_lng or 0.0)
+                _ci_end = str(self.checkin_endereco or "")
                 result = await loop.run_in_executor(
                     None,
                     lambda: RDOService.process_evidence(
@@ -751,6 +803,9 @@ class RDOState(rx.State):
                         mestre=user,
                         contrato=contrato,
                         data=data,
+                        checkin_lat=_ci_lat,
+                        checkin_lng=_ci_lng,
+                        checkin_endereco=_ci_end,
                     ),
                 )
                 if result.get("foto_url"):
@@ -804,6 +859,9 @@ class RDOState(rx.State):
                 _name = getattr(f, "filename", "ferramentas.jpg")
                 _ct   = getattr(f, "content_type", None) or "image/jpeg"
                 _b, _n, _c = file_bytes, _name, _ct
+                _ci_lat = float(self.checkin_lat or 0.0)
+                _ci_lng = float(self.checkin_lng or 0.0)
+                _ci_end = str(self.checkin_endereco or "")
                 result = await loop.run_in_executor(
                     None,
                     lambda: RDOService.process_evidence(
@@ -815,6 +873,9 @@ class RDOState(rx.State):
                         mestre=user,
                         contrato=contrato,
                         data=data,
+                        checkin_lat=_ci_lat,
+                        checkin_lng=_ci_lng,
+                        checkin_endereco=_ci_end,
                     ),
                 )
                 if result.get("foto_url"):
@@ -880,6 +941,79 @@ class RDOState(rx.State):
 
     def remove_at(self, index: int):
         self.atividades_items = [it for i, it in enumerate(self.atividades_items) if i != index]
+
+    # ── Cronograma integration setters ────────────────────────
+
+    def set_rdo_atividade_id(self, v: str):
+        real_v = "" if v == "__none__" else v
+        self.rdo_atividade_id = real_v
+        # Also update display name from options
+        opt = next((o for o in self.hub_atividades_options if o.get("id") == real_v), None)
+        self.rdo_atividade_nome = opt["label"] if opt else ""
+
+    def set_rdo_progresso_atividade(self, v): self.rdo_progresso_atividade = str(v)
+    def toggle_rdo_nova_atividade(self): self.rdo_nova_atividade = not self.rdo_nova_atividade
+    def set_rdo_nova_atividade_nome(self, v: str): self.rdo_nova_atividade_nome = v
+    def set_rdo_nova_atividade_fase(self, v: str): self.rdo_nova_atividade_fase = v
+
+    def add_extra_atividade(self):
+        """Add a new blank extra activity slot."""
+        new_list = list(self.rdo_extra_atividades)
+        new_list.append({"id": "", "nome": "", "progresso": "0"})
+        self.rdo_extra_atividades = new_list
+
+    def remove_extra_atividade(self, idx: int):
+        new_list = [r for i, r in enumerate(self.rdo_extra_atividades) if i != idx]
+        self.rdo_extra_atividades = new_list
+
+    def set_extra_atividade_id(self, idx: int, v: str):
+        new_list = [dict(r) for r in self.rdo_extra_atividades]
+        if idx < len(new_list):
+            real_v = "" if v == "__none__" else v
+            opt = next((o for o in self.hub_atividades_options if o.get("id") == real_v), None)
+            new_list[idx]["id"] = real_v
+            new_list[idx]["nome"] = opt["label"] if opt else ""
+        self.rdo_extra_atividades = new_list
+
+    def set_extra_atividade_progresso(self, idx: int, v: str):
+        new_list = [dict(r) for r in self.rdo_extra_atividades]
+        if idx < len(new_list):
+            new_list[idx]["progresso"] = str(v)
+        self.rdo_extra_atividades = new_list
+
+    @rx.event(background=True)
+    async def load_hub_atividades(self, contrato: str):
+        """Load available activities from hub_atividades for the given contract."""
+        if not contrato:
+            return
+        async with self:
+            self.hub_atividades_loading = True
+            self.hub_atividades_options = []
+
+        from bomtempo.core.supabase_client import sb_select as _sb_select
+        try:
+            rows = _sb_select(
+                "hub_atividades",
+                filters={"contrato": contrato},
+                order="fase_macro.asc,atividade.asc",
+                limit=200,
+            )
+            opts = [
+                {
+                    "id": str(r.get("id", "")),
+                    "label": f"{r.get('fase_macro', '')} — {r.get('atividade', '')}",
+                }
+                for r in (rows or [])
+                if r.get("id") and r.get("atividade")
+                and not str(r.get("pendente_aprovacao", "")).upper() in ("TRUE", "1")
+            ]
+        except Exception as e:
+            logger.error(f"load_hub_atividades error: {e}")
+            opts = []
+
+        async with self:
+            self.hub_atividades_options = opts
+            self.hub_atividades_loading = False
 
     # ── Draft Save ────────────────────────────────────────────
 
@@ -1034,7 +1168,107 @@ class RDOState(rx.State):
                 lambda: RDOService.finalize_rdo(id_rdo, pdf_path, pdf_url, rdo_data_with_ai),
             )
 
-            # 5. Build view URL (public — absolute for email, relative for UI)
+            # 5b. Cronograma integration: update activity progress or create pending
+            async with self:
+                _ativ_id = str(self.rdo_atividade_id)
+                _progresso = int(self.rdo_progresso_atividade or "0")
+                _nova_ativ = bool(self.rdo_nova_atividade)
+                _nova_nome = str(self.rdo_nova_atividade_nome)
+                _nova_fase = str(self.rdo_nova_atividade_fase)
+                _extra_ativs = [dict(r) for r in self.rdo_extra_atividades]
+
+            if _ativ_id:
+                try:
+                    from bomtempo.core.supabase_client import sb_update as _sb_upd, sb_select as _sb_sel2, sb_insert as _sb_ins2
+                    # Fetch current pct for history
+                    cur_rows = await loop.run_in_executor(None, lambda: _sb_sel2("hub_atividades", filters={"id": _ativ_id}))
+                    cur_pct = int((cur_rows[0].get("conclusao_pct", 0) or 0) if cur_rows else 0)
+                    # Update progress
+                    await loop.run_in_executor(None, lambda: _sb_upd("hub_atividades", filters={"id": _ativ_id}, data={"conclusao_pct": _progresso}))
+                    # Insert history record
+                    await loop.run_in_executor(None, lambda: _sb_ins2("hub_atividade_historico", {
+                        "atividade_id": _ativ_id,
+                        "contrato": contrato,
+                        "rdo_id": id_rdo,
+                        "conclusao_pct_anterior": cur_pct,
+                        "conclusao_pct_novo": _progresso,
+                        "registrado_por": user_name,
+                    }))
+                    logger.info(f"✅ Cronograma atualizado: atividade {_ativ_id} → {_progresso}%")
+                except Exception as e:
+                    logger.warning(f"⚠️ Cronograma update: {e}")
+            elif _nova_ativ and _nova_nome:
+                try:
+                    from bomtempo.core.supabase_client import sb_insert as _sb_ins3
+                    await loop.run_in_executor(None, lambda: _sb_ins3("hub_atividades", {
+                        "contrato": contrato,
+                        "atividade": _nova_nome,
+                        "fase_macro": _nova_fase or "Geral",
+                        "conclusao_pct": _progresso,
+                        "critico": False,
+                        "nivel": "macro",
+                        "pendente_aprovacao": True,
+                        "created_by": user_name,
+                    }))
+                    logger.info(f"✅ Atividade pendente criada: '{_nova_nome}'")
+                except Exception as e:
+                    logger.warning(f"⚠️ Create pending activity: {e}")
+
+            # 5b-extra. Process additional activity updates
+            for _extra in _extra_ativs:
+                _ex_id = _extra.get("id", "")
+                _ex_pct = int(_extra.get("progresso", "0") or "0")
+                if not _ex_id:
+                    continue
+                try:
+                    from bomtempo.core.supabase_client import sb_update as _sb_upd_ex, sb_select as _sb_sel_ex, sb_insert as _sb_ins_ex
+                    _cur = await loop.run_in_executor(None, lambda i=_ex_id: _sb_sel_ex("hub_atividades", filters={"id": i}))
+                    _cur_pct = int((_cur[0].get("conclusao_pct", 0) or 0) if _cur else 0)
+                    await loop.run_in_executor(None, lambda i=_ex_id, p=_ex_pct: _sb_upd_ex("hub_atividades", filters={"id": i}, data={"conclusao_pct": p}))
+                    await loop.run_in_executor(None, lambda i=_ex_id, p=_ex_pct, cp=_cur_pct: _sb_ins_ex("hub_atividade_historico", {
+                        "atividade_id": i,
+                        "contrato": contrato,
+                        "rdo_id": id_rdo,
+                        "conclusao_pct_anterior": cp,
+                        "conclusao_pct_novo": p,
+                        "registrado_por": user_name,
+                    }))
+                    logger.info(f"✅ Extra atividade {_ex_id} → {_ex_pct}%")
+                except Exception as e:
+                    logger.warning(f"⚠️ Extra atividade update: {e}")
+
+            # 5c. Sync photos to hub_auditoria_imgs (galeria de campo)
+            try:
+                from bomtempo.core.supabase_client import sb_insert as _sb_ins_aud
+                from datetime import date as _date_aud
+                _today = _date_aud.today().isoformat()
+                _sync_photos = []
+                if epi_url := rdo_data_with_ai.get("epi_foto_url", ""):
+                    _sync_photos.append({"categoria": "equipe", "url": epi_url, "legenda": "Equipe com EPIs"})
+                if ferr_url := rdo_data_with_ai.get("ferramentas_foto_url", ""):
+                    _sync_photos.append({"categoria": "ferramentas", "url": ferr_url, "legenda": "Ferramentas Limpas"})
+                _evidencias = rdo_data_with_ai.get("evidencias") or []
+                logger.info(f"📸 Sync galeria: {len(_evidencias)} evidências gerais, epi={bool(rdo_data_with_ai.get('epi_foto_url'))}, ferr={bool(rdo_data_with_ai.get('ferramentas_foto_url'))}")
+                for ev in _evidencias:
+                    ev_url = ev.get("foto_url", "") or ev.get("url", "")
+                    if ev_url:
+                        _sync_photos.append({"categoria": "gerais", "url": ev_url, "legenda": ev.get("legenda", "Imagem geral")})
+                for _ph in _sync_photos:
+                    try:
+                        await loop.run_in_executor(None, lambda ph=_ph: _sb_ins_aud("hub_auditoria_imgs", {
+                            "contrato": contrato,
+                            "categoria": ph["categoria"],
+                            "url": ph["url"],
+                            "legenda": ph["legenda"],
+                            "autor": user_name,
+                            "data_captura": _today,
+                        }))
+                    except Exception:
+                        pass
+            except Exception as e:
+                logger.warning(f"⚠️ hub_auditoria_imgs sync: {e}")
+
+            # 5d. Build view URL (public — absolute for email, relative for UI)
             from bomtempo.core.supabase_client import sb_select
             master_rows = await loop.run_in_executor(
                 None,
@@ -1078,6 +1312,13 @@ class RDOState(rx.State):
                 metadata={"contrato": contrato, "data": rdo_data.get("data", "")},
                 status="success",
             )
+
+            # Invalidate data cache so hub/financeiro reload fresh data next visit
+            try:
+                from bomtempo.core.data_loader import DataLoader as _DL
+                _DL.invalidate_cache()
+            except Exception:
+                pass
 
             toast_msg = f"✅ RDO enviado! {f'Email para {len(recipients)} destinatário(s).' if recipients else ''}"
             async with self:
@@ -1181,6 +1422,15 @@ class RDOState(rx.State):
         self.is_uploading_epi      = False
         self.ferramentas_foto_items = []
         self.is_uploading_ferramentas = False
+        # Cronograma integration
+        self.rdo_atividade_id = ""
+        self.rdo_atividade_nome = ""
+        self.rdo_progresso_atividade = "0"
+        self.rdo_nova_atividade = False
+        self.rdo_nova_atividade_nome = ""
+        self.rdo_nova_atividade_fase = ""
+        self.rdo_extra_atividades = []
+        self.hub_atividades_options = []
         self.signatory_name        = ""
         self.signatory_doc         = ""
         self.signatory_sig_b64     = ""

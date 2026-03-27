@@ -1,0 +1,881 @@
+/* ═══════════════════════════════════════════════════════════════════
+   BOMTEMPO INTELLIGENCE — LIGHT THEME "VERDURE"
+   Concept: Inversion of dark identity.
+   Dark uses void-black + copper accent → Light uses crisp white +
+   deep patina-green structure + copper gold accent.
+   Same brand DNA, completely different energy.
+
+   Activated: document.documentElement.setAttribute('data-theme','light')
+   Dark theme is UNTOUCHED — every rule here is scoped to [data-theme="light"]
+   ═══════════════════════════════════════════════════════════════════ */
+
+
+/* ── SECTION 1: CSS VARIABLE OVERRIDES ──────────────────────────── */
+
+[data-theme="light"] {
+    --bg-void:              #F7F9F8;      /* near-white with green tint */
+    --bg-depth:             #EEF3F1;      /* soft green-white */
+    --bg-surface:           #1D4A42;      /* deep patina — sidebar/nav structure */
+    --bg-elevated:          #245049;      /* slightly lighter patina */
+    --bg-glass:             rgba(255, 255, 255, 0.90);
+
+    --copper-500:           #C98B2A;      /* gold copper — primary action */
+    --copper-400:           #E0A63B;      /* lighter gold */
+    --copper-glow:          rgba(201, 139, 42, 0.20);
+
+    --patina-500:           #1D4A42;      /* deep patina — structural */
+    --patina-400:           #2A6B60;      /* medium patina */
+    --patina-light:         #3D8B7E;      /* accent patina */
+    --patina-glow:          rgba(29, 74, 66, 0.12);
+
+    --text-main:            #0F2420;      /* near-black with green tint */
+    --text-secondary:       #2A4840;      /* dark green-grey */
+    --text-muted:           #5A7870;      /* muted green-grey */
+    --text-on-dark:         #F0F7F5;      /* text on patina bg */
+    --text-muted-on-dark:   rgba(240, 247, 245, 0.60);
+
+    --border-subtle:        rgba(29, 74, 66, 0.10);
+    --border-medium:        rgba(29, 74, 66, 0.18);
+    --border-highlight:     rgba(201, 139, 42, 0.50);
+
+    --card-bg:              #FFFFFF;
+    --card-shadow:          0 1px 3px rgba(15, 36, 32, 0.06), 0 4px 20px rgba(15, 36, 32, 0.05);
+    --card-shadow-hover:    0 2px 8px rgba(15, 36, 32, 0.08), 0 8px 32px rgba(15, 36, 32, 0.10);
+}
+
+
+/* ── SECTION 2: BODY & ROOT ─────────────────────────────────────── */
+
+[data-theme="light"] body {
+    background-color: #F7F9F8 !important;
+    background-image:
+        radial-gradient(ellipse 100% 50% at 50% 0%, rgba(29, 74, 66, 0.04) 0%, transparent 65%),
+        url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.018'/%3E%3C/svg%3E") !important;
+    color: #0F2420 !important;
+}
+
+/* Override Reflex's injected dark bg via rx.App(style=...) if still present */
+[data-theme="light"] body,
+[data-theme="light"] #app,
+[data-theme="light"] .reflex-app {
+    background-color: #F7F9F8 !important;
+}
+
+
+/* ── SECTION 3: SIDEBAR — deep patina green ─────────────────────── */
+
+[data-theme="light"] .app-sidebar {
+    background: linear-gradient(180deg, #1D4A42 0%, #183D36 100%) !important;
+    border-right: 1px solid rgba(201, 139, 42, 0.20) !important;
+    box-shadow: 4px 0 24px rgba(15, 36, 32, 0.15) !important;
+}
+
+/* All sidebar text */
+[data-theme="light"] .app-sidebar p,
+[data-theme="light"] .app-sidebar span {
+    color: rgba(240, 247, 245, 0.85) !important;
+}
+
+/* All sidebar icons */
+[data-theme="light"] .app-sidebar svg {
+    color: rgba(240, 247, 245, 0.50) !important;
+}
+
+/* Sidebar section labels */
+[data-theme="light"] .app-sidebar .sidebar-section-label,
+[data-theme="light"] .sidebar-section-label {
+    color: rgba(240, 247, 245, 0.35) !important;
+    letter-spacing: 0.15em !important;
+}
+
+/* Active nav item — copper gold highlight */
+[data-theme="light"] .app-sidebar a [style*="background: rgba(201, 139, 42"],
+[data-theme="light"] .app-sidebar a [style*="background: rgba(201,139,42"] {
+    background: rgba(201, 139, 42, 0.15) !important;
+}
+
+/* Nav item hover */
+[data-theme="light"] .app-sidebar a:hover > div,
+[data-theme="light"] .app-sidebar a:hover span {
+    color: #F0F7F5 !important;
+}
+
+/* Active icon (copper) — keep it */
+[data-theme="light"] .app-sidebar [style*="color: #C98B2A"] {
+    color: #E0A63B !important;
+}
+
+/* Active text (white on dark sidebar — correct) */
+[data-theme="light"] .app-sidebar [style*="color: white"],
+[data-theme="light"] .app-sidebar [style*="color: #FFFFFF"],
+[data-theme="light"] .app-sidebar [style*="color: rgb(255, 255, 255)"] {
+    color: #F0F7F5 !important;
+}
+
+/* Sidebar muted icons (#889999) */
+[data-theme="light"] .app-sidebar [style*="color: #889999"],
+[data-theme="light"] .app-sidebar [style*="color: rgb(136, 153, 153)"] {
+    color: rgba(240, 247, 245, 0.45) !important;
+}
+
+/* Sidebar background color overrides (hardcoded Python bg values) */
+[data-theme="light"] .app-sidebar [style*="background: #142420"],
+[data-theme="light"] .app-sidebar [style*="background:#142420"],
+[data-theme="light"] .app-sidebar [style*="background-color: #142420"] {
+    background: rgba(255, 255, 255, 0.06) !important;
+}
+[data-theme="light"] .app-sidebar [style*="background: #0e1a17"],
+[data-theme="light"] .app-sidebar [style*="background: #0E1A17"],
+[data-theme="light"] .app-sidebar [style*="background-color: #0e1a17"] {
+    background: rgba(0, 0, 0, 0.12) !important;
+}
+
+/* Sidebar dividers */
+[data-theme="light"] .app-sidebar [style*="background: rgba(255, 255, 255, 0.08)"],
+[data-theme="light"] .app-sidebar [style*="background: rgba(255,255,255,0.08)"],
+[data-theme="light"] .app-sidebar hr {
+    background: rgba(255, 255, 255, 0.10) !important;
+    border-color: rgba(255, 255, 255, 0.10) !important;
+}
+
+/* Sidebar border-right on inner elements */
+[data-theme="light"] .app-sidebar [style*="border-right"] {
+    border-right-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Sidebar toggle button */
+[data-theme="light"] .app-sidebar [style*="background: #142420"][style*="border"],
+[data-theme="light"] .app-sidebar > div > [style*="position: absolute"] {
+    background: #245049 !important;
+    border-color: rgba(201, 139, 42, 0.30) !important;
+}
+
+/* Sidebar LOGO text */
+[data-theme="light"] .app-sidebar [style*="letter-spacing"] {
+    color: #F0F7F5 !important;
+}
+
+/* Brand name BOMTEMPO in sidebar */
+[data-theme="light"] .app-sidebar h1,
+[data-theme="light"] .app-sidebar h2,
+[data-theme="light"] .app-sidebar h3 {
+    color: #F0F7F5 !important;
+}
+
+/* User area at bottom */
+[data-theme="light"] .app-sidebar > div:last-child {
+    background: rgba(0, 0, 0, 0.15) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+[data-theme="light"] .app-sidebar > div:last-child p,
+[data-theme="light"] .app-sidebar > div:last-child span {
+    color: rgba(240, 247, 245, 0.85) !important;
+}
+
+
+/* ── SECTION 4: TOP BAR ─────────────────────────────────────────── */
+
+/* Target top bar by its dark inline background (both space variants) */
+[data-theme="light"] [style*="background: rgba(14,26,23"],
+[data-theme="light"] [style*="background: rgba(14, 26, 23"],
+[data-theme="light"] [style*="background:rgba(14,26,23"],
+[data-theme="light"] [style*="background:rgba(14, 26, 26"] {
+    background: rgba(29, 74, 66, 0.97) !important;
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+    border-bottom: 1px solid rgba(201, 139, 42, 0.25) !important;
+    box-shadow: 0 1px 0 rgba(201, 139, 42, 0.10), 0 4px 32px rgba(15, 36, 32, 0.25) !important;
+}
+
+/* Top bar text — white on dark patina bg is CORRECT here */
+[data-theme="light"] [style*="background: rgba(14,26,23"] p,
+[data-theme="light"] [style*="background: rgba(14, 26, 23"] p,
+[data-theme="light"] [style*="background:rgba(14,26,23"] p,
+[data-theme="light"] [style*="background: rgba(14,26,23"] span,
+[data-theme="light"] [style*="background: rgba(14, 26, 23"] span,
+[data-theme="light"] [style*="background:rgba(14,26,23"] span {
+    color: rgba(240, 247, 245, 0.85) !important;
+}
+
+/* Top bar module title (bold) */
+[data-theme="light"] [style*="background: rgba(14,26,23"] [style*="font-weight: 700"],
+[data-theme="light"] [style*="background: rgba(14, 26, 23"] [style*="font-weight: 700"],
+[data-theme="light"] [style*="background:rgba(14,26,23"] [style*="font-weight: 700"] {
+    color: #F0F7F5 !important;
+}
+
+/* Top bar SVG icons */
+[data-theme="light"] [style*="background: rgba(14,26,23"] svg,
+[data-theme="light"] [style*="background: rgba(14, 26, 23"] svg,
+[data-theme="light"] [style*="background:rgba(14,26,23"] svg {
+    color: rgba(240, 247, 245, 0.55) !important;
+}
+
+/* Top bar copper accent icons keep copper */
+[data-theme="light"] [style*="background: rgba(14,26,23"] [style*="color: #C98B2A"],
+[data-theme="light"] [style*="background: rgba(14, 26, 23"] [style*="color: #C98B2A"] {
+    color: #E0A63B !important;
+}
+
+/* Top bar TEXT_MUTED */
+[data-theme="light"] [style*="background: rgba(14,26,23"] [style*="color: #889999"],
+[data-theme="light"] [style*="background: rgba(14, 26, 23"] [style*="color: #889999"],
+[data-theme="light"] [style*="background: rgba(14,26,23"] [style*="color: rgb(136, 153, 153)"],
+[data-theme="light"] [style*="background: rgba(14, 26, 23"] [style*="color: rgb(136, 153, 153)"] {
+    color: rgba(240, 247, 245, 0.50) !important;
+}
+
+/* Top bar search input */
+[data-theme="light"] [style*="background: rgba(14,26,23"] input,
+[data-theme="light"] [style*="background: rgba(14, 26, 23"] input {
+    color: #F0F7F5 !important;
+    border-bottom-color: rgba(255, 255, 255, 0.18) !important;
+}
+[data-theme="light"] [style*="background: rgba(14,26,23"] input::placeholder,
+[data-theme="light"] [style*="background: rgba(14, 26, 23"] input::placeholder {
+    color: rgba(240, 247, 245, 0.30) !important;
+}
+
+/* Top bar user pill */
+[data-theme="light"] [style*="background: rgba(14,26,23"] [style*="border: 1px solid"],
+[data-theme="light"] [style*="background: rgba(14, 26, 23"] [style*="border: 1px solid"] {
+    border-color: rgba(201, 139, 42, 0.30) !important;
+    background: rgba(201, 139, 42, 0.08) !important;
+}
+
+/* Top bar thin divider line */
+[data-theme="light"] [style*="background: rgba(14,26,23"] [style*="background: rgba(255,255,255,0.06)"],
+[data-theme="light"] [style*="background: rgba(14, 26, 23"] [style*="background: rgba(255, 255, 255, 0.06)"],
+[data-theme="light"] [style*="background: rgba(14,26,23"] [style*="background: rgba(255,255,255,0.0"],
+[data-theme="light"] [style*="background: rgba(14, 26, 23"] [style*="background: rgba(255,255,255,0.0"] {
+    background: rgba(255, 255, 255, 0.12) !important;
+}
+
+/* Top bar action button hover */
+[data-theme="light"] [style*="background: rgba(14,26,23"] [style*="border-radius: 6px"]:hover,
+[data-theme="light"] [style*="background: rgba(14, 26, 23"] [style*="border-radius: 6px"]:hover {
+    background: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Logout red — keep visible on dark bg */
+[data-theme="light"] [style*="color: #EF4444"],
+[data-theme="light"] [style*="color: rgb(239, 68, 68)"] {
+    color: #F87171 !important;
+}
+
+
+/* ── SECTION 5: MAIN CONTENT AREA ───────────────────────────────── */
+
+[data-theme="light"] .app-main-content {
+    background: #F7F9F8 !important;
+    color: #0F2420 !important;
+}
+
+/* ── Dark bg panels → white cards ── */
+[data-theme="light"] .app-main-content [style*="background: #0e1a17"],
+[data-theme="light"] .app-main-content [style*="background: #0E1A17"],
+[data-theme="light"] .app-main-content [style*="background:#0e1a17"],
+[data-theme="light"] .app-main-content [style*="background-color: #0e1a17"],
+[data-theme="light"] .app-main-content [style*="background-color: #0E1A17"] {
+    background: #FFFFFF !important;
+    border-color: rgba(29, 74, 66, 0.10) !important;
+    box-shadow: 0 1px 3px rgba(15, 36, 32, 0.06), 0 4px 20px rgba(15, 36, 32, 0.05) !important;
+}
+
+[data-theme="light"] .app-main-content [style*="background: #142420"],
+[data-theme="light"] .app-main-content [style*="background:#142420"],
+[data-theme="light"] .app-main-content [style*="background-color: #142420"] {
+    background: #EEF3F1 !important;
+    border-color: rgba(29, 74, 66, 0.10) !important;
+}
+
+[data-theme="light"] .app-main-content [style*="background: #030504"],
+[data-theme="light"] .app-main-content [style*="background:#030504"],
+[data-theme="light"] .app-main-content [style*="background-color: #030504"] {
+    background: #F7F9F8 !important;
+}
+
+[data-theme="light"] .app-main-content [style*="background: #081210"],
+[data-theme="light"] .app-main-content [style*="background:#081210"],
+[data-theme="light"] .app-main-content [style*="background-color: #081210"] {
+    background: #EEF3F1 !important;
+}
+
+/* BG_GLASS rgba(14,26,23,...) → white panel */
+[data-theme="light"] .app-main-content [style*="background: rgba(14, 26, 23"],
+[data-theme="light"] .app-main-content [style*="background: rgba(14,26,23"],
+[data-theme="light"] .app-main-content [style*="background:rgba(14, 26, 23"],
+[data-theme="light"] .app-main-content [style*="background:rgba(14,26,23"] {
+    background: rgba(255, 255, 255, 0.95) !important;
+    border-color: rgba(29, 74, 66, 0.10) !important;
+}
+
+/* ── Text overrides inside main content ── */
+
+/* Hardcoded white/near-white text → dark */
+[data-theme="light"] .app-main-content [style*="color: white"],
+[data-theme="light"] .app-main-content [style*="color: #FFFFFF"],
+[data-theme="light"] .app-main-content [style*="color: #ffffff"],
+[data-theme="light"] .app-main-content [style*="color: rgb(255, 255, 255)"] {
+    color: #0F2420 !important;
+}
+
+/* TEXT_PRIMARY (#E0E0E0) → dark */
+[data-theme="light"] .app-main-content [style*="color: #E0E0E0"],
+[data-theme="light"] .app-main-content [style*="color: rgb(224, 224, 224)"] {
+    color: #0F2420 !important;
+}
+
+/* TEXT_MUTED (#889999) → muted green */
+[data-theme="light"] .app-main-content [style*="color: #889999"],
+[data-theme="light"] .app-main-content [style*="color: rgb(136, 153, 153)"] {
+    color: #5A7870 !important;
+}
+
+/* Copper text stays copper (slightly richer) */
+[data-theme="light"] .app-main-content [style*="color: #C98B2A"],
+[data-theme="light"] .app-main-content [style*="color: #c98b2a"] {
+    color: #B87820 !important;
+}
+
+/* Borders: rgba(255,255,255,...) → dark green */
+[data-theme="light"] .app-main-content [style*="border: 1px solid rgba(255, 255, 255"],
+[data-theme="light"] .app-main-content [style*="border: 1px solid rgba(255,255,255"] {
+    border-color: rgba(29, 74, 66, 0.12) !important;
+}
+[data-theme="light"] .app-main-content [style*="border-bottom: 1px solid rgba(255, 255, 255"],
+[data-theme="light"] .app-main-content [style*="border-top: 1px solid rgba(255, 255, 255"],
+[data-theme="light"] .app-main-content [style*="border-left: 1px solid rgba(255, 255, 255"] {
+    border-color: rgba(29, 74, 66, 0.10) !important;
+}
+
+
+/* ── SECTION 6: CARDS — white with depth ────────────────────────── */
+
+[data-theme="light"] .glass-panel {
+    background: #FFFFFF !important;
+    border: 1px solid rgba(29, 74, 66, 0.10) !important;
+    box-shadow: 0 1px 3px rgba(15, 36, 32, 0.06), 0 4px 20px rgba(15, 36, 32, 0.05) !important;
+}
+[data-theme="light"] .glass-panel-hover:hover {
+    border-color: rgba(201, 139, 42, 0.45) !important;
+    box-shadow: 0 2px 8px rgba(15, 36, 32, 0.08), 0 8px 32px rgba(201, 139, 42, 0.12) !important;
+}
+
+[data-theme="light"] .kpi-card {
+    background: #FFFFFF !important;
+    border: 1px solid rgba(29, 74, 66, 0.09) !important;
+    box-shadow: 0 1px 3px rgba(15, 36, 32, 0.05), 0 4px 20px rgba(15, 36, 32, 0.04) !important;
+    transition: box-shadow 0.2s ease, border-color 0.2s ease !important;
+}
+[data-theme="light"] .kpi-card:hover {
+    border-color: rgba(201, 139, 42, 0.40) !important;
+    box-shadow: 0 2px 8px rgba(15, 36, 32, 0.08), 0 8px 32px rgba(201, 139, 42, 0.10) !important;
+}
+
+/* KPI large value numbers — dark ink */
+[data-theme="light"] .kpi-card [style*="font-size: 28px"],
+[data-theme="light"] .kpi-card [style*="font-size: 32px"],
+[data-theme="light"] .kpi-card [style*="font-size: 36px"],
+[data-theme="light"] .kpi-card [style*="font-size: 40px"] {
+    color: #0F2420 !important;
+}
+
+/* KPI label text */
+[data-theme="light"] .kpi-card p,
+[data-theme="light"] .kpi-card span {
+    color: #0F2420 !important;
+}
+[data-theme="light"] .kpi-card [style*="color: #889999"],
+[data-theme="light"] .kpi-card [style*="color: rgb(136, 153, 153)"] {
+    color: #5A7870 !important;
+}
+
+[data-theme="light"] .project-card {
+    background: #FFFFFF !important;
+    border: 1px solid rgba(29, 74, 66, 0.09) !important;
+    box-shadow: 0 1px 3px rgba(15, 36, 32, 0.05), 0 4px 20px rgba(15, 36, 32, 0.04) !important;
+}
+[data-theme="light"] .project-card:hover {
+    border-color: rgba(201, 139, 42, 0.40) !important;
+    box-shadow: 0 8px 32px rgba(201, 139, 42, 0.10) !important;
+}
+
+
+/* ── SECTION 7: PAGE HERO BANNER ────────────────────────────────── */
+
+[data-theme="light"] .glass-panel h1,
+[data-theme="light"] .glass-panel h2,
+[data-theme="light"] .glass-panel h3 {
+    color: #0F2420 !important;
+}
+[data-theme="light"] .glass-panel p {
+    color: #2A4840 !important;
+}
+
+/* Page hero large panel — white with subtle green top border */
+[data-theme="light"] .app-main-content > div > .glass-panel:first-child,
+[data-theme="light"] .page-hero {
+    border-top: 3px solid #1D4A42 !important;
+}
+
+
+/* ── SECTION 8: RADIX UI COMPONENTS ─────────────────────────────── */
+
+/* --- Tabs list --- */
+[data-theme="light"] .rt-TabsList {
+    background: rgba(29, 74, 66, 0.06) !important;
+    border: 1px solid rgba(29, 74, 66, 0.10) !important;
+    border-radius: 6px !important;
+}
+
+/* --- Tab trigger --- */
+[data-theme="light"] .rt-TabsTrigger {
+    color: #5A7870 !important;
+}
+[data-theme="light"] .rt-TabsTrigger[data-state="active"] {
+    color: #1D4A42 !important;
+    background: #FFFFFF !important;
+    box-shadow: 0 1px 4px rgba(15, 36, 32, 0.12) !important;
+}
+[data-theme="light"] .rt-TabsTrigger:hover {
+    color: #1D4A42 !important;
+}
+
+/* --- Popover / Dialog / HoverCard --- */
+[data-theme="light"] .rt-PopoverContent,
+[data-theme="light"] .rt-DialogContent,
+[data-theme="light"] .rt-HoverCardContent,
+[data-theme="light"] .rt-AlertDialogContent {
+    background: #FFFFFF !important;
+    border: 1px solid rgba(29, 74, 66, 0.12) !important;
+    box-shadow: 0 8px 48px rgba(15, 36, 32, 0.16), 0 2px 8px rgba(15, 36, 32, 0.08) !important;
+    color: #0F2420 !important;
+}
+[data-theme="light"] .rt-PopoverContent *,
+[data-theme="light"] .rt-DialogContent *,
+[data-theme="light"] .rt-AlertDialogContent * {
+    color: #0F2420 !important;
+}
+/* Exception: copper accents inside dialog stay copper */
+[data-theme="light"] .rt-DialogContent [style*="color: #C98B2A"],
+[data-theme="light"] .rt-PopoverContent [style*="color: #C98B2A"] {
+    color: #C98B2A !important;
+}
+/* Exception: patina/green accents */
+[data-theme="light"] .rt-DialogContent [style*="color: #2A9D8F"] {
+    color: #1F7A6F !important;
+}
+
+/* --- Dropdown / Context Menu --- */
+[data-theme="light"] .rt-DropdownMenuContent,
+[data-theme="light"] .rt-ContextMenuContent {
+    background: #FFFFFF !important;
+    border: 1px solid rgba(29, 74, 66, 0.12) !important;
+    box-shadow: 0 8px 40px rgba(15, 36, 32, 0.14) !important;
+}
+[data-theme="light"] .rt-DropdownMenuItem,
+[data-theme="light"] .rt-ContextMenuItem {
+    color: #0F2420 !important;
+}
+[data-theme="light"] .rt-DropdownMenuItem:hover,
+[data-theme="light"] .rt-ContextMenuItem:hover {
+    background: rgba(29, 74, 66, 0.07) !important;
+    color: #1D4A42 !important;
+}
+[data-theme="light"] .rt-DropdownMenuSeparator,
+[data-theme="light"] .rt-ContextMenuSeparator {
+    background: rgba(29, 74, 66, 0.10) !important;
+}
+
+/* --- Select --- */
+[data-theme="light"] .rt-SelectContent {
+    background: #FFFFFF !important;
+    border: 1px solid rgba(29, 74, 66, 0.12) !important;
+    box-shadow: 0 8px 32px rgba(15, 36, 32, 0.12) !important;
+}
+[data-theme="light"] .rt-SelectItem {
+    color: #0F2420 !important;
+}
+[data-theme="light"] .rt-SelectItem[data-highlighted] {
+    background: rgba(29, 74, 66, 0.08) !important;
+    color: #1D4A42 !important;
+}
+[data-theme="light"] .rt-SelectItem[data-state="checked"] {
+    color: #C98B2A !important;
+}
+[data-theme="light"] .rt-SelectTrigger {
+    background: #FFFFFF !important;
+    border: 1px solid rgba(29, 74, 66, 0.18) !important;
+    color: #0F2420 !important;
+    box-shadow: none !important;
+}
+[data-theme="light"] .rt-SelectTrigger:hover {
+    border-color: rgba(29, 74, 66, 0.35) !important;
+}
+[data-theme="light"] .rt-SelectTriggerInner {
+    color: #0F2420 !important;
+}
+
+/* --- Text Fields / Inputs --- */
+[data-theme="light"] .rt-TextFieldRoot,
+[data-theme="light"] .rt-TextAreaRoot {
+    background: #FFFFFF !important;
+    border: 1px solid rgba(29, 74, 66, 0.18) !important;
+    box-shadow: none !important;
+}
+[data-theme="light"] .rt-TextFieldRoot:focus-within,
+[data-theme="light"] .rt-TextAreaRoot:focus-within {
+    border-color: #1D4A42 !important;
+    box-shadow: 0 0 0 3px rgba(29, 74, 66, 0.10) !important;
+}
+[data-theme="light"] .rt-TextFieldInput,
+[data-theme="light"] .rt-TextAreaInput {
+    color: #0F2420 !important;
+    background: transparent !important;
+}
+[data-theme="light"] .rt-TextFieldInput::placeholder,
+[data-theme="light"] .rt-TextAreaInput::placeholder {
+    color: rgba(15, 36, 32, 0.35) !important;
+}
+
+/* --- Badges --- */
+[data-theme="light"] .rt-Badge[data-color="green"] {
+    background: rgba(29, 74, 66, 0.10) !important;
+    color: #1D4A42 !important;
+    border-color: rgba(29, 74, 66, 0.25) !important;
+}
+[data-theme="light"] .rt-Badge[data-color="red"] {
+    background: rgba(185, 28, 28, 0.08) !important;
+    color: #991B1B !important;
+    border-color: rgba(185, 28, 28, 0.20) !important;
+}
+[data-theme="light"] .rt-Badge[data-color="orange"],
+[data-theme="light"] .rt-Badge[data-color="yellow"] {
+    background: rgba(201, 139, 42, 0.12) !important;
+    color: #7A4E0A !important;
+    border-color: rgba(201, 139, 42, 0.28) !important;
+}
+[data-theme="light"] .rt-Badge[data-color="blue"] {
+    background: rgba(30, 64, 175, 0.08) !important;
+    color: #1E3EA0 !important;
+    border-color: rgba(30, 64, 175, 0.20) !important;
+}
+[data-theme="light"] .rt-Badge[data-color="teal"],
+[data-theme="light"] .rt-Badge[data-color="cyan"] {
+    background: rgba(29, 74, 66, 0.10) !important;
+    color: #1D4A42 !important;
+    border-color: rgba(29, 74, 66, 0.25) !important;
+}
+
+/* --- Table --- */
+[data-theme="light"] .rt-TableColumnHeaderCell {
+    background: rgba(29, 74, 66, 0.06) !important;
+    color: #1D4A42 !important;
+    border-bottom: 2px solid rgba(29, 74, 66, 0.15) !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.05em !important;
+}
+[data-theme="light"] .rt-TableCell {
+    color: #0F2420 !important;
+    border-bottom: 1px solid rgba(29, 74, 66, 0.07) !important;
+}
+[data-theme="light"] .rt-TableRow:hover .rt-TableCell {
+    background: rgba(29, 74, 66, 0.03) !important;
+}
+
+/* --- Callout --- */
+[data-theme="light"] .rt-CalloutRoot {
+    background: rgba(29, 74, 66, 0.07) !important;
+    border: 1px solid rgba(29, 74, 66, 0.20) !important;
+}
+[data-theme="light"] .rt-CalloutText {
+    color: #0F2420 !important;
+}
+[data-theme="light"] .rt-CalloutIcon svg {
+    color: #1D4A42 !important;
+}
+
+/* --- Button (primary) --- */
+[data-theme="light"] .rt-Button[data-variant="solid"] {
+    background: #1D4A42 !important;
+    color: #F0F7F5 !important;
+}
+[data-theme="light"] .rt-Button[data-variant="solid"]:hover {
+    background: #245049 !important;
+}
+[data-theme="light"] .rt-Button[data-variant="outline"] {
+    border-color: rgba(29, 74, 66, 0.30) !important;
+    color: #1D4A42 !important;
+}
+[data-theme="light"] .rt-Button[data-variant="ghost"] {
+    color: #1D4A42 !important;
+}
+[data-theme="light"] .rt-Button[data-variant="ghost"]:hover {
+    background: rgba(29, 74, 66, 0.08) !important;
+}
+
+/* --- Checkbox --- */
+[data-theme="light"] .rt-CheckboxButton[data-state="checked"],
+[data-theme="light"] .rt-BaseCheckboxRoot[data-state="checked"] {
+    background: #1D4A42 !important;
+    border-color: #1D4A42 !important;
+}
+
+/* --- Switch --- */
+[data-theme="light"] .rt-SwitchRoot[data-state="checked"] .rt-SwitchThumb {
+    background: #F0F7F5 !important;
+}
+[data-theme="light"] .rt-SwitchRoot[data-state="checked"] {
+    background: #1D4A42 !important;
+}
+
+/* --- Progress bar --- */
+[data-theme="light"] .rt-ProgressRoot {
+    background: rgba(29, 74, 66, 0.12) !important;
+}
+[data-theme="light"] .rt-ProgressIndicator {
+    background: #1D4A42 !important;
+}
+
+/* --- Separator --- */
+[data-theme="light"] .rt-Separator {
+    background: rgba(29, 74, 66, 0.12) !important;
+}
+
+/* --- Generic Radix text --- */
+[data-theme="light"] .rt-Text {
+    color: #0F2420 !important;
+}
+[data-theme="light"] .rt-Heading {
+    color: #0F2420 !important;
+}
+
+/* --- Card --- */
+[data-theme="light"] .rt-Card {
+    background: #FFFFFF !important;
+    border-color: rgba(29, 74, 66, 0.10) !important;
+    box-shadow: 0 1px 3px rgba(15, 36, 32, 0.06), 0 4px 20px rgba(15, 36, 32, 0.05) !important;
+}
+
+/* --- Avatar initials --- */
+[data-theme="light"] .rt-AvatarFallback {
+    background: rgba(29, 74, 66, 0.12) !important;
+    color: #1D4A42 !important;
+}
+
+/* --- Tooltip --- */
+[data-theme="light"] .rt-TooltipContent,
+[data-theme="light"] .rt-TooltipText {
+    background: #0F2420 !important;
+    color: #F0F7F5 !important;
+    border: 1px solid rgba(201, 139, 42, 0.25) !important;
+}
+
+/* --- Dialog overlay --- */
+[data-theme="light"] .rt-DialogOverlay,
+[data-theme="light"] .rt-AlertDialogOverlay {
+    background: rgba(15, 36, 32, 0.40) !important;
+}
+
+
+/* ── SECTION 9: DATA TABLE (custom .data-table) ─────────────────── */
+
+[data-theme="light"] .data-table th {
+    background: rgba(29, 74, 66, 0.07) !important;
+    color: #1D4A42 !important;
+    border-bottom: 2px solid rgba(29, 74, 66, 0.15) !important;
+    font-weight: 700 !important;
+}
+[data-theme="light"] .data-table td {
+    color: #0F2420 !important;
+    border-bottom: 1px solid rgba(29, 74, 66, 0.07) !important;
+}
+[data-theme="light"] .data-table tr:hover td {
+    background: rgba(29, 74, 66, 0.03) !important;
+}
+[data-theme="light"] .enterprise-kpi-table th {
+    background: rgba(29, 74, 66, 0.08) !important;
+    color: #1D4A42 !important;
+    border-color: rgba(29, 74, 66, 0.12) !important;
+}
+[data-theme="light"] .enterprise-kpi-table td {
+    color: #0F2420 !important;
+    border-color: rgba(29, 74, 66, 0.07) !important;
+}
+
+
+/* ── SECTION 10: RECHARTS ───────────────────────────────────────── */
+
+[data-theme="light"] .recharts-tooltip-label {
+    color: #1D4A42 !important;
+    font-weight: 600 !important;
+}
+[data-theme="light"] .recharts-tooltip-item {
+    color: #0F2420 !important;
+}
+[data-theme="light"] .recharts-default-tooltip {
+    background: #FFFFFF !important;
+    border: 1px solid rgba(29, 74, 66, 0.15) !important;
+    border-radius: 6px !important;
+    box-shadow: 0 4px 16px rgba(15, 36, 32, 0.12) !important;
+}
+[data-theme="light"] .recharts-cartesian-axis-tick-value {
+    fill: #5A7870 !important;
+}
+[data-theme="light"] .recharts-legend-item-text {
+    color: #2A4840 !important;
+    fill: #2A4840 !important;
+}
+[data-theme="light"] .recharts-cartesian-grid-horizontal line,
+[data-theme="light"] .recharts-cartesian-grid-vertical line {
+    stroke: rgba(29, 74, 66, 0.08) !important;
+}
+[data-theme="light"] .recharts-reference-line line {
+    stroke: rgba(29, 74, 66, 0.20) !important;
+}
+
+
+/* ── SECTION 11: SUGGESTION CHIPS ──────────────────────────────── */
+
+[data-theme="light"] .suggestion-chip {
+    background: #FFFFFF !important;
+    border: 1px solid rgba(29, 74, 66, 0.15) !important;
+    color: #2A4840 !important;
+    box-shadow: 0 1px 3px rgba(15, 36, 32, 0.05) !important;
+}
+[data-theme="light"] .suggestion-chip:hover {
+    border-color: rgba(201, 139, 42, 0.50) !important;
+    color: #B87820 !important;
+    background: rgba(201, 139, 42, 0.05) !important;
+}
+
+
+/* ── SECTION 12: INTENTIONAL DARK ACCENT BLOCKS ─────────────────── */
+/* KPI bars, footer strips, accent panels — keep dark, ensure text is light */
+
+[data-theme="light"] [style*="background: #0B1A15"],
+[data-theme="light"] [style*="background:#0B1A15"],
+[data-theme="light"] [style*="background-color: #0B1A15"],
+[data-theme="light"] [style*="background: #162820"],
+[data-theme="light"] [style*="background:#162820"],
+[data-theme="light"] [style*="background-color: #162820"] {
+    background: #1D4A42 !important;
+    color: #F0F7F5 !important;
+}
+[data-theme="light"] [style*="background: #0B1A15"] *,
+[data-theme="light"] [style*="background: #162820"] *,
+[data-theme="light"] [style*="background-color: #0B1A15"] *,
+[data-theme="light"] [style*="background-color: #162820"] * {
+    color: #F0F7F5 !important;
+}
+
+
+/* ── SECTION 13: SCROLLBARS ─────────────────────────────────────── */
+
+[data-theme="light"] ::-webkit-scrollbar-track {
+    background: rgba(29, 74, 66, 0.04) !important;
+}
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+    background: rgba(29, 74, 66, 0.20) !important;
+    border-radius: 4px !important;
+}
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+    background: rgba(201, 139, 42, 0.50) !important;
+}
+
+
+/* ── SECTION 14: MISC ───────────────────────────────────────────── */
+
+/* Headings */
+[data-theme="light"] .app-main-content h1,
+[data-theme="light"] .app-main-content h2,
+[data-theme="light"] .app-main-content h3,
+[data-theme="light"] .app-main-content h4 {
+    color: #0F2420 !important;
+}
+
+/* font-tech class (Rajdhani headings) */
+[data-theme="light"] .app-main-content .font-tech {
+    color: #0F2420 !important;
+}
+
+/* Loading skeleton shimmer */
+[data-theme="light"] .skeleton-block {
+    background: linear-gradient(
+        90deg,
+        #EEF3F1 25%,
+        #F7F9F8 50%,
+        #EEF3F1 75%
+    ) !important;
+    background-size: 400% 100% !important;
+    animation: skeleton-shimmer 1.4s ease infinite !important;
+}
+@keyframes skeleton-shimmer {
+    0% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+/* Pagination */
+[data-theme="light"] .pagination-btn {
+    background: #FFFFFF !important;
+    border: 1px solid rgba(29, 74, 66, 0.15) !important;
+    color: #2A4840 !important;
+}
+[data-theme="light"] .pagination-btn:hover {
+    border-color: rgba(201, 139, 42, 0.40) !important;
+    color: #B87820 !important;
+}
+[data-theme="light"] .pagination-btn:disabled {
+    opacity: 0.4 !important;
+}
+
+/* Modal overlay */
+[data-theme="light"] .loading-overlay,
+[data-theme="light"] .page-loading-overlay {
+    background: rgba(247, 249, 248, 0.90) !important;
+    backdrop-filter: blur(8px) !important;
+}
+
+/* Sonner toasts */
+[data-theme="light"] [data-sonner-toast] {
+    background: #FFFFFF !important;
+    border: 1px solid rgba(29, 74, 66, 0.12) !important;
+    color: #0F2420 !important;
+    box-shadow: 0 4px 24px rgba(15, 36, 32, 0.12) !important;
+}
+
+/* FAB button */
+[data-theme="light"] .fab-ai {
+    background: rgba(29, 74, 66, 0.10) !important;
+    color: #1D4A42 !important;
+    border-color: rgba(29, 74, 66, 0.30) !important;
+}
+[data-theme="light"] .fab-ai:hover {
+    background: rgba(29, 74, 66, 0.15) !important;
+}
+
+/* Status indicators (green dot, etc.) */
+[data-theme="light"] .status-dot-green,
+[data-theme="light"] [class*="status-online"] {
+    background: #1D4A42 !important;
+}
+
+/* Error text */
+[data-theme="light"] [style*="color: #EF4444"],
+[data-theme="light"] [style*="color: rgb(239, 68, 68)"] {
+    color: #991B1B !important;
+}
+
+/* Copper glow accents → slightly richer on light */
+[data-theme="light"] [style*="color: #2A9D8F"] {
+    color: #1F7A6F !important;
+}
+
+/* Charts dark wrapper panels */
+[data-theme="light"] [style*="background: #111"],
+[data-theme="light"] [style*="background:#111"] {
+    background: #FFFFFF !important;
+}
+
+/* ── End of Light Theme "Verdure" ───────────────────────────── */

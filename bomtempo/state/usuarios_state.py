@@ -285,14 +285,13 @@ class UsuariosState(rx.State):
                 data: Dict[str, Any] = {
                     "username": username,
                     "user_role": self.edit_user_role,
-                    "project": self.edit_user_project.strip(),
                     "email": self.edit_user_email.strip(),
                     "whatsapp": self.edit_user_whatsapp.strip(),
                 }
                 if password:
-                    data["password"] = password
+                    from bomtempo.core.auth_utils import hash_password
+                    data["pw_hash"] = hash_password(password)
 
-                # Use id filter if available, otherwise fall back to old username
                 if self.edit_user_id:
                     sb_update("login", filters={"id": self.edit_user_id}, data=data)
                 elif self.edit_user_old_login:
@@ -311,14 +310,15 @@ class UsuariosState(rx.State):
                 logger.info(f"Usuário '{username}' atualizado por '{self._get_admin()}'")
 
             else:
-                result = sb_insert("login", {
+                from bomtempo.core.auth_utils import hash_password
+                insert_data: Dict[str, Any] = {
                     "username": username,
-                    "password": password,
+                    "pw_hash": hash_password(password),
                     "user_role": self.edit_user_role,
-                    "project": self.edit_user_project.strip(),
                     "email": self.edit_user_email.strip(),
                     "whatsapp": self.edit_user_whatsapp.strip(),
-                })
+                }
+                result = sb_insert("login", insert_data)
                 new_id = str(result.get("id", "")) if result else ""
 
                 audit_log(

@@ -1297,7 +1297,7 @@ def reembolso_form_page() -> rx.Component:
                 rx.tabs.list(
                     rx.tabs.trigger(
                         rx.hstack(
-                            rx.icon(tag="plus-circle", size=14, color=S.TEXT_PRIMARY),
+                            rx.icon(tag="circle-plus", size=14, color=S.TEXT_PRIMARY),
                             rx.text(
                                 "Nova Solicitação",
                                 font_family=S.FONT_TECH,
@@ -1360,7 +1360,7 @@ def reembolso_form_page() -> rx.Component:
                 rx.tabs.content(_tab_nova_solicitacao(), value="form"),
                 rx.tabs.content(_tab_meus_reembolsos(), value="historico"),
                 rx.tabs.content(_tab_emails_form(), value="emails"),
-                default_value="form",
+                default_value="historico",
                 width="100%",
             ),
             spacing="4",

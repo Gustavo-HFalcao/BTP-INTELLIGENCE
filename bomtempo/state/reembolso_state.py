@@ -4,8 +4,26 @@ Padrão idêntico ao rdo_state.py (benchmark)
 """
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List
+
+_BRT = timezone(timedelta(hours=-3))
+
+
+def _fmt_date_br(ts: str) -> str:
+    """ISO date or timestamp → DD/MM/YYYY. Handles UTC→BRT for full timestamps."""
+    if not ts or ts in ("—", "None", ""):
+        return "—"
+    try:
+        if "T" in ts or len(ts) > 10:
+            dt = datetime.fromisoformat(ts.replace("Z", "+00:00")[:32])
+            return dt.astimezone(_BRT).strftime("%d/%m/%Y")
+        parts = ts[:10].split("-")
+        if len(parts) == 3:
+            return f"{parts[2]}/{parts[1]}/{parts[0]}"
+    except Exception:
+        pass
+    return ts[:10]
 
 import reflex as rx
 
@@ -870,7 +888,7 @@ class ReembolsoState(rx.State):
         ai_score_v = r.get("ai_score")
         return {
             **r,
-            "date_short": raw_date[:10] if len(raw_date) >= 10 else raw_date,
+            "date_short": _fmt_date_br(raw_date),
             "total_value": f"{float(total_v):.2f}" if total_v is not None else "",
             "km_per_liter": f"{float(kml_v):.2f}" if kml_v is not None else "",
             "cost_per_km": f"{float(ckm_v):.4f}" if ckm_v is not None else "",

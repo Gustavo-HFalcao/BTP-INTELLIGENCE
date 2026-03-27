@@ -421,6 +421,265 @@ def _gen_view_token() -> str:
 
 # ── HTML Builder ────────────────────────────────────────────────────────────
 
+_RDO_HTML_TEMPLATE = """<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          "copper": "#C98B2A",
+          "patina": "#2A9D8F",
+          "ink": "#081210",
+          "paper": "#FAFAFA"
+        },
+        fontFamily: {
+          "headline": ["Rajdhani", "sans-serif"],
+          "body": ["Plus Jakarta Sans", "sans-serif"],
+          "label": ["JetBrains Mono", "monospace"]
+        }
+      }
+    }
+  }
+</script>
+<style>
+  @page { size: A4; margin: 0; }
+  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  @media print {
+    body { background: white !important; }
+    .no-print { display: none !important; }
+    .shadow-2xl { box-shadow: none !important; }
+    .page-avoid { page-break-inside: avoid; }
+  }
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    vertical-align: middle;
+    line-height: 1;
+  }
+  .copper-accent { border-left: 4px solid #C98B2A; }
+  .patina-accent { border-left: 4px solid #2A9D8F; }
+  .watermark-rdo {
+    position: fixed; top: 45%; left: 50%;
+    transform: translate(-50%,-50%) rotate(35deg);
+    font-size: 80pt; font-weight: 900;
+    color: rgba(0,0,0,0.04); pointer-events: none;
+    z-index: 999; letter-spacing: 6px;
+    font-family: 'Rajdhani', sans-serif;
+  }
+</style>
+</head>
+<body class="bg-zinc-100 font-body text-ink antialiased">
+___WATERMARK___
+<main class="min-h-screen py-8 flex justify-center items-start">
+<article class="w-[210mm] min-h-[297mm] bg-paper shadow-2xl relative flex flex-col">
+
+<!-- ── HEADER ── -->
+<header class="flex justify-between items-start border-b-2 border-copper px-12 py-8 bg-white">
+  <div class="flex items-center gap-4">
+    <div class="w-14 h-14 bg-ink flex items-center justify-center rounded-sm flex-shrink-0">
+      <span class="material-symbols-outlined text-copper text-4xl">engineering</span>
+    </div>
+    <div>
+      <h1 class="font-headline text-3xl font-bold tracking-tight text-ink leading-none">RELATÓRIO DIÁRIO DE OBRA</h1>
+      <p class="font-label text-[10px] text-ink/50 tracking-widest uppercase mt-1">BOMTEMPO ENGENHARIA — Gestão de Campo</p>
+      ___PREVIEW_BADGE___
+    </div>
+  </div>
+  <div class="text-right flex flex-col items-end gap-2">
+    ___STATUS_BADGE___
+    <div>
+      <p class="font-label text-[9px] text-ink/40 uppercase tracking-widest">Contrato</p>
+      <p class="font-label text-base font-bold text-ink">___CONTRATO___</p>
+    </div>
+    <div>
+      <p class="font-label text-[9px] text-ink/40 uppercase tracking-widest">Data</p>
+      <p class="font-label text-sm font-bold text-ink">___DATA_RDO___</p>
+    </div>
+  </div>
+</header>
+
+<!-- ── BODY ── -->
+<div class="px-12 py-6 flex flex-col gap-5 flex-1">
+
+  <!-- INFO GRID -->
+  <section class="grid grid-cols-4 gap-x-6 gap-y-3">
+    <div class="flex flex-col border-b border-zinc-200 pb-2">
+      <span class="font-headline text-[10px] uppercase text-copper font-bold tracking-widest">Projeto</span>
+      <span class="font-body font-semibold text-sm">___PROJETO___</span>
+    </div>
+    <div class="flex flex-col border-b border-zinc-200 pb-2">
+      <span class="font-headline text-[10px] uppercase text-copper font-bold tracking-widest">Cliente</span>
+      <span class="font-body font-semibold text-sm">___CLIENTE___</span>
+    </div>
+    <div class="flex flex-col border-b border-zinc-200 pb-2">
+      <span class="font-headline text-[10px] uppercase text-copper font-bold tracking-widest">Localização</span>
+      <span class="font-body font-semibold text-sm">___LOCALIZACAO___</span>
+    </div>
+    <div class="flex flex-col border-b border-zinc-200 pb-2">
+      <span class="font-headline text-[10px] uppercase text-copper font-bold tracking-widest">Mestre de Obras</span>
+      <span class="font-body font-semibold text-sm">___MESTRE___</span>
+    </div>
+    <div class="flex flex-col border-b border-zinc-200 pb-2">
+      <span class="font-headline text-[10px] uppercase text-copper font-bold tracking-widest">Clima</span>
+      <span class="font-body font-semibold text-sm">___CLIMA___</span>
+    </div>
+    <div class="flex flex-col border-b border-zinc-200 pb-2">
+      <span class="font-headline text-[10px] uppercase text-copper font-bold tracking-widest">Turno</span>
+      <span class="font-body font-semibold text-sm">___TURNO___</span>
+    </div>
+    <div class="flex flex-col border-b border-zinc-200 pb-2">
+      <span class="font-headline text-[10px] uppercase text-copper font-bold tracking-widest">Horário</span>
+      <span class="font-label font-bold text-sm">___H_INI___ – ___H_FIM___</span>
+    </div>
+    <div class="flex flex-col border-b border-zinc-200 pb-2">
+      <span class="font-headline text-[10px] uppercase text-copper font-bold tracking-widest">Tipo de Tarefa</span>
+      <span class="font-body font-semibold text-sm">___TIPO_TAREFA___</span>
+    </div>
+    <div class="flex flex-col border-b border-zinc-200 pb-2">
+      <span class="font-headline text-[10px] uppercase text-copper font-bold tracking-widest">Responsável</span>
+      <span class="font-body font-semibold text-sm">___SIGNATORY_NAME___</span>
+    </div>
+    <div class="flex flex-col border-b border-zinc-200 pb-2">
+      <span class="font-headline text-[10px] uppercase text-copper font-bold tracking-widest">Doc. (CPF/RG)</span>
+      <span class="font-label font-bold text-sm">___SIGNATORY_DOC___</span>
+    </div>
+    <div class="flex flex-col border-b border-zinc-200 pb-2">
+      <span class="font-headline text-[10px] uppercase text-copper font-bold tracking-widest">ID do RDO</span>
+      <span class="font-label text-xs font-bold text-ink/70">___ID_RDO___</span>
+    </div>
+    <div class="flex flex-col border-b border-zinc-200 pb-2">
+      <span class="font-headline text-[10px] uppercase text-copper font-bold tracking-widest">Emissão</span>
+      <span class="font-label text-xs text-ink/60">___EMISSAO___</span>
+    </div>
+  </section>
+
+  <!-- KPI BAR -->
+  <div class="grid grid-cols-4 bg-ink rounded-sm overflow-hidden page-avoid">
+    <div class="flex flex-col items-center py-4 border-r border-white/10">
+      <span class="font-label text-2xl font-bold text-copper">___KPI_ATIVIDADES___</span>
+      <span class="font-headline text-[9px] text-white/50 uppercase tracking-widest mt-1">Atividades</span>
+    </div>
+    <div class="flex flex-col items-center py-4 border-r border-white/10">
+      <span class="font-label text-2xl font-bold text-copper">___KPI_FOTOS___</span>
+      <span class="font-headline text-[9px] text-white/50 uppercase tracking-widest mt-1">Fotos</span>
+    </div>
+    <div class="flex flex-col items-center py-4 border-r border-white/10">
+      <span class="font-label text-2xl font-bold text-copper">___DURACAO_STR___</span>
+      <span class="font-headline text-[9px] text-white/50 uppercase tracking-widest mt-1">Duração</span>
+    </div>
+    <div class="flex flex-col items-center py-4">
+      <span class="font-label text-2xl font-bold text-copper">___KPI_KM___</span>
+      <span class="font-headline text-[9px] text-white/50 uppercase tracking-widest mt-1">KM Percorrido</span>
+    </div>
+  </div>
+
+  <!-- GPS BLOCK (conditional) -->
+  ___GPS_BLOCK___
+
+  <!-- ORIENTAÇÃO / SCOPE (conditional) -->
+  ___ORIENTACAO_SECTION___
+
+  <!-- INTERRUPÇÃO (conditional) -->
+  ___INTR_SECTION___
+
+  <!-- EPI PHOTO (conditional) -->
+  ___EPI_SECTION___
+
+  <!-- ATIVIDADES TABLE -->
+  <section class="page-avoid">
+    <h2 class="font-headline text-base font-bold copper-accent pl-3 uppercase tracking-wide mb-3 flex items-center gap-2">
+      <span class="material-symbols-outlined text-copper text-lg">checklist</span>
+      Serviços Executados
+    </h2>
+    <div class="overflow-hidden border border-zinc-200 rounded-sm">
+      <table class="w-full text-left border-collapse">
+        <thead class="bg-ink text-white">
+          <tr>
+            <th class="p-3 font-headline text-[10px] uppercase tracking-widest border-r border-white/10">Atividade / Descrição</th>
+            <th class="p-3 font-headline text-[10px] uppercase tracking-widest border-r border-white/10 w-36">Progresso</th>
+            <th class="p-3 font-headline text-[10px] uppercase tracking-widest w-28 text-center">Status</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-zinc-200 text-xs">
+          ___ACTIVITY_ROWS___
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- EVIDÊNCIAS (conditional) -->
+  ___PHOTOS_SECTION___
+
+  <!-- OBSERVAÇÕES -->
+  <section>
+    <h2 class="font-headline text-base font-bold copper-accent pl-3 uppercase tracking-wide mb-3 flex items-center gap-2">
+      <span class="material-symbols-outlined text-copper text-lg">edit_note</span>
+      Observações Gerais
+    </h2>
+    ___OBS_BLOCK___
+  </section>
+
+  <!-- FERRAMENTAS PHOTO (conditional) -->
+  ___FERRAMENTAS_SECTION___
+
+  <!-- IA ANALYSIS -->
+  <section class="page-avoid">
+    <h2 class="font-headline text-base font-bold patina-accent pl-3 uppercase tracking-wide mb-3 flex items-center gap-2">
+      <span class="material-symbols-outlined text-lg" style="color:#2A9D8F;">smart_toy</span>
+      Análise Inteligente — BTP AI
+    </h2>
+    <div class="bg-zinc-50 border border-zinc-200 rounded-sm p-4" style="border-left:3px solid #2A9D8F;">
+      ___AI_BLOCK___
+    </div>
+  </section>
+
+  <!-- ASSINATURAS -->
+  <div class="grid grid-cols-2 gap-12 mt-2 page-avoid">
+    <div class="text-center">
+      <div class="h-14 flex items-end justify-center mb-2">
+        ___SIG_BLOCK___
+      </div>
+      <div class="border-t border-zinc-300 pt-3">
+        <p class="font-body font-bold text-xs uppercase">___SIGNATORY_NAME___</p>
+        <p class="font-label text-[9px] text-zinc-400 uppercase tracking-widest">___SIGNATORY_DOC___</p>
+        <div class="mt-1 flex items-center justify-center gap-1" style="color:#2A9D8F;">
+          <span class="material-symbols-outlined text-xs">verified_user</span>
+          <span class="font-label text-[8px] font-bold">ASSINATURA DIGITAL</span>
+        </div>
+      </div>
+    </div>
+    <div class="text-center">
+      <div class="h-14 flex items-end justify-center mb-2">
+        <span class="font-label text-zinc-300 italic text-[10px] tracking-tighter">Engenheiro / Fiscal</span>
+      </div>
+      <div class="border-t border-zinc-300 pt-3">
+        <p class="font-body font-bold text-xs uppercase">Engenheiro Responsável</p>
+        <p class="font-label text-[9px] text-zinc-400 uppercase tracking-widest">Data: ___DATA_RDO___ &nbsp;|&nbsp; Rubrica: ________________</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── FOOTER STRIP ── -->
+<footer class="mt-auto px-12 py-3 border-t-2 border-copper flex justify-between items-center bg-ink">
+  <span class="font-headline text-[9px] font-bold text-copper tracking-widest uppercase">BOMTEMPO ENGENHARIA</span>
+  <span class="font-label text-[8px] text-white/40 uppercase tracking-wider">RDO ___ID_RDO___ · Contrato ___CONTRATO___ · ___DATA_RDO___ · Emitido ___EMISSAO___</span>
+  <span class="font-headline text-[9px] font-bold text-white/70 uppercase tracking-widest">Relatório Diário de Obra</span>
+</footer>
+
+</article>
+</main>
+</body>
+</html>"""
+
+
 class RDOService:
 
     @staticmethod
@@ -448,11 +707,11 @@ class RDOService:
     def _build_gps_row(label: str, lat, lng, endereco: str, ts, distancia=None) -> str:
         if not lat and not lng:
             return f"""
-            <div class="gps-row gps-empty">
-              <div class="gps-icon">📍</div>
-              <div class="gps-text">
-                <span class="gps-label">{label}</span>
-                <span class="gps-val gps-none">Não registrado</span>
+            <div class="flex items-center gap-3 py-2 text-zinc-400">
+              <span class="material-symbols-outlined text-zinc-300 text-lg flex-shrink-0">location_off</span>
+              <div>
+                <span class="font-headline text-[10px] uppercase font-bold tracking-widest block" style="color:#C98B2A;">{label}</span>
+                <span class="font-body text-sm italic">Não registrado</span>
               </div>
             </div>"""
         time_str = ""
@@ -463,20 +722,19 @@ class RDOService:
             except Exception:
                 time_str = str(ts)[:5]
         addr = RDOService._e(endereco or f"Lat {float(lat):.6f}, Lng {float(lng):.6f}")
-        # Distance badge (matching Auvo style)
         dist_badge = ""
         if distancia and float(distancia) > 0:
             d = float(distancia)
             d_str = f"{d:.0f} metros" if d < 1000 else f"{d/1000:.2f} km"
             clr = "#1d7066" if d <= 100 else ("#8a6d0a" if d <= 300 else "#C0392B")
-            dist_badge = f'<span class="dist-badge" style="background:{clr}20;color:{clr};border:0.5px solid {clr}60;">{d_str} da obra</span>'
+            dist_badge = f'<span style="display:inline-block;font-size:9px;font-weight:700;padding:1px 7px;border-radius:9999px;margin-left:6px;background:{clr}20;color:{clr};border:0.5px solid {clr}60;">{d_str} da obra</span>'
         return f"""
-            <div class="gps-row">
-              <div class="gps-icon">📍</div>
-              <div class="gps-text">
-                <span class="gps-label">{label}{f' — {time_str}' if time_str else ''}</span>
-                <span class="gps-val">{addr} {dist_badge}</span>
-                <span class="gps-coords">({float(lat):.6f}, {float(lng):.6f})</span>
+            <div class="flex items-start gap-3 py-3 border-b border-zinc-100 last:border-0">
+              <span class="material-symbols-outlined text-lg flex-shrink-0 mt-0.5" style="color:#C98B2A;">location_on</span>
+              <div class="flex-1">
+                <span class="font-headline text-[10px] uppercase font-bold tracking-widest block" style="color:#C98B2A;">{label}{f' — {time_str}' if time_str else ''}</span>
+                <span class="font-body text-sm font-semibold">{addr}{dist_badge}</span>
+                <span class="font-label text-[9px] text-zinc-400 block mt-0.5">({float(lat):.6f}, {float(lng):.6f})</span>
               </div>
             </div>"""
 
@@ -500,20 +758,39 @@ class RDOService:
     def _activity_rows(items: list) -> str:
         e = RDOService._e
         if not items:
-            return '<tr><td colspan="3" class="empty-row">Nenhuma atividade registrada.</td></tr>'
+            return '<tr><td colspan="3" class="p-4 text-center font-body italic text-zinc-400 text-sm">Nenhuma atividade registrada.</td></tr>'
         rows = []
-        for r in items[:30]:
+        for i, r in enumerate(items[:30]):
             pct = int(r.get("progresso_percentual", r.get("percentual", 0)) or 0)
             status = r.get("status", "Em andamento")
-            sc = "badge-done" if pct == 100 else ("badge-progress" if pct > 0 else "badge-pending")
+            if pct == 100:
+                badge = '<span style="display:inline-block;padding:2px 8px;background:#2A9D8F20;color:#2A9D8F;font-weight:700;font-size:9px;border-radius:9999px;letter-spacing:0.3px;">CONCLUÍDO</span>'
+            elif pct > 0:
+                badge = f'<span style="display:inline-block;padding:2px 8px;background:#C98B2A20;color:#C98B2A;font-weight:700;font-size:9px;border-radius:9999px;letter-spacing:0.3px;">{e(status).upper()}</span>'
+            else:
+                badge = f'<span style="display:inline-block;padding:2px 8px;background:#ef444420;color:#ef4444;font-weight:700;font-size:9px;border-radius:9999px;letter-spacing:0.3px;">{e(status).upper()}</span>'
+            prog_color = "#2A9D8F" if pct == 100 else "#C98B2A"
+            row_bg = "background:#f9fafb;" if i % 2 == 1 else ""
             rows.append(
-                f"<tr><td>{e(r.get('atividade', r.get('descricao', '')))}</td>"
-                f"<td>"
-                f'<div class="prog-wrap"><div class="prog-fill" style="width:{pct}%"></div></div>'
-                f'<span class="prog-pct">{pct}%</span>'
-                f"</td>"
-                f'<td><span class="badge {sc}">{e(status)}</span></td></tr>'
+                f'<tr style="{row_bg}">'
+                f'<td class="p-3 font-body font-medium text-xs">{e(r.get("atividade", r.get("descricao", "")))}</td>'
+                f'<td class="p-3">'
+                f'<div style="display:flex;align-items:center;gap:8px;">'
+                f'<div style="flex:1;height:5px;background:#f1f5f9;border-radius:3px;overflow:hidden;">'
+                f'<div style="height:100%;width:{pct}%;background:{prog_color};border-radius:3px;"></div>'
+                f'</div>'
+                f'<span style="font-family:\'JetBrains Mono\',monospace;font-weight:700;font-size:10px;color:{prog_color};">{pct}%</span>'
+                f'</div>'
+                f'</td>'
+                f'<td class="p-3 text-center">{badge}</td>'
+                f'</tr>'
             )
+        rows.append(
+            f'<tr style="background:#f5f0e6;">'
+            f'<td colspan="3" style="padding:8px 12px;font-family:\'Rajdhani\',sans-serif;font-weight:700;font-size:10px;text-transform:uppercase;border-top:1px solid #C98B2A;">'
+            f'TOTAL: {len(items)} atividade(s) registrada(s)'
+            f'</td></tr>'
+        )
         return "\n".join(rows)
 
     @staticmethod
@@ -554,16 +831,19 @@ class RDOService:
             caption = RDOService._e(item.get("legenda") or "")
             analysis = RDOService._e(item.get("analise_vision") or "")
             ts = RDOService._fmt_ts(item.get("timestamp_foto"))
+            ts_html = f'<span style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:#9ca3af;display:block;margin-bottom:2px;">{ts}</span>' if ts != "—" else ""
+            cap_html = f'<span style="font-weight:600;font-size:11px;color:#081210;word-break:break-word;">{caption}</span>' if caption else ""
+            ai_html = f'<span style="font-size:9px;color:#2A9D8F;font-style:italic;margin-top:3px;display:block;">🤖 {analysis}</span>' if analysis else ""
             cards.append(f"""
-            <div class="ev-card">
-              <img src="{url}" class="ev-img" loading="lazy" />
-              <div class="ev-meta">
-                {f'<div class="ev-ts">{ts}</div>' if ts != "—" else ""}
-                {f'<div class="ev-cap">{caption}</div>' if caption else ""}
-                {f'<div class="ev-ai">🤖 {analysis}</div>' if analysis else ""}
+            <div style="border:0.5px solid #e4e4e7;border-radius:4px;overflow:hidden;page-break-inside:avoid;">
+              <div style="aspect-ratio:16/9;background:#f4f4f5;overflow:hidden;">
+                <img src="{url}" style="width:100%;height:100%;object-fit:cover;display:block;" loading="lazy" />
+              </div>
+              <div style="padding:6px 8px 8px;background:#fafafa;border-left:2px solid #C98B2A;">
+                {ts_html}{cap_html}{ai_html}
               </div>
             </div>""")
-        return f'<div class="ev-grid">{"".join(cards)}</div>'
+        return f'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:6px 0;">{"".join(cards)}</div>'
 
     @staticmethod
     def build_html(rdo_data: Dict[str, Any], is_preview: bool = False) -> str:
@@ -586,13 +866,16 @@ class RDOService:
         obs        = (rdo_data.get("observacoes") or "").strip()
         id_rdo     = e(rdo_data.get("id_rdo") or "")
         mestre     = e(rdo_data.get("mestre_id") or "")
+        emissao    = RDOService._fmt_date(
+            str(rdo_data.get("created_at") or rdo_data.get("data") or "")[:10]
+            or datetime.now().strftime("%Y-%m-%d")
+        )
         signatory_name = e(rdo_data.get("signatory_name") or "")
         signatory_doc  = e(rdo_data.get("signatory_doc") or "")
         signatory_sig_b64 = rdo_data.get("signatory_sig_b64") or ""
         epi_foto_url = rdo_data.get("epi_foto_url") or ""
         ferramentas_foto_url = rdo_data.get("ferramentas_foto_url") or ""
         ai_text    = (rdo_data.get("ai_summary") or "").strip()
-        status     = (rdo_data.get("status") or "finalizado").upper()
 
         # Computed duration from GPS timestamps
         checkin_ts  = rdo_data.get("checkin_timestamp") or ""
@@ -643,300 +926,203 @@ class RDOService:
             '<p class="empty-row" style="padding:10px 12px;">Sem observações para este dia.</p>'
         )
 
-        # Signature block — support base64 data URL
-        if signatory_sig_b64 and signatory_sig_b64.startswith("data:"):
-            sig_block = f'<img src="{signatory_sig_b64}" style="max-height:72px;display:block;margin-bottom:4px;" />'
-        else:
-            sig_block = '<div style="height:52px;border-bottom:0.5px solid #ccc;margin-bottom:4px;"></div>'
+        # ── Conditional HTML blocks ─────────────────────────────────────────
 
+        # Watermark / preview
+        watermark = '<div class="watermark-rdo">RASCUNHO</div>' if is_preview else ""
+        preview_badge = (
+            '<span style="display:inline-block;background:#dc2626;color:#fff;'
+            'font-family:\'Rajdhani\',sans-serif;font-weight:700;font-size:9px;'
+            'padding:2px 8px;border-radius:2px;letter-spacing:2px;text-transform:uppercase;margin-top:4px;">'
+            'RASCUNHO</span>'
+        ) if is_preview else ""
+
+        if is_preview:
+            status_badge = (
+                '<div style="display:inline-block;padding:4px 10px;'
+                'background:#f59e0b20;border:1px solid #f59e0b;'
+                'color:#b45309;font-family:\'JetBrains Mono\',monospace;'
+                'font-size:9px;font-weight:700;border-radius:2px;">'
+                'STATUS: RASCUNHO</div>'
+            )
+        else:
+            status_badge = (
+                '<div style="display:inline-block;padding:4px 10px;'
+                'background:#2A9D8F20;border:1px solid #2A9D8F;'
+                'color:#2A9D8F;font-family:\'JetBrains Mono\',monospace;'
+                'font-size:9px;font-weight:700;border-radius:2px;">'
+                'STATUS: OPERACIONAL</div>'
+            )
+
+        # GPS block
+        has_gps = rdo_data.get("checkin_lat") or rdo_data.get("checkout_lat")
+        if has_gps:
+            gps_block = (
+                '<section style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:4px;padding:12px 16px;">'
+                '<h2 style="font-family:\'Rajdhani\',sans-serif;font-weight:700;font-size:13px;'
+                'text-transform:uppercase;letter-spacing:0.05em;color:#081210;'
+                'border-left:4px solid #C98B2A;padding-left:10px;margin-bottom:10px;'
+                'display:flex;align-items:center;gap:6px;">'
+                '<span class="material-symbols-outlined" style="color:#C98B2A;font-size:16px;">pin_drop</span>'
+                'Registro GPS</h2>'
+                f'{gps_checkin}'
+                f'{gps_checkout}'
+                '</section>'
+            )
+        else:
+            gps_block = ""
+
+        # Orientação / scope
+        orientacao_section = (
+            '<section>'
+            '<h2 style="font-family:\'Rajdhani\',sans-serif;font-weight:700;font-size:13px;'
+            'text-transform:uppercase;letter-spacing:0.05em;color:#081210;'
+            'border-left:4px solid #C98B2A;padding-left:10px;margin-bottom:10px;">'
+            'Escopo / Orientação</h2>'
+            '<div style="background:#fafafa;padding:14px 16px;border:1px solid #e4e4e7;border-radius:2px;">'
+            f'<p style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:12px;'
+            f'color:#52525b;line-height:1.65;font-style:italic;">{orientacao}</p>'
+            '</div></section>'
+        ) if orientacao else ""
+
+        # Interrupção
+        intr_section = (
+            '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:4px;'
+            'padding:12px 16px;display:flex;align-items:flex-start;gap:10px;">'
+            '<span class="material-symbols-outlined" style="color:#ef4444;font-size:18px;flex-shrink:0;">warning</span>'
+            '<div>'
+            '<p style="font-family:\'Rajdhani\',sans-serif;font-weight:700;font-size:12px;'
+            'text-transform:uppercase;color:#b91c1c;margin-bottom:4px;">Interrupção Registrada</p>'
+            f'<p style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:12px;color:#7f1d1d;">{motivo}</p>'
+            '</div></div>'
+        ) if houve_intr else ""
+
+        # EPI photo
+        epi_section = (
+            '<section>'
+            '<h2 style="font-family:\'Rajdhani\',sans-serif;font-weight:700;font-size:13px;'
+            'text-transform:uppercase;letter-spacing:0.05em;color:#081210;'
+            'border-left:4px solid #C98B2A;padding-left:10px;margin-bottom:10px;">'
+            'Equipe com EPIs</h2>'
+            '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">'
+            '<div style="aspect-ratio:16/9;background:#f4f4f5;border-radius:4px;overflow:hidden;border:0.5px solid #e4e4e7;">'
+            f'<img src="{epi_foto_url}" style="width:100%;height:100%;object-fit:cover;" />'
+            '</div></div></section>'
+        ) if epi_foto_url else ""
+
+        # Ferramentas photo
+        ferramentas_section = (
+            '<section>'
+            '<h2 style="font-family:\'Rajdhani\',sans-serif;font-weight:700;font-size:13px;'
+            'text-transform:uppercase;letter-spacing:0.05em;color:#081210;'
+            'border-left:4px solid #C98B2A;padding-left:10px;margin-bottom:10px;">'
+            'Ferramentas Limpas e Organizadas</h2>'
+            '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">'
+            '<div style="aspect-ratio:16/9;background:#f4f4f5;border-radius:4px;overflow:hidden;border:0.5px solid #e4e4e7;">'
+            f'<img src="{ferramentas_foto_url}" style="width:100%;height:100%;object-fit:cover;" />'
+            '</div></div></section>'
+        ) if ferramentas_foto_url else ""
+
+        # Photos
+        if evidencias:
+            photos_section = (
+                '<section>'
+                '<h2 style="font-family:\'Rajdhani\',sans-serif;font-weight:700;font-size:13px;'
+                'text-transform:uppercase;letter-spacing:0.05em;color:#081210;'
+                'border-left:4px solid #C98B2A;padding-left:10px;margin-bottom:10px;'
+                'display:flex;align-items:center;gap:6px;">'
+                '<span class="material-symbols-outlined" style="color:#C98B2A;font-size:16px;">photo_camera</span>'
+                f'Evidências de Campo ({len(evidencias)} foto{"s" if len(evidencias) != 1 else ""})'
+                '</h2>'
+                f'{evidence_html}'
+                '</section>'
+            )
+        else:
+            photos_section = ""
+
+        # Observations
+        if obs:
+            obs_block = (
+                '<div style="background:#fafafa;border:1px solid #e4e4e7;border-radius:2px;'
+                'padding:12px 16px;font-family:\'Plus Jakarta Sans\',sans-serif;font-size:12px;'
+                f'color:#3f3f46;line-height:1.7;white-space:pre-wrap;word-break:break-word;">'
+                f'{_html_mod.escape(obs)}</div>'
+            )
+        else:
+            obs_block = (
+                '<p style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:12px;'
+                'font-style:italic;color:#a1a1aa;padding:8px 0;">Sem observações para este dia.</p>'
+            )
+
+        # AI block
         if ai_text:
-            # Convert simple markdown to HTML for the PDF
             def _md_simple(text: str) -> str:
                 import re
                 lines = []
                 for line in text.split("\n"):
                     line = _html_mod.escape(line)
-                    line = re.sub(r"^## (.+)$", r'<h4 style="margin:8px 0 4px;color:#1d7066;font-size:8pt;text-transform:uppercase;letter-spacing:0.4px;">\1</h4>', line)
+                    line = re.sub(r"^## (.+)$", r'<h4 style="margin:8px 0 4px;color:#2A9D8F;font-family:\'Rajdhani\',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:0.4px;">\1</h4>', line)
                     line = re.sub(r"^\s*[-•]\s(.+)$", r'<li style="margin:2px 0;">\1</li>', line)
                     line = re.sub(r"\*\*(.+?)\*\*", r'<strong>\1</strong>', line)
                     lines.append(line)
                 html_out = "\n".join(lines)
-                html_out = re.sub(r"(<li[^>]*>.*?</li>\n?)+", lambda m: f"<ul style='margin:4px 0 6px 12px;padding:0;'>{m.group(0)}</ul>", html_out)
+                html_out = re.sub(r"(<li[^>]*>.*?</li>\n?)+", lambda m: f"<ul style='margin:4px 0 6px 14px;padding:0;'>{m.group(0)}</ul>", html_out)
                 return html_out
-            ai_block = f'<div class="ai-content" style="line-height:1.7;">{_md_simple(ai_text)}</div>'
+            ai_block = (
+                '<div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:12px;'
+                f'color:#1a1a1a;line-height:1.7;">{_md_simple(ai_text)}</div>'
+            )
         else:
-            ai_block = '<div class="ai-pending">⏳ Análise sendo processada…</div>'
+            ai_block = (
+                '<div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:12px;'
+                'font-style:italic;color:#a1a1aa;">⏳ Análise sendo processada…</div>'
+            )
 
-        intr_cls  = 'class="info-label danger"' if houve_intr else 'class="info-label"'
-        intr_vcls = 'class="info-value danger-bg"' if houve_intr else 'class="info-value"'
-        intr_val  = f"SIM — {motivo}" if houve_intr else "NÃO"
+        # Signature
+        if signatory_sig_b64 and signatory_sig_b64.startswith("data:"):
+            sig_block = f'<img src="{signatory_sig_b64}" style="max-height:56px;display:block;margin-bottom:4px;" />'
+        else:
+            sig_block = '<div style="height:40px;border-bottom:0.5px solid #d4d4d8;margin-bottom:4px;"></div>'
 
-        watermark     = '<div class="watermark">RASCUNHO</div>' if is_preview else ""
-        preview_badge = '<span class="preview-badge">RASCUNHO</span>' if is_preview else ""
-        status_cls    = "status-draft" if is_preview else "status-final"
-
-        # EPI photo slot
-        epi_section = ""
-        if epi_foto_url:
-            epi_section = f"""
-            <div class="section-hdr"><div class="sec-badge">🦺</div><div class="sec-title">Equipe com EPIs</div></div>
-            <div class="ev-grid"><div class="ev-card"><img src="{epi_foto_url}" class="ev-img" loading="lazy" /></div></div>"""
-
-        # Ferramentas photo slot
-        ferramentas_section = ""
-        if ferramentas_foto_url:
-            ferramentas_section = f"""
-            <div class="section-hdr"><div class="sec-badge">🔧</div><div class="sec-title">Ferramentas Limpas e Organizadas</div></div>
-            <div class="ev-grid"><div class="ev-card"><img src="{ferramentas_foto_url}" class="ev-img" loading="lazy" /></div></div>"""
-
-        photos_section = (
-            f"""<div class="section-hdr">
-              <div class="sec-badge">📷</div>
-              <div class="sec-title">Registro Fotográfico ({len(evidencias)} foto{'s' if len(evidencias)!=1 else ''})</div>
-            </div>
-            {evidence_html}"""
-            if evidencias else ""
-        )
-
-        emissao = datetime.now().strftime("%d/%m/%Y às %H:%M")
-
-        css = """
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'IBM Plex Sans', 'Arial', sans-serif; background: #fff; color: #1a1a1a; font-size: 9pt; line-height: 1.45; }
-
-/* ── Header ── */
-.header { background: #0B1A15; color: #fff; padding: 14px 22px 12px; border-top: 3px solid #C98B2A; display: flex; justify-content: space-between; align-items: center; gap: 20px; }
-.hdr-left { flex: 1; }
-.brand { display: flex; align-items: baseline; gap: 6px; margin-bottom: 2px; }
-.brand-main { font-size: 20pt; font-weight: 700; color: #fff; letter-spacing: -0.5px; }
-.brand-accent { font-size: 20pt; font-weight: 700; color: #C98B2A; letter-spacing: -0.5px; }
-.brand-doc { font-size: 8pt; color: #90B0A8; margin-top: 2px; letter-spacing: 1px; text-transform: uppercase; }
-.preview-badge { display: inline-block; background: #C0392B; color: #fff; font-size: 6pt; font-weight: 700; padding: 2px 8px; border-radius: 3px; letter-spacing: 1.5px; margin-top: 5px; }
-.hdr-right { display: flex; gap: 10px; }
-.hdr-box { background: #162820; border-radius: 6px; padding: 8px 16px; text-align: center; min-width: 130px; }
-.hdr-box-lbl { font-size: 5.5pt; color: #C98B2A; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; }
-.hdr-box-val { font-size: 14pt; font-weight: 700; color: #fff; margin-top: 2px; font-family: 'IBM Plex Mono', monospace; }
-.hdr-box-sub { font-size: 7pt; color: #90B0A8; margin-top: 2px; }
-.status-final { display: inline-block; background: #1d7066; color: #fff; font-size: 6pt; font-weight: 700; padding: 2px 7px; border-radius: 3px; margin-top: 4px; letter-spacing: 1px; }
-.status-draft  { display: inline-block; background: #8a6d0a; color: #fff; font-size: 6pt; font-weight: 700; padding: 2px 7px; border-radius: 3px; margin-top: 4px; letter-spacing: 1px; }
-
-/* ── Content wrapper ── */
-.content { padding: 10px 22px 0; }
-
-/* ── Info grid ── */
-.info-grid { display: grid; grid-template-columns: 90px 1fr 90px 1fr; border: 0.5px solid #D4C8A8; margin-bottom: 8px; }
-.info-label { background: #ECEAE0; font-weight: 600; font-size: 7pt; text-transform: uppercase; letter-spacing: 0.3px; padding: 6px 8px; border-bottom: 0.3px solid #D4C8A8; border-right: 0.5px solid #D4C8A8; display: flex; align-items: center; }
-.info-value { background: #F8F7F2; font-size: 8.5pt; padding: 6px 8px; border-bottom: 0.3px solid #D4C8A8; border-right: 0.5px solid #D4C8A8; display: flex; align-items: center; word-break: break-word; }
-.info-label.danger { color: #C0392B; }
-.info-value.danger-bg { background: #FAE5E5; }
-
-/* ── KPI bar ── */
-.kpi-bar { background: #162820; display: flex; border-radius: 6px; overflow: hidden; margin-bottom: 8px; }
-.kpi-item { flex: 1; text-align: center; padding: 10px 6px; border-right: 0.5px solid #2a3a38; }
-.kpi-item:last-child { border-right: none; }
-.kpi-val { font-size: 15pt; font-weight: 700; color: #C98B2A; display: block; font-family: 'IBM Plex Mono', monospace; }
-.kpi-lbl { font-size: 6pt; color: #90B0A8; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; display: block; }
-
-/* ── GPS section ── */
-.gps-block { background: #F0F7F5; border: 0.5px solid #B0D4CE; border-radius: 4px; padding: 8px 12px; margin-bottom: 8px; display: flex; gap: 12px; }
-.gps-row { display: flex; align-items: flex-start; gap: 10px; padding: 6px 0; border-bottom: 0.3px solid #D4E8E4; }
-.gps-row:last-child { border-bottom: none; }
-.gps-empty { opacity: 0.5; }
-.gps-icon { font-size: 14pt; flex-shrink: 0; margin-top: 1px; }
-.gps-text { flex: 1; }
-.gps-label { display: block; font-size: 7pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #1d7066; }
-.gps-val { display: block; font-size: 8.5pt; color: #1a1a1a; margin-top: 1px; }
-.gps-coords { display: block; font-size: 6.5pt; color: #888; font-family: 'IBM Plex Mono', monospace; margin-top: 1px; }
-.gps-none { color: #aaa !important; font-style: italic; }
-.dist-badge { display:inline-block; font-size:6.5pt; font-weight:700; padding:1px 6px; border-radius:8px; margin-left:6px; vertical-align:middle; letter-spacing:0.3px; }
-
-/* ── Section header ── */
-.section-hdr { background: #0B1A15; color: #fff; padding: 7px 12px; display: flex; align-items: center; gap: 10px; margin-top: 10px; border-left: 3px solid #C98B2A; page-break-inside: avoid; }
-.sec-badge { background: #C98B2A; color: #fff; font-size: 7pt; font-weight: 700; min-width: 20px; height: 20px; border-radius: 3px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 0 4px; }
-.sec-title { font-size: 8.5pt; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; }
-
-/* ── Tables ── */
-table { width: 100%; border-collapse: collapse; font-size: 8pt; page-break-inside: auto; }
-thead { display: table-header-group; }
-thead th { font-size: 7pt; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; padding: 7px 8px; color: #fff; text-align: left; }
-tbody tr:nth-child(odd) td { background: #fff; }
-tbody tr:nth-child(even) td { background: #F4F2EA; }
-tbody tr td { padding: 6px 8px; border-bottom: 0.3px solid #D4C8A8; vertical-align: middle; }
-.center { text-align: center; }
-.w50 { width: 50px; } .w60 { width: 60px; } .w80 { width: 80px; } .w110 { width: 110px; }
-.total-row td { background: #EAE4D0 !important; font-weight: 600; font-size: 7.5pt; border-top: 1px solid #C98B2A; }
-.empty-row { color: #999; font-style: italic; text-align: center; padding: 12px 8px; background: #F8F7F2 !important; }
-.tbl-green thead { background: #1d7066; }
-.tbl-copper thead { background: #9B6820; }
-.tbl-teal thead { background: #1d6e63; }
-.tbl-slate thead { background: #355B5A; }
-
-/* ── Progress bar ── */
-.prog-wrap { display: inline-block; width: 60px; height: 6px; background: #E0DDD4; border-radius: 3px; vertical-align: middle; margin-right: 4px; overflow: hidden; }
-.prog-fill { height: 100%; background: linear-gradient(90deg, #2A9D8F, #1d7066); border-radius: 3px; }
-.prog-pct { font-size: 8pt; font-weight: 600; color: #1d7066; vertical-align: middle; }
-
-/* ── Badges ── */
-.badge { display: inline-block; font-size: 6.5pt; font-weight: 700; padding: 2px 7px; border-radius: 10px; letter-spacing: 0.3px; }
-.badge-done { background: #D4EDE9; color: #1d7066; }
-.badge-progress { background: #FFF3CC; color: #8a6d0a; }
-.badge-pending { background: #FDECEA; color: #C0392B; }
-.badge-warn { background: #FCE8D0; color: #9B4400; }
-
-/* ── Observations ── */
-.obs-box { background: #F8F7F2; border: 0.5px solid #D4C8A8; padding: 10px 12px; font-size: 8.5pt; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }
-
-/* ── Evidence photos ── */
-.ev-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 8px 0; }
-.ev-card { border: 0.5px solid #D4C8A8; border-radius: 5px; overflow: hidden; page-break-inside: avoid; }
-.ev-img { width: 100%; height: 160px; object-fit: cover; display: block; }
-.ev-meta { padding: 6px 8px; background: #F8F7F2; font-size: 7pt; }
-.ev-ts { color: #888; margin-bottom: 2px; }
-.ev-cap { font-weight: 600; color: #1a1a1a; word-break: break-word; }
-.ev-ai { color: #1d7066; margin-top: 3px; font-style: italic; font-size: 6.5pt; }
-
-/* ── AI Analysis ── */
-.ai-box { background: #F0F7F5; border: 0.5px solid #B0D4CE; border-left: 3px solid #2A9D8F; border-radius: 4px; padding: 10px 14px; margin-top: 2px; }
-.ai-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-.ai-icon { font-size: 14pt; }
-.ai-title { font-size: 8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #1d7066; }
-.ai-content { font-size: 8pt; line-height: 1.65; color: #1a1a1a; }
-.ai-pending { color: #999; font-style: italic; font-size: 8pt; }
-
-/* ── Signature ── */
-.signatures { display: flex; gap: 14px; margin-top: 12px; }
-.sig-box { flex: 1; border: 0.5px solid #D4C8A8; background: #F8F7F2; padding: 8px 10px; min-height: 64px; }
-.sig-lbl { font-weight: 700; font-size: 6.5pt; text-transform: uppercase; color: #0B1A15; letter-spacing: 0.3px; }
-.sig-sub { font-size: 6.5pt; color: #888; margin-top: 16px; border-top: 0.5px solid #D4C8A8; padding-top: 4px; }
-
-/* ── Footer ── */
-.footer { background: #0B1A15; color: #fff; padding: 7px 22px; display: flex; justify-content: space-between; align-items: center; margin-top: 12px; border-top: 1.5px solid #C98B2A; }
-.footer-l { font-weight: 700; font-size: 7pt; color: #C98B2A; }
-.footer-c { font-size: 6.5pt; color: #90B0A8; }
-.footer-r { font-size: 7pt; color: #fff; }
-
-/* ── Watermark ── */
-.watermark { position: fixed; top: 45%; left: 50%; transform: translate(-50%,-50%) rotate(35deg); font-size: 80pt; font-weight: 900; color: rgba(0,0,0,0.04); pointer-events: none; z-index: 999; letter-spacing: 6px; }
-"""
-
-        return f"""<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-<meta charset="UTF-8">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-<style>{css}</style>
-</head>
-<body>
-{watermark}
-
-<div class="header">
-  <div class="hdr-left">
-    <div class="brand">
-      <span class="brand-main">BOMTEMPO</span>
-      <span class="brand-accent">ENGENHARIA</span>
-    </div>
-    <div class="brand-doc">Relatório Diário de Obra — v2</div>
-    {preview_badge}
-    <div style="margin-top:4px;"><span class="{status_cls}">{status}</span></div>
-  </div>
-  <div class="hdr-right">
-    <div class="hdr-box">
-      <div class="hdr-box-lbl">Contrato</div>
-      <div class="hdr-box-val">{contrato}</div>
-      <div class="hdr-box-sub">{clima}</div>
-    </div>
-    <div class="hdr-box">
-      <div class="hdr-box-lbl">Data</div>
-      <div class="hdr-box-val" style="font-size:11pt;">{data_rdo}</div>
-      <div class="hdr-box-sub">{turno}</div>
-    </div>
-  </div>
-</div>
-
-<div class="content">
-
-  <!-- Info Grid -->
-  <div class="info-grid">
-    <div class="info-label">Projeto</div><div class="info-value">{projeto}</div>
-    <div class="info-label">Cliente</div><div class="info-value">{cliente}</div>
-    <div class="info-label">Localização</div><div class="info-value">{localizacao}</div>
-    <div class="info-label">Horário</div><div class="info-value">{h_ini} – {h_fim} <span style="color:#888;margin-left:6px;">({duracao_str})</span></div>
-    <div class="info-label">Tipo Tarefa</div><div class="info-value">{tipo_tarefa}</div>
-    <div class="info-label">Orientação</div><div class="info-value">{orientacao if orientacao else '—'}</div>
-    <div class="info-label">Mestre</div><div class="info-value">{mestre}</div>
-    <div class="info-label">ID RDO</div><div class="info-value" style="font-size:7.5pt;font-family:'IBM Plex Mono',monospace;">{id_rdo}</div>
-    <div {intr_cls}>Interrupção</div><div {intr_vcls}>{intr_val}</div>
-    <div class="info-label">Emissão</div><div class="info-value">{emissao}</div>
-    <div class="info-label">Responsável</div><div class="info-value">{signatory_name or '—'}</div>
-    <div class="info-label">Doc. (CPF/RG)</div><div class="info-value">{signatory_doc or '—'}</div>
-  </div>
-
-  <!-- KPI Bar -->
-  <div class="kpi-bar">
-    <div class="kpi-item"><span class="kpi-val">{len(atividades)}</span><span class="kpi-lbl">Atividades</span></div>
-    <div class="kpi-item"><span class="kpi-val">{len(evidencias)}</span><span class="kpi-lbl">Fotos</span></div>
-    <div class="kpi-item"><span class="kpi-val">{duracao_str}</span><span class="kpi-lbl">Duração</span></div>
-    <div class="kpi-item"><span class="kpi-val">{km_str}</span><span class="kpi-lbl">Km percorrido</span></div>
-  </div>
-
-  <!-- GPS Timeline -->
-  <div class="gps-block">
-    {gps_checkin}
-    {gps_checkout}
-  </div>
-
-  <!-- EPI Photo -->
-  {epi_section}
-
-  <!-- Atividades -->
-  <div class="section-hdr"><div class="sec-badge">1</div><div class="sec-title">Serviços Executados</div></div>
-  <table class="tbl-teal">
-    <thead><tr><th>Atividade / Descrição</th><th class="center w110">Progresso</th><th class="center w80">Status</th></tr></thead>
-    <tbody>{activity_rows}</tbody>
-  </table>
-
-  <!-- Fotos do Dia (se houver) -->
-  {photos_section}
-
-  <!-- Observações -->
-  <div class="section-hdr"><div class="sec-badge">📝</div><div class="sec-title">Observações Gerais</div></div>
-  {obs_block}
-
-  <!-- Ferramentas Photo -->
-  {ferramentas_section}
-
-  <!-- Análise IA -->
-  <div class="section-hdr"><div class="sec-badge">🤖</div><div class="sec-title">Análise Inteligente — BTP AI</div></div>
-  <div class="ai-box">
-    <div class="ai-header">
-      <span class="ai-icon">🤖</span>
-      <span class="ai-title">Resumo Executivo Gerado por IA</span>
-    </div>
-    {ai_block}
-  </div>
-
-  <!-- Assinatura -->
-  <div class="signatures">
-    <div class="sig-box">
-      <div class="sig-lbl">Mestre de Obras / Responsável</div>
-      {sig_block}
-      <div class="sig-sub">{signatory_name or 'Assinatura digital'}{(' — ' + signatory_doc) if signatory_doc else ''} — {data_rdo}</div>
-    </div>
-    <div class="sig-box">
-      <div class="sig-lbl">Engenheiro Responsável / Fiscal</div>
-      <div class="sig-sub">Data: {data_rdo} &nbsp;|&nbsp; Rubrica: ________________</div>
-    </div>
-  </div>
-</div>
-
-<div class="footer">
-  <div class="footer-l">BOMTEMPO INTELLIGENCE</div>
-  <div class="footer-c">RDO{f' · {id_rdo}' if id_rdo else ''} · Contrato {contrato} · {data_rdo} · Emitido em {emissao}</div>
-  <div class="footer-r">Relatório Diário de Obra</div>
-</div>
-</body>
-</html>"""
+        # ── Apply replacements to template ──────────────────────────────────
+        replacements = {
+            "___WATERMARK___":         watermark,
+            "___PREVIEW_BADGE___":     preview_badge,
+            "___STATUS_BADGE___":      status_badge,
+            "___CONTRATO___":          contrato,
+            "___DATA_RDO___":          data_rdo,
+            "___PROJETO___":           projeto,
+            "___CLIENTE___":           cliente,
+            "___LOCALIZACAO___":       localizacao,
+            "___MESTRE___":            mestre,
+            "___CLIMA___":             clima,
+            "___TURNO___":             turno,
+            "___H_INI___":             h_ini,
+            "___H_FIM___":             h_fim,
+            "___TIPO_TAREFA___":       tipo_tarefa,
+            "___SIGNATORY_NAME___":    signatory_name or "—",
+            "___SIGNATORY_DOC___":     signatory_doc or "—",
+            "___ID_RDO___":            id_rdo,
+            "___EMISSAO___":           emissao,
+            "___KPI_ATIVIDADES___":    str(len(atividades)),
+            "___KPI_FOTOS___":         str(len(evidencias)),
+            "___DURACAO_STR___":       duracao_str,
+            "___KPI_KM___":            km_str,
+            "___GPS_BLOCK___":         gps_block,
+            "___ORIENTACAO_SECTION___": orientacao_section,
+            "___INTR_SECTION___":      intr_section,
+            "___EPI_SECTION___":       epi_section,
+            "___ACTIVITY_ROWS___":     activity_rows,
+            "___PHOTOS_SECTION___":    photos_section,
+            "___OBS_BLOCK___":         obs_block,
+            "___FERRAMENTAS_SECTION___": ferramentas_section,
+            "___AI_BLOCK___":          ai_block,
+            "___SIG_BLOCK___":         sig_block,
+        }
+        html = _RDO_HTML_TEMPLATE
+        for key, val in replacements.items():
+            html = html.replace(key, str(val) if val is not None else "")
+        return html
 
     # ── PDF Generation ──────────────────────────────────────────────────────
 
@@ -961,7 +1147,11 @@ tbody tr td { padding: 6px 8px; border-bottom: 0.3px solid #D4C8A8; vertical-ali
 
             pdf_path = Config.RDO_PDF_DIR / filename
             html = RDOService.build_html(rdo_data, is_preview=is_preview)
-            html_to_pdf(html, pdf_path)
+            html_to_pdf(
+                html, pdf_path,
+                margin={"top": "0", "right": "0", "bottom": "0", "left": "0"},
+                display_header_footer=False,
+            )
             logger.info(f"✅ RDO2 PDF gerado: {pdf_path.name}")
             return str(pdf_path), ""
         except Exception as e:

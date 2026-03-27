@@ -6,6 +6,7 @@ Rota: /rdo-form
 import reflex as rx
 
 from bomtempo.state.rdo_state import RDOState
+from bomtempo.state.global_state import GlobalState
 
 
 # ── Paleta ──────────────────────────────────────────────────────────────────
@@ -160,28 +161,37 @@ def _readonly_badge(label: str, value: rx.Var, color: str = _TEXT) -> rx.Compone
 def _sticky_header() -> rx.Component:
     return rx.box(
         rx.hstack(
-            # Brand + back
+            # Brand + histórico link
             rx.hstack(
-                rx.button(
-                    rx.icon("arrow-left", size=16),
-                    on_click=rx.redirect("/rdo-historico"),
-                    size="2",
-                    variant="ghost",
-                    color=_MUTED,
-                ),
+                rx.image(src="/icon.png", width="28px", height="28px", border_radius="6px", object_fit="cover"),
                 rx.vstack(
-                    rx.text("RDO v2", size="1", color=_MUTED, weight="bold",
-                            style={"text_transform": "uppercase", "letter_spacing": "2px"}),
                     rx.hstack(
-                        rx.text(RDOState.rdo_contrato, size="3", weight="bold", color=_COPPER),
-                        rx.text("·", color=_MUTED),
-                        rx.text(RDOState.rdo_data_display, size="3", color=_TEXT),
-                        spacing="2",
+                        rx.text("DIÁRIO DE OBRA", size="1", color=_COPPER, weight="bold",
+                                style={"text_transform": "uppercase", "letter_spacing": "2px"}),
+                        rx.box(
+                            rx.text("NOVO", size="1", color=_PATINA, weight="bold",
+                                    style={"textTransform": "uppercase", "letterSpacing": "1px"}),
+                            padding="1px 6px",
+                            border="1px solid rgba(42,157,143,0.35)",
+                            border_radius="4px",
+                            background="rgba(42,157,143,0.1)",
+                        ),
+                        spacing="2", align="center",
+                    ),
+                    rx.cond(
+                        RDOState.rdo_contrato != "",
+                        rx.hstack(
+                            rx.text(RDOState.rdo_contrato, size="2", weight="bold", color=_TEXT),
+                            rx.text("·", color=_MUTED, size="2"),
+                            rx.text(RDOState.rdo_data_display, size="2", color=_MUTED),
+                            spacing="2",
+                        ),
+                        rx.text("Preencha os dados abaixo", size="2", color=_MUTED),
                     ),
                     spacing="0",
                     align="start",
                 ),
-                spacing="2",
+                spacing="3",
                 align="center",
             ),
             rx.spacer(),
@@ -221,6 +231,22 @@ def _sticky_header() -> rx.Component:
                     ),
                     display=["none", "flex"],
                     align_items="center",
+                ),
+                rx.button(
+                    rx.icon("list", size=14),
+                    rx.text("Meus RDOs", display=["none", "inline"]),
+                    on_click=rx.redirect("/rdo-historico"),
+                    size="3",
+                    style={
+                        "background": "transparent",
+                        "border": f"1px solid rgba(255,255,255,0.1)",
+                        "color": _MUTED,
+                        "border_radius": "6px",
+                        "cursor": "pointer",
+                        "min_height": "44px",
+                        "padding": "0 12px",
+                        "_hover": {"border_color": _COPPER, "color": _COPPER},
+                    },
                 ),
                 rx.button(
                     rx.icon("save", size=14),
@@ -325,9 +351,37 @@ def _draft_banner() -> rx.Component:
 
 def _section_header_info() -> rx.Component:
     return _section_card(
-        # Read-only: contract, projeto, cliente, localização, tipo tarefa
-        rx.grid(
+        # Contrato — selector para admin/gestor, badge readonly para peão
+        rx.cond(
+            RDOState.can_choose_contrato,
+            rx.vstack(
+                rx.text("Contrato *", style={"fontSize": "11px", "fontFamily": "monospace", "color": _MUTED, "letterSpacing": "0.06em", "textTransform": "uppercase"}),
+                rx.select.root(
+                    rx.select.trigger(
+                        placeholder="Selecione o contrato...",
+                        style={"background": "rgba(14,26,23,0.8)", "border": f"1px solid rgba(255,255,255,0.12)", "borderRadius": "6px", "color": _COPPER, "fontSize": "14px", "width": "100%", "fontFamily": "'Rajdhani', sans-serif", "fontWeight": "700"},
+                    ),
+                    rx.select.content(
+                        rx.select.item("— Selecione —", value="__none__"),
+                        rx.foreach(
+                            GlobalState.contract_ids_list,
+                            lambda c: rx.select.item(c, value=c),
+                        ),
+                        bg="#0e1a17",
+                        border="1px solid rgba(255,255,255,0.12)",
+                    ),
+                    value=rx.cond(RDOState.rdo_contrato, RDOState.rdo_contrato, "__none__"),
+                    on_change=RDOState.select_rdo_contrato,
+                    width="100%",
+                ),
+                spacing="1",
+                width="100%",
+                margin_bottom="4px",
+            ),
             _readonly_badge("Contrato", RDOState.rdo_contrato, _COPPER),
+        ),
+        # Read-only: projeto, cliente, localização, tipo tarefa
+        rx.grid(
             _readonly_badge("Projeto", RDOState.rdo_projeto),
             _readonly_badge("Cliente", RDOState.rdo_cliente),
             _readonly_badge("Localização / Endereço da Obra", RDOState.rdo_localizacao),
@@ -1142,6 +1196,170 @@ def _section_evidencias() -> rx.Component:
     )
 
 
+# ── Section: Atualizar Cronograma ────────────────────────────────────────────
+
+_CARD_INPUT = {"background": "rgba(14,26,23,0.8)", "border": f"1px solid rgba(255,255,255,0.10)", "borderRadius": "8px", "color": "#E8F0EE", "padding": "8px 10px", "fontSize": "13px", "width": "100%", "outline": "none"}
+
+
+def _section_cronograma() -> rx.Component:
+    """Section to link RDO submission to a cronograma activity and report progress."""
+    return _section_card(
+        rx.vstack(
+            # Loading state
+            rx.cond(
+                RDOState.hub_atividades_loading,
+                rx.hstack(rx.spinner(size="2"), rx.text("Carregando atividades...", size="2", color="rgba(255,255,255,0.4)"), spacing="2", align="center"),
+                rx.cond(
+                    RDOState.hub_atividades_options.length() == 0,
+                    rx.text("Nenhuma atividade mapeada neste contrato.", size="2", color="rgba(255,255,255,0.4)", font_style="italic"),
+                    # Select existing activity
+                    rx.cond(
+                        ~RDOState.rdo_nova_atividade,
+                        rx.vstack(
+                            rx.vstack(
+                                rx.text("Atividade vinculada", size="1", color="rgba(255,255,255,0.5)", font_family="var(--font-mono)"),
+                                rx.select.root(
+                                    rx.select.trigger(placeholder="— Selecionar atividade —", style=_CARD_INPUT),
+                                    rx.select.content(
+                                        rx.select.item("— Nenhuma —", value="__none__"),
+                                        rx.foreach(
+                                            RDOState.hub_atividades_options,
+                                            lambda opt: rx.select.item(opt["label"], value=opt["id"]),
+                                        ),
+                                        style={"background": "#0D201C", "border": "1px solid rgba(255,255,255,0.1)"},
+                                    ),
+                                    value=rx.cond(RDOState.rdo_atividade_id == "", "__none__", RDOState.rdo_atividade_id),
+                                    on_change=RDOState.set_rdo_atividade_id,
+                                ),
+                                spacing="1", width="100%",
+                            ),
+                            rx.cond(
+                                RDOState.rdo_atividade_id != "",
+                                rx.vstack(
+                                    rx.text("Progresso atual (%)", size="1", color="rgba(255,255,255,0.5)", font_family="var(--font-mono)"),
+                                    rx.el.input(
+                                        type="number", min="0", max="100",
+                                        value=RDOState.rdo_progresso_atividade,
+                                        on_change=RDOState.set_rdo_progresso_atividade,
+                                        style=dict(_CARD_INPUT, **{"width": "120px"}),
+                                    ),
+                                    spacing="1",
+                                ),
+                            ),
+                            spacing="3", width="100%",
+                        ),
+                        rx.fragment(),
+                    ),
+                ),
+            ),
+            # Extra activities
+            rx.cond(
+                RDOState.hub_atividades_options.length() > 0,
+                rx.vstack(
+                    rx.foreach(
+                        RDOState.rdo_extra_atividades,
+                        lambda extra, idx: rx.hstack(
+                            rx.vstack(
+                                rx.text("Atividade adicional", size="1", color="rgba(255,255,255,0.5)", font_family="var(--font-mono)"),
+                                rx.select.root(
+                                    rx.select.trigger(placeholder="— Selecionar —", style=dict(_CARD_INPUT, **{"flex": "1"})),
+                                    rx.select.content(
+                                        rx.select.item("— Nenhuma —", value="__none__"),
+                                        rx.foreach(
+                                            RDOState.hub_atividades_options,
+                                            lambda opt: rx.select.item(opt["label"], value=opt["id"]),
+                                        ),
+                                        style={"background": "#0D201C", "border": "1px solid rgba(255,255,255,0.1)"},
+                                    ),
+                                    value=rx.cond(extra["id"] == "", "__none__", extra["id"]),
+                                    on_change=lambda v, i=idx: RDOState.set_extra_atividade_id(i, v),
+                                ),
+                                spacing="1", flex="1",
+                            ),
+                            rx.vstack(
+                                rx.text("%", size="1", color="rgba(255,255,255,0.5)", font_family="var(--font-mono)"),
+                                rx.el.input(
+                                    type="number", min="0", max="100",
+                                    value=extra["progresso"],
+                                    on_change=lambda v, i=idx: RDOState.set_extra_atividade_progresso(i, v),
+                                    style=dict(_CARD_INPUT, **{"width": "80px"}),
+                                ),
+                                spacing="1",
+                            ),
+                            rx.icon_button(
+                                rx.icon(tag="x", size=14),
+                                variant="ghost", size="1", cursor="pointer",
+                                color="rgba(255,255,255,0.3)",
+                                on_click=lambda i=idx: RDOState.remove_extra_atividade(i),
+                                margin_top="18px",
+                            ),
+                            spacing="2", align="end", width="100%",
+                        ),
+                    ),
+                    rx.button(
+                        rx.icon(tag="circle-plus", size=14),
+                        "+ Outra atividade",
+                        variant="ghost",
+                        size="1",
+                        cursor="pointer",
+                        color="rgba(201,139,42,0.8)",
+                        on_click=RDOState.add_extra_atividade,
+                        _hover={"color": _COPPER},
+                    ),
+                    spacing="2", width="100%",
+                ),
+                rx.fragment(),
+            ),
+            # Toggle: nova atividade não mapeada
+            rx.hstack(
+                rx.checkbox(
+                    checked=RDOState.rdo_nova_atividade,
+                    on_change=lambda _: RDOState.toggle_rdo_nova_atividade(),
+                ),
+                rx.text("Atividade não mapeada no cronograma", size="2", color="rgba(255,255,255,0.6)"),
+                spacing="2", align="center",
+            ),
+            # New activity fields
+            rx.cond(
+                RDOState.rdo_nova_atividade,
+                rx.vstack(
+                    rx.box(
+                        rx.hstack(
+                            rx.icon(tag="alert-triangle", size=13, color="#E89845"),
+                            rx.text("Esta atividade ficará pendente de aprovação do gestor.", size="1", color="#E89845"),
+                            spacing="2", align="center",
+                        ),
+                        padding="6px 10px", border_radius="6px",
+                        bg="rgba(232,152,69,0.08)", border="1px solid rgba(232,152,69,0.2)",
+                    ),
+                    rx.flex(
+                        rx.vstack(
+                            rx.text("Nome da atividade *", size="1", color="rgba(255,255,255,0.5)", font_family="var(--font-mono)"),
+                            rx.el.input(default_value=RDOState.rdo_nova_atividade_nome, on_blur=RDOState.set_rdo_nova_atividade_nome, placeholder="Ex: Instalação de quadro elétrico", style=_CARD_INPUT),
+                            spacing="1", flex="1",
+                        ),
+                        rx.vstack(
+                            rx.text("Fase / Disciplina", size="1", color="rgba(255,255,255,0.5)", font_family="var(--font-mono)"),
+                            rx.el.input(default_value=RDOState.rdo_nova_atividade_fase, on_blur=RDOState.set_rdo_nova_atividade_fase, placeholder="Ex: Elétrica", style=dict(_CARD_INPUT, **{"width": "150px"})),
+                            spacing="1",
+                        ),
+                        gap="12px", flex_wrap="wrap",
+                    ),
+                    rx.vstack(
+                        rx.text("Progresso (%)", size="1", color="rgba(255,255,255,0.5)", font_family="var(--font-mono)"),
+                        rx.el.input(type="number", min="0", max="100", value=RDOState.rdo_progresso_atividade, on_change=RDOState.set_rdo_progresso_atividade, style=dict(_CARD_INPUT, **{"width": "120px"})),
+                        spacing="1",
+                    ),
+                    spacing="3", width="100%",
+                ),
+            ),
+            spacing="3", width="100%",
+        ),
+        title="ATUALIZAR CRONOGRAMA",
+        icon="git-branch",
+    )
+
+
 # ── Section: Observações ─────────────────────────────────────────────────────
 
 def _section_observacoes() -> rx.Component:
@@ -1573,18 +1791,24 @@ def _photo_lightbox() -> rx.Component:
                     border_bottom=f"1px solid rgba(255,255,255,0.07)",
                     margin_bottom="14px",
                 ),
-                # Foto
-                rx.image(
-                    src=RDOState.photo_lightbox_url,
-                    max_width="100%",
-                    max_height="78vh",
-                    object_fit="contain",
-                    border_radius="8px",
-                    style={
-                        "display": "block",
-                        "margin": "0 auto",
-                        "boxShadow": "0 8px 32px rgba(0,0,0,0.5)",
-                    },
+                # Foto — scrollable se muito alta
+                rx.box(
+                    rx.image(
+                        src=RDOState.photo_lightbox_url,
+                        max_width="100%",
+                        max_height="100%",
+                        object_fit="contain",
+                        border_radius="8px",
+                        style={
+                            "display": "block",
+                            "margin": "0 auto",
+                            "boxShadow": "0 8px 32px rgba(0,0,0,0.5)",
+                        },
+                    ),
+                    overflow_y="auto",
+                    max_height="70vh",
+                    width="100%",
+                    style={"display": "flex", "alignItems": "center", "justifyContent": "center"},
                 ),
                 spacing="0",
                 width="100%",
@@ -1594,8 +1818,10 @@ def _photo_lightbox() -> rx.Component:
                 "border": "1px solid rgba(201,139,42,0.2)",
                 "borderRadius": "14px",
                 "padding": "18px 20px 20px",
-                "maxWidth": "92vw",
+                "maxWidth": "min(92vw, 900px)",
                 "width": "92vw",
+                "maxHeight": "92vh",
+                "overflow": "hidden",
                 "boxShadow": "0 24px 64px rgba(0,0,0,0.7)",
             },
         ),
@@ -1621,6 +1847,9 @@ def rdo_form_page() -> rx.Component:
             rx.box(height="16px"),
             # 4. Serviços Executados (atividades)
             _section_atividades(),
+            rx.box(height="16px"),
+            # 4b. Atualizar Cronograma
+            _section_cronograma(),
             rx.box(height="16px"),
             # 5. Fotos do Dia (evidências)
             _section_evidencias(),

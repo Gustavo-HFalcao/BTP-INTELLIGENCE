@@ -75,7 +75,7 @@ class DataLoader:
         # (table_name_in_db, state_key)
         TABLE_MAP = [
             ("contratos",     "contratos"),
-            ("project_tasks", "projeto"),
+            ("hub_atividades", "projeto"),
             ("projects",      "obras"),
             ("financeiro",    "financeiro"),
             ("om",            "om"),
@@ -185,7 +185,7 @@ class DataLoader:
 
             data["contratos"] = df
 
-        # ── Projeto ──────────────────────────────────────────────
+        # ── Projeto (hub_atividades) ──────────────────────────────
         if "projeto" in data and not data["projeto"].empty:
             df = data["projeto"]
             rename = {}
@@ -193,36 +193,44 @@ class DataLoader:
                 cl = _strip_accents(col).lower()
                 if cl == "id":
                     rename[col] = "id"
-                elif cl == "fase" or cl == "fase do projeto" or col == "Fase":
+                elif cl == "fase":
                     rename[col] = "fase"
                 elif cl == "atividade":
                     rename[col] = "atividade"
                 elif cl == "critico":
                     rename[col] = "critico"
-                elif cl in ("inicio", "data_inicio"):
+                elif cl == "data_inicio":
                     rename[col] = "inicio_previsto"
-                elif cl in ("termino", "data_termino"):
+                elif cl == "data_termino":
                     rename[col] = "termino_previsto"
                 elif "conclusao" in cl:
                     rename[col] = "conclusao_pct"
                 elif cl == "dependencia":
                     rename[col] = "dependencia"
-                elif cl == "cliente":
-                    rename[col] = "cliente"
-                elif cl == "projeto":
-                    rename[col] = "projeto"
                 elif cl == "responsavel":
                     rename[col] = "responsavel"
                 elif cl == "contrato":
                     rename[col] = "contrato"
-                elif "fase" in cl and "macro" in cl:
+                elif cl == "fase_macro":
                     rename[col] = "fase_macro"
+                elif cl in ("peso_pct", "weight"):
+                    rename[col] = "weight"
+                elif cl == "nivel":
+                    rename[col] = "nivel"
+                elif cl == "parent_id":
+                    rename[col] = "parent_id"
             df = df.rename(columns=rename)
+            # hub_atividades não tem coluna "critico" — garantir que existe
+            if "critico" not in df.columns:
+                df["critico"] = "Nao"
             for col in ["inicio_previsto", "termino_previsto"]:
                 if col in df.columns:
                     df[col] = pd.to_datetime(df[col], errors="coerce")
             if "conclusao_pct" in df.columns:
                 df["conclusao_pct"] = pd.to_numeric(df["conclusao_pct"], errors="coerce").fillna(0)
+            # Filtrar apenas atividades não-pendentes para dashboards globais
+            if "pendente_aprovacao" in df.columns:
+                df = df[df["pendente_aprovacao"].astype(str) != "1"].copy()
             data["projeto"] = df
 
         # ── Obras ────────────────────────────────────────────────

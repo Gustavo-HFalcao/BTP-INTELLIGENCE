@@ -132,12 +132,16 @@ def sb_select(
     filters: Dict[str, Any] = None,
     order: str = "",
     limit: int = 1000,
+    raw_filters: Dict[str, str] = None,
 ) -> List[Dict]:
-    """SELECT * FROM table WHERE column=eq.value ORDER BY ... LIMIT n"""
+    """SELECT * FROM table WHERE ... ORDER BY ... LIMIT n.
+    filters — exact match eq.{v}; raw_filters — passed verbatim (e.g. {"parent_id": "is.null"})"""
     try:
         params: Dict[str, str] = {"select": "*"}
         for k, v in (filters or {}).items():
             params[k] = f"eq.{v}"
+        for k, v in (raw_filters or {}).items():
+            params[k] = v
         if order:
             params["order"] = order
         params["limit"] = str(limit)

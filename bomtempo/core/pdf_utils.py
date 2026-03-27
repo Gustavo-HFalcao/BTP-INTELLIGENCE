@@ -9,7 +9,14 @@ from bomtempo.core.logging_utils import get_logger
 logger = get_logger(__name__)
 
 
-def html_to_pdf(html: str, path: Path) -> None:
+def html_to_pdf(
+    html: str,
+    path: Path,
+    margin: dict = None,
+    display_header_footer: bool = True,
+    header_template: str = None,
+    footer_template: str = None,
+) -> None:
     """
     Renders an HTML string to a PDF file using Playwright with Microsoft Edge.
     Edge is pre-installed on Windows 11 — no Chromium download required.
@@ -21,6 +28,11 @@ def html_to_pdf(html: str, path: Path) -> None:
     Args:
         html: Full HTML document string (UTF-8).
         path: Destination Path for the PDF file.
+        margin: Optional dict with top/right/bottom/left keys. Defaults to
+                {"top":"1.8cm","right":"1.4cm","bottom":"1.8cm","left":"1.4cm"}.
+        display_header_footer: Whether to show Playwright header/footer. Default True.
+        header_template: Override header HTML. If None, uses default BOMTEMPO header.
+        footer_template: Override footer HTML. If None, uses default page-number footer.
 
     Raises:
         RuntimeError: If Playwright or Edge is unavailable, or times out.
@@ -61,7 +73,7 @@ def html_to_pdf(html: str, path: Path) -> None:
                 page = await browser.new_page()
                 # wait_until="networkidle" ensures Google Fonts load before rendering
                 await page.set_content(html, wait_until="networkidle")
-                _header = (
+                _default_header = (
                     '<div style="width:100%;box-sizing:border-box;padding:0 48px;'
                     'font-family:Arial,sans-serif;font-size:8px;color:#9CA3AF;'
                     'display:flex;justify-content:space-between;align-items:center;'
@@ -71,7 +83,7 @@ def html_to_pdf(html: str, path: Path) -> None:
                     '<span>Relatório Executivo · Confidencial</span>'
                     '</div>'
                 )
-                _footer = (
+                _default_footer = (
                     '<div style="width:100%;box-sizing:border-box;padding:0 48px;'
                     'font-family:Arial,sans-serif;font-size:8px;color:#9CA3AF;'
                     'display:flex;justify-content:space-between;align-items:center;'
@@ -81,14 +93,17 @@ def html_to_pdf(html: str, path: Path) -> None:
                     'de <span class="totalPages"></span></span>'
                     '</div>'
                 )
+                _margin = margin if margin is not None else {
+                    "top": "1.8cm", "right": "1.4cm", "bottom": "1.8cm", "left": "1.4cm"
+                }
                 await page.pdf(
                     path=str(path),
                     format="A4",
                     print_background=True,
-                    margin={"top": "1.8cm", "right": "1.4cm", "bottom": "1.8cm", "left": "1.4cm"},
-                    display_header_footer=True,
-                    header_template=_header,
-                    footer_template=_footer,
+                    margin=_margin,
+                    display_header_footer=display_header_footer,
+                    header_template=header_template if header_template is not None else _default_header,
+                    footer_template=footer_template if footer_template is not None else _default_footer,
                 )
                 logger.debug(f"pdf_utils: PDF written → {path.name}")
             finally:

@@ -83,15 +83,18 @@ class RDOHistoricoState(rx.State):
             return v
 
         def _fmt_datetime(val: str) -> str:
-            """Converte ISO datetime → DD/MM/YYYY HH:MM."""
+            """Converte ISO UTC datetime → DD/MM/YYYY HH:MM (BRT, UTC-3)."""
+            from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+            _BRT = _tz(_td(hours=-3))
             v = str(val or "")
-            if len(v) >= 16 and v[4] == "-":
-                try:
-                    date_part = v[:10].split("-")
-                    time_part = v[11:16]
-                    return f"{date_part[2]}/{date_part[1]}/{date_part[0]} {time_part}"
-                except Exception:
-                    pass
+            if not v or len(v) < 16:
+                return v
+            try:
+                dt = _dt.fromisoformat(v.replace("Z", "+00:00")[:32])
+                brt = dt.astimezone(_BRT)
+                return brt.strftime("%d/%m/%Y %H:%M")
+            except Exception:
+                pass
             return v[:16].replace("T", " ")
 
         # Normalizar para exibição

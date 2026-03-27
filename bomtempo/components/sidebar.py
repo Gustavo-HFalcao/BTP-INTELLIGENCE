@@ -115,6 +115,7 @@ def sidebar_content() -> rx.Component:
                 rx.image(
                     src="/banner.png",
                     width="100%",
+                    height="100%",
                     object_fit="contain",
                     object_position="left center",
                     class_name="sidebar-logo-img",
@@ -131,9 +132,12 @@ def sidebar_content() -> rx.Component:
                 ),
             ),
             width="100%",
+            height="64px",
+            display="flex",
+            align_items="center",
             padding_x=rx.cond(GlobalState.sidebar_open, "16px", "8px"),
-            padding_y="10px",
             border_bottom=f"1px solid {S.BORDER_SUBTLE}",
+            flex_shrink="0",
         ),
         # ── Navigation ─────────────────────────────────────────────────
         rx.vstack(
@@ -144,12 +148,8 @@ def sidebar_content() -> rx.Component:
                 sidebar_item("VISÃO GERAL", "layout-dashboard", "/"),
             ),
             rx.cond(
-                GlobalState.allowed_modules.contains("obras"),
-                sidebar_item("OBRAS", "hard-hat", "/obras"),
-            ),
-            rx.cond(
-                GlobalState.allowed_modules.contains("projetos"),
-                sidebar_item("PROJETOS", "briefcase", "/projetos"),
+                GlobalState.allowed_modules.contains("obras") | GlobalState.allowed_modules.contains("projetos"),
+                sidebar_item("HUB DE OPERAÇÕES", "hard-hat", "/hub"),
             ),
 
             # OPERACIONAL
@@ -206,15 +206,11 @@ def sidebar_content() -> rx.Component:
             _section_label("ADMINISTRAÇÃO"),
             rx.cond(
                 GlobalState.allowed_modules.contains("alertas"),
-                sidebar_item("ALERTAS", "bell-ring", "/alertas"),
+                sidebar_item("GESTÃO DE ALERTAS", "bell", "/alertas"),
             ),
             rx.cond(
                 GlobalState.allowed_modules.contains("logs_auditoria"),
                 sidebar_item("LOGS & AUDITORIA", "shield-check", "/logs-auditoria"),
-            ),
-            rx.cond(
-                GlobalState.allowed_modules.contains("gerenciar_usuarios"),
-                sidebar_item("USUÁRIOS", "users", "/admin/usuarios"),
             ),
             rx.cond(
                 GlobalState.allowed_modules.contains("gerenciar_usuarios"),
@@ -238,136 +234,6 @@ def sidebar_content() -> rx.Component:
             padding_bottom="12px",
         ),
 
-        # ── User Panel ─────────────────────────────────────────────────
-        rx.popover.root(
-            rx.popover.trigger(
-                rx.box(
-                    rx.hstack(
-                        rx.cond(
-                            GlobalState.current_user_avatar_type == "icon",
-                            rx.box(
-                                rx.icon(
-                                    tag=GlobalState.effective_avatar_icon,
-                                    size=16,
-                                    color=S.COPPER,
-                                ),
-                                width="32px", height="32px",
-                                border_radius=S.R_CONTROL,
-                                bg="rgba(201,139,42,0.15)",
-                                border="1.5px solid rgba(201,139,42,0.4)",
-                                display="flex",
-                                align_items="center",
-                                justify_content="center",
-                                flex_shrink="0",
-                            ),
-                            rx.avatar(
-                                fallback=GlobalState.avatar_fallback,
-                                size="2",
-                                radius="none",
-                                variant="soft",
-                                color_scheme="bronze",
-                            ),
-                        ),
-                        rx.cond(
-                            GlobalState.sidebar_open,
-                            rx.hstack(
-                                rx.vstack(
-                                    rx.text(
-                                        GlobalState.current_user_name,
-                                        font_weight="700",
-                                        font_size="13px",
-                                        color="white",
-                                        font_family=S.FONT_TECH,
-                                    ),
-                                    rx.text(
-                                        GlobalState.current_user_role,
-                                        font_size="10px",
-                                        color=S.TEXT_MUTED,
-                                    ),
-                                    spacing="0",
-                                    align="start",
-                                ),
-                                rx.spacer(),
-                                rx.icon(tag="chevron-up", size=12, color=S.TEXT_MUTED),
-                                align="center",
-                                width="100%",
-                            ),
-                        ),
-                        spacing="2",
-                        align="center",
-                        justify=rx.cond(GlobalState.sidebar_open, "start", "center"),
-                        width="100%",
-                    ),
-                    width="100%",
-                    padding_x=rx.cond(GlobalState.sidebar_open, "14px", "8px"),
-                    padding_y="14px",
-                    border_top=f"1px solid {S.BORDER_SUBTLE}",
-                    cursor="pointer",
-                    transition="background 0.15s ease",
-                    _hover={"bg": "rgba(255,255,255,0.02)"},
-                ),
-            ),
-            rx.popover.content(
-                rx.vstack(
-                    # Meu Perfil
-                    rx.box(
-                        rx.hstack(
-                            rx.icon(tag="user-circle", size=14, color=S.COPPER),
-                            rx.text("Meu Perfil", font_size="13px", color="white"),
-                            spacing="3",
-                            align="center",
-                        ),
-                        width="100%",
-                        padding="8px 12px",
-                        border_radius=S.R_CONTROL,
-                        cursor="pointer",
-                        on_click=GlobalState.open_avatar_modal,
-                        _hover={"bg": "rgba(255,255,255,0.05)"},
-                    ),
-                    # App Mobile
-                    rx.box(
-                        rx.hstack(
-                            rx.icon(tag="smartphone", size=14, color=S.PATINA),
-                            rx.text("App Mobile", font_size="13px", color="white"),
-                            spacing="3",
-                            align="center",
-                        ),
-                        width="100%",
-                        padding="8px 12px",
-                        border_radius=S.R_CONTROL,
-                        cursor="pointer",
-                        on_click=rx.redirect("/app-mobile"),
-                        _hover={"bg": "rgba(255,255,255,0.05)"},
-                    ),
-                    rx.separator(width="100%", color=S.BORDER_SUBTLE),
-                    # Logout
-                    rx.box(
-                        rx.hstack(
-                            rx.icon(tag="log-out", size=14, color="#EF4444"),
-                            rx.text("Logout", font_size="13px", color="#EF4444"),
-                            spacing="3",
-                            align="center",
-                        ),
-                        width="100%",
-                        padding="8px 12px",
-                        border_radius=S.R_CONTROL,
-                        cursor="pointer",
-                        on_click=GlobalState.logout,
-                        _hover={"bg": "rgba(239,68,68,0.07)"},
-                    ),
-                    spacing="1",
-                    width="180px",
-                    padding="4px",
-                ),
-                bg=S.BG_ELEVATED,
-                border=f"1px solid {S.BORDER_SUBTLE}",
-                border_radius=S.R_CARD,
-                side="top",
-                align="start",
-                padding="6px",
-                z_index="10001",
-            ),
-        ),
         # Outer vstack props
         height="100%",
         spacing="0",
@@ -411,7 +277,7 @@ def sidebar() -> rx.Component:
         top="0",
         left="0",
         bg=S.BG_ELEVATED,
-        border_right=f"1px solid {S.BORDER_SUBTLE}",
+        box_shadow=f"1px 0 0 {S.BORDER_SUBTLE}",
         z_index="50",
         transition="width 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
         display=["none", "none", "block"],

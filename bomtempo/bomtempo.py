@@ -48,6 +48,8 @@ from bomtempo.pages.chat_ia import chat_ia_page
 from bomtempo.pages.financeiro import financeiro_page
 from bomtempo.pages.index import index_page
 from bomtempo.pages.obras import obras_page
+from bomtempo.pages.hub_operacoes import hub_operacoes_page
+from bomtempo.pages.perfil import perfil_page
 from bomtempo.pages.om import om_page
 from bomtempo.pages.previsoes import previsoes_page
 from bomtempo.pages.projetos import projetos_page
@@ -91,6 +93,14 @@ def financeiro():
 
 def obras():
     return default_layout(obras_page())
+
+
+def hub_operacoes():
+    return default_layout(hub_operacoes_page())
+
+
+def perfil():
+    return default_layout(perfil_page())
 
 
 def projetos():
@@ -171,6 +181,18 @@ app.add_page(
 )
 app.add_page(
     obras, route="/obras", title="BOMTEMPO | Operações de Campo", on_load=GlobalState.load_data
+)
+app.add_page(
+    hub_operacoes,
+    route="/hub",
+    title="BOMTEMPO | Hub de Operações",
+    on_load=GlobalState.load_data,
+)
+app.add_page(
+    perfil,
+    route="/perfil",
+    title="BOMTEMPO | Meu Perfil",
+    on_load=GlobalState.load_data,
 )
 app.add_page(
     projetos,
