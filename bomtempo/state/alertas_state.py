@@ -182,12 +182,20 @@ class AlertasState(rx.State):
             self.sweep_results = {}
             self.history_page = 1
 
+        client_id = ""
+        try:
+            from bomtempo.state.global_state import GlobalState as _GS
+            _gs = await self.get_state(_GS)
+            client_id = str(_gs.current_client_id or "")
+        except Exception:
+            pass
+
         loop = asyncio.get_running_loop()
         try:
             # Busca subscriptions e histórico em paralelo — 2 requests simultâneas
             raw, (rows, total) = await asyncio.gather(
-                loop.run_in_executor(None, AlertService.get_email_subscriptions),
-                loop.run_in_executor(None, lambda: AlertService.get_history(page=1, per_page=30)),
+                loop.run_in_executor(None, lambda: AlertService.get_email_subscriptions(client_id=client_id)),
+                loop.run_in_executor(None, lambda: AlertService.get_history(page=1, per_page=30, client_id=client_id)),
             )
 
             counts: dict = {k: 0 for k in ALERT_TYPES}
@@ -217,9 +225,16 @@ class AlertasState(rx.State):
                 return
             self.history_page -= 1
             page = self.history_page
+        client_id = ""
+        try:
+            from bomtempo.state.global_state import GlobalState as _GS
+            _gs = await self.get_state(_GS)
+            client_id = str(_gs.current_client_id or "")
+        except Exception:
+            pass
         loop = asyncio.get_running_loop()
         rows, total = await loop.run_in_executor(
-            None, lambda: AlertService.get_history(page=page, per_page=30)
+            None, lambda: AlertService.get_history(page=page, per_page=30, client_id=client_id)
         )
         async with self:
             self.history = [_norm_hist(h) for h in rows]
@@ -232,9 +247,16 @@ class AlertasState(rx.State):
                 return
             self.history_page += 1
             page = self.history_page
+        client_id = ""
+        try:
+            from bomtempo.state.global_state import GlobalState as _GS
+            _gs = await self.get_state(_GS)
+            client_id = str(_gs.current_client_id or "")
+        except Exception:
+            pass
         loop = asyncio.get_running_loop()
         rows, total = await loop.run_in_executor(
-            None, lambda: AlertService.get_history(page=page, per_page=30)
+            None, lambda: AlertService.get_history(page=page, per_page=30, client_id=client_id)
         )
         async with self:
             self.history = [_norm_hist(h) for h in rows]
@@ -253,6 +275,14 @@ class AlertasState(rx.State):
             contract = self.new_contract.strip()
             email = self.new_email.strip()
 
+        client_id = ""
+        try:
+            from bomtempo.state.global_state import GlobalState as _GS
+            _gs = await self.get_state(_GS)
+            client_id = str(_gs.current_client_id or "")
+        except Exception:
+            pass
+
         loop = asyncio.get_running_loop()
         ok, msg = await loop.run_in_executor(
             None,
@@ -261,6 +291,7 @@ class AlertasState(rx.State):
                 contract=contract,
                 email=email,
                 created_by="admin",
+                client_id=client_id,
             ),
         )
 
@@ -270,6 +301,7 @@ class AlertasState(rx.State):
                 action=f"Assinatura de alerta '{alert_type}' adicionada — email '{email}' contrato '{contract}'",
                 metadata={"alert_type": alert_type, "email": email, "contract": contract},
                 status="success",
+                client_id=client_id,
             )
 
         async with self:
@@ -277,7 +309,7 @@ class AlertasState(rx.State):
             self.form_is_error = not ok
             if ok:
                 self.new_email = ""
-                raw = AlertService.get_email_subscriptions()
+                raw = AlertService.get_email_subscriptions(client_id=client_id)
                 self.subscriptions = [_norm_group(g) for g in raw]
                 counts: dict = {k: 0 for k in ALERT_TYPES}
                 for g in raw:
@@ -292,6 +324,13 @@ class AlertasState(rx.State):
     @rx.event(background=True)
     async def delete_email_chip(self, row_id: str):
         """Remove assinatura — I/O em executor para não bloquear event loop."""
+        client_id = ""
+        try:
+            from bomtempo.state.global_state import GlobalState as _GS
+            _gs = await self.get_state(_GS)
+            client_id = str(_gs.current_client_id or "")
+        except Exception:
+            pass
         loop = asyncio.get_running_loop()
         try:
             # Delete + reload subscriptions em paralelo (delete primeiro, depois fetch)
@@ -302,8 +341,9 @@ class AlertasState(rx.State):
                 entity_type="alert_subscriptions",
                 entity_id=row_id,
                 status="success",
+                client_id=client_id,
             )
-            raw = await loop.run_in_executor(None, AlertService.get_email_subscriptions)
+            raw = await loop.run_in_executor(None, lambda: AlertService.get_email_subscriptions(client_id=client_id))
             counts: dict = {k: 0 for k in ALERT_TYPES}
             for g in raw:
                 at = g.get("alert_type", "")
@@ -332,6 +372,14 @@ class AlertasState(rx.State):
             new_r.pop(alert_type, None)
             self.sweep_results = new_r
 
+        client_id = ""
+        try:
+            from bomtempo.state.global_state import GlobalState as _GS
+            _gs = await self.get_state(_GS)
+            client_id = str(_gs.current_client_id or "")
+        except Exception:
+            pass
+
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(None, lambda: AlertService.run_sweep(alert_type))
 
@@ -355,6 +403,7 @@ class AlertasState(rx.State):
                 entity_type="alert_history",
                 metadata={"alert_type": alert_type, "sent": sent, "errors": errors, "skipped": skipped},
                 status="success" if not errors else "warning",
+                client_id=client_id,
             )
             self.history_page = 1
             self.sweep_running = False
@@ -362,7 +411,7 @@ class AlertasState(rx.State):
 
         # Reload history after releasing state lock
         rows, total = await loop.run_in_executor(
-            None, lambda: AlertService.get_history(page=1, per_page=30)
+            None, lambda: AlertService.get_history(page=1, per_page=30, client_id=client_id)
         )
         async with self:
             self.history = [_norm_hist(h) for h in rows]

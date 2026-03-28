@@ -754,6 +754,7 @@ class ReembolsoState(rx.State):
 
                 gs = await self.get_state(GlobalState)
                 current_user = str(gs.current_user_name)
+                current_client_id = str(gs.current_client_id or "")
                 data = self._build_data()
                 data["submitted_by"] = current_user
                 image_b64 = str(self.image_b64)
@@ -778,7 +779,7 @@ class ReembolsoState(rx.State):
             id_fr: str = ""
             try:
                 id_fr = await loop.run_in_executor(
-                    None, lambda: FuelService.save_to_database(data, submitted_by=current_user)
+                    None, lambda: FuelService.save_to_database(data, submitted_by=current_user, client_id=current_client_id)
                 )
                 logger.info(f"✅ FR save_to_database: {id_fr}")
             except Exception as e:

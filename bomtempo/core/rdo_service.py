@@ -1208,6 +1208,7 @@ class RDOService:
             "descricao_acidente":  rdo_data.get("descricao_acidente") or "",
             "view_token":          view_token,
             "updated_at":          datetime.now().isoformat(),
+            "client_id":           rdo_data.get("client_id") or None,
         }
         record = {k: v for k, v in record.items() if v is not None}
         sb_upsert("rdo_master", record, on_conflict="id_rdo")
@@ -1307,27 +1308,35 @@ class RDOService:
         contrato: str = "",
         mestre_id: str = "",
         limit: int = 100,
+        client_id: str = "",
     ) -> List[Dict[str, Any]]:
         filters: Dict[str, Any] = {}
         if contrato:
             filters["contrato"] = contrato
         if mestre_id:
             filters["mestre_id"] = mestre_id
+        if client_id:
+            filters["client_id"] = client_id
         return sb_select("rdo_master", filters=filters, order="created_at.desc", limit=limit) or []
 
     @staticmethod
-    def get_active_draft(mestre_id: str, contrato: str = "") -> Optional[Dict[str, Any]]:
+    def get_active_draft(mestre_id: str, contrato: str = "", client_id: str = "") -> Optional[Dict[str, Any]]:
         """Retorna rascunho ativo do mestre (se existir)."""
         filters: Dict[str, Any] = {"status": "rascunho", "mestre_id": mestre_id}
         if contrato:
             filters["contrato"] = contrato
+        if client_id:
+            filters["client_id"] = client_id
         rows = sb_select("rdo_master", filters=filters, order="updated_at.desc", limit=1)
         return dict(rows[0]) if rows else None
 
     @staticmethod
-    def get_all_rdos(limit: int = 500) -> List[Dict[str, Any]]:
-        """Retorna todos os RDOs finalizados (admin view). Alias para get_rdos_list sem filtros."""
-        return sb_select("rdo_master", order="created_at.desc", limit=limit) or []
+    def get_all_rdos(limit: int = 500, client_id: str = "") -> List[Dict[str, Any]]:
+        """Retorna todos os RDOs finalizados do tenant. Alias para get_rdos_list sem filtros."""
+        filters: Dict[str, Any] = {}
+        if client_id:
+            filters["client_id"] = client_id
+        return sb_select("rdo_master", filters=filters, order="created_at.desc", limit=limit) or []
 
     @staticmethod
     def delete_draft(id_rdo: str) -> bool:

@@ -91,7 +91,7 @@ class GlobalState(rx.State):
     async def ensure_data_loaded(self):
         """Lazy load data if not present"""
         if not self._data:
-            loader = DataLoader()
+            loader = DataLoader(client_id=self.current_client_id)
             self._data = loader.load_all()
 
 
@@ -111,7 +111,7 @@ class GlobalState(rx.State):
         """Abre o chat sempre com sessão limpa. O banco existe só para contexto da IA."""
         username = self.current_user_name or "anonymous"
         # Sempre cria nova sessão ao entrar na página
-        new_sess = sb_insert("chat_sessions", {"title": "Conversa", "username": username})
+        new_sess = sb_insert("chat_sessions", {"title": "Conversa", "username": username, "client_id": self.current_client_id or None})
         if new_sess:
             self.chat_session_id = new_sess["id"]
         self.chat_history = [_msg("assistant", "👋 Olá! Sou o Bomtempo Intelligence. Como posso ajudar com seus dados hoje?")]
@@ -121,7 +121,7 @@ class GlobalState(rx.State):
     async def new_conversation(self):
         """Inicia uma nova conversa — cria nova sessão no banco e limpa o histórico local."""
         username = self.current_user_name or "anonymous"
-        new_sess = sb_insert("chat_sessions", {"title": "Conversa", "username": username})
+        new_sess = sb_insert("chat_sessions", {"title": "Conversa", "username": username, "client_id": self.current_client_id or None})
         if new_sess:
             self.chat_session_id = new_sess["id"]
         self.chat_history = [_msg("assistant", "👋 Conversa reiniciada! Como posso ajudar?")]
@@ -154,15 +154,16 @@ class GlobalState(rx.State):
             # A última mensagem do usuário é agora a última do histórico (sem placeholder)
             question = self.chat_history[-1]["content"] if self.chat_history and self.chat_history[-1]["role"] == "user" else ""
             is_mobile = self.current_user_role == "Gestão-Mobile"
+            tenant_name = self.current_client_name
             self.save_chat_msg("user", question)
-            
-        system_prompt = AIContext.get_system_prompt(is_mobile=is_mobile)
+
+        system_prompt = AIContext.get_system_prompt(is_mobile=is_mobile, tenant_name=tenant_name)
 
         # Injeta dados reais do painel (contexto do dashboard) + schema para o agente
         # Os dados do painel dão awareness imediata; o schema permite queries precisas
         async with self:
             if not self._data:
-                loader = DataLoader()
+                loader = DataLoader(client_id=self.current_client_id)
                 self._data = loader.load_all()
             data_snapshot = self._data  # lê dentro do lock
 
@@ -634,7 +635,7 @@ class GlobalState(rx.State):
                 import asyncio
                 loop = asyncio.get_running_loop()
                 rdos, mo, eq = await asyncio.gather(
-                    loop.run_in_executor(None, lambda: RDOService.get_all_rdos(limit=200)),
+                    loop.run_in_executor(None, lambda: RDOService.get_all_rdos(limit=200, client_id=self.current_client_id or "")),
                     loop.run_in_executor(None, lambda: _sbsel("rdo_mao_obra", limit=1000) or []),
                     loop.run_in_executor(None, lambda: _sbsel("rdo_equipamentos", limit=1000) or []),
                 )
@@ -977,7 +978,10 @@ class GlobalState(rx.State):
             action=f"Usuário '{self.current_user_name}' fez logout",
             username=self.current_user_name,
             status="success",
+            client_id=str(self.current_client_id or ""),
         )
+        # Invalida cache do tenant antes de limpar o client_id
+        DataLoader.invalidate_cache(self.current_client_id)
         self.is_authenticated = False
         self.username_input = ""
         self.password_input = ""
@@ -1000,6 +1004,10 @@ class GlobalState(rx.State):
         self.contact_edit_whatsapp = ""
         self.contact_error = ""
         self.contact_success = False
+        # Limpa identidade do tenant
+        self.current_client_id = ""
+        self.current_client_name = ""
+        self.client_is_master = False
         # Limpa sessão de chat para não vazar histórico entre usuários
         self.chat_session_id = ""
         self.chat_history = []
@@ -1364,7 +1372,7 @@ class GlobalState(rx.State):
         yield
 
         try:
-            loader = DataLoader()
+            loader = DataLoader(client_id=self.current_client_id)
             self._data = loader.load_all()
 
             # Helper to safely get DF
@@ -1716,16 +1724,21 @@ class GlobalState(rx.State):
             try:
                 from bomtempo.core.supabase_client import sb_select
                 from bomtempo.state.usuarios_state import MODULE_SLUGS
-                role_rows = sb_select("roles", filters={"name": role})
+                role_rows = sb_select("roles", filters={"name": role, "client_id": self.current_client_id})
                 if role_rows:
                     self.allowed_modules = list(role_rows[0].get("modules", []))
                     self.current_user_role_icon = str(role_rows[0].get("icon", "user") or "user")
                     logger.info(f"Permissões carregadas: {len(self.allowed_modules)} módulos")
                 else:
-                    # Fallback: Administrador full access, others none (need role in DB)
-                    self.allowed_modules = list(MODULE_SLUGS) if role == "Administrador" else []
-                    self.current_user_role_icon = "user"
-                    logger.warning(f"Role '{role}' não encontrado na tabela roles — fallback aplicado")
+                    # Fallback: master e Administrador têm acesso total, outros nenhum
+                    if self.client_is_master or role == "Administrador":
+                        self.allowed_modules = list(MODULE_SLUGS)
+                        self.current_user_role_icon = "crown" if self.client_is_master else "user"
+                        logger.info(f"Role '{role}' não encontrado em roles — acesso total concedido (master/admin)")
+                    else:
+                        self.allowed_modules = []
+                        self.current_user_role_icon = "user"
+                        logger.warning(f"Role '{role}' não encontrado na tabela roles — sem permissões")
             except Exception as role_err:
                 logger.error(f"Erro ao carregar permissões do role '{role}': {role_err}")
                 self.allowed_modules = list(MODULE_SLUGS) if role == "Administrador" else []
@@ -1755,7 +1768,17 @@ class GlobalState(rx.State):
                 username=self.current_user_name,
                 metadata={"role": role},
                 status="success",
+                client_id=str(self.current_client_id or ""),
             )
+
+            # Master redirect happens BEFORE dashboard data loads to avoid flicker
+            if self.client_is_master:
+                self.initial_loading = False
+                self.show_loading_screen = False
+                yield
+                yield GlobalState.load_notifications
+                yield rx.redirect("/admin/master-gestion")
+                return
 
             yield GlobalState.load_initial_data_smooth
             yield GlobalState.load_notifications
@@ -1771,7 +1794,14 @@ class GlobalState(rx.State):
             elif role == "data_edit":
                 yield rx.redirect("/admin/editar_dados")
             else:
-                yield rx.redirect("/")
+                # Smart fallback: roles criados por tenants podem ter módulos específicos
+                _mods = self.allowed_modules
+                if "rdo_form" in _mods and "visao_geral" not in _mods:
+                    yield rx.redirect("/rdo-form")
+                elif "reembolso" in _mods and "visao_geral" not in _mods:
+                    yield rx.redirect("/reembolso")
+                else:
+                    yield rx.redirect("/")
 
         except Exception as e:
             logger.error(f"❌ Erro ao conectar com Supabase: {e}")
@@ -1791,6 +1821,10 @@ class GlobalState(rx.State):
             # Se não estiver logado, não carrega dados e deixa na página de login (index renderiza condicionalmente)
             # Na verdade bomtempo.py usa index_page() wrapped em default_layout()
             # Precisamos garantir que o layout mostre o login se is_authenticated for False.
+            return
+
+        if self.client_is_master:
+            yield rx.redirect("/admin/master-gestion")
             return
 
         if self.current_user_role == "Mestre de Obras":
@@ -3419,6 +3453,7 @@ class GlobalState(rx.State):
                     "valor_contratado":    0,
                 }
 
+            payload["client_id"] = self.current_client_id or None
             sb_insert("contratos", payload)
 
             # Auto-geocode if localizacao provided (Nominatim via requests)

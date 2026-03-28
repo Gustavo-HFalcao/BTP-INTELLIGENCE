@@ -227,6 +227,14 @@ class LogsState(rx.State):
         date_to = self.filter_date_to
         page = self.page
 
+        client_id = ""
+        try:
+            from bomtempo.state.global_state import GlobalState as _GS
+            _gs = await self.get_state(_GS)
+            client_id = str(_gs.current_client_id or "")
+        except Exception:
+            pass
+
         def _query():
             from bomtempo.core.supabase_client import (
                 REST_BASE,
@@ -246,6 +254,8 @@ class LogsState(rx.State):
                 "select": "*",
                 "order": "created_at.desc",
             }
+            if client_id:
+                params["client_id"] = f"eq.{client_id}"
             if cat:
                 params["action_category"] = f"eq.{cat}"
             if status:
@@ -296,6 +306,14 @@ class LogsState(rx.State):
         """Conta eventos de hoje — 4 queries em paralelo via ThreadPoolExecutor."""
         from concurrent.futures import ThreadPoolExecutor
 
+        stats_client_id = ""
+        try:
+            from bomtempo.state.global_state import GlobalState as _GS
+            _gs = await self.get_state(_GS)
+            stats_client_id = str(_gs.current_client_id or "")
+        except Exception:
+            pass
+
         def _count(extra_params: dict) -> int:
             from bomtempo.core.supabase_client import REST_BASE, _get_client, _headers
             today = date.today().isoformat()
@@ -303,6 +321,8 @@ class LogsState(rx.State):
             h["Prefer"] = "count=exact"
             h["Range"] = "0-0"
             params = {"select": "id", "created_at": f"gte.{today}T00:00:00"}
+            if stats_client_id:
+                params["client_id"] = f"eq.{stats_client_id}"
             params.update(extra_params)
             try:
                 r = _get_client().get(f"{REST_BASE}/system_logs", headers=h, params=params)

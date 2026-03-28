@@ -123,12 +123,12 @@ def _user_form_dialog() -> rx.Component:
                     spacing="1",
                     width="100%",
                 ),
-                # Role — native <select> stays above any modal/dialog
+                # Role — usa form_roles_list (filtrada por tenant quando master, roles próprias caso contrário)
                 rx.vstack(
                     rx.text("Perfil de Acesso", font_size="12px", font_weight="600", color=S.TEXT_MUTED),
                     rx.el.select(
                         rx.foreach(
-                            UsuariosState.role_names_list,
+                            UsuariosState.form_roles_list,
                             lambda r: rx.el.option(r, value=r),
                         ),
                         value=UsuariosState.edit_user_role,
@@ -148,35 +148,67 @@ def _user_form_dialog() -> rx.Component:
                     spacing="1",
                     width="100%",
                 ),
-                # Project (contract dropdown) — native <select>
-                rx.vstack(
-                    rx.text(
-                        "Contrato associado",
-                        font_size="12px",
-                        font_weight="600",
-                        color=S.TEXT_MUTED,
-                    ),
-                    rx.el.select(
-                        rx.foreach(
-                            GlobalState.contract_options_list,
-                            lambda c: rx.el.option(c, value=c),
+                # Tenant selector (master only) — aparece antes do contrato
+                rx.cond(
+                    GlobalState.client_is_master,
+                    rx.vstack(
+                        rx.text("Tenant / Cliente", font_size="12px", font_weight="600",
+                                color=S.COPPER),
+                        rx.el.select(
+                            rx.foreach(
+                                UsuariosState.tenants_options,
+                                lambda t: rx.el.option(t["name"], value=t["id"]),
+                            ),
+                            value=UsuariosState.edit_user_client_id,
+                            on_change=UsuariosState.set_edit_user_client_id,
+                            style={
+                                "width": "100%",
+                                "background": S.BG_DEPTH,
+                                "border": f"1px solid {S.COPPER}",
+                                "borderRadius": "6px",
+                                "color": "white",
+                                "fontSize": "13px",
+                                "padding": "8px 10px",
+                                "cursor": "pointer",
+                                "outline": "none",
+                            },
                         ),
-                        value=UsuariosState.edit_user_project_display,
-                        on_change=UsuariosState.set_edit_user_project,
-                        style={
-                            "width": "100%",
-                            "background": S.BG_DEPTH,
-                            "border": f"1px solid {S.BORDER_SUBTLE}",
-                            "borderRadius": "6px",
-                            "color": "white",
-                            "fontSize": "13px",
-                            "padding": "8px 10px",
-                            "cursor": "pointer",
-                            "outline": "none",
-                        },
+                        spacing="1",
+                        width="100%",
                     ),
-                    spacing="1",
-                    width="100%",
+                ),
+                # Project (contract dropdown) — oculto quando master (contrato é responsabilidade do tenant)
+                rx.cond(
+                    ~GlobalState.client_is_master,
+                    rx.vstack(
+                        rx.text(
+                            "Contrato associado",
+                            font_size="12px",
+                            font_weight="600",
+                            color=S.TEXT_MUTED,
+                        ),
+                        rx.el.select(
+                            rx.foreach(
+                                GlobalState.contract_options_list,
+                                lambda c: rx.el.option(c, value=c),
+                            ),
+                            value=UsuariosState.edit_user_project_display,
+                            on_change=UsuariosState.set_edit_user_project,
+                            style={
+                                "width": "100%",
+                                "background": S.BG_DEPTH,
+                                "border": f"1px solid {S.BORDER_SUBTLE}",
+                                "borderRadius": "6px",
+                                "color": "white",
+                                "fontSize": "13px",
+                                "padding": "8px 10px",
+                                "cursor": "pointer",
+                                "outline": "none",
+                            },
+                        ),
+                        spacing="1",
+                        width="100%",
+                    ),
                 ),
                 # Email
                 rx.vstack(

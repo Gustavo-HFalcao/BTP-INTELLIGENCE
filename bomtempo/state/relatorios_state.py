@@ -79,9 +79,16 @@ class RelatoriosState(rx.State):
         """Called on page load — fetches report history from Supabase."""
         self.is_loading_history = True
         yield
+        client_id = ""
+        try:
+            from bomtempo.state.global_state import GlobalState as _GS
+            _gs = await self.get_state(_GS)
+            client_id = str(_gs.current_client_id or "")
+        except Exception:
+            pass
         loop = asyncio.get_event_loop()
         try:
-            history = await loop.run_in_executor(None, ReportService.load_history)
+            history = await loop.run_in_executor(None, lambda: ReportService.load_history(client_id=client_id))
             self.reports_history = history
         except Exception as e:
             logger.error(f"RelatoriosState.load_page error: {e}")
@@ -114,6 +121,7 @@ class RelatoriosState(rx.State):
             obra = dict(gs.obra_enterprise_data)
             disciplinas = list(gs.disciplina_progress_chart)
             current_user = str(gs.current_user_name)
+            _report_client_id = str(gs.current_client_id or "")
             for c in gs.contratos_list:
                 if c.get("contrato", "") == contrato:
                     cliente = c.get("cliente", "—")
@@ -158,10 +166,12 @@ class RelatoriosState(rx.State):
                 "pdf_url": pdf_url,
                 "created_by": current_user,
             }
+            if _report_client_id:
+                record["client_id"] = _report_client_id
             await loop.run_in_executor(None, lambda: ReportService.save_report(record))
 
             # Reload history
-            history = await loop.run_in_executor(None, ReportService.load_history)
+            history = await loop.run_in_executor(None, lambda: ReportService.load_history(client_id=_report_client_id))
 
             audit_log(
                 category=AuditCategory.REPORT_GEN,
@@ -215,6 +225,7 @@ class RelatoriosState(rx.State):
             obra = dict(gs.obra_enterprise_data)
             disciplinas = list(gs.disciplina_progress_chart)
             current_user = str(gs.current_user_name)
+            _report_client_id = str(gs.current_client_id or "")
             for c in gs.contratos_list:
                 if c.get("contrato", "") == contrato:
                     cliente = c.get("cliente", "—")
@@ -264,8 +275,10 @@ class RelatoriosState(rx.State):
                     "pdf_url": pdf_url,
                     "created_by": current_user,
                 }
+                if _report_client_id:
+                    record["client_id"] = _report_client_id
                 await loop.run_in_executor(None, lambda: ReportService.save_report(record))
-                history = await loop.run_in_executor(None, ReportService.load_history)
+                history = await loop.run_in_executor(None, lambda: ReportService.load_history(client_id=_report_client_id))
                 async with self:
                     self.report_pdf_url = pdf_url
                     self.reports_history = history
@@ -316,6 +329,7 @@ class RelatoriosState(rx.State):
             obra = dict(gs.obra_enterprise_data)
             disciplinas = list(gs.disciplina_progress_chart)
             current_user = str(gs.current_user_name)
+            _report_client_id = str(gs.current_client_id or "")
             for c in gs.contratos_list:
                 if c.get("contrato", "") == contrato:
                     cliente = c.get("cliente", "—")
@@ -364,8 +378,10 @@ class RelatoriosState(rx.State):
                     "pdf_url": pdf_url,
                     "created_by": current_user,
                 }
+                if _report_client_id:
+                    record["client_id"] = _report_client_id
                 await loop.run_in_executor(None, lambda: ReportService.save_report(record))
-                history = await loop.run_in_executor(None, ReportService.load_history)
+                history = await loop.run_in_executor(None, lambda: ReportService.load_history(client_id=_report_client_id))
                 async with self:
                     self.report_pdf_url = pdf_url
                     self.reports_history = history

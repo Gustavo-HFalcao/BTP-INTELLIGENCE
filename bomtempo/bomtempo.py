@@ -78,6 +78,10 @@ from bomtempo.pages.observabilidade import observabilidade_page
 from bomtempo.state.observability_state import ObservabilityState
 from bomtempo.state.action_ai_state import ActionAIState
 from bomtempo.state.fin_state import FinState
+from bomtempo.pages.master_console import master_console_page
+from bomtempo.pages.master_metrics import master_metrics_page
+from bomtempo.pages.master_settings import master_settings_page
+from bomtempo.state.master_state import MasterState
 
 # Start proactive alerts background scheduler
 start_alert_scheduler()
@@ -326,6 +330,40 @@ app.add_page(
     app_mobile,
     route="/app-mobile",
     title="BOMTEMPO | App Mobile",
+    on_load=GlobalState.load_data,
+)
+
+
+def master_gestion():
+    return default_layout(master_console_page())
+
+
+def master_metrics():
+    return default_layout(master_metrics_page())
+
+
+def master_settings():
+    return default_layout(master_settings_page())
+
+
+app.add_page(
+    master_gestion,
+    route="/admin/master-gestion",
+    title="BTP | Master Console",
+    on_load=MasterState.load_page,
+)
+
+app.add_page(
+    master_metrics,
+    route="/admin/master-metrics",
+    title="BTP | Custos & Utilização",
+    on_load=MasterState.load_page,
+)
+
+app.add_page(
+    master_settings,
+    route="/admin/master-settings",
+    title="BTP | Configurações",
     on_load=GlobalState.load_data,
 )
 

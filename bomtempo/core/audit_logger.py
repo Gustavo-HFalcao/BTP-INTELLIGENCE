@@ -132,6 +132,7 @@ def audit_log(
     metadata: Optional[Dict[str, Any]] = None,
     status: str = "success",
     ip_address: str = "",
+    client_id: str = "",
 ) -> None:
     """
     Fire-and-forget: grava um registro em `system_logs` sem bloquear a chamada.
@@ -153,6 +154,8 @@ def audit_log(
         "action": action[:500],
         "status": status,
     }
+    if client_id:
+        record["client_id"] = client_id
     if entity_type:
         record["entity_type"] = entity_type[:100]
     if entity_id:
@@ -179,6 +182,7 @@ def audit_error(
     entity_type: str = "",
     error: Optional[Exception] = None,
     metadata: Optional[Dict[str, Any]] = None,
+    client_id: str = "",
 ) -> None:
     """Atalho para logar erros com status='error'."""
     meta = dict(metadata or {})
@@ -192,4 +196,5 @@ def audit_error(
         entity_type=entity_type,
         metadata=meta,
         status="error",
+        client_id=client_id,
     )

@@ -70,8 +70,17 @@ class RDODashboardState(rx.State):
         yield
 
         try:
+            # ── Captura client_id do tenant logado ────────────────
+            _client_id = ""
+            try:
+                from bomtempo.state.global_state import GlobalState
+                _gs = await self.get_state(GlobalState)
+                _client_id = str(_gs.current_client_id or "")
+            except Exception:
+                pass
+
             # ── 1. rdo_master ─────────────────────────────────────
-            all_rdos = RDOService.get_all_rdos(limit=500)
+            all_rdos = RDOService.get_all_rdos(limit=500, client_id=_client_id)
             logger.info(f"📊 Dashboard: {len(all_rdos)} RDOs")
 
             # Contratos disponíveis (normalise key — DB returns lowercase)

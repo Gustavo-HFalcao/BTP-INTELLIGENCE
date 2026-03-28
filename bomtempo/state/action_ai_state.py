@@ -139,6 +139,7 @@ class ActionAIState(rx.State):
                 _username = "action_ai"
             data["_created_by"] = _username
             data["_sender_username"] = _username
+            data["_client_id"] = str(gs.current_client_id or "")
             self.hitl_pending = False
             self.hitl_summary = ""
             self.hitl_preview_lines = []
@@ -232,6 +233,8 @@ class ActionAIState(rx.State):
             async with self:
                 username = "admin"
                 user_role = "Administrador"
+                tenant_name = ""
+                client_id = ""
                 is_mobile = False
                 data = None
                 context_snapshot = list(self._context)
@@ -241,6 +244,8 @@ class ActionAIState(rx.State):
                     gs = await self.get_state(GlobalState)
                     username = gs.current_user_name or "admin"
                     user_role = gs.current_user_role or "Administrador"
+                    tenant_name = gs.current_client_name or ""
+                    client_id = str(gs.current_client_id or "")
                     is_mobile = user_role == "Gestão-Mobile"
                     data = gs._data
                 except Exception as _e:
@@ -248,7 +253,7 @@ class ActionAIState(rx.State):
 
             if not data:
                 try:
-                    loader = DataLoader()
+                    loader = DataLoader(client_id=client_id)
                     data = loader.load_all()
                 except Exception:
                     data = {}
@@ -265,9 +270,14 @@ class ActionAIState(rx.State):
 
             today_str = __import__('datetime').date.today().isoformat()
 
-            system_prompt = AIContext.get_system_prompt(is_mobile=is_mobile)
+            system_prompt = AIContext.get_system_prompt(is_mobile=is_mobile, tenant_name=tenant_name, client_id=client_id)
             dashboard_context = "" if is_form_fill_only else (AIContext.get_dashboard_context(data) if data else "")
-            schema_context = "" if is_form_fill_only else (sb_rpc("get_schema_context") or "")
+            raw_schema = "" if is_form_fill_only else (sb_rpc("get_schema_context") or "")
+            tenant_sql_hint = (
+                f"\n\n⚠️ ISOLAMENTO DE TENANT: SEMPRE inclua `WHERE client_id = '{client_id}'`"
+                f" em TODAS as queries SQL quando o client_id for conhecido."
+            ) if client_id and not is_form_fill_only else ""
+            schema_context = raw_schema + tenant_sql_hint
 
             if is_form_fill_only:
                 system_content = (

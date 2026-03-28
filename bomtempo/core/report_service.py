@@ -1012,9 +1012,10 @@ class ReportService:
         return ""
 
     @staticmethod
-    def load_history(limit: int = 30) -> list[dict]:
+    def load_history(limit: int = 30, client_id: str = "") -> list[dict]:
         """Load recent report history from Supabase."""
-        rows = sb_select("relatorios", order="created_at.desc", limit=limit)
+        filters = {"client_id": client_id} if client_id else None
+        rows = sb_select("relatorios", order="created_at.desc", limit=limit, filters=filters)
         out = []
         for r in rows:
             out.append({

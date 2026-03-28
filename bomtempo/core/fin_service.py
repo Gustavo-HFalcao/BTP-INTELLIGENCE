@@ -151,6 +151,7 @@ class FinService:
         data_custo: str,
         atividade_id: str,
         custo_id: str = "",
+        client_id: str = "",
     ) -> Tuple[bool, str]:
         """
         Insert or update a custo record.
@@ -167,6 +168,7 @@ class FinService:
             "status":          status or "previsto",
             "data":            data_custo or None,  # coluna real: "data"
             "atividade_id":    atividade_id or None,
+            "client_id":       client_id or None,
         }
         try:
             if custo_id:

@@ -811,6 +811,7 @@ def execute_confirmed_action(action: str, data: dict) -> str:
                 "password": data["password"],
                 "user_role": data["user_role"],
                 "project": data.get("project", "Todos"),
+                "client_id": data.get("_client_id") or None,
             })
             if result:
                 return f"✅ Usuário **{data['username']}** criado com sucesso."

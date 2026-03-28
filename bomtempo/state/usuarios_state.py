@@ -72,6 +72,8 @@ class UsuariosState(rx.State):
 
     # Private — populated via get_state(GlobalState) on load_page
     _admin_username: str = ""
+    _is_master: bool = False
+    _current_client_id: str = ""
 
     # ── Tab ───────────────────────────────────────────────────────
     active_tab: str = "usuarios"
@@ -94,9 +96,16 @@ class UsuariosState(rx.State):
     edit_user_password: str = ""
     edit_user_role: str = ""
     edit_user_project: str = ""
+    edit_user_client_id: str = ""   # tenant vinculado ao usuário (master only)
     edit_user_email: str = ""
     edit_user_whatsapp: str = ""
     user_form_error: str = ""
+
+    # Tenants disponíveis para seleção (master only)
+    tenants_options: List[Dict[str, str]] = []  # [{id, name}]
+
+    # Roles filtradas pelo tenant selecionado no form (master only)
+    form_roles_list: List[str] = ["Administrador"]
 
     # ── Perfis (roles) ────────────────────────────────────────────
     # NOTE: Dict[str, str] for Reflex type inference; 'modules' field is list[str] in practice (accessed only in Python handlers)
@@ -146,25 +155,51 @@ class UsuariosState(rx.State):
     # ─────────────────────────────────────────────────────────────
 
     async def load_page(self):
-        """Called on on_load — caches admin username and loads both lists."""
+        """Called on on_load — caches admin context and loads both lists."""
         from bomtempo.state.global_state import GlobalState
         gs = await self.get_state(GlobalState)
         self._admin_username = str(gs.current_user_name or "unknown")
+        self._is_master = bool(gs.client_is_master)
+        self._current_client_id = str(gs.current_client_id or "")
+        if self._is_master:
+            self._load_tenants_options()
         self.load_users()
         self.load_roles()
+
+    def _load_tenants_options(self):
+        try:
+            rows = sb_select("clients", filters={"is_master": False}) or []
+            self.tenants_options = [
+                {"id": str(r.get("id", "")), "name": str(r.get("name", ""))}
+                for r in rows
+            ]
+        except Exception as e:
+            logger.error(f"Erro ao carregar tenants: {e}")
 
     def load_users(self):
         self.users_loading = True
         try:
-            rows = sb_select("login") or []
+            # Master vê todos; tenant-admin vê apenas seus usuários
+            if self._is_master:
+                rows = sb_select("login", order="username") or []
+                # Mapa client_id → name para exibição
+                clients = sb_select("clients") or []
+                client_map = {str(c.get("id", "")): str(c.get("name", "—")) for c in clients}
+            else:
+                filters = {"client_id": self._current_client_id} if self._current_client_id else {}
+                rows = sb_select("login", filters=filters, order="username") or []
+                client_map = {}
+
             self.users_list = [
                 {
-                    "id": str(r.get("id", "")),
-                    "username": str(r.get("username", r.get("user", ""))),
-                    "user_role": str(r.get("user_role", "")),
-                    "project": str(r.get("project", "") or ""),
-                    "email": str(r.get("email", "") or ""),
-                    "whatsapp": str(r.get("whatsapp", "") or ""),
+                    "id":          str(r.get("id", "")),
+                    "username":    str(r.get("username", r.get("user", ""))),
+                    "user_role":   str(r.get("user_role", "")),
+                    "project":     str(r.get("project", "") or ""),
+                    "client_id":   str(r.get("client_id", "") or ""),
+                    "client_name": client_map.get(str(r.get("client_id", "")), "—") if self._is_master else "",
+                    "email":       str(r.get("email", "") or ""),
+                    "whatsapp":    str(r.get("whatsapp", "") or ""),
                 }
                 for r in rows
             ]
@@ -178,7 +213,19 @@ class UsuariosState(rx.State):
     def load_roles(self):
         self.roles_loading = True
         try:
-            rows = sb_select("roles") or []
+            # Roles filtradas por tenant (ou todas se master)
+            if self._is_master or not self._current_client_id:
+                rows = sb_select("roles") or []
+            else:
+                rows = sb_select("roles", filters={"client_id": self._current_client_id}) or []
+            # Deduplica por nome (master pode ver duplicatas de tenants diferentes)
+            seen = set()
+            unique_rows = []
+            for r in rows:
+                name = str(r.get("name", ""))
+                if name not in seen:
+                    seen.add(name)
+                    unique_rows.append(r)
             self.roles_list = [
                 {
                     "id": str(r.get("id", "")),
@@ -187,7 +234,7 @@ class UsuariosState(rx.State):
                     "modules": list(r.get("modules", [])),
                     "module_count": str(len(r.get("modules", []))),
                 }
-                for r in rows
+                for r in unique_rows
             ]
         except Exception as e:
             logger.error(f"Erro ao carregar roles: {e}")
@@ -204,11 +251,31 @@ class UsuariosState(rx.State):
         self.edit_user_login = ""
         self.edit_user_old_login = ""
         self.edit_user_password = ""
-        self.edit_user_role = self.roles_list[0]["name"] if self.roles_list else ""
         self.edit_user_project = ""
         self.edit_user_email = ""
         self.edit_user_whatsapp = ""
         self.user_form_error = ""
+        if self._is_master:
+            # Master: pré-seleciona primeiro tenant não-master; roles serão carregadas ao selecionar
+            first_tenant_id = self.tenants_options[0]["id"] if self.tenants_options else ""
+            self.edit_user_client_id = first_tenant_id
+            self.form_roles_list = ["Administrador"]
+            self.edit_user_role = "Administrador"
+            # Carrega roles do primeiro tenant imediatamente
+            if first_tenant_id:
+                try:
+                    rows = sb_select("roles", filters={"client_id": first_tenant_id}) or []
+                    names = [str(r.get("name", "")) for r in rows if r.get("name")]
+                    if "Administrador" not in names:
+                        names = ["Administrador"] + names
+                    self.form_roles_list = names if names else ["Administrador"]
+                    self.edit_user_role = self.form_roles_list[0]
+                except Exception:
+                    pass
+        else:
+            self.edit_user_client_id = self._current_client_id
+            self.form_roles_list = [r["name"] for r in self.roles_list] or ["Administrador"]
+            self.edit_user_role = self.roles_list[0]["name"] if self.roles_list else ""
         self.show_user_dialog = True
 
     def open_edit_user_dialog(self, user_id: str):
@@ -248,6 +315,27 @@ class UsuariosState(rx.State):
 
     def set_edit_user_whatsapp(self, val: str):
         self.edit_user_whatsapp = val
+
+    def set_edit_user_client_id(self, val: str):
+        """Quando master muda o tenant do form: recarrega roles daquele tenant e limpa contrato."""
+        self.edit_user_client_id = val
+        self.edit_user_project = ""  # contrato do outro tenant não se aplica
+        self.edit_user_role = ""
+        # Carrega roles do tenant selecionado
+        try:
+            if val:
+                rows = sb_select("roles", filters={"client_id": val}) or []
+                names = [str(r.get("name", "")) for r in rows if r.get("name")]
+                # Garante que Administrador sempre está presente
+                if "Administrador" not in names:
+                    names = ["Administrador"] + names
+                self.form_roles_list = names if names else ["Administrador"]
+            else:
+                self.form_roles_list = ["Administrador"]
+            self.edit_user_role = self.form_roles_list[0]
+        except Exception:
+            self.form_roles_list = ["Administrador"]
+            self.edit_user_role = "Administrador"
 
     async def save_user(self):
         """Salva usuário com feedback imediato no botão (#6)."""
@@ -311,12 +399,19 @@ class UsuariosState(rx.State):
 
             else:
                 from bomtempo.core.auth_utils import hash_password
+                # Determina o tenant: master escolhe explicitamente; tenant-admin usa o próprio
+                target_client_id = (
+                    self.edit_user_client_id
+                    if self._is_master and self.edit_user_client_id
+                    else self._current_client_id
+                )
                 insert_data: Dict[str, Any] = {
                     "username": username,
-                    "pw_hash": hash_password(password),
+                    "password": hash_password(password),
                     "user_role": self.edit_user_role,
                     "email": self.edit_user_email.strip(),
                     "whatsapp": self.edit_user_whatsapp.strip(),
+                    "client_id": target_client_id,
                 }
                 result = sb_insert("login", insert_data)
                 new_id = str(result.get("id", "")) if result else ""
@@ -469,7 +564,7 @@ class UsuariosState(rx.State):
                 logger.info(f"Perfil '{name}' atualizado por '{self._get_admin()}'")
 
             else:
-                result = sb_insert("roles", {"name": name, "icon": self.edit_role_icon, "modules": self.edit_role_modules})
+                result = sb_insert("roles", {"name": name, "icon": self.edit_role_icon, "modules": self.edit_role_modules, "client_id": self._current_client_id or None})
                 new_id = str(result.get("id", "")) if result else ""
 
                 audit_log(

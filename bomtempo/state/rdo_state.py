@@ -26,6 +26,9 @@ def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
 
 
 class RDOState(rx.State):
+    # ── Tenant isolation ──────────────────────────────────────
+    _rdo_client_id: str = ""        # client_id do tenant logado (populado em init_page)
+
     # ── Draft / session ────────────────────────────────────────
     draft_id_rdo: str = ""          # ID do rascunho ativo
     draft_saved_at: str = ""        # "hh:mm" — última vez salvo
@@ -273,6 +276,7 @@ class RDOState(rx.State):
         user = str(gs.current_user_name)
         role = str(gs.current_user_role or "")
         contrato = str(gs.current_user_contrato).strip()
+        self._rdo_client_id = str(gs.current_client_id or "")
 
         # Admin/Gestor podem escolher qualquer contrato
         _free_roles = {"Administrador", "admin", "Gestão-Mobile"}
@@ -334,7 +338,7 @@ class RDOState(rx.State):
         loop = asyncio.get_running_loop()
         draft = await loop.run_in_executor(
             None,
-            lambda: RDOService.get_active_draft(user, contrato if contrato not in ("nan","None","") else ""),
+            lambda: RDOService.get_active_draft(user, contrato if contrato not in ("nan","None","") else "", client_id=self._rdo_client_id),
         )
         if not draft:
             return
@@ -1444,6 +1448,8 @@ class RDOState(rx.State):
             # Lists
             "atividades":   list(self.atividades_items),
             "evidencias":   list(self.evidencias_items),
+            # Tenant isolation
+            "client_id":    self._rdo_client_id or None,
         }
 
     def _reset_form(self):

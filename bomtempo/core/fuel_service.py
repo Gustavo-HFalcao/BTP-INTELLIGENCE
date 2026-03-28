@@ -486,7 +486,7 @@ class FuelService:
     # ── Banco de dados ─────────────────────────────────────────────────────────
 
     @staticmethod
-    def save_to_database(data: dict, submitted_by: str = "") -> Optional[str]:
+    def save_to_database(data: dict, submitted_by: str = "", client_id: str = "") -> Optional[str]:
         """
         Salva reembolso no Supabase (fuel_reimbursements).
         Retorna id_fr (string) ou None se falhar.
@@ -551,6 +551,7 @@ class FuelService:
                 "checkin_timestamp":       data.get("checkin_timestamp") or None,
                 "checkin_distancia_posto": data.get("checkin_distancia_posto"),
                 # receipt_image_url e pdf_report_url atualizados via UPDATE após upload
+                "client_id": client_id or None,
             }
 
             result = sb_insert(_TABLE, record)

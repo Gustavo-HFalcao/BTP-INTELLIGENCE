@@ -75,13 +75,16 @@ WHERE username = 'master';
 
 -- 5. View Master Stats (Refinada para o dashboard mestre)
 CREATE OR REPLACE VIEW master_stats AS
-SELECT 
-    c.id as client_id,
-    c.name as client_name,
+SELECT
+    c.id          AS client_id,
+    c.name        AS client_name,
     c.is_master,
-    (SELECT count(*) FROM login l WHERE l.client_id = c.id) as user_count,
-    (SELECT count(*) FROM system_logs sl WHERE sl.client_id = c.id) as total_logs,
-    (SELECT count(*) FROM chat_messages cm 
-     JOIN chat_sessions cs ON cm.session_id = cs.id 
-     WHERE cs.client_id = c.id) as ai_messages_count
+    c.status,
+    c.ai_budget,
+    (SELECT count(*) FROM login l WHERE l.client_id = c.id)                         AS user_count,
+    (SELECT count(*) FROM system_logs sl WHERE sl.client_id = c.id)                 AS total_logs,
+    (SELECT count(*) FROM chat_sessions cs WHERE cs.client_id = c.id)               AS session_count,
+    (SELECT count(*) FROM chat_messages cm
+     JOIN chat_sessions cs ON cm.session_id = cs.id
+     WHERE cs.client_id = c.id)                                                     AS ai_messages_count
 FROM clients c;

@@ -97,25 +97,30 @@ class AlertService:
     # ────────────────────────────────────────────────────────────────────────
 
     @staticmethod
-    def _ensure_toggle_row(alert_type: str) -> Optional[Dict]:
+    def _ensure_toggle_row(alert_type: str, client_id: str = "") -> Optional[Dict]:
         """Ensure a toggle row exists for the given alert_type. Creates if missing."""
-        rows = sb_select(_TABLE_SUBS, filters={"alert_type": alert_type, "user_email": _SENTINEL_EMAIL})
+        filters: Dict = {"alert_type": alert_type, "user_email": _SENTINEL_EMAIL}
+        if client_id:
+            filters["client_id"] = client_id
+        rows = sb_select(_TABLE_SUBS, filters=filters)
         if rows:
             return rows[0]
         try:
-            return sb_insert(_TABLE_SUBS, {
-                "user_email": _SENTINEL_EMAIL,
-                "alert_type": alert_type,
-                "is_active": True,
-            })
+            record: Dict = {"user_email": _SENTINEL_EMAIL, "alert_type": alert_type, "is_active": True}
+            if client_id:
+                record["client_id"] = client_id
+            return sb_insert(_TABLE_SUBS, record)
         except Exception as exc:
             logger.warning(f"[AlertService._ensure_toggle_row] {exc}")
             return None
 
     @staticmethod
-    def get_toggle_states() -> Dict[str, bool]:
+    def get_toggle_states(client_id: str = "") -> Dict[str, bool]:
         """Returns {alert_type: is_active} for all alert types."""
-        rows = sb_select(_TABLE_SUBS, filters={"user_email": _SENTINEL_EMAIL}) or []
+        filters: Dict = {"user_email": _SENTINEL_EMAIL}
+        if client_id:
+            filters["client_id"] = client_id
+        rows = sb_select(_TABLE_SUBS, filters=filters) or []
         state: Dict[str, bool] = {k: True for k in ALERT_TYPES}  # default all active
         for row in rows:
             at = str(row.get("alert_type", ""))
@@ -124,9 +129,9 @@ class AlertService:
         return state
 
     @staticmethod
-    def set_toggle(alert_type: str, is_active: bool) -> bool:
+    def set_toggle(alert_type: str, is_active: bool, client_id: str = "") -> bool:
         """Toggle a global alert type on or off."""
-        row = AlertService._ensure_toggle_row(alert_type)
+        row = AlertService._ensure_toggle_row(alert_type, client_id=client_id)
         if not row:
             return False
         try:
@@ -141,11 +146,14 @@ class AlertService:
     # ────────────────────────────────────────────────────────────────────────
 
     @staticmethod
-    def get_email_subscriptions() -> List[Dict]:
+    def get_email_subscriptions(client_id: str = "") -> List[Dict]:
         """All alertas subscriptions from email_sender, grouped by (alert_type, contract)."""
         all_rows: List[Dict] = []
         for at in ALERT_TYPES:
-            rows = sb_select(_TABLE_EMAIL, filters={"module": _module_name(at)}) or []
+            filters: Dict = {"module": _module_name(at)}
+            if client_id:
+                filters["client_id"] = client_id
+            rows = sb_select(_TABLE_EMAIL, filters=filters) or []
             all_rows.extend(rows)
 
         groups: Dict[Tuple[str, str], Dict] = {}
@@ -176,24 +184,24 @@ class AlertService:
         return result
 
     @staticmethod
-    def email_exists(alert_type: str, contract: str, email: str) -> bool:
-        rows = sb_select(
-            _TABLE_EMAIL,
-            filters={"module": _module_name(alert_type), "contract": contract, "email": email.lower().strip()},
-        ) or []
+    def email_exists(alert_type: str, contract: str, email: str, client_id: str = "") -> bool:
+        filters: Dict = {"module": _module_name(alert_type), "contract": contract, "email": email.lower().strip()}
+        if client_id:
+            filters["client_id"] = client_id
+        rows = sb_select(_TABLE_EMAIL, filters=filters) or []
         return len(rows) > 0
 
     @staticmethod
-    def contract_has_subscription(alert_type: str, contract: str) -> bool:
-        rows = sb_select(
-            _TABLE_EMAIL,
-            filters={"module": _module_name(alert_type), "contract": contract},
-        ) or []
+    def contract_has_subscription(alert_type: str, contract: str, client_id: str = "") -> bool:
+        filters: Dict = {"module": _module_name(alert_type), "contract": contract}
+        if client_id:
+            filters["client_id"] = client_id
+        rows = sb_select(_TABLE_EMAIL, filters=filters) or []
         return len(rows) > 0
 
     @staticmethod
     def add_email_subscription(
-        alert_type: str, contract: str, email: str, created_by: str = "admin"
+        alert_type: str, contract: str, email: str, created_by: str = "admin", client_id: str = ""
     ) -> Tuple[bool, str]:
         """
         Adds an email recipient for an alert+contract pair.
@@ -208,18 +216,21 @@ class AlertService:
             return False, "Tipo de alerta inválido."
         if not contract:
             return False, "Contrato é obrigatório."
-        if AlertService.email_exists(alert_type, contract, email):
+        if AlertService.email_exists(alert_type, contract, email, client_id=client_id):
             return False, f"'{email}' já está cadastrado para este alerta neste contrato."
 
-        existing = AlertService.contract_has_subscription(alert_type, contract)
+        existing = AlertService.contract_has_subscription(alert_type, contract, client_id=client_id)
         try:
-            sb_insert(_TABLE_EMAIL, {
+            record: Dict = {
                 "contract": contract,
                 "email": email,
                 "module": _module_name(alert_type),
                 "created_by": created_by,
                 "updated_date": datetime.now().isoformat(),
-            })
+            }
+            if client_id:
+                record["client_id"] = client_id
+            sb_insert(_TABLE_EMAIL, record)
             if existing:
                 return True, f"E-mail adicionado ao grupo de '{ALERT_TYPES[alert_type]['label']}' — {contract}."
             return True, f"Novo alerta configurado: '{ALERT_TYPES[alert_type]['label']}' para {contract}."
@@ -246,26 +257,33 @@ class AlertService:
     # ────────────────────────────────────────────────────────────────────────
 
     @staticmethod
-    def get_history(page: int = 1, per_page: int = 30) -> tuple:
+    def get_history(page: int = 1, per_page: int = 30, client_id: str = "") -> tuple:
         """Returns (rows: List[Dict], total_count: int) — paginated."""
         from bomtempo.core.supabase_client import sb_select_paginated
+        filters: Dict = {}
+        if client_id:
+            filters["client_id"] = client_id
         rows, total = sb_select_paginated(
             _TABLE_HIST,
             page=page,
             limit=per_page,
             order="timestamp.desc",
+            filters=filters if filters else None,
         )
         return rows or [], total
 
     @staticmethod
-    def _log_history(contract: str, alert_type: str, message: str) -> None:
+    def _log_history(contract: str, alert_type: str, message: str, client_id: str = "") -> None:
         # project_code has FK to contratos — leave NULL, contract info is in message
         try:
-            sb_insert(_TABLE_HIST, {
+            record: Dict = {
                 "alert_type": alert_type,
                 "message": f"[{contract}] {message}"[:500],
                 "is_read": False,
-            })
+            }
+            if client_id:
+                record["client_id"] = client_id
+            sb_insert(_TABLE_HIST, record)
         except Exception as exc:
             logger.warning(f"[AlertService._log_history] {exc}")
 

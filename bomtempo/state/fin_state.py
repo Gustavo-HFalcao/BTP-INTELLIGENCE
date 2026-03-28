@@ -349,11 +349,13 @@ class FinState(rx.State):
         prev_val = _pf(prev_str)
         exec_val = _pf(exec_str)
 
-        # Get username
+        # Get username + client_id
+        client_id = ""
         try:
             from bomtempo.state.global_state import GlobalState
             gs = await self.get_state(GlobalState)
             username = gs.username
+            client_id = str(gs.current_client_id or "")
         except Exception:
             username = ""
 
@@ -380,6 +382,7 @@ class FinState(rx.State):
             data_custo=data,
             atividade_id=atividade_id,
             custo_id=custo_id,
+            client_id=client_id,
         )
 
         if not ok:

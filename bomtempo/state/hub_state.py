@@ -694,10 +694,11 @@ class HubState(rx.State):
             edit_nivel = self.cron_edit_nivel or "macro"
             edit_parent_id = self.cron_edit_parent_id or None
             edit_peso = int(self.cron_edit_peso or 100)
-            # Fallback contrato from GlobalState if rows not loaded yet
+            # Sempre busca GlobalState para client_id + fallback de contrato
+            gs = await self.get_state(GlobalState)
             if not contrato:
-                gs = await self.get_state(GlobalState)
                 contrato = str(gs.selected_contrato or gs.selected_project or "")
+            client_id = str(gs.current_client_id or "")
 
         try:
             data: Dict[str, Any] = {
@@ -715,6 +716,7 @@ class HubState(rx.State):
                 "nivel":            edit_nivel,
                 "parent_id":        edit_parent_id,
                 "peso_pct":         edit_peso,
+                "client_id":        client_id,
             }
 
             if edit_id:
@@ -926,11 +928,23 @@ class HubState(rx.State):
             self.audit_images = []
             self.audit_open_category = ""
 
+        # Captura client_id para isolamento de tenant
+        client_id = ""
+        try:
+            from bomtempo.state.global_state import GlobalState
+            _gs = await self.get_state(GlobalState)
+            client_id = str(_gs.current_client_id or "")
+        except Exception:
+            pass
+
         try:
             # 1. Manual uploads in hub_auditoria_imgs
+            _audit_filters: dict = {"contrato": contrato}
+            if client_id:
+                _audit_filters["client_id"] = client_id
             rows = sb_select(
                 "hub_auditoria_imgs",
-                filters={"contrato": contrato},
+                filters=_audit_filters,
                 order="created_at.desc",
                 limit=500,
             )
@@ -949,9 +963,12 @@ class HubState(rx.State):
 
             # 2. Integrate RDO photos from rdo_master (epi, ferramentas, evidencias)
             try:
+                _rdo_filters: dict = {"contrato": contrato}
+                if client_id:
+                    _rdo_filters["client_id"] = client_id
                 rdos = sb_select(
                     "rdo_master",
-                    filters={"contrato": contrato},
+                    filters=_rdo_filters,
                     order="created_at.desc",
                     limit=200,
                 )
@@ -1084,6 +1101,7 @@ class HubState(rx.State):
                 "legenda":      upload_legenda,
                 "autor":        autor,
                 "data_captura": _date.today().isoformat(),
+                "client_id":    str(gs.current_client_id or ""),
             })
         except Exception as e:
             logger.error(f"save_audit_image error: {e}")
@@ -1120,10 +1138,22 @@ class HubState(rx.State):
             self.timeline_loading = True
             self.timeline_entries = []
 
+        # Captura client_id para isolamento de tenant
+        _tl_client_id = ""
         try:
+            from bomtempo.state.global_state import GlobalState
+            _tl_gs = await self.get_state(GlobalState)
+            _tl_client_id = str(_tl_gs.current_client_id or "")
+        except Exception:
+            pass
+
+        try:
+            _tl_filters: dict = {"contrato": contrato}
+            if _tl_client_id:
+                _tl_filters["client_id"] = _tl_client_id
             rows = sb_select(
                 "hub_timeline",
-                filters={"contrato": contrato},
+                filters=_tl_filters,
                 order="created_at.desc",
                 limit=200,
             )
@@ -1264,6 +1294,7 @@ class HubState(rx.State):
                 "custo_categoria": entry_custo_categoria if entry_is_cost else None,
                 "anexo_url":       entry_anexo_url or None,
                 "anexo_nome":      entry_anexo_nome or None,
+                "client_id":       str(gs.current_client_id or ""),
             })
             audit_log(
                 category=AuditCategory.DATA_EDIT,
@@ -1286,6 +1317,7 @@ class HubState(rx.State):
                                 "source_id": contrato,
                                 "contrato": contrato,
                                 "read": False,
+                                "client_id": str(gs.current_client_id or ""),
                             })
                         except Exception as ne:
                             logger.warning(f"Failed to create notification for @{mentioned_user}: {ne}")

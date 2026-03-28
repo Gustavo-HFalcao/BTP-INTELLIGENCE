@@ -16,10 +16,18 @@ from bomtempo.core.supabase_client import sb_select
 
 logger = get_logger(__name__)
 
-# Cache absoluto completamente FORA do diretório do projeto 
+# Cache absoluto completamente FORA do diretório do projeto
 # Isso garante 100% que o Reflex (watchfiles) não vai dar hot-reload ao deletar/salvar o cache
-CACHE_FILE = os.path.join(tempfile.gettempdir(), "bomtempo_data_cache.pkl")
 CACHE_TTL = 3600  # 1 hora
+
+# Tabelas globais — lidas sem filtro de client_id
+GLOBAL_TABLES = {"clients", "roles"}
+
+
+def _cache_path(client_id: str = "") -> str:
+    """Retorna caminho de cache separado por tenant."""
+    safe_id = (client_id[:8] if client_id else "global").replace("-", "")
+    return os.path.join(tempfile.gettempdir(), f"bomtempo_cache_{safe_id}.pkl")
 
 
 def _strip_accents(text: str) -> str:
@@ -60,6 +68,9 @@ def _parse_brl(val) -> float:
 class DataLoader:
     """Carrega e normaliza todas as planilhas"""
 
+    def __init__(self, client_id: str = ""):
+        self.client_id = client_id
+
     def load_all(self) -> dict:
         """Carrega todos os dados (Cache -> Supabase), normaliza e retorna."""
         data = {}
@@ -67,11 +78,11 @@ class DataLoader:
         # 1. Tentar cache recente (< 1h)
         cached = self._try_load_cache(fresh_only=True)
         if cached:
-            logger.info("✅ Dados carregados do Cache (< 1h)")
+            logger.info(f"✅ Dados carregados do Cache tenant={self.client_id[:8] if self.client_id else 'global'}")
             return cached
 
         # 2. Carregar do Supabase em paralelo
-        logger.info("Carregando dados do Supabase em paralelo...")
+        logger.info(f"Carregando dados do Supabase — tenant={self.client_id[:8] if self.client_id else 'global'}...")
         # (table_name_in_db, state_key)
         TABLE_MAP = [
             ("contratos",      "contratos"),
@@ -83,7 +94,10 @@ class DataLoader:
         sucesso = False
 
         def _fetch(table: str, key: str):
-            rows = sb_select(table)
+            if self.client_id:
+                rows = sb_select(table, filters={"client_id": self.client_id})
+            else:
+                rows = sb_select(table)
             return key, rows
 
         with ThreadPoolExecutor(max_workers=5) as pool:
@@ -98,7 +112,10 @@ class DataLoader:
                         sucesso = True
                     else:
                         data[key] = pd.DataFrame()
-                        logger.warning(f"  {key}: tabela vazia no Supabase")
+                        if self.client_id:
+                            logger.info(f"  {key}: sem dados para este tenant ainda")
+                        else:
+                            logger.warning(f"  {key}: tabela vazia no Supabase")
                 except Exception as e:
                     logger.error(f"Erro ao carregar {t} do Supabase: {e}")
                     data[k] = pd.DataFrame()
@@ -118,24 +135,26 @@ class DataLoader:
     # ── Helpers ───────────────────────────────────────────────────
 
     @staticmethod
-    def invalidate_cache():
-        """Remove o arquivo de cache forçando recarga do Supabase na próxima requisição."""
+    def invalidate_cache(client_id: str = ""):
+        """Remove o arquivo de cache do tenant, forçando recarga do Supabase na próxima requisição."""
         try:
-            if os.path.exists(CACHE_FILE):
-                os.remove(CACHE_FILE)
-                logger.info("🗑️ Cache invalidado")
+            path = _cache_path(client_id)
+            if os.path.exists(path):
+                os.remove(path)
+                logger.info(f"🗑️ Cache invalidado — tenant={client_id[:8] if client_id else 'global'}")
         except Exception as e:
             logger.warning(f"Falha ao invalidar cache: {e}")
 
     def _try_load_cache(self, fresh_only: bool = True):
-        if not os.path.exists(CACHE_FILE):
+        path = _cache_path(self.client_id)
+        if not os.path.exists(path):
             return None
         try:
             if fresh_only:
-                mtime = os.path.getmtime(CACHE_FILE)
+                mtime = os.path.getmtime(path)
                 if (time.time() - mtime) >= CACHE_TTL:
                     return None
-            with open(CACHE_FILE, "rb") as f:
+            with open(path, "rb") as f:
                 data = pickle.load(f)
             if data and isinstance(data, dict):
                 return data
@@ -145,7 +164,8 @@ class DataLoader:
 
     def _save_cache(self, data: dict):
         try:
-            with open(CACHE_FILE, "wb") as f:
+            path = _cache_path(self.client_id)
+            with open(path, "wb") as f:
                 pickle.dump(data, f)
             logger.info("Cache atualizado (dados normalizados)")
         except Exception as e:

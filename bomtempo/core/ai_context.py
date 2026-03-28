@@ -236,7 +236,7 @@ class AIContext:
             return "Nota: O detalhamento completo do dashboard está temporariamente indisponível. Por favor, tente perguntar sobre um contrato específico (ex: BOM-029)."
 
     @staticmethod
-    def get_system_prompt(is_mobile: bool = False) -> str:
+    def get_system_prompt(is_mobile: bool = False, tenant_name: str = "", client_id: str = "") -> str:
         """Returns the guardrails and persona definition."""
 
         mobile_instruction = ""
@@ -245,8 +245,22 @@ class AIContext:
 ATENÇÃO: Usuário em MOBILE — sem tabelas largas. Use listas e max 3 colunas.
 """
 
+        tenant_instruction = ""
+        if client_id or tenant_name:
+            client_id_clause = (
+                f"'{client_id}'"
+                if client_id
+                else f"(SELECT id FROM clients WHERE name = '{tenant_name}')"
+            )
+            tenant_instruction = f"""
+## CONTEXTO OPERACIONAL
+Você está operando em ambiente isolado — todos os dados já foram pré-filtrados para esta plataforma.
+- Ao usar `execute_sql`, SEMPRE inclua `WHERE client_id = {client_id_clause}` nas queries para garantir o isolamento correto.
+- Nas respostas ao usuário, use sempre "sua plataforma", "seus contratos", "seus dados". NUNCA mencione outros clientes, a palavra "tenant" ou detalhes técnicos de infraestrutura.
+"""
+
         return f"""
-{mobile_instruction}
+{mobile_instruction}{tenant_instruction}
 ## IDENTIDADE
 Você é o BOMTEMPO Intelligence — mordomo financeiro e estratégico da carteira de projetos.
 Fale como CFO/CPO sênior: direto, sem preâmbulos, sem explicar o que é um dado.
