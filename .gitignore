@@ -58,6 +58,3 @@ schema.json
 supabase_inspection.txt
 supabase_setup.sql
 
-# Claude Code settings (contain API keys)
-.claude/
-.claude/
