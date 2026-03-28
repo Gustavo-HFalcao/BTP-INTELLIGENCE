@@ -12,8 +12,9 @@ class DataValidator:
 
     REQUIRED_COLUMNS = {
         "projeto": ["contrato", "cliente", "projeto", "fase", "atividade"],
-        "obras": ["contrato", "cliente", "projeto", "data", "categoria"],
-        "financeiro": ["contrato", "cliente", "projeto", "marco"],
+        "obras": ["contrato", "cliente", "projeto"],  # derived in-memory from contratos
+        "fin_custos": ["contrato", "categoria_nome", "descricao"],
+        "hub_atividades": ["contrato", "cliente", "projeto", "fase", "atividade"],
         "om": ["contrato", "cliente", "projeto", "mes_ano"],
         "contratos": ["contrato", "cliente", "projeto"],
     }

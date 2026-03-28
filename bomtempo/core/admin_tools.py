@@ -853,7 +853,7 @@ def execute_confirmed_action(action: str, data: dict) -> str:
             record = data.get("record", {})
 
             # Safety: only allow writable business tables
-            ALLOWED_TABLES = {"contratos", "projetos", "obras", "financeiro", "om", "login", "custom_alerts", "email_sender"}
+            ALLOWED_TABLES = {"contratos", "hub_atividades", "fin_custos", "om", "login", "custom_alerts", "email_sender"}
             if table not in ALLOWED_TABLES:
                 return f"❌ Tabela `{table}` não permitida para criação via Action AI. Tabelas disponíveis: {', '.join(sorted(ALLOWED_TABLES))}."
             if not record:

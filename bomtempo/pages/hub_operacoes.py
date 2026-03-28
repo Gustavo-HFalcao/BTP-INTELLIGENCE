@@ -257,9 +257,10 @@ def hub_landing_page() -> rx.Component:
                         spacing="2",
                         align="center",
                     ),
-                    bg="rgba(19,29,27,1)",
+                    on_click=GlobalState.toggle_hub_filters,
+                    bg=rx.cond(GlobalState.hub_show_filters, "rgba(201,139,42,0.15)", "rgba(19,29,27,1)"),
                     color="var(--text-main)",
-                    border=f"1px solid {S.BORDER_SUBTLE}",
+                    border=rx.cond(GlobalState.hub_show_filters, f"1px solid {S.COPPER}", f"1px solid {S.BORDER_SUBTLE}"),
                     padding="8px 16px",
                     border_radius=S.R_CONTROL,
                     _hover={"border_color": "rgba(201,139,42,0.4)", "bg": "rgba(30,52,48,1)"},
@@ -280,6 +281,7 @@ def hub_landing_page() -> rx.Component:
                         spacing="2",
                         align="center",
                     ),
+                    on_click=GlobalState.open_duplicar_projeto,
                     bg="rgba(19,29,27,1)",
                     color="var(--text-main)",
                     border=f"1px solid {S.BORDER_SUBTLE}",
@@ -303,6 +305,7 @@ def hub_landing_page() -> rx.Component:
                         spacing="2",
                         align="center",
                     ),
+                    on_click=GlobalState.open_novo_projeto,
                     background="linear-gradient(135deg, #C98B2A 0%, #835500 100%)",
                     color="#3d2500",
                     border="none",
@@ -324,44 +327,105 @@ def hub_landing_page() -> rx.Component:
             gap="1.25rem",
             margin_bottom="28px",
         ),
-        # ── Search bar ─────────────────────────────────────────────────────────
-        rx.box(
-            rx.icon(
-                tag="search",
-                size=15,
-                color=S.TEXT_MUTED,
-                position="absolute",
-                left="14px",
-                top="50%",
-                transform="translateY(-50%)",
-                z_index="2",
+        # ── Filter panel ───────────────────────────────────────────────────────
+        rx.cond(
+            GlobalState.hub_show_filters,
+            rx.box(
+                rx.vstack(
+                    # Row: Tipo
+                    rx.hstack(
+                        rx.text("TIPO", font_size="10px", font_family=S.FONT_MONO, color=S.TEXT_MUTED, letter_spacing="0.08em", min_width="60px"),
+                        *[
+                            rx.button(
+                                label,
+                                on_click=GlobalState.set_hub_filter_tipo(value),
+                                size="1",
+                                font_family=S.FONT_MONO,
+                                font_size="11px",
+                                cursor="pointer",
+                                bg=rx.cond(GlobalState.hub_filter_tipo == value, S.COPPER, "rgba(14,26,23,0.8)"),
+                                color=rx.cond(GlobalState.hub_filter_tipo == value, S.BG_VOID, "var(--text-main)"),
+                                border=rx.cond(GlobalState.hub_filter_tipo == value, f"1px solid {S.COPPER}", f"1px solid {S.BORDER_SUBTLE}"),
+                                border_radius="2px",
+                                _hover={"border_color": S.COPPER},
+                                transition="all 0.15s ease",
+                            )
+                            for label, value in [("EPC", "EPC"), ("O&M", "O&M"), ("Fornecimento", "Fornecimento"), ("Consultoria", "Consultoria")]
+                        ],
+                        spacing="2",
+                        align="center",
+                        flex_wrap="wrap",
+                    ),
+                    # Row: Status
+                    rx.hstack(
+                        rx.text("STATUS", font_size="10px", font_family=S.FONT_MONO, color=S.TEXT_MUTED, letter_spacing="0.08em", min_width="60px"),
+                        *[
+                            rx.button(
+                                label,
+                                on_click=GlobalState.set_project_status_filter(value),
+                                size="1",
+                                font_family=S.FONT_MONO,
+                                font_size="11px",
+                                cursor="pointer",
+                                bg=rx.cond(GlobalState.project_status_filter == value, S.PATINA, "rgba(14,26,23,0.8)"),
+                                color=rx.cond(GlobalState.project_status_filter == value, "white", "var(--text-main)"),
+                                border=rx.cond(GlobalState.project_status_filter == value, f"1px solid {S.PATINA}", f"1px solid {S.BORDER_SUBTLE}"),
+                                border_radius="2px",
+                                _hover={"border_color": S.PATINA},
+                                transition="all 0.15s ease",
+                            )
+                            for label, value in [("Em Execução", "Em Execução"), ("Concluído", "Concluído"), ("Paralisado", "Paralisado"), ("Planejado", "Planejado")]
+                        ],
+                        spacing="2",
+                        align="center",
+                        flex_wrap="wrap",
+                    ),
+                    # Row: Prioridade
+                    rx.hstack(
+                        rx.text("PRIORIDADE", font_size="10px", font_family=S.FONT_MONO, color=S.TEXT_MUTED, letter_spacing="0.08em", min_width="60px"),
+                        *[
+                            rx.button(
+                                label,
+                                on_click=GlobalState.set_hub_filter_priority(value),
+                                size="1",
+                                font_family=S.FONT_MONO,
+                                font_size="11px",
+                                cursor="pointer",
+                                bg=rx.cond(GlobalState.hub_filter_priority == value, color_on, "rgba(14,26,23,0.8)"),
+                                color=rx.cond(GlobalState.hub_filter_priority == value, "white", "var(--text-main)"),
+                                border=rx.cond(GlobalState.hub_filter_priority == value, f"1px solid {color_on}", f"1px solid {S.BORDER_SUBTLE}"),
+                                border_radius="2px",
+                                _hover={"border_color": color_on},
+                                transition="all 0.15s ease",
+                            )
+                            for label, value, color_on in [("Alta", "Alta", S.DANGER), ("Média", "Média", S.WARNING), ("Baixa", "Baixa", S.PATINA)]
+                        ],
+                        spacing="2",
+                        align="center",
+                        flex_wrap="wrap",
+                    ),
+                    # Clear filters
+                    rx.button(
+                        rx.hstack(rx.icon(tag="x", size=11), rx.text("LIMPAR FILTROS", font_size="10px"), spacing="1"),
+                        on_click=GlobalState.clear_hub_filters,
+                        size="1",
+                        variant="ghost",
+                        color=S.TEXT_MUTED,
+                        cursor="pointer",
+                        _hover={"color": S.COPPER},
+                        font_family=S.FONT_MONO,
+                    ),
+                    spacing="3",
+                    align="start",
+                    width="100%",
+                ),
+                bg="rgba(14,26,23,0.7)",
+                border=f"1px solid {S.BORDER_SUBTLE}",
+                border_radius=S.R_CARD,
+                padding="16px 20px",
+                margin_bottom="20px",
+                width="100%",
             ),
-            rx.el.input(
-                value=GlobalState.project_search,
-                on_change=GlobalState.set_project_search,
-                placeholder="PESQUISAR TELEMETRIA...",
-                style={
-                    "background": "rgba(14,26,23,0.8)",
-                    "backdropFilter": "blur(12px)",
-                    "border": f"1px solid {S.BORDER_SUBTLE}",
-                    "borderRadius": S.R_CONTROL,
-                    "color": "var(--text-main)",
-                    "padding": "10px 14px 10px 42px",
-                    "fontSize": "13px",
-                    "fontFamily": S.FONT_MONO,
-                    "letterSpacing": "0.05em",
-                    "width": "100%",
-                    "outline": "none",
-                    "transition": "border-color 0.2s ease, box-shadow 0.2s ease",
-                },
-                _focus={
-                    "border_color": S.COPPER,
-                    "box_shadow": "0 0 0 1px rgba(201,139,42,0.2)",
-                },
-            ),
-            position="relative",
-            width=rx.breakpoints(initial="100%", md="380px"),
-            margin_bottom="32px",
         ),
         # ── Cards grid ─────────────────────────────────────────────────────────
         rx.cond(
@@ -427,7 +491,7 @@ def _hub_navbar() -> rx.Component:
                 rx.text(
                     label,
                     font_family=S.FONT_MONO,
-                    font_size="13px",
+                    font_size="12px",
                     font_weight=rx.cond(is_active, "700", "400"),
                     color=rx.cond(is_active, S.COPPER, "rgba(218,229,225,0.55)"),
                     transition="color 0.2s ease",
@@ -438,7 +502,7 @@ def _hub_navbar() -> rx.Component:
             ),
             padding_bottom="10px",
             padding_top="2px",
-            padding_x="4px",
+            padding_x="2px",
             border_bottom=rx.cond(
                 is_active,
                 f"2px solid {S.COPPER}",
@@ -486,22 +550,37 @@ def _hub_navbar() -> rx.Component:
                 spacing="3",
                 align="center",
             ),
-            # Tab strip
-            rx.hstack(
-                _tab("Visão Geral", "visao_geral", "layout-dashboard"),
-                _tab("Dashboard", "dashboard", "bar-chart-3"),
-                _tab("Cronograma", "cronograma", "calendar-range"),
-                _tab("Auditoria", "auditoria", "scan-eye"),
-                _tab("Timeline", "timeline", "git-branch"),
-                _tab("Financeiro", "financeiro", "wallet"),
-                spacing="6",
-                align="end",
-                display=rx.breakpoints(initial="none", lg="flex"),
+            # Tab strip — wrapped in overflow box so all 6 tabs are always reachable
+            rx.box(
+                rx.hstack(
+                    _tab("Visão Geral",  "visao_geral",  "layout-dashboard"),
+                    _tab("Dashboard",    "dashboard",     "bar-chart-3"),
+                    _tab("Cronograma",   "cronograma",    "calendar-range"),
+                    _tab("Auditoria",    "auditoria",     "scan-eye"),
+                    _tab("Timeline",     "timeline",      "git-branch"),
+                    _tab("Financeiro",   "financeiro",    "wallet"),
+                    spacing="4",
+                    align="end",
+                    flex_shrink="0",
+                ),
                 overflow_x="auto",
+                display=rx.breakpoints(initial="none", md="block"),
+                # Subtle fade at left edge when scrolled
+                _after={
+                    "content": "''",
+                    "position": "absolute",
+                    "right": "0",
+                    "top": "0",
+                    "bottom": "0",
+                    "width": "24px",
+                    "pointerEvents": "none",
+                },
+                position="relative",
             ),
             width="100%",
             justify="between",
             align="end",
+            gap="16px",
         ),
         padding="14px 28px",
         background="rgba(14,26,23,0.7)",
@@ -2177,7 +2256,8 @@ def _cron_edit_dialog() -> rx.Component:
                             rx.select.content(
                                 rx.select.item("Macro (Principal)", value="macro"),
                                 rx.select.item("Micro (Sub-atividade)", value="micro"),
-                                style={"background": S.BG_ELEVATED, "border": f"1px solid {S.BORDER_SUBTLE}"},
+                                style={"background": S.BG_ELEVATED, "border": f"1px solid {S.BORDER_SUBTLE}", "zIndex": "9999"},
+                                position="popper",
                             ),
                             value=HubState.cron_edit_nivel,
                             on_change=HubState.set_cron_edit_nivel,
@@ -2197,7 +2277,8 @@ def _cron_edit_dialog() -> rx.Component:
                                             HubState.cron_parent_options,
                                             lambda opt: rx.select.item(opt["label"], value=opt["id"]),
                                         ),
-                                        style={"background": S.BG_ELEVATED, "border": f"1px solid {S.BORDER_SUBTLE}"},
+                                        style={"background": S.BG_ELEVATED, "border": f"1px solid {S.BORDER_SUBTLE}", "zIndex": "9999"},
+                                        position="popper",
                                     ),
                                     value=HubState.cron_edit_parent_id,
                                     on_change=HubState.set_cron_edit_parent_id,
@@ -2272,7 +2353,8 @@ def _cron_edit_dialog() -> rx.Component:
                                     HubState.cron_activity_options,
                                     lambda name: rx.select.item(name, value=name),
                                 ),
-                                style={"background": S.BG_ELEVATED, "border": f"1px solid {S.BORDER_SUBTLE}"},
+                                style={"background": S.BG_ELEVATED, "border": f"1px solid {S.BORDER_SUBTLE}", "zIndex": "9999"},
+                                position="popper",
                             ),
                             value=rx.cond(HubState.cron_edit_dependencia == "", "__none__", HubState.cron_edit_dependencia),
                             on_change=HubState.set_cron_edit_dependencia,
@@ -3345,6 +3427,8 @@ def _project_breadcrumb() -> rx.Component:
 _FIN_STATUS_COLORS = {
     "previsto":     ("#C98B2A", "rgba(201,139,42,0.12)"),
     "em_andamento": ("#3B82F6", "rgba(59,130,246,0.12)"),
+    "parcial":      ("#A78BFA", "rgba(167,139,250,0.12)"),
+    "executado":    ("#06B6D4", "rgba(6,182,212,0.12)"),
     "concluido":    ("#22c55e", "rgba(34,197,94,0.12)"),
     "cancelado":    ("#EF4444", "rgba(239,68,68,0.12)"),
 }
@@ -3420,7 +3504,18 @@ def _fin_custo_row(item: dict) -> rx.Component:
             rx.text(item["categoria_nome"], font_size="10px", font_weight="700", font_family=S.FONT_MONO, color=S.COPPER, white_space="nowrap"),
             padding="2px 8px", border_radius="3px",
             bg=S.COPPER_GLOW, border=f"1px solid rgba(201,139,42,0.2)",
-            flex_shrink="0", max_width="140px", overflow="hidden", text_overflow="ellipsis",
+            flex_shrink="0", max_width="130px", overflow="hidden", text_overflow="ellipsis",
+        ),
+        # Empresa badge (shown only if filled)
+        rx.cond(
+            item["empresa"] != "",
+            rx.box(
+                rx.text(item["empresa"], font_size="10px", font_weight="600", font_family=S.FONT_MONO, color="#2A9D8F", white_space="nowrap"),
+                padding="2px 8px", border_radius="3px",
+                bg="rgba(42,157,143,0.10)", border="1px solid rgba(42,157,143,0.25)",
+                flex_shrink="0", max_width="130px", overflow="hidden", text_overflow="ellipsis",
+                display=rx.breakpoints(initial="none", md="block"),
+            ),
         ),
         # Description
         rx.text(item["descricao"], font_size="13px", color="var(--text-main)", font_family=S.FONT_BODY, flex="1", overflow="hidden", text_overflow="ellipsis", white_space="nowrap", min_width="0"),
@@ -3468,21 +3563,30 @@ def _fin_custo_dialog() -> rx.Component:
                     align="center", width="100%",
                 ),
                 rx.divider(border_color=S.BORDER_SUBTLE),
-                # Row 1: Categoria + Status
+                # Row 1: Categoria (combobox) + Status
                 rx.flex(
                     rx.vstack(
-                        rx.text("Categoria", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
-                        rx.select.root(
-                            rx.select.trigger(placeholder="Selecionar categoria...", style={"width": "100%", "background": "rgba(14,26,23,0.8)", "border": f"1px solid {S.BORDER_SUBTLE}", "borderRadius": S.R_CONTROL, "color": "white", "cursor": "pointer"}),
-                            rx.select.content(
+                        rx.hstack(
+                            rx.text("Categoria", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                            rx.text("(selecione ou crie nova)", font_size="9px", color=S.TEXT_MUTED, font_family=S.FONT_MONO, opacity="0.6"),
+                            spacing="2", align="center",
+                        ),
+                        rx.box(
+                            rx.el.input(
+                                value=FinState.fin_edit_categoria_nome,
+                                on_change=FinState.set_fin_edit_categoria_by_name,
+                                list="fin-categoria-datalist",
+                                placeholder="Ex: Civil, Elétrica, Equipamentos...",
+                                style={**_INPUT_STYLE, "width": "100%"},
+                            ),
+                            rx.el.datalist(
                                 rx.foreach(
                                     FinState.fin_categorias,
-                                    lambda c: rx.select.item(c["nome"], value=c["id"]),
+                                    lambda c: rx.el.option(value=c["nome"]),
                                 ),
-                                bg=S.BG_ELEVATED, border=f"1px solid {S.BORDER_SUBTLE}",
+                                id="fin-categoria-datalist",
                             ),
-                            value=FinState.fin_edit_categoria_id,
-                            on_change=FinState.set_fin_edit_categoria,
+                            width="100%",
                         ),
                         spacing="1", flex="1",
                     ),
@@ -3493,9 +3597,13 @@ def _fin_custo_dialog() -> rx.Component:
                             rx.select.content(
                                 rx.select.item("Previsto",     value="previsto"),
                                 rx.select.item("Em Andamento", value="em_andamento"),
+                                rx.select.item("Parcial",      value="parcial"),
+                                rx.select.item("Executado",    value="executado"),
                                 rx.select.item("Concluído",    value="concluido"),
                                 rx.select.item("Cancelado",    value="cancelado"),
                                 bg=S.BG_ELEVATED, border=f"1px solid {S.BORDER_SUBTLE}",
+                                z_index="9999",
+                                position="popper",
                             ),
                             value=FinState.fin_edit_status,
                             on_change=FinState.set_fin_edit_status,
@@ -3504,38 +3612,55 @@ def _fin_custo_dialog() -> rx.Component:
                     ),
                     gap="12px", flex_wrap="wrap", width="100%",
                 ),
-                # Row 2: Descrição
-                rx.vstack(
-                    rx.text("Descrição *", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
-                    rx.el.input(
-                        default_value=FinState.fin_edit_descricao,
-                        on_blur=FinState.set_fin_edit_descricao,
-                        placeholder="Ex: Concreto para fundações...",
-                        style=_INPUT_STYLE,
+                # Row 2: Empresa + Descrição
+                rx.flex(
+                    rx.vstack(
+                        rx.text("Empresa / Fornecedor", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                        rx.el.input(
+                            default_value=FinState.fin_edit_empresa,
+                            on_blur=FinState.set_fin_edit_empresa,
+                            placeholder="Ex: Construtora ABC, Locadora XYZ...",
+                            style=_INPUT_STYLE,
+                        ),
+                        spacing="1", flex="1",
                     ),
-                    spacing="1", width="100%",
+                    rx.vstack(
+                        rx.text("Descrição *", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                        rx.el.input(
+                            default_value=FinState.fin_edit_descricao,
+                            on_blur=FinState.set_fin_edit_descricao,
+                            placeholder="Ex: Concreto para fundações...",
+                            style=_INPUT_STYLE,
+                        ),
+                        spacing="1", flex="1",
+                    ),
+                    gap="12px", flex_wrap="wrap", width="100%",
                 ),
-                # Row 3: Valor Previsto + Valor Executado
+                # Row 3: Valor Previsto + Valor Executado (currency-formatted)
                 rx.flex(
                     rx.vstack(
                         rx.text("Valor Previsto (R$)", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                         rx.el.input(
-                            default_value=FinState.fin_edit_valor_previsto,
-                            on_blur=FinState.set_fin_edit_valor_previsto,
-                            placeholder="0.00",
+                            value=FinState.fin_edit_valor_previsto,
+                            on_change=FinState.set_fin_edit_valor_previsto,
+                            on_blur=FinState.on_blur_fin_valor_previsto,
+                            placeholder="0,00",
                             type="text",
-                            style=_INPUT_STYLE,
+                            input_mode="decimal",
+                            style={**_INPUT_STYLE, "fontFamily": "var(--font-mono)", "fontWeight": "600"},
                         ),
                         spacing="1", flex="1",
                     ),
                     rx.vstack(
                         rx.text("Valor Executado (R$)", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                         rx.el.input(
-                            default_value=FinState.fin_edit_valor_executado,
-                            on_blur=FinState.set_fin_edit_valor_executado,
-                            placeholder="0.00",
+                            value=FinState.fin_edit_valor_executado,
+                            on_change=FinState.set_fin_edit_valor_executado,
+                            on_blur=FinState.on_blur_fin_valor_executado,
+                            placeholder="0,00",
                             type="text",
-                            style=_INPUT_STYLE,
+                            input_mode="decimal",
+                            style={**_INPUT_STYLE, "fontFamily": "var(--font-mono)", "fontWeight": "600"},
                         ),
                         spacing="1", flex="1",
                     ),
@@ -3564,6 +3689,7 @@ def _fin_custo_dialog() -> rx.Component:
                                     lambda a: rx.select.item(a["label"], value=a["id"]),
                                 ),
                                 bg=S.BG_ELEVATED, border=f"1px solid {S.BORDER_SUBTLE}",
+                                z_index="9999", position="popper",
                             ),
                             value=rx.cond(FinState.fin_edit_atividade_id == "", "__none__", FinState.fin_edit_atividade_id),
                             on_change=FinState.set_fin_edit_atividade,
@@ -3725,6 +3851,230 @@ def _fin_by_cat_chart() -> rx.Component:
     )
 
 
+def _fin_evm_indicator(label: str, value, good_condition, icon_tag: str = "activity") -> rx.Component:
+    """Compact EVM metric card with color-coded health indicator."""
+    return rx.box(
+        rx.text(label, font_size="9px", font_family=S.FONT_MONO, color=S.TEXT_MUTED,
+                text_transform="uppercase", letter_spacing="0.1em", margin_bottom="4px"),
+        rx.hstack(
+            rx.icon(tag=icon_tag, size=13,
+                    color=rx.cond(good_condition, "#22c55e", S.DANGER)),
+            rx.text(value, font_family=S.FONT_TECH, font_size="1.1rem", font_weight="700",
+                    color=rx.cond(good_condition, "#22c55e", S.DANGER), line_height="1"),
+            spacing="2", align="center",
+        ),
+        **_GLASS_COMPACT, flex="1", min_width="140px",
+    )
+
+
+def _fin_forecast_panel() -> rx.Component:
+    """
+    EVM (Earned Value Management) forecast panel.
+    Exibe projeções de custo e prazo baseadas no método EVM — padrão PMBOK/PMI para obras.
+
+    Métricas exibidas:
+      CPI  > 1 = abaixo do orçamento (verde)  |  < 1 = estouro (vermelho)
+      SPI  > 1 = adiantado (verde)             |  < 1 = atrasado (vermelho)
+      EAC  = estimativa de custo final ao término
+      VAC  = variação ao término (quanto vai sobrar ou faltar)
+      TCPI = taxa de desempenho necessária para terminar no orçamento
+    """
+    f = FinState.fin_forecast
+    has_data = FinState.fin_forecast.length() > 0
+
+    return rx.cond(
+        has_data,
+        rx.box(
+            # Header
+            rx.hstack(
+                rx.icon(tag="radar", size=15, color=S.COPPER),
+                rx.text("EVM — PROJEÇÃO FINANCEIRA", font_family=S.FONT_TECH, font_size="0.85rem",
+                        font_weight="700", color="var(--text-main)", letter_spacing="0.06em"),
+                rx.spacer(),
+                rx.box(
+                    rx.text("EARNED VALUE MANAGEMENT · PMBOK", font_size="9px",
+                            color=S.TEXT_MUTED, font_family=S.FONT_MONO, letter_spacing="0.06em"),
+                    padding="3px 8px", border_radius="3px",
+                    bg="rgba(255,255,255,0.04)", border=f"1px solid {S.BORDER_SUBTLE}",
+                ),
+                spacing="2", align="center", margin_bottom="16px", width="100%",
+            ),
+
+            # Progress physical vs cost
+            rx.hstack(
+                rx.vstack(
+                    rx.text("AVANÇO FÍSICO", font_size="9px", color=S.TEXT_MUTED,
+                            font_family=S.FONT_MONO, letter_spacing="0.08em"),
+                    rx.hstack(
+                        rx.text(f["physical_pct"] + "%", font_family=S.FONT_TECH, font_size="1.6rem",
+                                font_weight="700", color="#3B82F6"),
+                        rx.text("atividades", font_size="10px", color=S.TEXT_MUTED,
+                                font_family=S.FONT_MONO, align_self="end", padding_bottom="4px"),
+                        spacing="2", align="end",
+                    ),
+                    spacing="0",
+                ),
+                rx.box(width="1px", height="40px", bg=S.BORDER_SUBTLE, flex_shrink="0"),
+                rx.vstack(
+                    rx.text("AVANÇO FINANCEIRO", font_size="9px", color=S.TEXT_MUTED,
+                            font_family=S.FONT_MONO, letter_spacing="0.08em"),
+                    rx.hstack(
+                        rx.text(f["cost_pct"] + "%", font_family=S.FONT_TECH, font_size="1.6rem",
+                                font_weight="700", color=S.COPPER),
+                        rx.text("executado", font_size="10px", color=S.TEXT_MUTED,
+                                font_family=S.FONT_MONO, align_self="end", padding_bottom="4px"),
+                        spacing="2", align="end",
+                    ),
+                    spacing="0",
+                ),
+                rx.spacer(),
+                rx.vstack(
+                    rx.text("BURN RATE", font_size="9px", color=S.TEXT_MUTED,
+                            font_family=S.FONT_MONO, letter_spacing="0.08em"),
+                    rx.text(f["burn_rate_fmt"], font_family=S.FONT_TECH, font_size="0.95rem",
+                            font_weight="700", color="var(--text-main)"),
+                    spacing="0", align="end",
+                ),
+                width="100%", align="center", spacing="5",
+                padding="12px 16px", border_radius=S.R_CONTROL,
+                bg="rgba(255,255,255,0.02)", border=f"1px solid {S.BORDER_SUBTLE}",
+                margin_bottom="12px",
+            ),
+
+            # EVM indicators row
+            rx.flex(
+                # CPI — Cost Performance Index
+                rx.box(
+                    rx.text("CPI — DESEMPENHO DE CUSTO", font_size="9px", font_family=S.FONT_MONO,
+                            color=S.TEXT_MUTED, text_transform="uppercase", letter_spacing="0.1em", margin_bottom="4px"),
+                    rx.hstack(
+                        rx.icon(tag="trending-up", size=13,
+                                color=rx.cond(f["CPI"].to(float) >= 1.0, "#22c55e", S.DANGER)),
+                        rx.text(f["CPI"], font_family=S.FONT_TECH, font_size="1.3rem", font_weight="700",
+                                color=rx.cond(f["CPI"].to(float) >= 1.0, "#22c55e", S.DANGER)),
+                        rx.text(
+                            rx.cond(f["CPI"].to(float) >= 1.0, "abaixo orçamento", "estouro previsto"),
+                            font_size="9px", color=S.TEXT_MUTED, font_family=S.FONT_MONO,
+                            align_self="end", padding_bottom="2px",
+                        ),
+                        spacing="2", align="center",
+                    ),
+                    **_GLASS_COMPACT, flex="1", min_width="160px",
+                ),
+                # SPI — Schedule Performance Index
+                rx.box(
+                    rx.text("SPI — DESEMPENHO DE PRAZO", font_size="9px", font_family=S.FONT_MONO,
+                            color=S.TEXT_MUTED, text_transform="uppercase", letter_spacing="0.1em", margin_bottom="4px"),
+                    rx.hstack(
+                        rx.icon(tag="calendar-check", size=13,
+                                color=rx.cond(f["SPI"].to(float) >= 1.0, "#22c55e", "#F59E0B")),
+                        rx.text(f["SPI"], font_family=S.FONT_TECH, font_size="1.3rem", font_weight="700",
+                                color=rx.cond(f["SPI"].to(float) >= 1.0, "#22c55e", "#F59E0B")),
+                        rx.text(
+                            rx.cond(f["SPI"].to(float) >= 1.0, "no prazo / adiantado", "atrasado"),
+                            font_size="9px", color=S.TEXT_MUTED, font_family=S.FONT_MONO,
+                            align_self="end", padding_bottom="2px",
+                        ),
+                        spacing="2", align="center",
+                    ),
+                    **_GLASS_COMPACT, flex="1", min_width="160px",
+                ),
+                # EAC — Estimate at Completion
+                rx.box(
+                    rx.text("EAC — ESTIMATIVA FINAL", font_size="9px", font_family=S.FONT_MONO,
+                            color=S.TEXT_MUTED, text_transform="uppercase", letter_spacing="0.1em", margin_bottom="4px"),
+                    rx.text(f["EAC_fmt"], font_family=S.FONT_TECH, font_size="1.1rem", font_weight="700",
+                            color="var(--text-main)"),
+                    rx.text("projeção ao término", font_size="9px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                    **_GLASS_COMPACT, flex="1", min_width="160px",
+                ),
+                # VAC — Variance at Completion
+                rx.box(
+                    rx.text("VAC — VARIAÇÃO AO TÉRMINO", font_size="9px", font_family=S.FONT_MONO,
+                            color=S.TEXT_MUTED, text_transform="uppercase", letter_spacing="0.1em", margin_bottom="4px"),
+                    rx.hstack(
+                        rx.icon(
+                            tag=rx.cond(f["vac_positive"] == "True", "circle-check", "circle-alert"),
+                            size=13,
+                            color=rx.cond(f["vac_positive"] == "True", "#22c55e", S.DANGER),
+                        ),
+                        rx.text(f["VAC_fmt"], font_family=S.FONT_TECH, font_size="1.1rem", font_weight="700",
+                                color=rx.cond(f["vac_positive"] == "True", "#22c55e", S.DANGER)),
+                        spacing="2", align="center",
+                    ),
+                    rx.text(
+                        rx.cond(f["vac_positive"] == "True", "sobra prevista", "estouro previsto"),
+                        font_size="9px",
+                        color=rx.cond(f["vac_positive"] == "True", "#22c55e", S.DANGER),
+                        font_family=S.FONT_MONO,
+                    ),
+                    **_GLASS_COMPACT, flex="1", min_width="160px",
+                ),
+                # TCPI — To-Complete Performance Index
+                rx.box(
+                    rx.text("TCPI — EFICIÊNCIA NECESSÁRIA", font_size="9px", font_family=S.FONT_MONO,
+                            color=S.TEXT_MUTED, text_transform="uppercase", letter_spacing="0.1em", margin_bottom="4px"),
+                    rx.hstack(
+                        rx.icon(tag="target", size=13,
+                                color=rx.cond(f["TCPI"].to(float) <= 1.1, "#22c55e", S.DANGER)),
+                        rx.text(f["TCPI"], font_family=S.FONT_TECH, font_size="1.3rem", font_weight="700",
+                                color=rx.cond(f["TCPI"].to(float) <= 1.1, "#22c55e", S.DANGER)),
+                        rx.text(
+                            rx.cond(f["TCPI"].to(float) <= 1.1, "alcançável", "desafio alto"),
+                            font_size="9px", color=S.TEXT_MUTED, font_family=S.FONT_MONO,
+                            align_self="end", padding_bottom="2px",
+                        ),
+                        spacing="2", align="center",
+                    ),
+                    **_GLASS_COMPACT, flex="1", min_width="160px",
+                ),
+                gap="10px", flex_wrap="wrap", width="100%",
+            ),
+
+            # EV / PV / AC triad
+            rx.hstack(
+                rx.vstack(
+                    rx.text("VALOR PLANEJADO (PV)", font_size="9px", color=S.TEXT_MUTED,
+                            font_family=S.FONT_MONO, letter_spacing="0.08em"),
+                    rx.text(f["PV_fmt"], font_family=S.FONT_MONO, font_size="12px",
+                            font_weight="700", color=S.COPPER),
+                    spacing="0",
+                ),
+                rx.vstack(
+                    rx.text("VALOR AGREGADO (EV)", font_size="9px", color=S.TEXT_MUTED,
+                            font_family=S.FONT_MONO, letter_spacing="0.08em"),
+                    rx.text(f["EV_fmt"], font_family=S.FONT_MONO, font_size="12px",
+                            font_weight="700", color="#3B82F6"),
+                    spacing="0",
+                ),
+                rx.vstack(
+                    rx.text("CUSTO REAL (AC)", font_size="9px", color=S.TEXT_MUTED,
+                            font_family=S.FONT_MONO, letter_spacing="0.08em"),
+                    rx.text(f["AC_fmt"], font_family=S.FONT_MONO, font_size="12px",
+                            font_weight="700", color="#22c55e"),
+                    spacing="0",
+                ),
+                rx.vstack(
+                    rx.text("VARIAÇÃO DE CUSTO (CV)", font_size="9px", color=S.TEXT_MUTED,
+                            font_family=S.FONT_MONO, letter_spacing="0.08em"),
+                    rx.text(
+                        rx.cond(f["sv_positive"] == "True", "+", "-") + f["CV_fmt"],
+                        font_family=S.FONT_MONO, font_size="12px", font_weight="700",
+                        color=rx.cond(f["sv_positive"] == "True", "#22c55e", S.DANGER),
+                    ),
+                    spacing="0",
+                ),
+                flex_wrap="wrap", gap="20px",
+                padding="12px 16px", border_radius=S.R_CONTROL,
+                bg="rgba(255,255,255,0.02)", border=f"1px solid {S.BORDER_SUBTLE}",
+                margin_top="10px", width="100%",
+            ),
+
+            **_GLASS_PANEL, width="100%",
+        ),
+    )
+
+
 def _tab_financeiro() -> rx.Component:
     return rx.vstack(
         # Dialogs
@@ -3784,6 +4134,8 @@ def _tab_financeiro() -> rx.Component:
                             rx.select.item("Todos",        value="__none__"),
                             rx.select.item("Previsto",     value="previsto"),
                             rx.select.item("Em Andamento", value="em_andamento"),
+                            rx.select.item("Parcial",      value="parcial"),
+                            rx.select.item("Executado",    value="executado"),
                             rx.select.item("Concluído",    value="concluido"),
                             rx.select.item("Cancelado",    value="cancelado"),
                             bg=S.BG_ELEVATED, border=f"1px solid {S.BORDER_SUBTLE}",
@@ -3806,16 +4158,18 @@ def _tab_financeiro() -> rx.Component:
                     FinState.filtered_custos.length() == 0,
                     rx.center(
                         rx.vstack(
-                            rx.icon(tag="wallet", size=32, color=S.BORDER_SUBTLE),
-                            rx.text("Nenhum custo encontrado", font_size="13px", color=S.TEXT_MUTED),
-                            rx.text("Clique em 'Novo Custo' para começar", font_size="11px", color=S.TEXT_MUTED, opacity="0.7"),
+                            rx.icon(tag="wallet", size=40, color=S.BORDER_SUBTLE),
+                            rx.text("Nenhum custo encontrado", font_size="14px", color=S.TEXT_MUTED, font_family=S.FONT_TECH, font_weight="700", text_transform="uppercase", letter_spacing="0.06em"),
+                            rx.text("Clique em 'Novo Custo' para registrar despesas deste projeto", font_size="12px", color=S.TEXT_MUTED, opacity="0.7"),
                             rx.button(
                                 rx.hstack(rx.icon(tag="plus", size=13), rx.text("Criar Primeiro Custo"), spacing="1"),
                                 on_click=FinState.open_fin_new, size="2", variant="soft",
                                 style={"cursor": "pointer", "marginTop": "8px"},
                             ),
-                            spacing="2", align="center",
-                        ), padding="40px",
+                            spacing="3", align="center",
+                        ),
+                        width="100%",
+                        min_height="40vh",
                     ),
                     rx.vstack(
                         rx.foreach(FinState.filtered_custos, _fin_custo_row),
@@ -3832,6 +4186,9 @@ def _tab_financeiro() -> rx.Component:
                     FinState.fin_by_cat.length() > 0,
                     _fin_by_cat_chart(),
                 ),
+
+                # ── EVM Forecast Panel ─────────────────────────────────────
+                _fin_forecast_panel(),
 
                 spacing="4", width="100%", class_name="animate-fade-in",
             ),
@@ -3861,6 +4218,406 @@ def hub_project_detail() -> rx.Component:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# DUPLICAR PROJETO DIALOG
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+def _duplicar_projeto_dialog() -> rx.Component:
+    """Select a source project to duplicate — pre-fills the Novo Projeto form."""
+    return rx.dialog.root(
+        rx.dialog.content(
+            rx.vstack(
+                rx.hstack(
+                    rx.icon(tag="copy", size=16, color=S.COPPER),
+                    rx.dialog.title(
+                        "DUPLICAR PROJETO",
+                        font_family=S.FONT_TECH,
+                        font_size="1rem",
+                        font_weight="700",
+                        color="var(--text-main)",
+                        letter_spacing="0.06em",
+                    ),
+                    rx.spacer(),
+                    rx.dialog.close(
+                        rx.icon_button(
+                            rx.icon(tag="x", size=14),
+                            size="1",
+                            variant="ghost",
+                            cursor="pointer",
+                            on_click=GlobalState.close_duplicar_projeto,
+                        )
+                    ),
+                    align="center",
+                    width="100%",
+                ),
+                rx.divider(border_color=S.BORDER_SUBTLE),
+                rx.text(
+                    "Selecione o projeto de origem. Os dados serão copiados para o formulário — altere o código e o que for diferente.",
+                    font_size="13px",
+                    color=S.TEXT_MUTED,
+                    font_family=S.FONT_BODY,
+                ),
+                rx.vstack(
+                    rx.text("Projeto de Origem", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                    rx.select.root(
+                        rx.select.trigger(
+                            placeholder="Selecione um projeto...",
+                            style={
+                                "width": "100%",
+                                "background": "rgba(14,26,23,0.8)",
+                                "border": f"1px solid {S.BORDER_SUBTLE}",
+                                "borderRadius": S.R_CONTROL,
+                                "color": "white",
+                                "cursor": "pointer",
+                            },
+                        ),
+                        rx.select.content(
+                            rx.foreach(
+                                GlobalState.contratos_list,
+                                lambda c: rx.select.item(
+                                    f"{c['contrato']} — {c['cliente']}",
+                                    value=c["contrato"],
+                                ),
+                            ),
+                            bg=S.BG_ELEVATED,
+                            border=f"1px solid {S.BORDER_SUBTLE}",
+                            z_index="9999",
+                            position="popper",
+                        ),
+                        value=GlobalState.dup_source_contrato,
+                        on_change=GlobalState.set_dup_source_contrato,
+                    ),
+                    spacing="1",
+                    width="100%",
+                ),
+                rx.hstack(
+                    rx.dialog.close(
+                        rx.button(
+                            "Cancelar",
+                            variant="ghost",
+                            size="2",
+                            cursor="pointer",
+                            on_click=GlobalState.close_duplicar_projeto,
+                        )
+                    ),
+                    rx.button(
+                        rx.hstack(rx.icon(tag="copy", size=13), rx.text("Duplicar e Editar"), spacing="1"),
+                        on_click=GlobalState.confirm_duplicar_projeto,
+                        size="2",
+                        disabled=GlobalState.dup_source_contrato == "",
+                        style={
+                            "background": S.COPPER,
+                            "color": S.BG_VOID,
+                            "fontFamily": S.FONT_TECH,
+                            "fontWeight": "700",
+                            "cursor": "pointer",
+                        },
+                    ),
+                    justify="end",
+                    spacing="2",
+                    width="100%",
+                ),
+                spacing="4",
+                width="100%",
+            ),
+            bg=S.BG_ELEVATED,
+            border=f"1px solid {S.BORDER_SUBTLE}",
+            border_radius=S.R_CARD,
+            max_width="480px",
+            width="90vw",
+        ),
+        open=GlobalState.show_duplicar_projeto,
+        on_open_change=GlobalState.set_show_duplicar_projeto,
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NOVO PROJETO DIALOG
+# ══════════════════════════════════════════════════════════════════════════════
+
+_SELECT_TRIGGER_STYLE = {
+    "width": "100%",
+    "background": "rgba(14,26,23,0.8)",
+    "border": f"1px solid rgba(255,255,255,0.08)",
+    "borderRadius": "3px",
+    "color": "white",
+    "cursor": "pointer",
+}
+
+
+def _novo_projeto_dialog() -> rx.Component:
+    """Dialog for creating a new project / contract in contratos table."""
+    return rx.dialog.root(
+        rx.dialog.content(
+            rx.vstack(
+                # Header
+                rx.hstack(
+                    rx.icon(tag="folder-plus", size=16, color=S.COPPER),
+                    rx.dialog.title(
+                        "NOVO PROJETO",
+                        font_family=S.FONT_TECH,
+                        font_size="1rem",
+                        font_weight="700",
+                        color="var(--text-main)",
+                        letter_spacing="0.06em",
+                    ),
+                    rx.spacer(),
+                    rx.dialog.close(
+                        rx.icon_button(
+                            rx.icon(tag="x", size=14),
+                            size="1",
+                            variant="ghost",
+                            cursor="pointer",
+                            on_click=GlobalState.close_novo_projeto,
+                        )
+                    ),
+                    align="center",
+                    width="100%",
+                ),
+                rx.divider(border_color=S.BORDER_SUBTLE),
+                # Row 1: Código do contrato + Tipo
+                rx.flex(
+                    rx.vstack(
+                        rx.text("Código do Contrato *", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                        rx.el.input(
+                            value=GlobalState.np_contrato,
+                            on_change=GlobalState.set_np_contrato,
+                            placeholder="Ex: SOL-2026-001",
+                            style={**_INPUT_STYLE, "fontFamily": "var(--font-mono)", "fontWeight": "700", "textTransform": "uppercase"},
+                        ),
+                        spacing="1",
+                        flex="1",
+                    ),
+                    rx.vstack(
+                        rx.text("Tipo", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                        rx.select.root(
+                            rx.select.trigger(style=_SELECT_TRIGGER_STYLE),
+                            rx.select.content(
+                                rx.select.item("EPC", value="EPC"),
+                                rx.select.item("O&M", value="O&M"),
+                                rx.select.item("Fornecimento", value="Fornecimento"),
+                                rx.select.item("Consultoria", value="Consultoria"),
+                                bg=S.BG_ELEVATED,
+                                border=f"1px solid {S.BORDER_SUBTLE}",
+                                z_index="9999",
+                                position="popper",
+                            ),
+                            value=GlobalState.np_tipo,
+                            on_change=GlobalState.set_np_tipo,
+                        ),
+                        spacing="1",
+                        flex="1",
+                    ),
+                    gap="12px",
+                    flex_wrap="wrap",
+                    width="100%",
+                ),
+                # Row 2: Nome do projeto + Cliente
+                rx.flex(
+                    rx.vstack(
+                        rx.text("Nome do Projeto *", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                        rx.el.input(
+                            value=GlobalState.np_projeto,
+                            on_change=GlobalState.set_np_projeto,
+                            placeholder="Ex: Usina Solar Fazenda Boa Vista",
+                            style=_INPUT_STYLE,
+                        ),
+                        spacing="1",
+                        flex="2",
+                    ),
+                    rx.vstack(
+                        rx.text("Cliente *", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                        rx.el.input(
+                            value=GlobalState.np_cliente,
+                            on_change=GlobalState.set_np_cliente,
+                            placeholder="Ex: Agropecuária Silva",
+                            style=_INPUT_STYLE,
+                        ),
+                        spacing="1",
+                        flex="1",
+                    ),
+                    gap="12px",
+                    flex_wrap="wrap",
+                    width="100%",
+                ),
+                # Row 3: Localização (endereço completo → auto-geocoding)
+                rx.vstack(
+                    rx.hstack(
+                        rx.text("Localização / Endereço", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                        rx.text("(lat/lng calculados automaticamente)", font_size="9px", color=S.TEXT_MUTED, opacity="0.6"),
+                        spacing="2",
+                        align="center",
+                    ),
+                    rx.el.input(
+                        value=GlobalState.np_localizacao,
+                        on_change=GlobalState.set_np_localizacao,
+                        placeholder="Ex: Rua das Palmeiras 100, Petrolina – PE",
+                        style=_INPUT_STYLE,
+                    ),
+                    spacing="1",
+                    width="100%",
+                ),
+                # Row 4: Terceirizado + Potência (kWp)
+                rx.flex(
+                    rx.vstack(
+                        rx.text("Terceirizado / Parceiro", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                        rx.el.input(
+                            value=GlobalState.np_terceirizado,
+                            on_change=GlobalState.set_np_terceirizado,
+                            placeholder="Ex: Construtora ABC Ltda",
+                            style=_INPUT_STYLE,
+                        ),
+                        spacing="1",
+                        flex="1",
+                    ),
+                    rx.vstack(
+                        rx.text("Potência (kWp)", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                        rx.el.input(
+                            value=GlobalState.np_potencia_kwp,
+                            on_change=GlobalState.set_np_potencia_kwp,
+                            placeholder="Ex: 142,5",
+                            type="text",
+                            input_mode="decimal",
+                            style={**_INPUT_STYLE, "fontFamily": "var(--font-mono)"},
+                        ),
+                        spacing="1",
+                        flex="1",
+                    ),
+                    gap="12px",
+                    flex_wrap="wrap",
+                    width="100%",
+                ),
+                # Row 5: Data início + Data término
+                rx.flex(
+                    rx.vstack(
+                        rx.text("Data de Início", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                        rx.el.input(
+                            value=GlobalState.np_data_inicio,
+                            on_change=GlobalState.set_np_data_inicio,
+                            type="date",
+                            style={**_INPUT_STYLE, "colorScheme": "dark"},
+                        ),
+                        spacing="1",
+                        flex="1",
+                    ),
+                    rx.vstack(
+                        rx.text("Data de Término", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                        rx.el.input(
+                            value=GlobalState.np_data_termino,
+                            on_change=GlobalState.set_np_data_termino,
+                            type="date",
+                            style={**_INPUT_STYLE, "colorScheme": "dark"},
+                        ),
+                        spacing="1",
+                        flex="1",
+                    ),
+                    rx.vstack(
+                        rx.text("Prazo Contratual (dias)", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                        rx.el.input(
+                            value=GlobalState.np_prazo_dias,
+                            on_change=GlobalState.set_np_prazo_dias,
+                            placeholder="Ex: 90",
+                            type="text",
+                            input_mode="numeric",
+                            style={**_INPUT_STYLE, "fontFamily": "var(--font-mono)"},
+                        ),
+                        spacing="1",
+                        flex="1",
+                    ),
+                    gap="12px",
+                    flex_wrap="wrap",
+                    width="100%",
+                ),
+                # Row 6: Prioridade + Efetivo planejado
+                rx.flex(
+                    rx.vstack(
+                        rx.text("Prioridade", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                        rx.select.root(
+                            rx.select.trigger(style=_SELECT_TRIGGER_STYLE),
+                            rx.select.content(
+                                rx.select.item("Alta",   value="Alta"),
+                                rx.select.item("Média",  value="Média"),
+                                rx.select.item("Baixa",  value="Baixa"),
+                                bg=S.BG_ELEVATED,
+                                border=f"1px solid {S.BORDER_SUBTLE}",
+                                z_index="9999",
+                                position="popper",
+                            ),
+                            value=GlobalState.np_priority,
+                            on_change=GlobalState.set_np_priority,
+                        ),
+                        spacing="1",
+                        flex="1",
+                    ),
+                    rx.vstack(
+                        rx.text("Efetivo Planejado (pessoas)", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                        rx.el.input(
+                            value=GlobalState.np_efetivo_planejado,
+                            on_change=GlobalState.set_np_efetivo_planejado,
+                            placeholder="Ex: 12",
+                            type="text",
+                            input_mode="numeric",
+                            style={**_INPUT_STYLE, "fontFamily": "var(--font-mono)"},
+                        ),
+                        spacing="1",
+                        flex="1",
+                    ),
+                    gap="12px",
+                    flex_wrap="wrap",
+                    width="100%",
+                ),
+                # Error
+                rx.cond(
+                    GlobalState.np_error != "",
+                    rx.text(GlobalState.np_error, font_size="12px", color=S.DANGER),
+                ),
+                # Actions
+                rx.hstack(
+                    rx.dialog.close(
+                        rx.button(
+                            "Cancelar",
+                            variant="ghost",
+                            size="2",
+                            cursor="pointer",
+                            on_click=GlobalState.close_novo_projeto,
+                        )
+                    ),
+                    rx.button(
+                        rx.cond(
+                            GlobalState.np_saving,
+                            rx.spinner(size="2"),
+                            rx.hstack(rx.icon(tag="folder-plus", size=13), rx.text("Criar Projeto"), spacing="1"),
+                        ),
+                        on_click=GlobalState.save_novo_projeto,
+                        size="2",
+                        disabled=GlobalState.np_saving,
+                        style={
+                            "background": S.COPPER,
+                            "color": S.BG_VOID,
+                            "fontFamily": S.FONT_TECH,
+                            "fontWeight": "700",
+                            "cursor": "pointer",
+                        },
+                    ),
+                    justify="end",
+                    spacing="2",
+                    width="100%",
+                ),
+                spacing="4",
+                width="100%",
+            ),
+            bg=S.BG_ELEVATED,
+            border=f"1px solid {S.BORDER_SUBTLE}",
+            border_radius=S.R_CARD,
+            max_width="620px",
+            width="95vw",
+        ),
+        open=GlobalState.show_novo_projeto,
+        on_open_change=GlobalState.set_show_novo_projeto,
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # MAIN PAGE
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -3870,26 +4627,31 @@ def hub_operacoes_page() -> rx.Component:
     Hub de Operações — unified project operations page.
     Route: /hub
     """
-    return rx.cond(
-        GlobalState.is_loading,
-        page_loading_skeleton(),
+    return rx.box(
+        _duplicar_projeto_dialog(),
+        _novo_projeto_dialog(),
         rx.cond(
-            GlobalState.selected_project != "",
-            # Detail view — project selected
-            rx.vstack(
-                hub_project_detail(),
-                width="100%",
-                spacing="6",
-                class_name="animate-enter",
-                on_mount=lambda: GlobalState.set_current_path("/hub"),
-            ),
-            # Landing — pulse card grid
-            rx.vstack(
-                hub_landing_page(),
-                width="100%",
-                spacing="6",
-                class_name="animate-enter",
-                on_mount=lambda: GlobalState.set_current_path("/hub"),
+            GlobalState.is_loading,
+            page_loading_skeleton(),
+            rx.cond(
+                GlobalState.selected_project != "",
+                # Detail view — project selected
+                rx.vstack(
+                    hub_project_detail(),
+                    width="100%",
+                    spacing="6",
+                    class_name="animate-enter",
+                    on_mount=lambda: GlobalState.set_current_path("/hub"),
+                ),
+                # Landing — pulse card grid
+                rx.vstack(
+                    hub_landing_page(),
+                    width="100%",
+                    spacing="6",
+                    class_name="animate-enter",
+                    on_mount=lambda: GlobalState.set_current_path("/hub"),
+                ),
             ),
         ),
+        width="100%",
     )

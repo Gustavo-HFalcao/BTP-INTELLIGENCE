@@ -1342,7 +1342,7 @@ class RDOService:
         Safe to run multiple times (skips rows that already have coords).
         """
         import time
-        rows = sb_select("obras", limit=500)
+        rows = sb_select("contratos", limit=500)
         updated = failed = skipped = 0
         for r in rows:
             if r.get("lat") or not r.get("localizacao"):
@@ -1352,7 +1352,7 @@ class RDOService:
             lat, lng = _forward_geocode(address)
             if lat:
                 if not dry_run:
-                    sb_update("obras", {"id": r.get("id")}, {"lat": lat, "lng": lng})
+                    sb_update("contratos", {"id": r.get("id")}, {"lat": lat, "lng": lng})
                 updated += 1
                 logger.info(f"✅ Geocoded '{address}' → {lat:.5f}, {lng:.5f}")
             else:
@@ -1365,11 +1365,11 @@ class RDOService:
 
     @staticmethod
     def get_obra_coords(contrato: str) -> Tuple[float, float]:
-        """Look up lat/lng from the obras table for a given contrato. Returns (0, 0) if missing."""
+        """Look up lat/lng from contratos for a given contrato. Returns (0, 0) if missing."""
         if not contrato:
             return 0.0, 0.0
         try:
-            rows = sb_select("obras", filters={"contrato": contrato}, limit=1)
+            rows = sb_select("contratos", filters={"contrato": contrato}, limit=1)
             if rows:
                 r = rows[0]
                 lat = float(r.get("lat") or r.get("latitude") or 0.0)

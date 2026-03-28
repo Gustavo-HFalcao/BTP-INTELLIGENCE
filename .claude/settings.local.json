@@ -92,5 +92,8 @@
       "WebFetch(domain:cordova.apache.org)",
       "WebFetch(domain:issues.chromium.org)"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "supabase"
+  ]
 }

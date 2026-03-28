@@ -465,6 +465,32 @@ class GlobalState(rx.State):
     project_campo_rdos: List[Dict[str, Any]] = []
     project_campo_loading: bool = False
 
+    # ── Hub filters panel ────────────────────────────────────────────────────
+    hub_show_filters: bool = False
+    hub_filter_tipo: str = ""        # EPC | O&M | Fornecimento | Consultoria | ""
+    hub_filter_priority: str = ""    # Alta | Média | Baixa | ""
+
+    # ── Duplicar Projeto ─────────────────────────────────────────────────────
+    show_duplicar_projeto: bool = False
+    dup_source_contrato: str = ""
+
+    # ── Novo Projeto form ────────────────────────────────────────────────────
+    show_novo_projeto: bool = False
+    np_contrato: str = ""
+    np_projeto: str = ""
+    np_cliente: str = ""
+    np_terceirizado: str = ""
+    np_localizacao: str = ""
+    np_data_inicio: str = ""
+    np_data_termino: str = ""
+    np_tipo: str = "EPC"
+    np_potencia_kwp: str = ""
+    np_prazo_dias: str = ""
+    np_priority: str = "Média"
+    np_efetivo_planejado: str = ""
+    np_saving: bool = False
+    np_error: str = ""
+
     # ── Hub de Operações (replaces separate obras/projetos) ──────────────────
     hub_tab: str = "visao_geral"  # visao_geral|dashboard|cronograma|auditoria|timeline
     global_search: str = ""
@@ -902,6 +928,9 @@ class GlobalState(rx.State):
     current_user_name: str = ""
     current_user_role: str = ""
     current_user_contrato: str = ""  # Contrato associado ao usuário (Mestre de Obras)
+    current_client_id: str = ""       # ID do Tenant (BOMTEMPO, PLENO, etc.)
+    current_client_name: str = ""     # Nome legível do Tenant
+    client_is_master: bool = False    # Se o cliente logado é o BTP MASTER
     allowed_modules: List[str] = []  # Module slugs from roles table
     active_features: List[str] = []  # Feature flags habilitadas para o contrato do usuário
 
@@ -1283,7 +1312,31 @@ class GlobalState(rx.State):
         )
         self.financeiro_cockpit_chart = grouped.to_dict("records")
 
-        # S-Curve acumulada por categoria (ordenada por total)
+        # S-Curve acumulada por DATA (temporal) — padrão para análise de obra
+        if "data_custo" in df.columns:
+            df2 = df.copy()
+            df2["data_custo"] = df2["data_custo"].astype(str).str[:10]
+            df2 = df2[df2["data_custo"].str.len() == 10]
+            if not df2.empty:
+                by_date = (
+                    df2.groupby("data_custo")
+                    .agg({"valor_previsto": "sum", "valor_executado": "sum"})
+                    .sort_index()
+                    .reset_index()
+                )
+                by_date["cumulative_planned"] = by_date["valor_previsto"].cumsum().round(0)
+                by_date["cumulative_actual"] = by_date["valor_executado"].cumsum().round(0)
+                # Format date label as DD/MM/YY
+                def _fmt_date(d: str) -> str:
+                    try:
+                        parts = d.split("-")
+                        return f"{parts[2]}/{parts[1]}/{parts[0][2:]}"
+                    except Exception:
+                        return d
+                by_date["cockpit"] = by_date["data_custo"].apply(_fmt_date)
+                self.financeiro_scurve_chart = by_date[["cockpit", "cumulative_planned", "cumulative_actual"]].to_dict("records")
+                return
+        # Fallback: S-curve por categoria (quando não há datas)
         g2 = grouped.copy().sort_values("total_contratado")
         g2["cumulative_planned"] = g2["total_contratado"].cumsum().round(0)
         g2["cumulative_actual"] = g2["total_realizado"].cumsum().round(0)
@@ -1639,6 +1692,21 @@ class GlobalState(rx.State):
             self.current_user_contrato = str(
                 matched.get("project") or matched.get("contrato") or ""
             )
+            
+            # --- Multi-tenant Identity ---
+            self.current_client_id = str(matched.get("client_id") or "")
+            
+            # Busca info do cliente para saber se é Master
+            if self.current_client_id:
+                client_info = sb_select("clients", filters={"id": self.current_client_id}, limit=1)
+                if client_info:
+                    self.current_client_name = str(client_info[0].get("name", ""))
+                    self.client_is_master = bool(client_info[0].get("is_master", False))
+                else:
+                    self.client_is_master = False
+            else:
+                self.client_is_master = False
+
             self.login_error = ""
             self.username_input = ""
             self.password_input = ""
@@ -2558,18 +2626,28 @@ class GlobalState(rx.State):
 
         search = self.project_search.lower()
         status_filter = self.project_status_filter
+        tipo_filter = self.hub_filter_tipo
+        priority_filter = self.hub_filter_priority
 
         cards = []
         for c in self.contratos_list:
             code = str(c.get("contrato", ""))
             cliente = str(c.get("cliente", ""))
             status = str(c.get("status", ""))
+            tipo = str(c.get("tipo", ""))
+            priority = str(c.get("priority", ""))
 
             # Search filter
             if search and search not in code.lower() and search not in cliente.lower():
                 continue
             # Status filter
             if status_filter and status != status_filter:
+                continue
+            # Tipo filter
+            if tipo_filter and tipo != tipo_filter:
+                continue
+            # Priority filter
+            if priority_filter and priority != priority_filter:
                 continue
 
             # ── Obras data ────────────────────────────────────────
@@ -3238,11 +3316,214 @@ class GlobalState(rx.State):
     def set_project_search(self, value: str):
         self.project_search = value
 
+    def open_novo_projeto(self):
+        self.show_novo_projeto = True
+        self.np_contrato = ""
+        self.np_projeto = ""
+        self.np_cliente = ""
+        self.np_terceirizado = ""
+        self.np_localizacao = ""
+        self.np_data_inicio = ""
+        self.np_data_termino = ""
+        self.np_tipo = "EPC"
+        self.np_potencia_kwp = ""
+        self.np_prazo_dias = ""
+        self.np_priority = "Média"
+        self.np_efetivo_planejado = ""
+        self.np_saving = False
+        self.np_error = ""
+
+    def close_novo_projeto(self):
+        self.show_novo_projeto = False
+
+    def set_show_novo_projeto(self, v: bool):
+        self.show_novo_projeto = v
+
+    def set_np_contrato(self, v: str):
+        self.np_contrato = v.upper()
+
+    def set_np_projeto(self, v: str):
+        self.np_projeto = v
+
+    def set_np_cliente(self, v: str):
+        self.np_cliente = v
+
+    def set_np_terceirizado(self, v: str):
+        self.np_terceirizado = v
+
+    def set_np_localizacao(self, v: str):
+        self.np_localizacao = v
+
+    def set_np_data_inicio(self, v: str):
+        self.np_data_inicio = v
+
+    def set_np_data_termino(self, v: str):
+        self.np_data_termino = v
+
+    def set_np_tipo(self, v: str):
+        self.np_tipo = v
+
+    def set_np_potencia_kwp(self, v: str):
+        self.np_potencia_kwp = v
+
+    def set_np_prazo_dias(self, v: str):
+        self.np_prazo_dias = v
+
+    def set_np_priority(self, v: str):
+        self.np_priority = v
+
+    def set_np_efetivo_planejado(self, v: str):
+        self.np_efetivo_planejado = v
+
+    @rx.event(background=True)
+    async def save_novo_projeto(self):
+        async with self:
+            contrato = self.np_contrato.strip().upper()
+            projeto = self.np_projeto.strip()
+            cliente = self.np_cliente.strip()
+            if not contrato or not projeto or not cliente:
+                self.np_error = "Contrato, projeto e cliente são obrigatórios."
+                return
+            self.np_saving = True
+            self.np_error = ""
+
+        from bomtempo.core.supabase_client import sb_insert, sb_select
+
+        # Verificar se contrato já existe
+        existing = sb_select("contratos", filters={"contrato": contrato}, limit=1)
+        if existing:
+            async with self:
+                self.np_error = f"Contrato '{contrato}' já existe."
+                self.np_saving = False
+            return
+
+        try:
+            async with self:
+                potencia = float(self.np_potencia_kwp.replace(",", ".")) if self.np_potencia_kwp.strip() else 0.0
+                prazo = int(self.np_prazo_dias.strip()) if self.np_prazo_dias.strip() else 0
+                efetivo = int(self.np_efetivo_planejado.strip()) if self.np_efetivo_planejado.strip() else 0
+                payload = {
+                    "contrato":            contrato,
+                    "projeto":             projeto,
+                    "cliente":             cliente,
+                    "terceirizado":        self.np_terceirizado.strip(),
+                    "localizacao":         self.np_localizacao.strip(),
+                    "data_inicio":         self.np_data_inicio or None,
+                    "data_termino":        self.np_data_termino or None,
+                    "tipo":                self.np_tipo,
+                    "potencia_kwp":        potencia,
+                    "prazo_contratual_dias": prazo,
+                    "priority":            self.np_priority,
+                    "efetivo_planejado":   efetivo,
+                    "status":              "Em Execução",
+                    "valor_contratado":    0,
+                }
+
+            sb_insert("contratos", payload)
+
+            # Auto-geocode if localizacao provided (Nominatim via requests)
+            localizacao = payload.get("localizacao", "")
+            if localizacao:
+                try:
+                    import requests as _req
+                    from bomtempo.core.supabase_client import sb_update
+                    resp = _req.get(
+                        "https://nominatim.openstreetmap.org/search",
+                        params={"q": localizacao, "format": "json", "limit": 1},
+                        headers={"User-Agent": "bomtempo-dashboard/1.0"},
+                        timeout=8,
+                    )
+                    results = resp.json()
+                    if results:
+                        lat = float(results[0].get("lat", 0))
+                        lng = float(results[0].get("lon", 0))
+                        if lat or lng:
+                            sb_update("contratos", {"contrato": contrato}, {"lat": lat, "lng": lng})
+                except Exception:
+                    pass  # geocode failure is non-fatal
+
+            async with self:
+                self.np_saving = False
+                self.show_novo_projeto = False
+
+            yield GlobalState.load_data()
+
+        except Exception as e:
+            async with self:
+                self.np_error = f"Erro ao salvar: {str(e)[:100]}"
+                self.np_saving = False
+
     def set_project_status_filter(self, value: str):
         if self.project_status_filter == value:
             self.project_status_filter = ""
         else:
             self.project_status_filter = value
+
+    def set_hub_filter_tipo(self, value: str):
+        self.hub_filter_tipo = "" if self.hub_filter_tipo == value else value
+
+    def set_hub_filter_priority(self, value: str):
+        self.hub_filter_priority = "" if self.hub_filter_priority == value else value
+
+    def toggle_hub_filters(self):
+        self.hub_show_filters = not self.hub_show_filters
+
+    def clear_hub_filters(self):
+        self.project_status_filter = ""
+        self.hub_filter_tipo = ""
+        self.hub_filter_priority = ""
+
+    def open_duplicar_projeto(self):
+        self.show_duplicar_projeto = True
+        self.dup_source_contrato = ""
+
+    def close_duplicar_projeto(self):
+        self.show_duplicar_projeto = False
+        self.dup_source_contrato = ""
+
+    def set_show_duplicar_projeto(self, v: bool):
+        self.show_duplicar_projeto = v
+
+    def set_dup_source_contrato(self, value: str):
+        self.dup_source_contrato = value
+
+    def confirm_duplicar_projeto(self):
+        """Copy source contract fields into novo projeto form and open it."""
+        src = next(
+            (c for c in self.contratos_list if c.get("contrato") == self.dup_source_contrato),
+            None,
+        )
+        self.show_duplicar_projeto = False
+        self.dup_source_contrato = ""
+        # Reset form
+        self.np_contrato = ""
+        self.np_saving = False
+        self.np_error = ""
+        if src:
+            self.np_projeto = str(src.get("projeto", ""))
+            self.np_cliente = str(src.get("cliente", ""))
+            self.np_terceirizado = str(src.get("terceirizado", ""))
+            self.np_localizacao = str(src.get("localizacao", ""))
+            self.np_data_inicio = str(src.get("data_inicio", "") or "")[:10]
+            self.np_data_termino = str(src.get("data_termino", "") or "")[:10]
+            self.np_tipo = str(src.get("tipo", "EPC") or "EPC")
+            self.np_potencia_kwp = str(src.get("potencia_kwp", "") or "")
+            self.np_prazo_dias = str(src.get("prazo_contratual_dias", "") or "")
+            self.np_priority = str(src.get("priority", "Média") or "Média")
+            self.np_efetivo_planejado = str(src.get("efetivo_planejado", "") or "")
+        else:
+            self.np_projeto = ""
+            self.np_cliente = ""
+            self.np_terceirizado = ""
+            self.np_localizacao = ""
+            self.np_data_inicio = ""
+            self.np_data_termino = ""
+            self.np_tipo = "EPC"
+            self.np_potencia_kwp = ""
+            self.np_prazo_dias = ""
+            self.np_priority = "Média"
+            self.np_efetivo_planejado = ""
+        self.show_novo_projeto = True
 
     def set_project_hub_tab(self, tab: str):
         self.project_hub_tab = tab
@@ -3302,6 +3583,45 @@ class GlobalState(rx.State):
         """Set hub sub-page tab — mirrors project_hub_tab."""
         self.hub_tab = tab
         self.project_hub_tab = tab
+
+    @rx.event(background=True)
+    async def sync_financeiro_list(self):
+        """Recarrega fin_custos do Supabase e recomputa gráficos do módulo /financeiro.
+        Chamado pelo FinState após save/delete para manter o dashboard sidebar sincronizado."""
+        import asyncio
+        from bomtempo.core.supabase_client import sb_select
+        try:
+            loop = asyncio.get_running_loop()
+            rows = await loop.run_in_executor(
+                None,
+                lambda: sb_select("fin_custos", limit=2000) or [],
+            )
+            records = []
+            for r in rows:
+                prev = float(r.get("valor_previsto", 0) or 0)
+                exec_ = float(r.get("valor_executado", 0) or 0)
+                records.append({
+                    "id":             str(r.get("id", "")),
+                    "contrato":       str(r.get("contrato", "") or ""),
+                    "categoria_id":   str(r.get("categoria_id", "") or ""),
+                    "categoria_nome": str(r.get("categoria_nome", "") or "—"),
+                    "empresa":        str(r.get("empresa", "") or ""),
+                    "descricao":      str(r.get("descricao", "") or "—"),
+                    "valor_previsto": prev,
+                    "valor_executado": exec_,
+                    "status":         str(r.get("status", "previsto") or "previsto"),
+                    "data_custo":     str(r.get("data_custo", "") or "")[:10],
+                    "atividade_id":   str(r.get("atividade_id", "") or ""),
+                    "observacoes":    str(r.get("observacoes", "") or ""),
+                    "created_by":     str(r.get("created_by", "") or ""),
+                })
+            async with self:
+                self.financeiro_list = records
+                self._recompute_fin_charts()
+                self._recompute_popup_rows()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"sync_financeiro_list error: {e}")
 
     @rx.event(background=True)
     async def load_project_campo_rdos(self):

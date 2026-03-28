@@ -48,6 +48,7 @@ _HUB_TABS = [
     ("Cronograma", "cronograma"),
     ("Auditoria", "auditoria"),
     ("Timeline", "timeline"),
+    ("Financeiro", "financeiro"),
 ]
 
 _REEMBOLSO_DASH_TABS = [

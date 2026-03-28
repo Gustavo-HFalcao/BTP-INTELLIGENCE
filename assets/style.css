@@ -1452,10 +1452,6 @@ select,
     z-index: 10001 !important;
 }
 
-[data-radix-popper-content-wrapper] {
-    z-index: 10001 !important;
-}
-
 /* ── Dialogs always above sidebar drawer (z-index: 9999) ─── */
 /* Applies globally (not just mobile) to prevent drawer overlap */
 .rt-DialogContent,
@@ -1465,6 +1461,12 @@ select,
 .rt-DialogOverlay,
 .rt-AlertDialogOverlay {
     z-index: 10099 !important;
+}
+
+/* ── Radix popper (Select, Tooltip, Popover dropdowns) MUST be above dialogs ─── */
+/* Dialog content = 10100; popper must be > 10100 to render on top */
+[data-radix-popper-content-wrapper] {
+    z-index: 10200 !important;
 }
 
 /* ── Mobile baseline (≤640px) ────────────────────────────── */
@@ -1551,7 +1553,7 @@ select,
 
     /* ── Sidebar popover content: ensure visible above drawer ── */
     .rt-PopoverContent {
-        z-index: 10002 !important;
+        z-index: 10200 !important;
     }
 
     /* ── Page header titles: reduce decorative hero size ── */

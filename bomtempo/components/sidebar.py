@@ -139,99 +139,114 @@ def sidebar_content() -> rx.Component:
             border_bottom=f"1px solid {S.BORDER_SUBTLE}",
             flex_shrink="0",
         ),
-        # ── Navigation ─────────────────────────────────────────────────
-        rx.vstack(
-            # PRINCIPAL
-            _section_label("PRINCIPAL"),
-            rx.cond(
-                GlobalState.allowed_modules.contains("visao_geral"),
-                sidebar_item("VISÃO GERAL", "layout-dashboard", "/"),
+        # ── Navigation (MASTER) ──────────────────────────────────────────
+        rx.cond(
+            GlobalState.client_is_master,
+            rx.vstack(
+                _section_label("GESTÃO GLOBAL"),
+                sidebar_item("CLIENTES E TENANTS", "users-round", "/admin/master-gestion"),
+                sidebar_item("AUDITORIA GLOBAL", "shield-check", "/logs-auditoria"),
+                sidebar_item("CUSTOS & UTILIZAÇÃO", "bar-chart-big", "/admin/master-metrics"),
+                sidebar_item("CONFIGURAÇÕES", "settings", "/admin/master-settings"),
+                spacing="1",
+                width="100%",
+                padding_x="10px",
+                flex="1",
             ),
-            rx.cond(
-                GlobalState.allowed_modules.contains("obras") | GlobalState.allowed_modules.contains("projetos"),
-                sidebar_item("HUB DE OPERAÇÕES", "hard-hat", "/hub"),
-            ),
+            # ── Navigation (CLIENTE) ─────────────────────────────────────────
+            rx.vstack(
+                # PRINCIPAL
+                _section_label("PRINCIPAL"),
+                rx.cond(
+                    GlobalState.allowed_modules.contains("visao_geral"),
+                    sidebar_item("VISÃO GERAL", "layout-dashboard", "/"),
+                ),
+                rx.cond(
+                    GlobalState.allowed_modules.contains("obras") | GlobalState.allowed_modules.contains("projetos"),
+                    sidebar_item("HUB DE OPERAÇÕES", "hard-hat", "/hub"),
+                ),
 
-            # OPERACIONAL
-            _section_label("OPERACIONAL"),
-            rx.cond(
-                GlobalState.allowed_modules.contains("financeiro"),
-                sidebar_item("FINANCEIRO", "wallet", "/financeiro"),
-            ),
-            rx.cond(
-                GlobalState.allowed_modules.contains("om"),
-                sidebar_item("O&M", "zap", "/om"),
-            ),
-            rx.cond(
-                GlobalState.allowed_modules.contains("analytics"),
-                sidebar_item("ANALYTICS", "bar-chart-3", "/analytics"),
-            ),
-            rx.cond(
-                GlobalState.allowed_modules.contains("previsoes"),
-                sidebar_item("PREVISÕES ML", "trending-up", "/previsoes"),
-            ),
-            rx.cond(
-                GlobalState.allowed_modules.contains("relatorios"),
-                sidebar_item("RELATÓRIOS", "file-text", "/relatorios"),
-            ),
-            rx.cond(
-                GlobalState.allowed_modules.contains("chat_ia"),
-                sidebar_item("CHAT IA", "message-square", "/chat-ia"),
-            ),
-            rx.cond(
-                GlobalState.allowed_modules.contains("reembolso"),
-                sidebar_item("REEMBOLSO", "fuel", "/reembolso"),
-            ),
-            rx.cond(
-                GlobalState.allowed_modules.contains("reembolso_dash"),
-                sidebar_item("REEMBOLSO DASH", "receipt", "/reembolso-dash"),
-            ),
+                # OPERACIONAL
+                _section_label("OPERACIONAL"),
+                rx.cond(
+                    GlobalState.allowed_modules.contains("financeiro"),
+                    sidebar_item("FINANCEIRO", "wallet", "/financeiro"),
+                ),
+                rx.cond(
+                    GlobalState.allowed_modules.contains("om"),
+                    sidebar_item("O&M", "zap", "/om"),
+                ),
+                rx.cond(
+                    GlobalState.allowed_modules.contains("analytics"),
+                    sidebar_item("ANALYTICS", "bar-chart-3", "/analytics"),
+                ),
+                rx.cond(
+                    GlobalState.allowed_modules.contains("previsoes"),
+                    sidebar_item("PREVISÕES ML", "trending-up", "/previsoes"),
+                ),
+                rx.cond(
+                    GlobalState.allowed_modules.contains("relatorios"),
+                    sidebar_item("RELATÓRIOS", "file-text", "/relatorios"),
+                ),
+                rx.cond(
+                    GlobalState.allowed_modules.contains("chat_ia"),
+                    sidebar_item("CHAT IA", "message-square", "/chat-ia"),
+                ),
+                rx.cond(
+                    GlobalState.allowed_modules.contains("reembolso"),
+                    sidebar_item("REEMBOLSO", "fuel", "/reembolso"),
+                ),
+                rx.cond(
+                    GlobalState.allowed_modules.contains("reembolso_dash"),
+                    sidebar_item("REEMBOLSO DASH", "receipt", "/reembolso-dash"),
+                ),
 
-            # RDO
-            _section_label("RDO"),
-            rx.cond(
-                GlobalState.allowed_modules.contains("rdo_form"),
-                sidebar_item("RDO DIÁRIO", "clipboard-list", "/rdo-form"),
-            ),
-            rx.cond(
-                GlobalState.allowed_modules.contains("rdo_historico"),
-                sidebar_item("MEUS RDOS", "clock", "/rdo-historico"),
-            ),
-            rx.cond(
-                GlobalState.allowed_modules.contains("rdo_dashboard"),
-                sidebar_item("RDO ANALYTICS", "chart-bar", "/rdo-dashboard"),
-            ),
+                # RDO
+                _section_label("RDO"),
+                rx.cond(
+                    GlobalState.allowed_modules.contains("rdo_form"),
+                    sidebar_item("RDO DIÁRIO", "clipboard-list", "/rdo-form"),
+                ),
+                rx.cond(
+                    GlobalState.allowed_modules.contains("rdo_historico"),
+                    sidebar_item("MEUS RDOS", "clock", "/rdo-historico"),
+                ),
+                rx.cond(
+                    GlobalState.allowed_modules.contains("rdo_dashboard"),
+                    sidebar_item("RDO ANALYTICS", "chart-bar", "/rdo-dashboard"),
+                ),
 
-            # ADMINISTRAÇÃO
-            _section_label("ADMINISTRAÇÃO"),
-            rx.cond(
-                GlobalState.allowed_modules.contains("alertas"),
-                sidebar_item("GESTÃO DE ALERTAS", "bell", "/alertas"),
-            ),
-            rx.cond(
-                GlobalState.allowed_modules.contains("logs_auditoria"),
-                sidebar_item("LOGS & AUDITORIA", "shield-check", "/logs-auditoria"),
-            ),
-            rx.cond(
-                GlobalState.allowed_modules.contains("gerenciar_usuarios"),
-                sidebar_item("FEATURE FLAGS", "toggle-right", "/admin/contract-features"),
-            ),
-            rx.cond(
-                GlobalState.allowed_modules.contains("editar_dados"),
-                sidebar_item("EDITAR DADOS", "database", "/admin/editar_dados"),
-            ),
-            rx.cond(
-                GlobalState.allowed_modules.contains("gerenciar_usuarios"),
-                sidebar_item("OBSERVABILIDADE", "activity", "/admin/observabilidade"),
-            ),
+                # ADMINISTRAÇÃO
+                _section_label("ADMINISTRAÇÃO"),
+                rx.cond(
+                    GlobalState.allowed_modules.contains("alertas"),
+                    sidebar_item("GESTÃO DE ALERTAS", "bell", "/alertas"),
+                ),
+                rx.cond(
+                    GlobalState.allowed_modules.contains("logs_auditoria"),
+                    sidebar_item("LOGS & AUDITORIA", "shield-check", "/logs-auditoria"),
+                ),
+                rx.cond(
+                    GlobalState.allowed_modules.contains("gerenciar_usuarios"),
+                    sidebar_item("FEATURE FLAGS", "toggle-right", "/admin/contract-features"),
+                ),
+                rx.cond(
+                    GlobalState.allowed_modules.contains("editar_dados"),
+                    sidebar_item("EDITAR DADOS", "database", "/admin/editar_dados"),
+                ),
+                rx.cond(
+                    GlobalState.allowed_modules.contains("gerenciar_usuarios"),
+                    sidebar_item("OBSERVABILIDADE", "activity", "/admin/observabilidade"),
+                ),
 
-            spacing="1",
-            width="100%",
-            padding_x="10px",
-            overflow_y="auto",
-            flex="1",
-            class_name="no-scrollbar",
-            padding_bottom="12px",
+                spacing="1",
+                width="100%",
+                padding_x="10px",
+                overflow_y="auto",
+                flex="1",
+                class_name="no-scrollbar",
+                padding_bottom="12px",
+            ),
         ),
 
         # Outer vstack props

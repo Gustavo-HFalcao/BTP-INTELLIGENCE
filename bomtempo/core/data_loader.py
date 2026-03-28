@@ -74,12 +74,12 @@ class DataLoader:
         logger.info("Carregando dados do Supabase em paralelo...")
         # (table_name_in_db, state_key)
         TABLE_MAP = [
-            ("contratos",     "contratos"),
+            ("contratos",      "contratos"),
             ("hub_atividades", "projeto"),
-            ("projects",      "obras"),
-            ("fin_custos",    "financeiro"),   # migrado: fin_custos substitui financeiro
-            ("om",            "om"),
+            ("fin_custos",     "financeiro"),   # fin_custos é a fonte de budget
+            ("om",             "om"),
         ]
+        # "obras" será derivado de contratos + hub_atividades + fin_custos abaixo
         sucesso = False
 
         def _fetch(table: str, key: str):
@@ -234,128 +234,84 @@ class DataLoader:
             data["projeto"] = df
 
         # ── Obras ────────────────────────────────────────────────
-        if "obras" in data and not data["obras"].empty:
-            df = data["obras"]
-            rename = {}
-            for col in df.columns:
-                cl = _strip_accents(col).lower()
-                if cl in ("data", "data_referencia"):
-                    rename[col] = "data"
-                elif cl == "contrato":
-                    rename[col] = "contrato"
-                elif cl == "projeto":
-                    rename[col] = "projeto"
-                elif cl == "cliente":
-                    rename[col] = "cliente"
-                elif cl == "terceirizado":
-                    rename[col] = "terceirizado"
-                elif cl == "categoria":
-                    rename[col] = "categoria"
-                elif "previsto" in cl and ("%" in cl or "pct" in cl):
-                    rename[col] = "previsto_pct"
-                elif "realizado" in cl and ("%" in cl or "pct" in cl):
-                    rename[col] = "realizado_pct"
-                elif cl == "tipo":
-                    rename[col] = "tipo"
-                elif cl == "marco":
-                    rename[col] = "marco"
-                elif "localiza" in cl:
-                    rename[col] = "localizacao"
-                elif cl in ("inicio", "data_inicio"):
-                    rename[col] = "inicio"
-                elif "termino" in cl:
-                    rename[col] = "termino"
-                elif "ordem" in cl or cl in ("os", "os_number"):
-                    rename[col] = "os"
-                elif "potencia" in cl:
-                    rename[col] = "potencia_kwp"
-                elif "prazo" in cl:
-                    rename[col] = "prazo_contratual"
-                elif "comentario" in cl:
-                    rename[col] = "comentario"
-            df = df.rename(columns=rename)
+        # ── Obras: derivado de contratos + hub_atividades + fin_custos ──────────
+        # Não há mais tabela "projects" — tudo é computado em tempo real.
+        if "contratos" in data and not data["contratos"].empty:
+            from datetime import date as _date
+            import numpy as np
 
-            # Parse date columns (Supabase uses YYYY-MM-DD ISO)
-            for date_col in ["data", "inicio", "termino"]:
+            df = data["contratos"].copy()
+
+            # Renomear colunas para padrão interno usado pelo global_state
+            df = df.rename(columns={
+                "data_inicio":          "inicio",
+                "data_termino":         "termino",
+                "prazo_contratual_dias": "prazo_contratual",
+            })
+
+            for date_col in ["inicio", "termino"]:
                 if date_col in df.columns:
                     df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
 
-            # Parse potencia_kwp: extract numeric value from "100 kWp - 70 kW" format
-            if "potencia_kwp" in df.columns:
-                df["potencia_kwp"] = (
-                    df["potencia_kwp"]
-                    .astype(str)
-                    .str.extract(r"(\d+\.?\d*)", expand=False)  # Extract first number
-                    .astype(float, errors="ignore")
-                )
+            # ── realizado_pct: média ponderada de conclusao_pct de hub_atividades ──
+            if "projeto" in data and not data["projeto"].empty:
+                ativ = data["projeto"]
+                if "conclusao_pct" in ativ.columns and "contrato" in ativ.columns:
+                    ativ = ativ.copy()
+                    ativ["conclusao_pct"] = pd.to_numeric(ativ["conclusao_pct"], errors="coerce").fillna(0)
+                    peso_col = "peso_pct" if "peso_pct" in ativ.columns else None
+                    if peso_col:
+                        ativ["peso_pct"] = pd.to_numeric(ativ[peso_col], errors="coerce").fillna(1)
+                        grp = ativ.groupby("contrato").apply(
+                            lambda g: (g["conclusao_pct"] * g["peso_pct"]).sum() / g["peso_pct"].sum()
+                            if g["peso_pct"].sum() > 0 else 0
+                        ).reset_index(name="realizado_pct")
+                    else:
+                        grp = ativ.groupby("contrato")["conclusao_pct"].mean().reset_index(name="realizado_pct")
+                    df = df.merge(grp, on="contrato", how="left")
+                    df["realizado_pct"] = df["realizado_pct"].fillna(0).round(1)
 
-            # Parse percentage columns
-            for col in ["previsto_pct", "realizado_pct"]:
-                if col in df.columns:
-                    # Strip "%" before converting
-                    df[col] = df[col].astype(str).str.replace("%", "", regex=False).str.strip()
-                    df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
-                    if df[col].max() <= 1.0 and df[col].max() > 0:
-                        df[col] = df[col] * 100
+            if "realizado_pct" not in df.columns:
+                df["realizado_pct"] = 0.0
+
+            # ── previsto_pct: % do prazo decorrido até hoje ──
+            today = pd.Timestamp(_date.today())
+            if "inicio" in df.columns and "termino" in df.columns:
+                duracao = (df["termino"] - df["inicio"]).dt.days.clip(lower=1)
+                decorrido = (today - df["inicio"]).dt.days.clip(lower=0)
+                df["previsto_pct"] = (decorrido / duracao * 100).clip(0, 100).round(1)
+                df["previsto_pct"] = df["previsto_pct"].fillna(0)
+            else:
+                df["previsto_pct"] = 0.0
+
+            # ── budget: sum de fin_custos por contrato ──
+            if "financeiro" in data and not data["financeiro"].empty:
+                fin = data["financeiro"]
+                if "valor_previsto" in fin.columns and "contrato" in fin.columns:
+                    bgt = fin.groupby("contrato").agg(
+                        budget_planejado=("valor_previsto", "sum"),
+                        budget_realizado=("valor_executado", "sum"),
+                    ).reset_index()
+                    df = df.merge(bgt, on="contrato", how="left")
+                    df["budget_planejado"] = df["budget_planejado"].fillna(0)
+                    df["budget_realizado"] = df["budget_realizado"].fillna(0)
+
+            if "budget_planejado" not in df.columns:
+                df["budget_planejado"] = 0.0
+            if "budget_realizado" not in df.columns:
+                df["budget_realizado"] = 0.0
 
             data["obras"] = df
+            logger.info(f"Obras computadas: {len(df)} contratos | campos: realizado_pct, previsto_pct, budget")
 
-        # ── Financeiro ───────────────────────────────────────────
+        # ── Financeiro (fin_custos) ───────────────────────────────
+        # Fonte: tabela fin_custos — valor_previsto / valor_executado / status / data
+        # Normalização de tipos numéricos
         if "financeiro" in data and not data["financeiro"].empty:
             df = data["financeiro"]
-            rename = {}
-            for col in df.columns:
-                cl = _strip_accents(col).lower()
-                if cl in ("data", "data_referencia"):
-                    rename[col] = "data"
-                elif cl == "contrato":
-                    rename[col] = "contrato"
-                elif cl == "projeto":
-                    rename[col] = "projeto"
-                elif cl == "cliente":
-                    rename[col] = "cliente"
-                elif cl == "terceirizado":
-                    rename[col] = "terceirizado"
-                elif cl == "cockpit":
-                    rename[col] = "cockpit"
-                elif cl == "marco":
-                    rename[col] = "marco"
-                elif cl == "categoria":
-                    rename[col] = "categoria"
-                elif cl == "multa":
-                    rename[col] = "multa"
-                elif cl in ("justificativas", "justificativa"):
-                    rename[col] = "justificativa"
-                elif "localiza" in cl:
-                    rename[col] = "localizacao"
-                elif "servico" in cl or "servic" in cl:
-                    if "contratado" in cl:
-                        rename[col] = "servico_contratado"
-                    elif "realizado" in cl:
-                        rename[col] = "servico_realizado"
-                elif "material" in cl:
-                    if "contratado" in cl:
-                        rename[col] = "material_contratado"
-                    elif "realizado" in cl:
-                        rename[col] = "material_realizado"
-                elif "inicio" in cl:
-                    rename[col] = "inicio_projeto"
-                elif "termino" in cl:
-                    rename[col] = "termino_projeto"
-            df = df.rename(columns=rename)
-
-            # Parse BRL money columns
-            money_cols = [
-                "servico_contratado",
-                "servico_realizado",
-                "material_contratado",
-                "material_realizado",
-                "multa",
-            ]
-            for col in money_cols:
+            for col in ("valor_previsto", "valor_executado"):
                 if col in df.columns:
-                    df[col] = df[col].apply(_parse_brl).fillna(0.0)
-
+                    df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
             data["financeiro"] = df
 
         # ── O&M ──────────────────────────────────────────────────
@@ -415,7 +371,7 @@ class DataLoader:
 
         # Login agora vem do Supabase — não precisa normalizar a sheet
 
-        # ── Cross-reference: valor_contratado from financeiro ────
+        # ── Cross-reference: valor_contratado from fin_custos ───
         if "contratos" in data:
             con = data["contratos"]
             if "valor_contratado" not in con.columns:
@@ -423,15 +379,12 @@ class DataLoader:
 
             if "financeiro" in data and not data["financeiro"].empty:
                 fin = data["financeiro"]
-                cols_needed = ["servico_contratado", "material_contratado"]
-                valid_cols = [c for c in cols_needed if c in fin.columns]
-
-                if valid_cols and "contrato" in fin.columns:
-                    totals = fin.groupby("contrato")[valid_cols].sum().sum(axis=1).reset_index()
+                if "valor_previsto" in fin.columns and "contrato" in fin.columns:
+                    totals = fin.groupby("contrato")["valor_previsto"].sum().reset_index()
                     totals.columns = ["contrato", "valor_total"]
                     valor_map = dict(zip(totals["contrato"], totals["valor_total"]))
-                    logger.info(f"Cross-ref financeiro→contratos: {len(valor_map)} contratos")
-                    con["valor_contratado"] = con["contrato"].map(valor_map).fillna(0)
+                    logger.info(f"Cross-ref fin_custos→contratos: {len(valor_map)} contratos")
+                    con["valor_contratado"] = con["contrato"].map(valor_map).fillna(con["valor_contratado"])
 
             data["contratos"] = con
 

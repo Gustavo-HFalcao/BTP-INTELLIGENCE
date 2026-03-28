@@ -275,8 +275,8 @@ class AlertService:
 
     @staticmethod
     def _get_obras_map() -> Dict[str, Dict]:
-        """Build contract_code → obra dict. Handles both capitalized GSheets and snake_case columns."""
-        obras = sb_select("obras", limit=500) or []
+        """Build contract_code → obra dict from contratos table."""
+        obras = sb_select("contratos", limit=500) or []
         result: Dict[str, Dict] = {}
         for obra in obras:
             cid = str(
@@ -552,7 +552,7 @@ class CustomAlertRunner:
             if contrato:
                 filters["contrato"] = contrato
             col = condition_field or "saldo_percentual"
-            rows = sb_select("financeiro", filters=filters, limit=200) or []
+            rows = sb_select("fin_custos", filters=filters, limit=200) or []
             for row in rows:
                 try:
                     val_str = str(row.get(col) or "").replace("%", "").replace(",", ".").strip()
@@ -568,8 +568,8 @@ class CustomAlertRunner:
             filters = {}
             if contrato:
                 filters["contrato"] = contrato
-            col = condition_field or "data_medicao"
-            rows = sb_select("financeiro", filters=filters, order=f"{col}.desc", limit=1) or []
+            col = condition_field or "data"
+            rows = sb_select("fin_custos", filters=filters, order=f"{col}.desc", limit=1) or []
             if not rows:
                 return True
             val = str(rows[0].get(col) or "")
@@ -581,7 +581,7 @@ class CustomAlertRunner:
 
         # ── custom: avalia campo genérico com operador ───────────────────────
         elif alert_type == "custom" and condition_field and condition_op:
-            table = "obras"  # default — pode ser expandido
+            table = "contratos"  # default — pode ser expandido
             filters = {}
             if contrato:
                 filters["contrato"] = contrato

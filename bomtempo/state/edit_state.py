@@ -39,7 +39,7 @@ logger = get_logger(__name__)
 class EditState(rx.State):
     projetos: List[str] = []
     contratos: List[str] = []
-    tabelas: List[str] = ["contratos", "projetos", "obras", "financeiro", "om"]
+    tabelas: List[str] = ["contratos", "hub_atividades", "fin_custos", "om"]
 
     selected_projeto: str = ""
     selected_contrato: str = ""
@@ -746,7 +746,7 @@ class EditState(rx.State):
         # ── Prepara refresh do GlobalState ANTES de adquirir o lock ──────────
         # Faz todo o I/O pesado FORA do state lock para não bloquear
         fresh_data = None
-        needs_global_refresh = selected_tabela in ("contratos", "projetos", "obras", "financeiro", "om")
+        needs_global_refresh = selected_tabela in ("contratos", "hub_atividades", "fin_custos", "om")
         if needs_global_refresh:
             try:
                 from bomtempo.core.data_loader import DataLoader
@@ -807,7 +807,7 @@ class EditState(rx.State):
                     for table_key, attr_name in [
                         ("contratos", "contratos_list"),
                         ("projeto", "projetos_list"),
-                        ("obras", "obras_list"),
+                        ("obras", "obras_list"),   # derived in-memory, no direct DB table
                         ("financeiro", "financeiro_list"),
                         ("om", "om_list"),
                     ]:

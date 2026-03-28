@@ -5,6 +5,7 @@ Manages CRUD for fin_custos, KPI cards, S-curve and categoria chart.
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any, Dict, List
 
 import reflex as rx
@@ -14,12 +15,31 @@ from bomtempo.core.supabase_client import sb_select
 
 logger = logging.getLogger(__name__)
 
+
+def _fmt_brl_input(v: Any) -> str:
+    """Format a value as BRL for display inside an input field (no R$ prefix).
+    Output: 1234.56 → '1.234,56'
+    """
+    from bomtempo.core.fin_service import _parse_float
+    num = _parse_float(v)
+    if num == 0:
+        return ""
+    # Use TEMP placeholder to avoid double-replacement of separators
+    s = f"{num:_.2f}"          # "1_234.56"
+    s = s.replace(".", "DECPT")  # "1_234DECPT56"
+    s = s.replace("_", ".")      # "1.234DECPT56"
+    s = s.replace("DECPT", ",")  # "1.234,56"
+    return s
+
+
 # Status options for custo
-FIN_STATUS_OPTIONS = ["previsto", "em_andamento", "concluido", "cancelado"]
+FIN_STATUS_OPTIONS = ["previsto", "em_andamento", "parcial", "concluido", "executado", "cancelado"]
 FIN_STATUS_LABELS = {
     "previsto":     "Previsto",
     "em_andamento": "Em Andamento",
+    "parcial":      "Parcial",
     "concluido":    "Concluído",
+    "executado":    "Executado",
     "cancelado":    "Cancelado",
 }
 
@@ -62,6 +82,7 @@ class FinState(rx.State):
     fin_edit_id: str = ""           # empty = new
     fin_edit_categoria_id: str = ""
     fin_edit_categoria_nome: str = ""
+    fin_edit_empresa: str = ""
     fin_edit_descricao: str = ""
     fin_edit_valor_previsto: str = ""
     fin_edit_valor_executado: str = ""
@@ -69,6 +90,10 @@ class FinState(rx.State):
     fin_edit_data: str = ""
     fin_edit_atividade_id: str = ""
     fin_edit_observacoes: str = ""
+
+    # ── EVM Forecast ──────────────────────────────────────────────────────────
+    fin_forecast: Dict[str, str] = {}
+    fin_avg_activity_pct: float = 0.0
 
     # ── Delete confirm ────────────────────────────────────────────────────────
     fin_show_delete: bool = False
@@ -135,7 +160,8 @@ class FinState(rx.State):
             cats = FinService.load_categorias()
             # Load custos for this contract
             custos = FinService.load_custos(contrato)
-            # Load atividades for dropdown
+            # Load atividades for dropdown + avg completion
+            avg_pct = 0.0
             try:
                 ativ_rows = sb_select(
                     "hub_atividades",
@@ -147,16 +173,20 @@ class FinState(rx.State):
                     {"id": str(r.get("id", "")), "label": str(r.get("atividade", ""))}
                     for r in (ativ_rows or [])
                 ]
+                if ativ_rows:
+                    pcts = [float(r.get("conclusao_pct", 0) or 0) for r in ativ_rows]
+                    avg_pct = round(sum(pcts) / len(pcts), 1) if pcts else 0.0
             except Exception:
                 ativ_opts = []
 
             kpis = FinService.compute_kpis(custos)
             scurve = FinService.compute_scurve(custos)
             by_cat = FinService.compute_by_categoria(custos)
+            forecast = FinService.compute_evm(custos, avg_pct)
 
         except Exception as e:
             logger.error(f"load_financeiro error: {e}")
-            cats, custos, ativ_opts, kpis, scurve, by_cat = [], [], [], {}, [], []
+            cats, custos, ativ_opts, kpis, scurve, by_cat, forecast, avg_pct = [], [], [], {}, [], [], {}, 0.0
 
         async with self:
             self.fin_categorias = cats
@@ -165,13 +195,16 @@ class FinState(rx.State):
             self.fin_kpis = kpis
             self.fin_scurve = scurve
             self.fin_by_cat = by_cat
+            self.fin_forecast = forecast
+            self.fin_avg_activity_pct = avg_pct
             self.fin_loading = False
 
     def _refresh_charts(self):
-        """Recompute KPIs + charts from current fin_custos. Call after mutations."""
+        """Recompute KPIs + charts + forecast from current fin_custos. Call after mutations."""
         self.fin_kpis = FinService.compute_kpis(self.fin_custos)
         self.fin_scurve = FinService.compute_scurve(self.fin_custos)
         self.fin_by_cat = FinService.compute_by_categoria(self.fin_custos)
+        self.fin_forecast = FinService.compute_evm(self.fin_custos, self.fin_avg_activity_pct)
 
     # ═════════════════════════════════════════════════════════════════════════
     # Dialog open/close
@@ -181,6 +214,7 @@ class FinState(rx.State):
         self.fin_edit_id = ""
         self.fin_edit_categoria_id = ""
         self.fin_edit_categoria_nome = ""
+        self.fin_edit_empresa = ""
         self.fin_edit_descricao = ""
         self.fin_edit_valor_previsto = ""
         self.fin_edit_valor_executado = ""
@@ -198,9 +232,10 @@ class FinState(rx.State):
         self.fin_edit_id = custo_id
         self.fin_edit_categoria_id = row.get("categoria_id", "")
         self.fin_edit_categoria_nome = row.get("categoria_nome", "")
+        self.fin_edit_empresa = row.get("empresa", "")
         self.fin_edit_descricao = row.get("descricao", "")
-        self.fin_edit_valor_previsto = row.get("valor_previsto", "")
-        self.fin_edit_valor_executado = row.get("valor_executado", "")
+        self.fin_edit_valor_previsto = _fmt_brl_input(row.get("valor_previsto", "0"))
+        self.fin_edit_valor_executado = _fmt_brl_input(row.get("valor_executado", "0"))
         self.fin_edit_status = row.get("status", "previsto")
         self.fin_edit_data = row.get("data_custo", "")
         self.fin_edit_atividade_id = row.get("atividade_id", "")
@@ -218,20 +253,38 @@ class FinState(rx.State):
     # Field setters for dialog
     # ═════════════════════════════════════════════════════════════════════════
 
-    def set_fin_edit_categoria(self, v: str):
-        """v is categoria_id. Also look up nome."""
-        self.fin_edit_categoria_id = v
-        cat = next((c for c in self.fin_categorias if c.get("id") == v), None)
-        self.fin_edit_categoria_nome = cat["nome"] if cat else v
+    def set_fin_edit_categoria_by_name(self, v: str):
+        """Called when user types/selects a category name (combobox).
+        Resolves the ID if an existing category matches; otherwise leaves ID empty
+        so save_fin_custo will create the category automatically."""
+        self.fin_edit_categoria_nome = v
+        cat = next(
+            (c for c in self.fin_categorias if c.get("nome", "").lower() == v.strip().lower()),
+            None,
+        )
+        self.fin_edit_categoria_id = cat["id"] if cat else ""
+
+    def set_fin_edit_empresa(self, v: str):
+        self.fin_edit_empresa = v
 
     def set_fin_edit_descricao(self, v: str):
         self.fin_edit_descricao = v
 
     def set_fin_edit_valor_previsto(self, v: str):
-        self.fin_edit_valor_previsto = v
+        """Allow digits, comma, dot only (raw typing)."""
+        self.fin_edit_valor_previsto = re.sub(r"[^\d,.]", "", v)
+
+    def on_blur_fin_valor_previsto(self):
+        """Format as BRL on blur."""
+        self.fin_edit_valor_previsto = _fmt_brl_input(self.fin_edit_valor_previsto)
 
     def set_fin_edit_valor_executado(self, v: str):
-        self.fin_edit_valor_executado = v
+        """Allow digits, comma, dot only (raw typing)."""
+        self.fin_edit_valor_executado = re.sub(r"[^\d,.]", "", v)
+
+    def on_blur_fin_valor_executado(self):
+        """Format as BRL on blur."""
+        self.fin_edit_valor_executado = _fmt_brl_input(self.fin_edit_valor_executado)
 
     def set_fin_edit_status(self, v: str):
         self.fin_edit_status = v
@@ -284,11 +337,13 @@ class FinState(rx.State):
             custo_id = self.fin_edit_id
             cat_id = self.fin_edit_categoria_id
             cat_nome = self.fin_edit_categoria_nome
+            empresa = self.fin_edit_empresa.strip()
             descricao = self.fin_edit_descricao.strip()
             status = self.fin_edit_status
             data = self.fin_edit_data
             atividade_id = self.fin_edit_atividade_id
             obs = self.fin_edit_observacoes
+            avg_pct = self.fin_avg_activity_pct
 
         from bomtempo.core.fin_service import _parse_float as _pf
         prev_val = _pf(prev_str)
@@ -302,18 +357,28 @@ class FinState(rx.State):
         except Exception:
             username = ""
 
+        # Resolve/create categoria if needed
+        if cat_nome.strip() and not cat_id:
+            cat_id, cat_nome = FinService.get_or_create_categoria(cat_nome)
+            # Reload categorias so the new one appears in the dropdown
+            try:
+                updated_cats = FinService.load_categorias()
+                async with self:
+                    self.fin_categorias = updated_cats
+            except Exception:
+                pass
+
         ok, result = FinService.save_custo(
             contrato=contrato,
             categoria_id=cat_id,
             categoria_nome=cat_nome,
+            empresa=empresa,
             descricao=descricao,
             valor_previsto=prev_val,
             valor_executado=exec_val,
             status=status,
             data_custo=data,
             atividade_id=atividade_id,
-            observacoes=obs,
-            created_by=username,
             custo_id=custo_id,
         )
 
@@ -323,19 +388,28 @@ class FinState(rx.State):
                 self.fin_saving = False
             return
 
-        # Reload custos list
+        # Reload custos list + recompute all charts
         custos = FinService.load_custos(contrato)
         scurve = FinService.compute_scurve(custos)
         by_cat = FinService.compute_by_categoria(custos)
         kpis = FinService.compute_kpis(custos)
+        forecast = FinService.compute_evm(custos, avg_pct)
 
         async with self:
             self.fin_custos = custos
             self.fin_scurve = scurve
             self.fin_by_cat = by_cat
             self.fin_kpis = kpis
+            self.fin_forecast = forecast
             self.fin_saving = False
             self.fin_show_dialog = False
+
+        # Sync GlobalState financeiro_list for sidebar dashboard
+        try:
+            from bomtempo.state.global_state import GlobalState
+            yield GlobalState.sync_financeiro_list
+        except Exception as e:
+            logger.warning(f"sync_financeiro_list skipped: {e}")
 
     # ═════════════════════════════════════════════════════════════════════════
     # Delete
@@ -357,6 +431,7 @@ class FinState(rx.State):
         async with self:
             custo_id = self.fin_delete_id
             contrato = self.fin_contrato
+            avg_pct = self.fin_avg_activity_pct
             self.fin_show_delete = False
 
         ok = FinService.delete_custo(custo_id)
@@ -369,11 +444,20 @@ class FinState(rx.State):
         scurve = FinService.compute_scurve(custos)
         by_cat = FinService.compute_by_categoria(custos)
         kpis = FinService.compute_kpis(custos)
+        forecast = FinService.compute_evm(custos, avg_pct)
 
         async with self:
             self.fin_custos = custos
             self.fin_scurve = scurve
             self.fin_by_cat = by_cat
             self.fin_kpis = kpis
+            self.fin_forecast = forecast
             self.fin_delete_id = ""
             self.fin_delete_desc = ""
+
+        # Sync GlobalState financeiro_list for sidebar dashboard
+        try:
+            from bomtempo.state.global_state import GlobalState
+            yield GlobalState.sync_financeiro_list
+        except Exception as e:
+            logger.warning(f"sync_financeiro_list skipped: {e}")
