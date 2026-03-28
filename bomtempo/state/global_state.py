@@ -477,6 +477,7 @@ class GlobalState(rx.State):
 
     # ── Novo Projeto form ────────────────────────────────────────────────────
     show_novo_projeto: bool = False
+    np_form_key: int = 0           # incrementado ao abrir → força remount dos inputs
     np_contrato: str = ""
     np_projeto: str = ""
     np_cliente: str = ""
@@ -491,6 +492,27 @@ class GlobalState(rx.State):
     np_efetivo_planejado: str = ""
     np_saving: bool = False
     np_error: str = ""
+
+    # ── Editar Projeto ───────────────────────────────────────────────────────
+    show_edit_projeto: bool = False
+    ep_form_key: int = 0
+    ep_id: str = ""                # UUID da row em contratos
+    ep_contrato: str = ""
+    ep_projeto: str = ""
+    ep_cliente: str = ""
+    ep_terceirizado: str = ""
+    ep_localizacao: str = ""
+    ep_data_inicio: str = ""
+    ep_data_termino: str = ""
+    ep_tipo: str = "EPC"
+    ep_potencia_kwp: str = ""
+    ep_prazo_dias: str = ""
+    ep_priority: str = "Média"
+    ep_efetivo_planejado: str = ""
+    ep_saving: bool = False
+    ep_deleting: bool = False
+    ep_error: str = ""
+    ep_confirm_delete: bool = False
 
     # ── Hub de Operações (replaces separate obras/projetos) ──────────────────
     hub_tab: str = "visao_geral"  # visao_geral|dashboard|cronograma|auditoria|timeline
@@ -3352,6 +3374,7 @@ class GlobalState(rx.State):
 
     def open_novo_projeto(self):
         self.show_novo_projeto = True
+        self.np_form_key += 1      # força remount dos inputs (fix typing)
         self.np_contrato = ""
         self.np_projeto = ""
         self.np_cliente = ""
@@ -3374,7 +3397,7 @@ class GlobalState(rx.State):
         self.show_novo_projeto = v
 
     def set_np_contrato(self, v: str):
-        self.np_contrato = v.upper()
+        self.np_contrato = v  # CSS text-transform:uppercase cuida do display; save handler faz .upper()
 
     def set_np_projeto(self, v: str):
         self.np_projeto = v
@@ -3408,6 +3431,116 @@ class GlobalState(rx.State):
 
     def set_np_efetivo_planejado(self, v: str):
         self.np_efetivo_planejado = v
+
+    # ── Editar Projeto handlers ──────────────────────────────────────────────
+
+    def open_edit_projeto(self, contrato: str):
+        """Abre o dialog de edição pré-preenchido com os dados do contrato."""
+        row = next((c for c in self.contratos_list if c.get("contrato") == contrato), None)
+        if not row:
+            return
+        self.show_edit_projeto = True
+        self.ep_form_key += 1
+        self.ep_id = str(row.get("id", ""))
+        self.ep_contrato = str(row.get("contrato", ""))
+        self.ep_projeto = str(row.get("projeto", ""))
+        self.ep_cliente = str(row.get("cliente", ""))
+        self.ep_terceirizado = str(row.get("terceirizado", "") or "")
+        self.ep_localizacao = str(row.get("localizacao", "") or "")
+        self.ep_data_inicio = str(row.get("data_inicio", "") or "")
+        self.ep_data_termino = str(row.get("data_termino", "") or "")
+        self.ep_tipo = str(row.get("tipo", "EPC") or "EPC")
+        self.ep_potencia_kwp = str(row.get("potencia_kwp", "") or "")
+        self.ep_prazo_dias = str(row.get("prazo_contratual_dias", "") or "")
+        self.ep_priority = str(row.get("priority", "Média") or "Média")
+        self.ep_efetivo_planejado = str(row.get("efetivo_planejado", "") or "")
+        self.ep_saving = False
+        self.ep_deleting = False
+        self.ep_error = ""
+        self.ep_confirm_delete = False
+
+    def close_edit_projeto(self):
+        self.show_edit_projeto = False
+        self.ep_confirm_delete = False
+
+    def set_ep_projeto(self, v: str): self.ep_projeto = v
+    def set_ep_cliente(self, v: str): self.ep_cliente = v
+    def set_ep_terceirizado(self, v: str): self.ep_terceirizado = v
+    def set_ep_localizacao(self, v: str): self.ep_localizacao = v
+    def set_ep_data_inicio(self, v: str): self.ep_data_inicio = v
+    def set_ep_data_termino(self, v: str): self.ep_data_termino = v
+    def set_ep_tipo(self, v: str): self.ep_tipo = v
+    def set_ep_potencia_kwp(self, v: str): self.ep_potencia_kwp = v
+    def set_ep_prazo_dias(self, v: str): self.ep_prazo_dias = v
+    def set_ep_priority(self, v: str): self.ep_priority = v
+    def set_ep_efetivo_planejado(self, v: str): self.ep_efetivo_planejado = v
+    def toggle_ep_confirm_delete(self): self.ep_confirm_delete = not self.ep_confirm_delete
+
+    @rx.event(background=True)
+    async def save_edit_projeto(self):
+        async with self:
+            projeto = self.ep_projeto.strip()
+            cliente = self.ep_cliente.strip()
+            if not projeto or not cliente:
+                self.ep_error = "Projeto e cliente são obrigatórios."
+                return
+            self.ep_saving = True
+            self.ep_error = ""
+            contrato = self.ep_contrato
+
+        from bomtempo.core.supabase_client import sb_update
+        try:
+            async with self:
+                potencia_raw = self.ep_potencia_kwp.strip().replace(",", ".")
+                prazo_raw = self.ep_prazo_dias.strip()
+                efetivo_raw = self.ep_efetivo_planejado.strip()
+                payload = {
+                    "projeto":             projeto,
+                    "cliente":             cliente,
+                    "terceirizado":        self.ep_terceirizado.strip(),
+                    "localizacao":         self.ep_localizacao.strip(),
+                    "data_inicio":         self.ep_data_inicio or None,
+                    "data_termino":        self.ep_data_termino or None,
+                    "tipo":                self.ep_tipo,
+                    "potencia_kwp":        float(potencia_raw) if potencia_raw else None,
+                    "prazo_contratual_dias": int(prazo_raw) if prazo_raw else None,
+                    "priority":            self.ep_priority,
+                    "efetivo_planejado":   int(efetivo_raw) if efetivo_raw else None,
+                }
+
+            sb_update("contratos", {"contrato": contrato}, {k: v for k, v in payload.items() if v is not None or k in ("data_inicio", "data_termino")})
+
+            async with self:
+                self.ep_saving = False
+                self.show_edit_projeto = False
+
+            yield GlobalState.load_data()
+
+        except Exception as e:
+            async with self:
+                self.ep_error = f"Erro ao salvar: {str(e)[:100]}"
+                self.ep_saving = False
+
+    @rx.event(background=True)
+    async def delete_projeto(self):
+        async with self:
+            contrato = self.ep_contrato
+            self.ep_deleting = True
+            self.ep_error = ""
+
+        from bomtempo.core.supabase_client import sb_delete
+        try:
+            sb_delete("contratos", {"contrato": contrato})
+            async with self:
+                self.ep_deleting = False
+                self.show_edit_projeto = False
+
+            yield GlobalState.load_data()
+
+        except Exception as e:
+            async with self:
+                self.ep_error = f"Erro ao excluir: {str(e)[:100]}"
+                self.ep_deleting = False
 
     @rx.event(background=True)
     async def save_novo_projeto(self):

@@ -35,7 +35,8 @@
       "Bash(py -c \"import ast; ast.parse\\(open\\(''bomtempo/core/data_loader.py''\\).read\\(\\)\\); print\\(''data_loader OK''\\)\")",
       "Bash(py -c \"import ast; ast.parse\\(open\\(''bomtempo/pages/master_console.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''OK''\\)\")",
       "Bash(py -c \"import ast; ast.parse\\(open\\(''bomtempo/state/action_ai_state.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''OK''\\)\")",
-      "Bash(py -c \"import ast; ast.parse\\(open\\(''bomtempo/state/master_state.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''OK''\\)\")"
+      "Bash(py -c \"import ast; ast.parse\\(open\\(''bomtempo/state/master_state.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''OK''\\)\")",
+      "Bash(py -c \"import ast; ast.parse\\(open\\(''bomtempo/pages/hub_operacoes.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''hub_operacoes OK''\\)\")"
     ]
   }
 }

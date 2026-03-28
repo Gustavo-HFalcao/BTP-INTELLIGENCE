@@ -31,6 +31,8 @@ def hub_pulse_card(item: dict) -> rx.Component:
     avanco = item["progress"].to(float).to(int)
 
     return rx.box(
+        # ── The clickable card ────────────────────────────────────────────────
+        rx.box(
         # ── Top row: contract code + status badge ─────────────────────────────
         rx.hstack(
             rx.text(
@@ -209,6 +211,25 @@ def hub_pulse_card(item: dict) -> rx.Component:
             ),
             "transform": "translateY(-3px)",
         },
+        ),
+        # ── Edit button (absolute, does not bubble to card click) ─────────────
+        rx.box(
+            rx.icon_button(
+                rx.icon(tag="pencil", size=11),
+                size="1",
+                variant="ghost",
+                on_click=GlobalState.open_edit_projeto(item["contrato"]),
+                color=S.TEXT_MUTED,
+                cursor="pointer",
+                _hover={"color": S.COPPER, "background": "rgba(201,139,42,0.1)"},
+            ),
+            position="absolute",
+            top="10px",
+            right="10px",
+            z_index="10",
+        ),
+        position="relative",
+        height="100%",
     )
 
 
@@ -4375,196 +4396,192 @@ def _novo_projeto_dialog() -> rx.Component:
                     width="100%",
                 ),
                 rx.divider(border_color=S.BORDER_SUBTLE),
-                # Row 1: Código do contrato + Tipo
-                rx.flex(
-                    rx.vstack(
-                        rx.text("Código do Contrato *", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
-                        rx.el.input(
-                            value=GlobalState.np_contrato,
-                            on_change=GlobalState.set_np_contrato,
-                            placeholder="Ex: SOL-2026-001",
-                            style={**_INPUT_STYLE, "fontFamily": "var(--font-mono)", "fontWeight": "700", "textTransform": "uppercase"},
-                        ),
-                        spacing="1",
-                        flex="1",
-                    ),
-                    rx.vstack(
-                        rx.text("Tipo", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
-                        rx.select.root(
-                            rx.select.trigger(style=_SELECT_TRIGGER_STYLE),
-                            rx.select.content(
-                                rx.select.item("EPC", value="EPC"),
-                                rx.select.item("O&M", value="O&M"),
-                                rx.select.item("Fornecimento", value="Fornecimento"),
-                                rx.select.item("Consultoria", value="Consultoria"),
-                                bg=S.BG_ELEVATED,
-                                border=f"1px solid {S.BORDER_SUBTLE}",
-                                z_index="9999",
-                                position="popper",
-                            ),
-                            value=GlobalState.np_tipo,
-                            on_change=GlobalState.set_np_tipo,
-                        ),
-                        spacing="1",
-                        flex="1",
-                    ),
-                    gap="12px",
-                    flex_wrap="wrap",
-                    width="100%",
-                ),
-                # Row 2: Nome do projeto + Cliente
-                rx.flex(
-                    rx.vstack(
-                        rx.text("Nome do Projeto *", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
-                        rx.el.input(
-                            value=GlobalState.np_projeto,
-                            on_change=GlobalState.set_np_projeto,
-                            placeholder="Ex: Usina Solar Fazenda Boa Vista",
-                            style=_INPUT_STYLE,
-                        ),
-                        spacing="1",
-                        flex="2",
-                    ),
-                    rx.vstack(
-                        rx.text("Cliente *", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
-                        rx.el.input(
-                            value=GlobalState.np_cliente,
-                            on_change=GlobalState.set_np_cliente,
-                            placeholder="Ex: Agropecuária Silva",
-                            style=_INPUT_STYLE,
-                        ),
-                        spacing="1",
-                        flex="1",
-                    ),
-                    gap="12px",
-                    flex_wrap="wrap",
-                    width="100%",
-                ),
-                # Row 3: Localização (endereço completo → auto-geocoding)
+                # ── Inputs — key força remount ao abrir (fix: typing não perde chars) ──
                 rx.vstack(
-                    rx.hstack(
-                        rx.text("Localização / Endereço", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
-                        rx.text("(lat/lng calculados automaticamente)", font_size="9px", color=S.TEXT_MUTED, opacity="0.6"),
-                        spacing="2",
-                        align="center",
+                    # Row 1: Código do contrato + Tipo
+                    rx.flex(
+                        rx.vstack(
+                            rx.text("Código do Contrato *", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                            rx.el.input(
+                                on_change=GlobalState.set_np_contrato,
+                                placeholder="Ex: SOL-2026-001",
+                                style={**_INPUT_STYLE, "fontFamily": "var(--font-mono)", "fontWeight": "700", "textTransform": "uppercase"},
+                            ),
+                            spacing="1",
+                            flex="1",
+                        ),
+                        rx.vstack(
+                            rx.text("Tipo", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                            rx.select.root(
+                                rx.select.trigger(style=_SELECT_TRIGGER_STYLE),
+                                rx.select.content(
+                                    rx.select.item("EPC", value="EPC"),
+                                    rx.select.item("O&M", value="O&M"),
+                                    rx.select.item("Fornecimento", value="Fornecimento"),
+                                    rx.select.item("Consultoria", value="Consultoria"),
+                                    bg=S.BG_ELEVATED,
+                                    border=f"1px solid {S.BORDER_SUBTLE}",
+                                    z_index="9999",
+                                    position="popper",
+                                ),
+                                value=GlobalState.np_tipo,
+                                on_change=GlobalState.set_np_tipo,
+                            ),
+                            spacing="1",
+                            flex="1",
+                        ),
+                        gap="12px",
+                        flex_wrap="wrap",
+                        width="100%",
                     ),
-                    rx.el.input(
-                        value=GlobalState.np_localizacao,
-                        on_change=GlobalState.set_np_localizacao,
-                        placeholder="Ex: Rua das Palmeiras 100, Petrolina – PE",
-                        style=_INPUT_STYLE,
+                    # Row 2: Nome do projeto + Cliente
+                    rx.flex(
+                        rx.vstack(
+                            rx.text("Nome do Projeto *", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                            rx.el.input(
+                                on_change=GlobalState.set_np_projeto,
+                                placeholder="Ex: Usina Solar Fazenda Boa Vista",
+                                style=_INPUT_STYLE,
+                            ),
+                            spacing="1",
+                            flex="2",
+                        ),
+                        rx.vstack(
+                            rx.text("Cliente *", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                            rx.el.input(
+                                on_change=GlobalState.set_np_cliente,
+                                placeholder="Ex: Agropecuária Silva",
+                                style=_INPUT_STYLE,
+                            ),
+                            spacing="1",
+                            flex="1",
+                        ),
+                        gap="12px",
+                        flex_wrap="wrap",
+                        width="100%",
                     ),
-                    spacing="1",
-                    width="100%",
-                ),
-                # Row 4: Terceirizado + Potência (kWp)
-                rx.flex(
+                    # Row 3: Localização
                     rx.vstack(
-                        rx.text("Terceirizado / Parceiro", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                        rx.hstack(
+                            rx.text("Localização / Endereço", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                            rx.text("(lat/lng calculados automaticamente)", font_size="9px", color=S.TEXT_MUTED, opacity="0.6"),
+                            spacing="2",
+                            align="center",
+                        ),
                         rx.el.input(
-                            value=GlobalState.np_terceirizado,
-                            on_change=GlobalState.set_np_terceirizado,
-                            placeholder="Ex: Construtora ABC Ltda",
+                            on_change=GlobalState.set_np_localizacao,
+                            placeholder="Ex: Rua das Palmeiras 100, Petrolina – PE",
                             style=_INPUT_STYLE,
                         ),
                         spacing="1",
-                        flex="1",
+                        width="100%",
                     ),
-                    rx.vstack(
-                        rx.text("Potência (kWp)", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
-                        rx.el.input(
-                            value=GlobalState.np_potencia_kwp,
-                            on_change=GlobalState.set_np_potencia_kwp,
-                            placeholder="Ex: 142,5",
-                            type="text",
-                            input_mode="decimal",
-                            style={**_INPUT_STYLE, "fontFamily": "var(--font-mono)"},
-                        ),
-                        spacing="1",
-                        flex="1",
-                    ),
-                    gap="12px",
-                    flex_wrap="wrap",
-                    width="100%",
-                ),
-                # Row 5: Data início + Data término
-                rx.flex(
-                    rx.vstack(
-                        rx.text("Data de Início", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
-                        rx.el.input(
-                            value=GlobalState.np_data_inicio,
-                            on_change=GlobalState.set_np_data_inicio,
-                            type="date",
-                            style={**_INPUT_STYLE, "colorScheme": "dark"},
-                        ),
-                        spacing="1",
-                        flex="1",
-                    ),
-                    rx.vstack(
-                        rx.text("Data de Término", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
-                        rx.el.input(
-                            value=GlobalState.np_data_termino,
-                            on_change=GlobalState.set_np_data_termino,
-                            type="date",
-                            style={**_INPUT_STYLE, "colorScheme": "dark"},
-                        ),
-                        spacing="1",
-                        flex="1",
-                    ),
-                    rx.vstack(
-                        rx.text("Prazo Contratual (dias)", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
-                        rx.el.input(
-                            value=GlobalState.np_prazo_dias,
-                            on_change=GlobalState.set_np_prazo_dias,
-                            placeholder="Ex: 90",
-                            type="text",
-                            input_mode="numeric",
-                            style={**_INPUT_STYLE, "fontFamily": "var(--font-mono)"},
-                        ),
-                        spacing="1",
-                        flex="1",
-                    ),
-                    gap="12px",
-                    flex_wrap="wrap",
-                    width="100%",
-                ),
-                # Row 6: Prioridade + Efetivo planejado
-                rx.flex(
-                    rx.vstack(
-                        rx.text("Prioridade", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
-                        rx.select.root(
-                            rx.select.trigger(style=_SELECT_TRIGGER_STYLE),
-                            rx.select.content(
-                                rx.select.item("Alta",   value="Alta"),
-                                rx.select.item("Média",  value="Média"),
-                                rx.select.item("Baixa",  value="Baixa"),
-                                bg=S.BG_ELEVATED,
-                                border=f"1px solid {S.BORDER_SUBTLE}",
-                                z_index="9999",
-                                position="popper",
+                    # Row 4: Terceirizado + Potência
+                    rx.flex(
+                        rx.vstack(
+                            rx.text("Terceirizado / Parceiro", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                            rx.el.input(
+                                on_change=GlobalState.set_np_terceirizado,
+                                placeholder="Ex: Construtora ABC Ltda",
+                                style=_INPUT_STYLE,
                             ),
-                            value=GlobalState.np_priority,
-                            on_change=GlobalState.set_np_priority,
+                            spacing="1",
+                            flex="1",
                         ),
-                        spacing="1",
-                        flex="1",
-                    ),
-                    rx.vstack(
-                        rx.text("Efetivo Planejado (pessoas)", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
-                        rx.el.input(
-                            value=GlobalState.np_efetivo_planejado,
-                            on_change=GlobalState.set_np_efetivo_planejado,
-                            placeholder="Ex: 12",
-                            type="text",
-                            input_mode="numeric",
-                            style={**_INPUT_STYLE, "fontFamily": "var(--font-mono)"},
+                        rx.vstack(
+                            rx.text("Potência (kWp)", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                            rx.el.input(
+                                on_change=GlobalState.set_np_potencia_kwp,
+                                placeholder="Ex: 142,5",
+                                type="text",
+                                input_mode="decimal",
+                                style={**_INPUT_STYLE, "fontFamily": "var(--font-mono)"},
+                            ),
+                            spacing="1",
+                            flex="1",
                         ),
-                        spacing="1",
-                        flex="1",
+                        gap="12px",
+                        flex_wrap="wrap",
+                        width="100%",
                     ),
-                    gap="12px",
-                    flex_wrap="wrap",
+                    # Row 5: Datas + Prazo
+                    rx.flex(
+                        rx.vstack(
+                            rx.text("Data de Início", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                            rx.el.input(
+                                on_change=GlobalState.set_np_data_inicio,
+                                type="date",
+                                style={**_INPUT_STYLE, "colorScheme": "dark"},
+                            ),
+                            spacing="1",
+                            flex="1",
+                        ),
+                        rx.vstack(
+                            rx.text("Data de Término", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                            rx.el.input(
+                                on_change=GlobalState.set_np_data_termino,
+                                type="date",
+                                style={**_INPUT_STYLE, "colorScheme": "dark"},
+                            ),
+                            spacing="1",
+                            flex="1",
+                        ),
+                        rx.vstack(
+                            rx.text("Prazo Contratual (dias)", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                            rx.el.input(
+                                on_change=GlobalState.set_np_prazo_dias,
+                                placeholder="Ex: 90",
+                                type="text",
+                                input_mode="numeric",
+                                style={**_INPUT_STYLE, "fontFamily": "var(--font-mono)"},
+                            ),
+                            spacing="1",
+                            flex="1",
+                        ),
+                        gap="12px",
+                        flex_wrap="wrap",
+                        width="100%",
+                    ),
+                    # Row 6: Prioridade + Efetivo
+                    rx.flex(
+                        rx.vstack(
+                            rx.text("Prioridade", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                            rx.select.root(
+                                rx.select.trigger(style=_SELECT_TRIGGER_STYLE),
+                                rx.select.content(
+                                    rx.select.item("Alta",   value="Alta"),
+                                    rx.select.item("Média",  value="Média"),
+                                    rx.select.item("Baixa",  value="Baixa"),
+                                    bg=S.BG_ELEVATED,
+                                    border=f"1px solid {S.BORDER_SUBTLE}",
+                                    z_index="9999",
+                                    position="popper",
+                                ),
+                                value=GlobalState.np_priority,
+                                on_change=GlobalState.set_np_priority,
+                            ),
+                            spacing="1",
+                            flex="1",
+                        ),
+                        rx.vstack(
+                            rx.text("Efetivo Planejado (pessoas)", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                            rx.el.input(
+                                on_change=GlobalState.set_np_efetivo_planejado,
+                                placeholder="Ex: 12",
+                                type="text",
+                                input_mode="numeric",
+                                style={**_INPUT_STYLE, "fontFamily": "var(--font-mono)"},
+                            ),
+                            spacing="1",
+                            flex="1",
+                        ),
+                        gap="12px",
+                        flex_wrap="wrap",
+                        width="100%",
+                    ),
+                    spacing="4",
                     width="100%",
+                    key=GlobalState.np_form_key.to_string(),
                 ),
                 # Error
                 rx.cond(
@@ -4617,6 +4634,317 @@ def _novo_projeto_dialog() -> rx.Component:
     )
 
 
+def _edit_projeto_dialog() -> rx.Component:
+    """Dialog for editing / deleting an existing project."""
+    return rx.dialog.root(
+        rx.dialog.content(
+            rx.vstack(
+                # Header
+                rx.hstack(
+                    rx.icon(tag="pencil", size=16, color=S.COPPER),
+                    rx.dialog.title(
+                        "EDITAR PROJETO",
+                        font_family=S.FONT_TECH,
+                        font_size="1rem",
+                        font_weight="700",
+                        color="var(--text-main)",
+                        letter_spacing="0.06em",
+                    ),
+                    rx.spacer(),
+                    rx.dialog.close(
+                        rx.icon_button(
+                            rx.icon(tag="x", size=14),
+                            size="1",
+                            variant="ghost",
+                            cursor="pointer",
+                            on_click=GlobalState.close_edit_projeto,
+                        )
+                    ),
+                    align="center",
+                    width="100%",
+                ),
+                # Contract code (read-only label)
+                rx.hstack(
+                    rx.text("Contrato:", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                    rx.text(GlobalState.ep_contrato, font_size="12px", font_weight="700",
+                            color=S.COPPER, font_family=S.FONT_MONO),
+                    spacing="2",
+                    align="center",
+                ),
+                rx.divider(border_color=S.BORDER_SUBTLE),
+                # ── Inputs — key forces remount on each open ──────────────────
+                rx.vstack(
+                    # Row 1: Tipo
+                    rx.vstack(
+                        rx.text("Tipo", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                        rx.select.root(
+                            rx.select.trigger(style=_SELECT_TRIGGER_STYLE),
+                            rx.select.content(
+                                rx.select.item("EPC", value="EPC"),
+                                rx.select.item("O&M", value="O&M"),
+                                rx.select.item("Fornecimento", value="Fornecimento"),
+                                rx.select.item("Consultoria", value="Consultoria"),
+                                bg=S.BG_ELEVATED,
+                                border=f"1px solid {S.BORDER_SUBTLE}",
+                                z_index="9999",
+                                position="popper",
+                            ),
+                            value=GlobalState.ep_tipo,
+                            on_change=GlobalState.set_ep_tipo,
+                        ),
+                        spacing="1",
+                        width="100%",
+                    ),
+                    # Row 2: Nome do projeto + Cliente
+                    rx.flex(
+                        rx.vstack(
+                            rx.text("Nome do Projeto *", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                            rx.el.input(
+                                default_value=GlobalState.ep_projeto,
+                                on_change=GlobalState.set_ep_projeto,
+                                placeholder="Ex: Usina Solar Fazenda Boa Vista",
+                                style=_INPUT_STYLE,
+                            ),
+                            spacing="1",
+                            flex="2",
+                        ),
+                        rx.vstack(
+                            rx.text("Cliente *", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                            rx.el.input(
+                                default_value=GlobalState.ep_cliente,
+                                on_change=GlobalState.set_ep_cliente,
+                                placeholder="Ex: Agropecuária Silva",
+                                style=_INPUT_STYLE,
+                            ),
+                            spacing="1",
+                            flex="1",
+                        ),
+                        gap="12px",
+                        flex_wrap="wrap",
+                        width="100%",
+                    ),
+                    # Row 3: Localização
+                    rx.vstack(
+                        rx.text("Localização / Endereço", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                        rx.el.input(
+                            default_value=GlobalState.ep_localizacao,
+                            on_change=GlobalState.set_ep_localizacao,
+                            placeholder="Ex: Rua das Palmeiras 100, Petrolina – PE",
+                            style=_INPUT_STYLE,
+                        ),
+                        spacing="1",
+                        width="100%",
+                    ),
+                    # Row 4: Terceirizado + Potência
+                    rx.flex(
+                        rx.vstack(
+                            rx.text("Terceirizado / Parceiro", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                            rx.el.input(
+                                default_value=GlobalState.ep_terceirizado,
+                                on_change=GlobalState.set_ep_terceirizado,
+                                placeholder="Ex: Construtora ABC Ltda",
+                                style=_INPUT_STYLE,
+                            ),
+                            spacing="1",
+                            flex="1",
+                        ),
+                        rx.vstack(
+                            rx.text("Potência (kWp)", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                            rx.el.input(
+                                default_value=GlobalState.ep_potencia_kwp,
+                                on_change=GlobalState.set_ep_potencia_kwp,
+                                placeholder="Ex: 142,5",
+                                type="text",
+                                input_mode="decimal",
+                                style={**_INPUT_STYLE, "fontFamily": "var(--font-mono)"},
+                            ),
+                            spacing="1",
+                            flex="1",
+                        ),
+                        gap="12px",
+                        flex_wrap="wrap",
+                        width="100%",
+                    ),
+                    # Row 5: Datas + Prazo
+                    rx.flex(
+                        rx.vstack(
+                            rx.text("Data de Início", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                            rx.el.input(
+                                default_value=GlobalState.ep_data_inicio,
+                                on_change=GlobalState.set_ep_data_inicio,
+                                type="date",
+                                style={**_INPUT_STYLE, "colorScheme": "dark"},
+                            ),
+                            spacing="1",
+                            flex="1",
+                        ),
+                        rx.vstack(
+                            rx.text("Data de Término", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                            rx.el.input(
+                                default_value=GlobalState.ep_data_termino,
+                                on_change=GlobalState.set_ep_data_termino,
+                                type="date",
+                                style={**_INPUT_STYLE, "colorScheme": "dark"},
+                            ),
+                            spacing="1",
+                            flex="1",
+                        ),
+                        rx.vstack(
+                            rx.text("Prazo Contratual (dias)", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                            rx.el.input(
+                                default_value=GlobalState.ep_prazo_dias,
+                                on_change=GlobalState.set_ep_prazo_dias,
+                                placeholder="Ex: 90",
+                                type="text",
+                                input_mode="numeric",
+                                style={**_INPUT_STYLE, "fontFamily": "var(--font-mono)"},
+                            ),
+                            spacing="1",
+                            flex="1",
+                        ),
+                        gap="12px",
+                        flex_wrap="wrap",
+                        width="100%",
+                    ),
+                    # Row 6: Prioridade + Efetivo
+                    rx.flex(
+                        rx.vstack(
+                            rx.text("Prioridade", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                            rx.select.root(
+                                rx.select.trigger(style=_SELECT_TRIGGER_STYLE),
+                                rx.select.content(
+                                    rx.select.item("Alta",  value="Alta"),
+                                    rx.select.item("Média", value="Média"),
+                                    rx.select.item("Baixa", value="Baixa"),
+                                    bg=S.BG_ELEVATED,
+                                    border=f"1px solid {S.BORDER_SUBTLE}",
+                                    z_index="9999",
+                                    position="popper",
+                                ),
+                                value=GlobalState.ep_priority,
+                                on_change=GlobalState.set_ep_priority,
+                            ),
+                            spacing="1",
+                            flex="1",
+                        ),
+                        rx.vstack(
+                            rx.text("Efetivo Planejado (pessoas)", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                            rx.el.input(
+                                default_value=GlobalState.ep_efetivo_planejado,
+                                on_change=GlobalState.set_ep_efetivo_planejado,
+                                placeholder="Ex: 12",
+                                type="text",
+                                input_mode="numeric",
+                                style={**_INPUT_STYLE, "fontFamily": "var(--font-mono)"},
+                            ),
+                            spacing="1",
+                            flex="1",
+                        ),
+                        gap="12px",
+                        flex_wrap="wrap",
+                        width="100%",
+                    ),
+                    spacing="4",
+                    width="100%",
+                    key=GlobalState.ep_form_key.to_string(),
+                ),
+                # Error
+                rx.cond(
+                    GlobalState.ep_error != "",
+                    rx.text(GlobalState.ep_error, font_size="12px", color=S.DANGER),
+                ),
+                rx.divider(border_color=S.BORDER_SUBTLE),
+                # ── Actions row: delete (left) + save (right) ─────────────────
+                rx.hstack(
+                    # Delete section
+                    rx.cond(
+                        GlobalState.ep_confirm_delete,
+                        # Confirmation state
+                        rx.hstack(
+                            rx.text("Confirmar exclusão?", font_size="12px", color=S.DANGER, font_family=S.FONT_MONO),
+                            rx.button(
+                                rx.cond(
+                                    GlobalState.ep_deleting,
+                                    rx.spinner(size="2"),
+                                    rx.text("Sim, excluir"),
+                                ),
+                                on_click=GlobalState.delete_projeto,
+                                size="2",
+                                disabled=GlobalState.ep_deleting,
+                                style={
+                                    "background": S.DANGER,
+                                    "color": "#fff",
+                                    "fontFamily": S.FONT_TECH,
+                                    "fontWeight": "700",
+                                    "cursor": "pointer",
+                                },
+                            ),
+                            rx.button(
+                                "Cancelar",
+                                variant="ghost",
+                                size="2",
+                                cursor="pointer",
+                                on_click=GlobalState.toggle_ep_confirm_delete,
+                            ),
+                            spacing="2",
+                            align="center",
+                        ),
+                        # Normal state — show delete button
+                        rx.icon_button(
+                            rx.icon(tag="trash-2", size=14),
+                            size="2",
+                            variant="ghost",
+                            on_click=GlobalState.toggle_ep_confirm_delete,
+                            cursor="pointer",
+                            color=S.DANGER,
+                            _hover={"background": "rgba(239,68,68,0.1)"},
+                        ),
+                    ),
+                    rx.spacer(),
+                    rx.dialog.close(
+                        rx.button(
+                            "Cancelar",
+                            variant="ghost",
+                            size="2",
+                            cursor="pointer",
+                            on_click=GlobalState.close_edit_projeto,
+                        )
+                    ),
+                    rx.button(
+                        rx.cond(
+                            GlobalState.ep_saving,
+                            rx.spinner(size="2"),
+                            rx.hstack(rx.icon(tag="save", size=13), rx.text("Salvar"), spacing="1"),
+                        ),
+                        on_click=GlobalState.save_edit_projeto,
+                        size="2",
+                        disabled=GlobalState.ep_saving,
+                        style={
+                            "background": S.COPPER,
+                            "color": S.BG_VOID,
+                            "fontFamily": S.FONT_TECH,
+                            "fontWeight": "700",
+                            "cursor": "pointer",
+                        },
+                    ),
+                    justify="start",
+                    spacing="2",
+                    width="100%",
+                ),
+                spacing="4",
+                width="100%",
+            ),
+            bg=S.BG_ELEVATED,
+            border=f"1px solid {S.BORDER_SUBTLE}",
+            border_radius=S.R_CARD,
+            max_width="640px",
+            width="95vw",
+        ),
+        open=GlobalState.show_edit_projeto,
+        on_open_change=GlobalState.set_show_edit_projeto,
+    )
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # MAIN PAGE
 # ══════════════════════════════════════════════════════════════════════════════
@@ -4630,6 +4958,7 @@ def hub_operacoes_page() -> rx.Component:
     return rx.box(
         _duplicar_projeto_dialog(),
         _novo_projeto_dialog(),
+        _edit_projeto_dialog(),
         rx.cond(
             GlobalState.is_loading,
             page_loading_skeleton(),
