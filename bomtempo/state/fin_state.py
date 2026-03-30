@@ -359,6 +359,12 @@ class FinState(rx.State):
         except Exception:
             username = ""
 
+        if not client_id:
+            async with self:
+                self.fin_error = "Erro: tenant não identificado. Faça logout e login novamente."
+                self.fin_saving = False
+            return
+
         # Resolve/create categoria if needed
         if cat_nome.strip() and not cat_id:
             cat_id, cat_nome = FinService.get_or_create_categoria(cat_nome)

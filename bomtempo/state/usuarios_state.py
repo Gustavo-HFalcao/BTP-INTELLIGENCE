@@ -29,7 +29,6 @@ MODULES: List[tuple] = [
     ("rdo_form",          "RDO Diário",        "clipboard-list"),
     ("rdo_historico",     "Meus RDOs",         "clock"),
     ("rdo_dashboard",     "RDO Analytics",     "chart-bar"),
-    ("editar_dados",      "Editar Dados",      "database"),
     ("alertas",           "Alertas",           "bell-ring"),
     ("logs_auditoria",    "Logs & Auditoria",  "shield-check"),
     ("gerenciar_usuarios","Gerenciar Usuários","users"),
@@ -373,6 +372,7 @@ class UsuariosState(rx.State):
                 data: Dict[str, Any] = {
                     "username": username,
                     "user_role": self.edit_user_role,
+                    "project": self.edit_user_project.strip(),
                     "email": self.edit_user_email.strip(),
                     "whatsapp": self.edit_user_whatsapp.strip(),
                 }
@@ -409,6 +409,7 @@ class UsuariosState(rx.State):
                     "username": username,
                     "password": hash_password(password),
                     "user_role": self.edit_user_role,
+                    "project": self.edit_user_project.strip(),
                     "email": self.edit_user_email.strip(),
                     "whatsapp": self.edit_user_whatsapp.strip(),
                     "client_id": target_client_id,

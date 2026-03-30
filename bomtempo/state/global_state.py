@@ -456,6 +456,7 @@ class GlobalState(rx.State):
     obras_selected_contract: str = ""
     obra_insight_text: str = ""
     obra_insight_loading: bool = False
+    obra_insight_generated_at: str = ""   # ISO timestamp of last cached insight
     obras_navigating: bool = False   # True while transitioning list→detail or back
 
     # ── Unified Gestão de Projetos Hub ──────────────────────────
@@ -1813,8 +1814,6 @@ class GlobalState(rx.State):
                 yield rx.redirect("/reembolso")
             elif role == "engenheiro":
                 yield rx.redirect("/projetos")
-            elif role == "data_edit":
-                yield rx.redirect("/admin/editar_dados")
             else:
                 # Smart fallback: roles criados por tenants podem ter módulos específicos
                 _mods = self.allowed_modules
@@ -1854,9 +1853,6 @@ class GlobalState(rx.State):
             return
         if self.current_user_role == "solicitacao_reembolso":
             yield rx.redirect("/reembolso")
-            return
-        if self.current_user_role == "data_edit":
-            yield rx.redirect("/admin/editar_dados")
             return
         yield GlobalState.load_data
 
@@ -3720,6 +3716,7 @@ class GlobalState(rx.State):
             self.projetos_fase_filter = ""
             self.obra_insight_text = ""
             self.obra_insight_loading = True
+            self.obra_insight_generated_at = ""
             self.weather_loading = True
             self.weather_data = {}
             self.project_campo_rdos = []
@@ -3743,6 +3740,7 @@ class GlobalState(rx.State):
             self.obras_selected_contract = ""
             self.obra_insight_text = ""
             self.obra_insight_loading = False
+            self.obra_insight_generated_at = ""
             self.project_hub_tab = "visao_geral"
             self.project_campo_rdos = []
             self.project_campo_loading = False
@@ -3826,10 +3824,10 @@ class GlobalState(rx.State):
             self.obras_selected_contract = label
             self.obra_insight_text = ""
             self.obra_insight_loading = True
+            self.obra_insight_generated_at = ""
             # Pre-set weather loading so the widget shows immediately
             self.weather_loading = True
             self.weather_data = {}
-            # Dispatch both background tasks in the same block → start in parallel
             yield GlobalState.load_weather_data
             yield GlobalState.generate_obra_insight_bg
 
@@ -3840,18 +3838,50 @@ class GlobalState(rx.State):
             self.obras_selected_contract = ""
             self.obra_insight_text = ""
             self.obra_insight_loading = False
+            self.obra_insight_generated_at = ""
 
     @rx.event(background=True)
     async def generate_obra_insight_bg(self):
-        """Background fire-and-forget AI insight for the selected obra."""
-        import threading
+        """Background fire-and-forget AI insight for the selected obra.
+        Caches result in hub_intelligence for 24h — no unnecessary AI calls."""
+        from bomtempo.core.supabase_client import sb_select, sb_insert, sb_update
 
         async with self:
             data = dict(self.obra_enterprise_data)
             disciplines = list(self.disciplina_progress_chart)
-            selected = self.obras_selected_contract
+            selected = self.obras_selected_contract or self.selected_project
+            client_id = str(self.current_client_id or "")
 
-        if not data or not selected:
+        if not selected:
+            async with self:
+                self.obra_insight_loading = False
+            return
+
+        # ── Check 24h cache ──────────────────────────────────────────────────
+        try:
+            cached = sb_select("hub_intelligence", filters={"contrato": selected, "insight_type": "obra_insight"}, limit=1)
+            if cached:
+                row = cached[0]
+                gen_at_str = str(row.get("generated_at") or "")
+                if gen_at_str:
+                    from datetime import timezone as _tz
+                    gen_dt = datetime.fromisoformat(gen_at_str.replace("Z", "+00:00"))
+                    age_h = (datetime.now(_tz.utc) - gen_dt).total_seconds() / 3600
+                    if age_h < 24:
+                        cached_text = str(row.get("insight_text") or "")
+                        cached_label = gen_dt.astimezone(
+                            timezone(timedelta(hours=-3))
+                        ).strftime("%d/%m %H:%M")
+                        if cached_text:
+                            async with self:
+                                self.obra_insight_text = cached_text
+                                self.obra_insight_generated_at = cached_label
+                                self.obra_insight_loading = False
+                            return
+        except Exception:
+            pass  # cache miss → generate fresh
+
+        if not data:
             async with self:
                 self.obra_insight_loading = False
             return
@@ -3934,9 +3964,49 @@ class GlobalState(rx.State):
         loop = _asyncio.get_running_loop()
         ai_text = await loop.run_in_executor(None, run_ai)
 
+        # Persist to cache
+        now_utc = datetime.now(timezone(timedelta(hours=0))).isoformat()
+        now_brt_label = datetime.now(timezone(timedelta(hours=-3))).strftime("%d/%m %H:%M")
+        try:
+            existing = sb_select("hub_intelligence", filters={"contrato": selected, "insight_type": "obra_insight"}, limit=1)
+            record = {
+                "contrato": selected,
+                "client_id": client_id or None,
+                "insight_type": "obra_insight",
+                "insight_text": ai_text or "",
+                "generated_at": now_utc,
+            }
+            if existing:
+                sb_update("hub_intelligence", {"id": existing[0]["id"]}, record)
+            else:
+                sb_insert("hub_intelligence", record)
+        except Exception:
+            pass
+
         async with self:
             self.obra_insight_text = ai_text or "Análise em processamento..."
+            self.obra_insight_generated_at = now_brt_label
             self.obra_insight_loading = False
+
+    @rx.event(background=True)
+    async def force_refresh_insight(self):
+        """Force regenerate the AI insight, bypassing the 24h cache."""
+        from bomtempo.core.supabase_client import sb_select, sb_update, sb_delete
+        async with self:
+            selected = self.obras_selected_contract or self.selected_project
+            self.obra_insight_loading = True
+            self.obra_insight_text = ""
+            self.obra_insight_generated_at = ""
+        # Invalidate cache entry so generate_obra_insight_bg skips the cache check
+        try:
+            existing = sb_select("hub_intelligence", filters={"contrato": selected, "insight_type": "obra_insight"}, limit=1)
+            if existing:
+                # Set generated_at to 2 days ago to force cache miss
+                old_ts = (datetime.now(timezone(timedelta(hours=0))) - timedelta(hours=25)).isoformat()
+                sb_update("hub_intelligence", {"id": existing[0]["id"]}, {"generated_at": old_ts})
+        except Exception:
+            pass
+        yield GlobalState.generate_obra_insight_bg
 
     async def select_obra_and_load_weather(self, value: str):
         """Sets the selected contract and reloads weather data."""

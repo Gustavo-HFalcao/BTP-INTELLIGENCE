@@ -125,6 +125,7 @@ class HubState(rx.State):
     # Inline edit dialog
     cron_show_dialog: bool = False
     cron_edit_id: str = ""          # empty = new
+    cron_pending_review_id: str = ""  # set when opening dialog for pending approval
     cron_edit_atividade: str = ""
     cron_edit_fase_macro: str = ""
     cron_edit_fase: str = ""
@@ -622,11 +623,19 @@ class HubState(rx.State):
         self.cron_error = ""
         self.cron_show_dialog = True
 
+    def open_pending_review(self, row_id: str):
+        """Open the edit dialog pre-filled for a pending-approval activity."""
+        self.open_cron_edit(row_id)
+        self.cron_pending_review_id = row_id
+
     def close_cron_dialog(self):
         self.cron_show_dialog = False
+        self.cron_pending_review_id = ""
 
     def set_cron_show_dialog(self, v: bool):
         self.cron_show_dialog = v
+        if not v:
+            self.cron_pending_review_id = ""
 
     def set_cron_edit_atividade(self, v: str): self.cron_edit_atividade = v
     def set_cron_edit_fase_macro(self, v: str): self.cron_edit_fase_macro = v
@@ -672,6 +681,7 @@ class HubState(rx.State):
         edit_nivel = "macro"
         edit_parent_id = ""
         edit_peso = 100
+        pending_review_id = ""
 
         async with self:
             if not self.cron_edit_atividade.strip():
@@ -682,6 +692,7 @@ class HubState(rx.State):
             contrato = self.cron_rows[0].get("contrato", "") if self.cron_rows else ""
             atividade_nome = self.cron_edit_atividade.strip()
             edit_id = self.cron_edit_id
+            pending_review_id = self.cron_pending_review_id
             edit_fase_macro = self.cron_edit_fase_macro.strip()
             edit_fase = self.cron_edit_fase.strip()
             edit_responsavel = self.cron_edit_responsavel.strip()
@@ -720,8 +731,10 @@ class HubState(rx.State):
             }
 
             if edit_id:
+                if pending_review_id:
+                    data["pendente_aprovacao"] = False
                 sb_update("hub_atividades", filters={"id": edit_id}, data=data)
-                action = f"Atividade '{atividade_nome}' atualizada"
+                action = f"Atividade '{atividade_nome}' {'aprovada' if pending_review_id else 'atualizada'}"
             else:
                 sb_insert("hub_atividades", data)
                 action = f"Atividade '{atividade_nome}' criada"
@@ -746,6 +759,7 @@ class HubState(rx.State):
         async with self:
             self.cron_show_dialog = False
             self.cron_saving = False
+            self.cron_pending_review_id = ""
 
         yield HubState.load_cronograma(contrato)
 
@@ -902,9 +916,13 @@ class HubState(rx.State):
                 status, text = result_queue.get()
                 async with self:
                     self.cron_climate_analysis = text if status == "ok" else f"Erro na análise: {text[:200]}"
+                if status == "ok":
+                    yield rx.toast.success("Análise climática concluída — veja o resultado abaixo.", duration=5000)
+                    yield rx.call_script("document.getElementById('climate-analysis-panel')?.scrollIntoView({behavior:'smooth',block:'start'})")
             else:
                 async with self:
                     self.cron_climate_analysis = "Tempo esgotado ao consultar IA. Tente novamente."
+                yield rx.toast.warning("Análise climática: tempo esgotado.", duration=4000)
 
         except Exception as e:
             logger.error(f"analyze_climate_impact error: {e}")

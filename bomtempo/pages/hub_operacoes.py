@@ -547,6 +547,7 @@ def _hub_navbar() -> rx.Component:
                     cursor="pointer",
                     border_radius="4px",
                     size="2",
+                    flex_shrink="0",
                 ),
                 rx.vstack(
                     rx.text(
@@ -571,7 +572,7 @@ def _hub_navbar() -> rx.Component:
                 spacing="3",
                 align="center",
             ),
-            # Tab strip — wrapped in overflow box so all 6 tabs are always reachable
+            # Tab strip — horizontal scroll on all screen sizes
             rx.box(
                 rx.hstack(
                     _tab("Visão Geral",  "visao_geral",  "layout-dashboard"),
@@ -585,8 +586,7 @@ def _hub_navbar() -> rx.Component:
                     flex_shrink="0",
                 ),
                 overflow_x="auto",
-                display=rx.breakpoints(initial="none", md="block"),
-                # Subtle fade at left edge when scrolled
+                # Subtle fade at right edge when scrollable
                 _after={
                     "content": "''",
                     "position": "absolute",
@@ -597,13 +597,18 @@ def _hub_navbar() -> rx.Component:
                     "pointerEvents": "none",
                 },
                 position="relative",
+                style={"scrollbar-width": "none", "-ms-overflow-style": "none"},
+                class_name="hide-scrollbar",
+                flex="1",
+                min_width="0",
             ),
             width="100%",
             justify="between",
             align="end",
-            gap="16px",
+            gap="12px",
+            flex_wrap="wrap",
         ),
-        padding="14px 28px",
+        padding="14px 20px",
         background="rgba(14,26,23,0.7)",
         backdrop_filter="blur(24px)",
         border="1px solid rgba(255,255,255,0.06)",
@@ -800,29 +805,25 @@ def _vg_ai_feed() -> rx.Component:
                     align="center",
                 ),
                 rx.spacer(),
-                # LIVE badge
-                rx.hstack(
-                    rx.box(
-                        width="7px",
-                        height="7px",
-                        border_radius="50%",
-                        bg="#22c55e",
-                        class_name="animate-pulse",
+                # Cache badge — shows time or loading state
+                rx.cond(
+                    GlobalState.obra_insight_loading,
+                    rx.hstack(
+                        rx.spinner(size="1", color=S.COPPER),
+                        rx.text("analisando...", font_size="9px", color=S.COPPER, font_family=S.FONT_MONO),
+                        spacing="1", align="center",
+                        padding="3px 8px", border_radius="4px",
+                        bg=S.COPPER_GLOW, border=f"1px solid {S.BORDER_ACCENT}",
                     ),
-                    rx.text(
-                        "LIVE",
-                        font_size="9px",
-                        font_weight="700",
-                        color="#22c55e",
-                        font_family=S.FONT_MONO,
-                        letter_spacing="0.1em",
+                    rx.cond(
+                        GlobalState.obra_insight_generated_at != "",
+                        rx.hstack(
+                            rx.icon(tag="clock", size=10, color=S.TEXT_MUTED),
+                            rx.text(GlobalState.obra_insight_generated_at, font_size="9px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                            spacing="1", align="center",
+                        ),
+                        rx.fragment(),
                     ),
-                    padding="3px 8px",
-                    border_radius="4px",
-                    bg="rgba(34,197,94,0.1)",
-                    border="1px solid rgba(34,197,94,0.25)",
-                    spacing="1",
-                    align="center",
                 ),
                 width="100%",
                 align="center",
@@ -887,11 +888,13 @@ def _vg_ai_feed() -> rx.Component:
                                 text_transform="uppercase",
                             ),
                             rx.spacer(),
-                            rx.text(
-                                "agora",
-                                font_size="9px",
-                                color=S.TEXT_MUTED,
-                                font_family=S.FONT_MONO,
+                            rx.icon_button(
+                                rx.icon(tag="refresh-cw", size=11),
+                                size="1", variant="ghost",
+                                color=S.TEXT_MUTED, cursor="pointer",
+                                on_click=GlobalState.force_refresh_insight,
+                                _hover={"color": S.COPPER},
+                                title="Forçar nova análise",
                             ),
                             width="100%",
                             align="center",
@@ -1409,33 +1412,32 @@ def _tab_visao_geral() -> rx.Component:
                     ),
                     # AI footer strip
                     rx.cond(
-                        GlobalState.obra_insight_text != "",
+                        GlobalState.obra_insight_loading,
                         rx.hstack(
-                            rx.center(
-                                rx.icon(tag="brain-circuit", size=11, color=S.COPPER),
-                                width="20px",
-                                height="20px",
-                                bg=S.COPPER_GLOW,
-                                border_radius="50%",
-                                flex_shrink="0",
+                            rx.spinner(size="1", color=S.COPPER),
+                            rx.text("IA analisando projeto...", font_size="11px", color=S.TEXT_MUTED, font_style="italic"),
+                            padding="8px 12px", border_radius=S.R_CONTROL,
+                            bg="rgba(201,139,42,0.03)", border=f"1px solid {S.BORDER_ACCENT}",
+                            width="100%", align="center", spacing="2", margin_top="10px",
+                        ),
+                        rx.cond(
+                            GlobalState.obra_insight_text != "",
+                            rx.hstack(
+                                rx.center(
+                                    rx.icon(tag="brain-circuit", size=11, color=S.COPPER),
+                                    width="20px", height="20px",
+                                    bg=S.COPPER_GLOW, border_radius="50%", flex_shrink="0",
+                                ),
+                                rx.text(
+                                    GlobalState.obra_insight_text,
+                                    font_size="11px", color=S.TEXT_MUTED,
+                                    line_height="1.5", overflow="hidden",
+                                    white_space="nowrap", text_overflow="ellipsis",
+                                ),
+                                padding="8px 12px", border_radius=S.R_CONTROL,
+                                bg="rgba(201,139,42,0.03)", border=f"1px solid {S.BORDER_ACCENT}",
+                                width="100%", align="center", spacing="2", margin_top="10px",
                             ),
-                            rx.text(
-                                GlobalState.obra_insight_text,
-                                font_size="11px",
-                                color=S.TEXT_MUTED,
-                                line_height="1.5",
-                                overflow="hidden",
-                                white_space="nowrap",
-                                text_overflow="ellipsis",
-                            ),
-                            padding="8px 12px",
-                            border_radius=S.R_CONTROL,
-                            bg="rgba(201,139,42,0.03)",
-                            border=f"1px solid {S.BORDER_ACCENT}",
-                            width="100%",
-                            align="center",
-                            spacing="2",
-                            margin_top="10px",
                         ),
                     ),
                     width="100%",
@@ -2231,9 +2233,21 @@ def _cron_edit_dialog() -> rx.Component:
         rx.dialog.content(
             rx.vstack(
                 rx.hstack(
-                    rx.icon(tag=rx.cond(HubState.cron_edit_id == "", "circle-plus", "pencil"), size=16, color=S.COPPER),
+                    rx.icon(
+                        tag=rx.cond(HubState.cron_edit_id == "", "circle-plus", rx.cond(HubState.cron_pending_review_id != "", "clipboard-pen", "pencil")),
+                        size=16,
+                        color=rx.cond(HubState.cron_pending_review_id != "", "#E89845", S.COPPER),
+                    ),
                     rx.dialog.title(
-                        rx.cond(HubState.cron_edit_id == "", "Nova Atividade", "Editar Atividade"),
+                        rx.cond(
+                            HubState.cron_pending_review_id != "",
+                            rx.hstack(
+                                rx.text("Revisar Atividade", font_family=S.FONT_TECH, font_size="1rem", font_weight="700", color="var(--text-main)"),
+                                rx.box("APROVAÇÃO PENDENTE", padding="2px 6px", background="rgba(232,152,69,0.15)", color="#E89845", font_size="9px", font_family=S.FONT_MONO, border="1px solid rgba(232,152,69,0.4)", border_radius="3px", letter_spacing="0.05em"),
+                                spacing="2", align="center",
+                            ),
+                            rx.cond(HubState.cron_edit_id == "", "Nova Atividade", "Editar Atividade"),
+                        ),
                         font_family=S.FONT_TECH, font_size="1rem", font_weight="700", color="var(--text-main)",
                     ),
                     rx.spacer(),
@@ -2392,9 +2406,21 @@ def _cron_edit_dialog() -> rx.Component:
                 rx.hstack(
                     rx.dialog.close(rx.button("Cancelar", variant="ghost", size="2", color=S.TEXT_MUTED, cursor="pointer", on_click=HubState.close_cron_dialog)),
                     rx.button(
-                        rx.cond(HubState.cron_saving, rx.spinner(size="2"), rx.hstack(rx.icon(tag="save", size=13), rx.text("Salvar"), spacing="1", align="center")),
+                        rx.cond(
+                            HubState.cron_saving,
+                            rx.spinner(size="2"),
+                            rx.cond(
+                                HubState.cron_pending_review_id != "",
+                                rx.hstack(rx.icon(tag="check-circle", size=13), rx.text("Aprovar"), spacing="1", align="center"),
+                                rx.hstack(rx.icon(tag="save", size=13), rx.text("Salvar"), spacing="1", align="center"),
+                            ),
+                        ),
                         on_click=HubState.save_cron_activity, size="2", disabled=HubState.cron_saving,
-                        style={"background": S.COPPER, "color": S.BG_VOID, "fontFamily": S.FONT_TECH, "fontWeight": "700", "cursor": "pointer"},
+                        style=rx.cond(
+                            HubState.cron_pending_review_id != "",
+                            {"background": "#22c55e", "color": "white", "fontFamily": S.FONT_TECH, "fontWeight": "700", "cursor": "pointer"},
+                            {"background": S.COPPER, "color": S.BG_VOID, "fontFamily": S.FONT_TECH, "fontWeight": "700", "cursor": "pointer"},
+                        ),
                     ),
                     justify="end", spacing="2", width="100%", padding_top="8px",
                 ),
@@ -2670,6 +2696,7 @@ def _climate_analysis_panel() -> rx.Component:
         padding="16px 20px", border_radius=S.R_CARD,
         border=f"1px solid rgba(42,157,143,0.2)", bg="rgba(42,157,143,0.04)",
         width="100%",
+        id="climate-analysis-panel",
     )
 
 
@@ -2751,22 +2778,25 @@ def _tab_cronograma() -> rx.Component:
                                 rx.text(row["atividade"], font_size="12px", font_weight="600", color="white", font_family=S.FONT_TECH),
                                 rx.text(row["responsavel"] + " · " + row["fase_macro"], font_size="10px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                                 spacing="0",
+                                flex="1",
+                                min_width="0",
                             ),
                             rx.spacer(),
                             rx.hstack(
                                 rx.button(
-                                    rx.hstack(rx.icon(tag="check", size=11), rx.text("Aprovar"), spacing="1"),
-                                    on_click=HubState.approve_pending_activity(row["id"]),
-                                    size="1", style={"background": "#22c55e", "color": "white", "cursor": "pointer"},
+                                    rx.hstack(rx.icon(tag="clipboard-pen", size=11), rx.text("Revisar"), spacing="1"),
+                                    on_click=HubState.open_pending_review(row["id"]),
+                                    size="1", style={"background": "#E89845", "color": "#0e1a17", "cursor": "pointer", "fontWeight": "700"},
                                     disabled=HubState.cron_approve_loading,
                                 ),
                                 rx.button(
-                                    rx.hstack(rx.icon(tag="x", size=11), rx.text("Rejeitar"), spacing="1"),
+                                    rx.hstack(rx.icon(tag="x", size=11), rx.text("Reprovar"), spacing="1"),
                                     on_click=HubState.reject_pending_activity(row["id"]),
                                     size="1", variant="ghost", style={"color": S.DANGER, "cursor": "pointer", "border": f"1px solid {S.DANGER}"},
                                     disabled=HubState.cron_approve_loading,
                                 ),
                                 spacing="2",
+                                flex_shrink="0",
                             ),
                             padding="8px 12px", border_radius=S.R_CONTROL,
                             bg="rgba(232,152,69,0.05)", border="1px solid rgba(232,152,69,0.2)",
@@ -2909,7 +2939,8 @@ def _audit_lightbox() -> rx.Component:
                 bg="rgba(10,18,16,0.97)", border=f"1px solid {S.BORDER_SUBTLE}", border_radius=S.R_CARD,
             ),
             position="fixed", inset="0", bg="rgba(0,0,0,0.85)", display="flex",
-            align_items="center", justify_content="center", z_index="9999",
+            align_items="center", justify_content="center", z_index="99999",
+            padding_top="64px",
             on_click=HubState.close_lightbox,
         ),
     )

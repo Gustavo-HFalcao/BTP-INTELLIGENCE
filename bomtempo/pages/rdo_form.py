@@ -422,7 +422,14 @@ def _section_header_info() -> rx.Component:
                 _select(RDOState.rdo_turno, RDOState.set_rdo_turno, RDOState.turno_options),
                 spacing="1",
             ),
-            columns={"initial": "1", "sm": "3"},
+            # Equipe alocada
+            rx.vstack(
+                _label("Equipe (pessoas no dia)"),
+                _input(RDOState.rdo_equipe_alocada, RDOState.set_rdo_equipe_alocada,
+                       placeholder="Ex: 8", type_="number", blur_mode=False),
+                spacing="1",
+            ),
+            columns={"initial": "1", "sm": "4"},
             gap="12px",
             width="100%",
         ),

@@ -115,7 +115,8 @@ def sidebar_content() -> rx.Component:
                 rx.image(
                     src="/banner.png",
                     width="100%",
-                    height="100%",
+                    height="auto",
+                    max_height="52px",
                     object_fit="contain",
                     object_position="left center",
                     class_name="sidebar-logo-img",
@@ -229,10 +230,6 @@ def sidebar_content() -> rx.Component:
                 rx.cond(
                     GlobalState.allowed_modules.contains("gerenciar_usuarios"),
                     sidebar_item("FEATURE FLAGS", "toggle-right", "/admin/contract-features"),
-                ),
-                rx.cond(
-                    GlobalState.allowed_modules.contains("editar_dados"),
-                    sidebar_item("EDITAR DADOS", "database", "/admin/editar_dados"),
                 ),
                 rx.cond(
                     GlobalState.allowed_modules.contains("gerenciar_usuarios"),

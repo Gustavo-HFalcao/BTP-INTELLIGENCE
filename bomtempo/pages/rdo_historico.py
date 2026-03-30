@@ -10,6 +10,7 @@ from typing import Any, Dict, List
 import reflex as rx
 
 from bomtempo.state.global_state import GlobalState
+from bomtempo.state.rdo_state import RDOState
 from bomtempo.core.rdo_service import RDOService
 from bomtempo.core.logging_utils import get_logger
 
@@ -213,6 +214,8 @@ class RDOHistoricoState(rx.State):
         async with self:
             if ok:
                 self.rdos_list = [r for r in self.rdos_list if r.get("id_rdo") != id_rdo]
+                # Limpa o RDOState para que o formulário não retome este rascunho excluído
+                yield RDOState.reset_for_new
                 yield rx.toast("🗑️ Rascunho excluído.", position="top-center")
             else:
                 yield rx.toast("❌ Falha ao excluir rascunho.", position="top-center")
@@ -445,7 +448,7 @@ def rdo_historico_page() -> rx.Component:
             rx.button(
                 rx.icon("plus", size=16),
                 "Novo RDO",
-                on_click=rx.redirect("/rdo-form"),
+                on_click=[RDOState.reset_for_new, rx.redirect("/rdo-form")],
                 size="2",
                 style={"background": _BTN_PRI, "color": "#fff", "border_radius": "8px", "font_weight": "600", "min_height": "44px"},
             ),
@@ -512,7 +515,7 @@ def rdo_historico_page() -> rx.Component:
                                     rx.text("Nenhum RDO encontrado", size="3", color=_MUTED),
                                     rx.button(
                                         "Criar primeiro RDO",
-                                        on_click=rx.redirect("/rdo-form"),
+                                        on_click=[RDOState.reset_for_new, rx.redirect("/rdo-form")],
                                         size="2",
                                         style={"background": _BTN_PRI, "color": "#fff", "border_radius": "6px"},
                                     ),

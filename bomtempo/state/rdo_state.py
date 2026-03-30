@@ -54,6 +54,7 @@ class RDOState(rx.State):
     rdo_km_percorrido: str = ""       # manual override; auto-calc shown as badge
     rdo_houve_interrupcao: bool = False
     rdo_motivo_interrupcao: str = ""
+    rdo_equipe_alocada: str = ""          # number of team members on site today
     rdo_observacoes: str = ""
 
     # ── GPS Check-in ──────────────────────────────────────────
@@ -384,6 +385,7 @@ class RDOState(rx.State):
             self.rdo_turno            = data.get("turno") or "Diurno"
             self.rdo_houve_interrupcao = bool(data.get("houve_interrupcao"))
             self.rdo_motivo_interrupcao = data.get("motivo_interrupcao") or ""
+            self.rdo_equipe_alocada   = str(data.get("equipe_alocada") or "")
             self.rdo_observacoes      = data.get("observacoes") or ""
             # GPS
             self.checkin_lat          = float(data.get("checkin_lat") or 0.0)
@@ -434,6 +436,7 @@ class RDOState(rx.State):
         self.rdo_km_percorrido = ""
         self.rdo_houve_interrupcao = False
         self.rdo_motivo_interrupcao = ""
+        self.rdo_equipe_alocada = ""
         self.rdo_observacoes = ""
         self.rdo_houve_chuva = False
         self.rdo_houve_acidente = False
@@ -1192,7 +1195,15 @@ class RDOState(rx.State):
                 user_name = str(gs.current_user_name)
                 rdo_data  = self._build_rdo_data()
                 contrato  = rdo_data.get("contrato", "")
+                _submit_client_id = rdo_data.get("client_id") or ""
                 self.submit_status = "💾 Salvando RDO…"
+
+            if not _submit_client_id:
+                async with self:
+                    self.submit_error = "Erro: tenant não identificado. Faça logout e login novamente."
+                    self.is_submitting = False
+                    self.submit_status = ""
+                return
 
             # 1. Upsert draft / save to DB
             id_rdo = await loop.run_in_executor(
@@ -1275,6 +1286,7 @@ class RDOState(rx.State):
                     # Update progress
                     await loop.run_in_executor(None, lambda: _sb_upd("hub_atividades", filters={"id": _ativ_id}, data={"conclusao_pct": _progresso}))
                     # Insert history record
+                    _cid = rdo_data.get("client_id") or None
                     await loop.run_in_executor(None, lambda: _sb_ins2("hub_atividade_historico", {
                         "atividade_id": _ativ_id,
                         "contrato": contrato,
@@ -1282,6 +1294,7 @@ class RDOState(rx.State):
                         "conclusao_pct_anterior": cur_pct,
                         "conclusao_pct_novo": _progresso,
                         "registrado_por": user_name,
+                        "client_id": _cid,
                     }))
                     logger.info(f"✅ Cronograma atualizado: atividade {_ativ_id} → {_progresso}%")
                 except Exception as e:
@@ -1289,6 +1302,7 @@ class RDOState(rx.State):
             elif _nova_ativ and _nova_nome:
                 try:
                     from bomtempo.core.supabase_client import sb_insert as _sb_ins3
+                    _cid3 = rdo_data.get("client_id") or None
                     await loop.run_in_executor(None, lambda: _sb_ins3("hub_atividades", {
                         "contrato": contrato,
                         "atividade": _nova_nome,
@@ -1298,6 +1312,7 @@ class RDOState(rx.State):
                         "nivel": "macro",
                         "pendente_aprovacao": True,
                         "created_by": user_name,
+                        "client_id": _cid3,
                     }))
                     logger.info(f"✅ Atividade pendente criada: '{_nova_nome}'")
                 except Exception as e:
@@ -1312,6 +1327,7 @@ class RDOState(rx.State):
                     continue
                 try:
                     from bomtempo.core.supabase_client import sb_insert as _sb_ins_na
+                    _cid_na = rdo_data.get("client_id") or None
                     await loop.run_in_executor(None, lambda n=_na_nome, f=_na_fase, p=_na_pct: _sb_ins_na("hub_atividades", {
                         "contrato": contrato,
                         "atividade": n,
@@ -1321,6 +1337,7 @@ class RDOState(rx.State):
                         "nivel": "macro",
                         "pendente_aprovacao": True,
                         "created_by": user_name,
+                        "client_id": _cid_na,
                     }))
                     logger.info(f"✅ Atividade não mapeada criada: '{_na_nome}'")
                 except Exception as e:
@@ -1337,6 +1354,7 @@ class RDOState(rx.State):
                     _cur = await loop.run_in_executor(None, lambda i=_ex_id: _sb_sel_ex("hub_atividades", filters={"id": i}))
                     _cur_pct = int((_cur[0].get("conclusao_pct", 0) or 0) if _cur else 0)
                     await loop.run_in_executor(None, lambda i=_ex_id, p=_ex_pct: _sb_upd_ex("hub_atividades", filters={"id": i}, data={"conclusao_pct": p}))
+                    _cid_ex = rdo_data.get("client_id") or None
                     await loop.run_in_executor(None, lambda i=_ex_id, p=_ex_pct, cp=_cur_pct: _sb_ins_ex("hub_atividade_historico", {
                         "atividade_id": i,
                         "contrato": contrato,
@@ -1344,6 +1362,7 @@ class RDOState(rx.State):
                         "conclusao_pct_anterior": cp,
                         "conclusao_pct_novo": p,
                         "registrado_por": user_name,
+                        "client_id": _cid_ex,
                     }))
                     logger.info(f"✅ Extra atividade {_ex_id} → {_ex_pct}%")
                 except Exception as e:
@@ -1367,13 +1386,15 @@ class RDOState(rx.State):
                         _sync_photos.append({"categoria": "gerais", "url": ev_url, "legenda": ev.get("legenda", "Imagem geral")})
                 for _ph in _sync_photos:
                     try:
-                        await loop.run_in_executor(None, lambda ph=_ph: _sb_ins_aud("hub_auditoria_imgs", {
+                        _cid_aud = rdo_data.get("client_id") or None
+                        await loop.run_in_executor(None, lambda ph=_ph, c=_cid_aud: _sb_ins_aud("hub_auditoria_imgs", {
                             "contrato": contrato,
                             "categoria": ph["categoria"],
                             "url": ph["url"],
                             "legenda": ph["legenda"],
                             "autor": user_name,
                             "data_captura": _today,
+                            "client_id": c,
                         }))
                     except Exception:
                         pass
@@ -1461,6 +1482,7 @@ class RDOState(rx.State):
             "turno":                str(self.rdo_turno),
             "houve_interrupcao":    bool(self.rdo_houve_interrupcao),
             "motivo_interrupcao":   str(self.rdo_motivo_interrupcao),
+            "equipe_alocada":       int(self.rdo_equipe_alocada) if self.rdo_equipe_alocada else None,
             "tipo_tarefa":          str(self.rdo_tipo_tarefa),
             "orientacao":           str(self.rdo_orientacao),
             "km_percorrido":        float(self.rdo_km_percorrido) if self.rdo_km_percorrido else (
@@ -1512,6 +1534,7 @@ class RDOState(rx.State):
         self.rdo_turno             = "Diurno"
         self.rdo_houve_interrupcao = False
         self.rdo_motivo_interrupcao= ""
+        self.rdo_equipe_alocada    = ""
         self.rdo_observacoes       = ""
         self.rdo_houve_chuva       = False
         self.rdo_quantidade_chuva  = "Leve"

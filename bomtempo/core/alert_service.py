@@ -258,17 +258,17 @@ class AlertService:
 
     @staticmethod
     def get_history(page: int = 1, per_page: int = 30, client_id: str = "") -> tuple:
-        """Returns (rows: List[Dict], total_count: int) — paginated."""
+        """Returns (rows: List[Dict], total_count: int) — paginated.
+        Requires client_id — returns empty if not provided (prevents cross-tenant leakage)."""
+        if not client_id:
+            return [], 0
         from bomtempo.core.supabase_client import sb_select_paginated
-        filters: Dict = {}
-        if client_id:
-            filters["client_id"] = client_id
         rows, total = sb_select_paginated(
             _TABLE_HIST,
             page=page,
             limit=per_page,
             order="timestamp.desc",
-            filters=filters if filters else None,
+            filters={"client_id": client_id},
         )
         return rows or [], total
 

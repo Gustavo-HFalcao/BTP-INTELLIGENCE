@@ -158,7 +158,7 @@ class MasterState(rx.State):
                 "name": "Administrador",
                 "modules": ["visao_geral", "obras", "projetos", "financeiro", "om",
                             "relatorios", "chat_ia", "reembolso_dash", "rdo_dashboard",
-                            "editar_dados", "alertas", "logs_auditoria", "gerenciar_usuarios"],
+                            "alertas", "logs_auditoria", "gerenciar_usuarios"],
                 "icon": "user",
                 "client_id": new_client_id,
             })

@@ -557,7 +557,7 @@ ___WATERMARK___
   </section>
 
   <!-- KPI BAR -->
-  <div class="grid grid-cols-4 bg-ink rounded-sm overflow-hidden page-avoid">
+  <div class="grid grid-cols-5 bg-ink rounded-sm overflow-hidden page-avoid">
     <div class="flex flex-col items-center py-4 border-r border-white/10">
       <span class="font-label text-2xl font-bold text-copper">___KPI_ATIVIDADES___</span>
       <span class="font-headline text-[9px] text-white/50 uppercase tracking-widest mt-1">Atividades</span>
@@ -569,6 +569,10 @@ ___WATERMARK___
     <div class="flex flex-col items-center py-4 border-r border-white/10">
       <span class="font-label text-2xl font-bold text-copper">___DURACAO_STR___</span>
       <span class="font-headline text-[9px] text-white/50 uppercase tracking-widest mt-1">Duração</span>
+    </div>
+    <div class="flex flex-col items-center py-4 border-r border-white/10">
+      <span class="font-label text-2xl font-bold text-copper">___KPI_EQUIPE___</span>
+      <span class="font-headline text-[9px] text-white/50 uppercase tracking-widest mt-1">Equipe Alocada</span>
     </div>
     <div class="flex flex-col items-center py-4">
       <span class="font-label text-2xl font-bold text-copper">___KPI_KM___</span>
@@ -833,14 +837,14 @@ class RDOService:
             ai_html = f'<span style="font-size:9px;color:#2A9D8F;font-style:italic;margin-top:3px;display:block;">🤖 {analysis}</span>' if analysis else ""
             cards.append(f"""
             <div style="border:0.5px solid #e4e4e7;border-radius:4px;overflow:hidden;page-break-inside:avoid;">
-              <div style="aspect-ratio:16/9;background:#f4f4f5;overflow:hidden;">
-                <img src="{url}" style="width:100%;height:100%;object-fit:cover;display:block;" loading="lazy" />
+              <div style="background:#f4f4f5;">
+                <img src="{url}" style="width:100%;height:auto;display:block;" />
               </div>
               <div style="padding:6px 8px 8px;background:#fafafa;border-left:2px solid #C98B2A;">
                 {ts_html}{cap_html}{ai_html}
               </div>
             </div>""")
-        return f'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:6px 0;">{"".join(cards)}</div>'
+        return f'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:6px 0;">{"".join(cards)}</div>'
 
     @staticmethod
     def build_html(rdo_data: Dict[str, Any], is_preview: bool = False) -> str:
@@ -858,6 +862,8 @@ class RDOService:
         orientacao   = e(rdo_data.get("orientacao") or "")
         km_perc      = rdo_data.get("km_percorrido")
         km_str       = f"{float(km_perc):.2f} km" if km_perc is not None else "—"
+        equipe_alocada = rdo_data.get("equipe_alocada")
+        equipe_str     = f"{int(equipe_alocada)} pessoa{'s' if int(equipe_alocada) != 1 else ''}" if equipe_alocada else "—"
         houve_intr = bool(rdo_data.get("houve_interrupcao"))
         motivo     = e((rdo_data.get("motivo_interrupcao") or "—")[:120])
         obs        = (rdo_data.get("observacoes") or "").strip()
@@ -994,30 +1000,28 @@ class RDOService:
             '</div></div>'
         ) if houve_intr else ""
 
-        # EPI photo
+        # EPI photo — full width, no crop
         epi_section = (
             '<section>'
             '<h2 style="font-family:\'Rajdhani\',sans-serif;font-weight:700;font-size:13px;'
             'text-transform:uppercase;letter-spacing:0.05em;color:#081210;'
             'border-left:4px solid #C98B2A;padding-left:10px;margin-bottom:10px;">'
             'Equipe com EPIs</h2>'
-            '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">'
-            '<div style="aspect-ratio:16/9;background:#f4f4f5;border-radius:4px;overflow:hidden;border:0.5px solid #e4e4e7;">'
-            f'<img src="{epi_foto_url}" style="width:100%;height:100%;object-fit:cover;" />'
-            '</div></div></section>'
+            '<div style="background:#f4f4f5;border-radius:4px;border:0.5px solid #e4e4e7;max-width:480px;">'
+            f'<img src="{epi_foto_url}" style="width:100%;height:auto;display:block;border-radius:4px;" />'
+            '</div></section>'
         ) if epi_foto_url else ""
 
-        # Ferramentas photo
+        # Ferramentas photo — full width, no crop
         ferramentas_section = (
             '<section>'
             '<h2 style="font-family:\'Rajdhani\',sans-serif;font-weight:700;font-size:13px;'
             'text-transform:uppercase;letter-spacing:0.05em;color:#081210;'
             'border-left:4px solid #C98B2A;padding-left:10px;margin-bottom:10px;">'
             'Ferramentas Limpas e Organizadas</h2>'
-            '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">'
-            '<div style="aspect-ratio:16/9;background:#f4f4f5;border-radius:4px;overflow:hidden;border:0.5px solid #e4e4e7;">'
-            f'<img src="{ferramentas_foto_url}" style="width:100%;height:100%;object-fit:cover;" />'
-            '</div></div></section>'
+            '<div style="background:#f4f4f5;border-radius:4px;border:0.5px solid #e4e4e7;max-width:480px;">'
+            f'<img src="{ferramentas_foto_url}" style="width:100%;height:auto;display:block;border-radius:4px;" />'
+            '</div></section>'
         ) if ferramentas_foto_url else ""
 
         # Photos
@@ -1105,6 +1109,7 @@ class RDOService:
             "___KPI_FOTOS___":         str(len(evidencias)),
             "___DURACAO_STR___":       duracao_str,
             "___KPI_KM___":            km_str,
+            "___KPI_EQUIPE___":        equipe_str,
             "___GPS_BLOCK___":         gps_block,
             "___ORIENTACAO_SECTION___": orientacao_section,
             "___INTR_SECTION___":      intr_section,
@@ -1187,6 +1192,7 @@ class RDOService:
             "condicao_climatica":  rdo_data.get("condicao_climatica") or rdo_data.get("clima") or "Ensolarado",
             "houve_interrupcao":   bool(rdo_data.get("houve_interrupcao")),
             "motivo_interrupcao":  rdo_data.get("motivo_interrupcao") or "",
+            "equipe_alocada":      rdo_data.get("equipe_alocada"),
             "observacoes":         rdo_data.get("observacoes") or "",
             "checkin_timestamp":   rdo_data.get("checkin_timestamp"),
             "checkin_lat":         rdo_data.get("checkin_lat"),
