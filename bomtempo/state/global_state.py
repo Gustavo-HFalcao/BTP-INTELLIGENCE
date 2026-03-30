@@ -1818,8 +1818,8 @@ class GlobalState(rx.State):
             else:
                 # Smart fallback: roles criados por tenants podem ter módulos específicos
                 _mods = self.allowed_modules
-                if "rdo_form" in _mods and "visao_geral" not in _mods:
-                    yield rx.redirect("/rdo-form")
+                if ("rdo_form" in _mods or "rdo_historico" in _mods) and "visao_geral" not in _mods:
+                    yield rx.redirect("/rdo-historico")
                 elif "reembolso" in _mods and "visao_geral" not in _mods:
                     yield rx.redirect("/reembolso")
                 else:
@@ -3513,6 +3513,9 @@ class GlobalState(rx.State):
             async with self:
                 self.ep_saving = False
                 self.show_edit_projeto = False
+                # Força recarga: limpa lista e invalida cache de disco
+                self.contratos_list = []
+                DataLoader.invalidate_cache(self.current_client_id)
 
             yield GlobalState.load_data()
 
@@ -3534,6 +3537,9 @@ class GlobalState(rx.State):
             async with self:
                 self.ep_deleting = False
                 self.show_edit_projeto = False
+                # Força recarga: limpa lista e invalida cache de disco
+                self.contratos_list = []
+                DataLoader.invalidate_cache(self.current_client_id)
 
             yield GlobalState.load_data()
 

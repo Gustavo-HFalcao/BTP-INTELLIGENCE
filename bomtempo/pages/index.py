@@ -392,18 +392,34 @@ def index_page() -> rx.Component:
             spacing="8",
             on_mount=lambda: GlobalState.set_current_path("/"),
         ),
-        # Restricted access fallback (black screen during redirect)
+        # Restricted access fallback — shown while guard redirects non-dashboard roles
         rx.center(
             rx.vstack(
-                rx.spinner(size="3", color=S.COPPER),
+                rx.box(
+                    rx.icon(tag="zap", size=32, color=S.COPPER),
+                    padding="16px",
+                    bg=S.COPPER_GLOW,
+                    border=f"1px solid {S.BORDER_ACCENT}",
+                    border_radius="12px",
+                    margin_bottom="8px",
+                ),
+                rx.spinner(size="2", color=S.COPPER),
                 rx.text(
-                    "Verificando acessos...",
-                    color=S.TEXT_MUTED,
-                    font_size="14px",
+                    "Carregando...",
+                    color="white",
+                    font_size="15px",
+                    font_weight="600",
                     font_family=S.FONT_TECH,
+                    letter_spacing="0.05em",
+                ),
+                rx.text(
+                    "Redirecionando para seu módulo",
+                    color=S.TEXT_MUTED,
+                    font_size="12px",
+                    font_family=S.FONT_MONO,
                 ),
                 align="center",
-                spacing="4",
+                spacing="3",
             ),
             width="100%",
             height="100vh",

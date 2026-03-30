@@ -415,7 +415,7 @@ def _settings_button() -> rx.Component:
     """Gear icon — navigates to /admin/usuarios if module is allowed."""
     return rx.cond(
         GlobalState.allowed_modules.contains("gerenciar_usuarios"),
-        _labeled_action_button("settings", "Configurações", rx.redirect("/admin/usuarios")),
+        _labeled_action_button("users", "Usuários", rx.redirect("/admin/usuarios")),
         rx.fragment(),
     )
 

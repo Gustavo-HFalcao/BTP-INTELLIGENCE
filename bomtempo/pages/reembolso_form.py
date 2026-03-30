@@ -1228,9 +1228,36 @@ def _tab_emails_form() -> rx.Component:
         rx.cond(
             ReembolsoState.email_list,
             rx.vstack(rx.foreach(ReembolsoState.email_list, _email_row_form), width="100%"),
-            rx.center(
-                rx.text("Nenhum e-mail cadastrado.", color=S.TEXT_MUTED, font_size="13px"),
-                padding="20px",
+            rx.box(
+                rx.hstack(
+                    rx.icon(tag="alert-triangle", size=16, color=S.WARNING),
+                    rx.vstack(
+                        rx.text(
+                            "Nenhum e-mail de notificação cadastrado",
+                            font_size="13px",
+                            font_weight="600",
+                            color=S.WARNING,
+                            font_family=S.FONT_TECH,
+                        ),
+                        rx.text(
+                            "O comprovante será gerado, mas nenhum responsável receberá o e-mail de aprovação. "
+                            "Acesse a aba 'E-mails de Notificação' no Dashboard para cadastrar.",
+                            font_size="12px",
+                            color=S.TEXT_MUTED,
+                            font_family=S.FONT_BODY,
+                            line_height="1.5",
+                        ),
+                        spacing="1",
+                        align="start",
+                    ),
+                    spacing="3",
+                    align="start",
+                    width="100%",
+                ),
+                padding="14px 16px",
+                bg=S.WARNING_BG,
+                border=f"1px solid rgba(245,158,11,0.25)",
+                border_radius=S.R_CONTROL,
                 width="100%",
             ),
         ),

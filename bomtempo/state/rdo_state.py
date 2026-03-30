@@ -414,6 +414,50 @@ class RDOState(rx.State):
     def discard_draft_offer(self):
         self.has_draft_to_resume = False
 
+    def reset_for_new(self):
+        """Limpa todo o state do formulário para criar um RDO novo do zero.
+        Deve ser chamado antes de navegar para /rdo-form quando NÃO se quer retomar rascunho."""
+        self.draft_id_rdo = ""
+        self.draft_saved_at = ""
+        self.draft_resumed = False
+        self.has_draft_to_resume = False
+        self.pending_draft_id = ""
+        self.rdo_data = ""
+        self.rdo_contrato = ""
+        self.rdo_projeto = ""
+        self.rdo_cliente = ""
+        self.rdo_localizacao = ""
+        self.rdo_clima = "Ensolarado"
+        self.rdo_turno = "Diurno"
+        self.rdo_tipo_tarefa = "Diário de Obra"
+        self.rdo_orientacao = ""
+        self.rdo_km_percorrido = ""
+        self.rdo_houve_interrupcao = False
+        self.rdo_motivo_interrupcao = ""
+        self.rdo_observacoes = ""
+        self.rdo_houve_chuva = False
+        self.rdo_houve_acidente = False
+        self.rdo_descricao_acidente = ""
+        self.atividades_items = []
+        self.evidencias_items = []
+        self.epi_foto_items = []
+        self.ferramentas_foto_items = []
+        self.checkin_lat = 0.0
+        self.checkin_lng = 0.0
+        self.checkin_endereco = ""
+        self.checkin_timestamp = ""
+        self.checkout_lat = 0.0
+        self.checkout_lng = 0.0
+        self.checkout_endereco = ""
+        self.checkout_timestamp = ""
+        self.signatory_name = ""
+        self.signatory_doc = ""
+        self.signatory_sig_b64 = ""
+        self.submit_error = ""
+        self.submit_status = ""
+        self.rdo_extra_atividades = []
+        self.rdo_novas_atividades = []
+
     async def select_rdo_contrato(self, value: str):
         """Admin/gestor escolhe o contrato — auto-preenche projeto, cliente, localização."""
         if value == "__none__":

@@ -62,19 +62,20 @@ class RDOHistoricoState(rx.State):
             contrato = str(gs.current_user_contrato).strip()
 
         loop = asyncio.get_running_loop()
+        client_id = str(gs.current_client_id or "")
 
-        # Filtrar por role
+        # Filtrar por role + tenant (client_id sempre passado para isolamento multi-tenant)
         if role in ("Administrador", "admin", "Gestão-Mobile"):
-            rdos = await loop.run_in_executor(None, lambda: RDOService.get_rdos_list(limit=200))
+            rdos = await loop.run_in_executor(None, lambda: RDOService.get_rdos_list(limit=200, client_id=client_id))
         elif role == "Mestre de Obras":
             rdos = await loop.run_in_executor(
                 None,
-                lambda: RDOService.get_rdos_list(contrato=contrato, mestre_id=user, limit=100),
+                lambda: RDOService.get_rdos_list(contrato=contrato, mestre_id=user, limit=100, client_id=client_id),
             )
         else:
             rdos = await loop.run_in_executor(
                 None,
-                lambda: RDOService.get_rdos_list(contrato=contrato, limit=100),
+                lambda: RDOService.get_rdos_list(contrato=contrato, limit=100, client_id=client_id),
             )
 
         def _fmt_date(val: str) -> str:

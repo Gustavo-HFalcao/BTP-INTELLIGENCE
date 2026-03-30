@@ -205,7 +205,7 @@ def sidebar_content() -> rx.Component:
                 _section_label("RDO"),
                 rx.cond(
                     GlobalState.allowed_modules.contains("rdo_form"),
-                    sidebar_item("RDO DIÁRIO", "clipboard-list", "/rdo-form"),
+                    sidebar_item("RDO DIÁRIO", "clipboard-list", "/rdo-historico"),
                 ),
                 rx.cond(
                     GlobalState.allowed_modules.contains("rdo_historico"),

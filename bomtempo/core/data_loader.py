@@ -88,7 +88,7 @@ class DataLoader:
             ("contratos",      "contratos"),
             ("hub_atividades", "projeto"),
             ("fin_custos",     "financeiro"),   # fin_custos é a fonte de budget
-            ("om",             "om"),
+            ("om_geracoes",     "om"),
         ]
         # "obras" será derivado de contratos + hub_atividades + fin_custos abaixo
         sucesso = False

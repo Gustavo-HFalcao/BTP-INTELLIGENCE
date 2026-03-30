@@ -50,6 +50,7 @@ from bomtempo.pages.index import index_page
 from bomtempo.pages.hub_operacoes import hub_operacoes_page
 from bomtempo.pages.perfil import perfil_page
 from bomtempo.pages.om import om_page
+from bomtempo.state.om_state import OmState
 from bomtempo.pages.previsoes import previsoes_page
 from bomtempo.pages.rdo_dashboard import rdo_dashboard_page
 from bomtempo.state.rdo_dashboard_state import RDODashboardState
@@ -186,7 +187,7 @@ app.add_page(
     title="BOMTEMPO | Meu Perfil",
     on_load=GlobalState.load_data,
 )
-app.add_page(om, route="/om", title="BOMTEMPO | O&M Performance", on_load=GlobalState.load_data)
+app.add_page(om, route="/om", title="BOMTEMPO | O&M Performance", on_load=[GlobalState.load_data, OmState.load_page])
 app.add_page(
     analytics,
     route="/analytics",
