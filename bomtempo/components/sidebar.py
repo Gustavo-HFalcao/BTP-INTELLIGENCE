@@ -110,33 +110,39 @@ def sidebar_content() -> rx.Component:
     return rx.vstack(
         # ── Header / Logo ──────────────────────────────────────────────
         rx.box(
-            rx.cond(
-                GlobalState.sidebar_open,
+            rx.hstack(
                 rx.image(
-                    src="/banner.png",
-                    width="100%",
-                    height="auto",
-                    max_height="52px",
-                    object_fit="contain",
-                    object_position="left center",
-                    class_name="sidebar-logo-img",
+                    src="/icon.png",
+                    width="36px",
+                    height="36px",
+                    border_radius=S.R_CONTROL,
+                    object_fit="cover",
+                    flex_shrink="0",
                 ),
-                rx.center(
-                    rx.image(
-                        src="/icon.png",
-                        width="32px",
-                        height="32px",
-                        border_radius=S.R_CONTROL,
-                        object_fit="cover",
-                        class_name="sidebar-logo-img",
+                rx.cond(
+                    GlobalState.sidebar_open,
+                    rx.text(
+                        "BOMTEMPO",
+                        font_family=S.FONT_TECH,
+                        font_weight="900",
+                        font_size="15px",
+                        letter_spacing="0.12em",
+                        color="white",
+                        white_space="nowrap",
+                        overflow="hidden",
+                        opacity="1",
+                        transition="opacity 0.2s ease",
                     ),
                 ),
+                spacing="3",
+                align="center",
             ),
             width="100%",
             height="64px",
             display="flex",
             align_items="center",
-            padding_x=rx.cond(GlobalState.sidebar_open, "16px", "8px"),
+            justify_content="center",
+            padding_x=rx.cond(GlobalState.sidebar_open, "16px", "0"),
             border_bottom=f"1px solid {S.BORDER_SUBTLE}",
             flex_shrink="0",
         ),
@@ -284,6 +290,7 @@ def sidebar() -> rx.Component:
         ),
         # Container props
         width=rx.cond(GlobalState.sidebar_open, "236px", "64px"),
+        min_width=rx.cond(GlobalState.sidebar_open, "236px", "64px"),
         height="100vh",
         position="sticky",
         top="0",
@@ -294,6 +301,7 @@ def sidebar() -> rx.Component:
         transition="width 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
         display=["none", "none", "block"],
         overflow="visible",
+        flex_shrink="0",
     )
 
 

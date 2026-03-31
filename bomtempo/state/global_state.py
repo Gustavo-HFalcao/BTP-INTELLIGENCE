@@ -33,6 +33,62 @@ from datetime import timezone
 _BRT = timezone(timedelta(hours=-3))
 
 
+def _extract_document_text(url: str, nome: str, max_chars: int = 8000) -> str:
+    """Baixa um arquivo do Supabase Storage e extrai texto para contexto da IA.
+    Suporta PDF (via PyPDF2), TXT, e ignora binários não suportados.
+    Retorna string com o texto extraído (máx max_chars), ou "" em caso de falha.
+    """
+    if not url:
+        return ""
+    try:
+        import httpx
+        resp = httpx.get(url, timeout=15, follow_redirects=True)
+        if resp.status_code != 200:
+            return ""
+        raw = resp.content
+        ext = (nome.rsplit(".", 1)[-1].lower() if "." in nome else "").strip()
+
+        if ext == "pdf":
+            try:
+                import io
+                import PyPDF2
+                reader = PyPDF2.PdfReader(io.BytesIO(raw))
+                pages_text = []
+                for page in reader.pages[:30]:  # max 30 páginas
+                    t = page.extract_text() or ""
+                    if t.strip():
+                        pages_text.append(t.strip())
+                text = "\n".join(pages_text)
+            except ImportError:
+                # PyPDF2 não instalado — tenta extração bruta
+                text = raw.decode("utf-8", errors="ignore")
+            except Exception:
+                text = ""
+        elif ext in ("txt", "md", "csv"):
+            text = raw.decode("utf-8", errors="replace")
+        elif ext in ("docx",):
+            try:
+                import io
+                from docx import Document as DocxDocument
+                doc = DocxDocument(io.BytesIO(raw))
+                text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+            except Exception:
+                text = ""
+        else:
+            # Tenta decode como texto; se parecer binário, ignora
+            try:
+                text = raw.decode("utf-8", errors="strict")
+            except UnicodeDecodeError:
+                text = ""
+
+        # Remove excesso de linhas em branco
+        import re as _re
+        text = _re.sub(r"\n{3,}", "\n\n", text).strip()
+        return text[:max_chars]
+    except Exception:
+        return ""
+
+
 def _fmt_date_br(ts: str) -> str:
     """YYYY-MM-DD (or ISO timestamp) → DD/MM/YYYY. Returns '—' for empty/invalid."""
     if not ts or ts in ("—", "None", "nan"):
@@ -170,12 +226,46 @@ class GlobalState(rx.State):
         dashboard_context = AIContext.get_dashboard_context(data_snapshot)
         schema_context = sb_rpc("get_schema_context")
 
+        # Inject doc awareness from hub_timeline — inclui conteúdo real dos arquivos
+        doc_context_str = ""
+        try:
+            async with self:
+                _selected_contrato = self.selected_contrato or self.obras_selected_contract or ""
+            if _selected_contrato:
+                doc_rows = sb_select("hub_timeline", filters={"contrato": _selected_contrato, "is_document": True})
+                if doc_rows:
+                    doc_sections = []
+                    for d in doc_rows:
+                        titulo = d.get("titulo", "") or ""
+                        descricao = d.get("descricao", "") or ""
+                        anexo_url = d.get("anexo_url", "") or ""
+                        anexo_nome = d.get("anexo_nome", "") or ""
+                        section = f"### {titulo}"
+                        if anexo_nome:
+                            section += f" [{anexo_nome}]"
+                        if descricao:
+                            section += f"\nDescrição: {descricao[:300]}"
+                        # Tenta extrair texto do arquivo
+                        if anexo_url:
+                            file_text = _extract_document_text(anexo_url, anexo_nome)
+                            if file_text:
+                                section += f"\nConteúdo:\n{file_text}"
+                        doc_sections.append(section)
+                    doc_context_str = (
+                        "\n\n## DOCUMENTOS DO CONTRATO " + _selected_contrato +
+                        " (leia com atenção para responder perguntas sobre o contrato):\n\n" +
+                        "\n\n".join(doc_sections)
+                    )
+        except Exception:
+            pass
+
         messages = [{
             "role": "system",
             "content": (
                 system_prompt
                 + dashboard_context
                 + f"\n\n## SCHEMA DO BANCO (para queries SQL)\n{schema_context}"
+                + doc_context_str
             ),
         }]
         
@@ -491,6 +581,7 @@ class GlobalState(rx.State):
     np_prazo_dias: str = ""
     np_priority: str = "Média"
     np_efetivo_planejado: str = ""
+    np_valor_contratado: str = ""
     np_saving: bool = False
     np_error: str = ""
 
@@ -3383,6 +3474,7 @@ class GlobalState(rx.State):
         self.np_prazo_dias = ""
         self.np_priority = "Média"
         self.np_efetivo_planejado = ""
+        self.np_valor_contratado = ""
         self.np_saving = False
         self.np_error = ""
 
@@ -3555,6 +3647,30 @@ class GlobalState(rx.State):
                 return
             self.np_saving = True
             self.np_error = ""
+            potencia = float(self.np_potencia_kwp.replace(",", ".")) if self.np_potencia_kwp.strip() else 0.0
+            prazo = int(self.np_prazo_dias.strip()) if self.np_prazo_dias.strip() else 0
+            efetivo = int(self.np_efetivo_planejado.strip()) if self.np_efetivo_planejado.strip() else 0
+            _raw_valor = self.np_valor_contratado.strip().replace(".", "").replace(",", ".")
+            valor = float(_raw_valor) if _raw_valor else 0.0
+            client_id = str(self.current_client_id or "")
+            localizacao = self.np_localizacao.strip()
+            payload = {
+                "contrato":              contrato,
+                "projeto":               projeto,
+                "cliente":               cliente,
+                "terceirizado":          self.np_terceirizado.strip(),
+                "localizacao":           localizacao,
+                "data_inicio":           self.np_data_inicio or None,
+                "data_termino":          self.np_data_termino or None,
+                "tipo":                  self.np_tipo,
+                "potencia_kwp":          potencia,
+                "prazo_contratual_dias": prazo,
+                "priority":              self.np_priority,
+                "efetivo_planejado":     efetivo,
+                "status":                "Em Execução",
+                "valor_contratado":      valor,
+                "client_id":             client_id or None,
+            }
 
         from bomtempo.core.supabase_client import sb_insert, sb_select
 
@@ -3567,32 +3683,9 @@ class GlobalState(rx.State):
             return
 
         try:
-            async with self:
-                potencia = float(self.np_potencia_kwp.replace(",", ".")) if self.np_potencia_kwp.strip() else 0.0
-                prazo = int(self.np_prazo_dias.strip()) if self.np_prazo_dias.strip() else 0
-                efetivo = int(self.np_efetivo_planejado.strip()) if self.np_efetivo_planejado.strip() else 0
-                payload = {
-                    "contrato":            contrato,
-                    "projeto":             projeto,
-                    "cliente":             cliente,
-                    "terceirizado":        self.np_terceirizado.strip(),
-                    "localizacao":         self.np_localizacao.strip(),
-                    "data_inicio":         self.np_data_inicio or None,
-                    "data_termino":        self.np_data_termino or None,
-                    "tipo":                self.np_tipo,
-                    "potencia_kwp":        potencia,
-                    "prazo_contratual_dias": prazo,
-                    "priority":            self.np_priority,
-                    "efetivo_planejado":   efetivo,
-                    "status":              "Em Execução",
-                    "valor_contratado":    0,
-                }
-
-            payload["client_id"] = self.current_client_id or None
             sb_insert("contratos", payload)
 
             # Auto-geocode if localizacao provided (Nominatim via requests)
-            localizacao = payload.get("localizacao", "")
             if localizacao:
                 try:
                     import requests as _req
@@ -3615,7 +3708,6 @@ class GlobalState(rx.State):
             async with self:
                 self.np_saving = False
                 self.show_novo_projeto = False
-
             yield GlobalState.load_data()
 
         except Exception as e:
@@ -3886,6 +3978,30 @@ class GlobalState(rx.State):
                 self.obra_insight_loading = False
             return
 
+        # ── Fetch timeline documents for doc-awareness ───────────────────────
+        doc_context = ""
+        try:
+            tl_docs = sb_select(
+                "hub_timeline",
+                filters={"contrato": selected, "is_document": True},
+                limit=20,
+            )
+            if tl_docs:
+                doc_lines = []
+                for d in tl_docs:
+                    titulo = str(d.get("titulo") or "")
+                    descricao = str(d.get("descricao") or "")
+                    nome = str(d.get("anexo_nome") or "")
+                    entry = f"• {titulo}"
+                    if nome:
+                        entry += f" [{nome}]"
+                    if descricao:
+                        entry += f": {descricao[:200]}"
+                    doc_lines.append(entry)
+                doc_context = "\n\nDOCUMENTOS DO PROJETO (da timeline):\n" + "\n".join(doc_lines)
+        except Exception:
+            pass
+
         # Build context
         delayed = [
             d["categoria"]
@@ -3927,6 +4043,7 @@ class GlobalState(rx.State):
             f"Score de risco: {risco}/100\n"
             f"Disciplinas em dia: {', '.join(on_track) if on_track else 'nenhuma'}\n"
             f"Disciplinas em atraso: {', '.join(delayed) if delayed else 'nenhuma'}"
+            + doc_context
         )
 
         messages = [
@@ -3937,6 +4054,8 @@ class GlobalState(rx.State):
                     "Gere UM parágrafo executivo (2 a 3 frases) de diagnóstico desta obra, em português. "
                     "Seja direto, objetivo e use os dados fornecidos. Destaque o status geral, "
                     "o principal risco e o ponto de atenção mais crítico. "
+                    "Se houver documentos do projeto (contratos, cláusulas, especificações), considere multas, "
+                    "critérios de aceite e obrigações contratuais ao avaliar riscos. "
                     "NÃO use markdown, bullets ou títulos — apenas texto corrido profissional."
                 ),
             },
@@ -3987,6 +4106,12 @@ class GlobalState(rx.State):
             self.obra_insight_text = ai_text or "Análise em processamento..."
             self.obra_insight_generated_at = now_brt_label
             self.obra_insight_loading = False
+        # Notify user that analysis is done (only if it was freshly generated, not from cache)
+        yield rx.toast.success(
+            "✦ Análise IA concluída — painel Inteligência atualizado.",
+            duration=6000,
+            position="bottom-right",
+        )
 
     @rx.event(background=True)
     async def force_refresh_insight(self):

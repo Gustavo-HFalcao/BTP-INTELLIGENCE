@@ -2142,6 +2142,34 @@ def _cron_display_row(item: dict) -> rx.Component:
         rx.fragment(),
     )
 
+    # Status badge (only for micros, only when not 'nao_iniciada')
+    _status_label = rx.cond(
+        item["status_atividade"] == "em_execucao", "EM EXEC.",
+        rx.cond(item["status_atividade"] == "concluida", "CONCLUÍDA",
+        rx.cond(item["status_atividade"] == "paralisada", "PARALIS.",
+        rx.cond(item["status_atividade"] == "bloqueada", "BLOQ.",
+        rx.cond(item["status_atividade"] == "cancelada", "CANCEL.", ""))))
+    )
+    _status_color = rx.cond(
+        item["status_atividade"] == "em_execucao", "#3B82F6",
+        rx.cond(item["status_atividade"] == "concluida", S.PATINA,
+        rx.cond(item["status_atividade"] == "paralisada", "#F97316",
+        rx.cond(item["status_atividade"] == "bloqueada", S.DANGER,
+        rx.cond(item["status_atividade"] == "cancelada", S.TEXT_MUTED, S.TEXT_MUTED))))
+    )
+    status_badge = rx.cond(
+        is_micro & (item["status_atividade"] != "nao_iniciada") & (item["status_atividade"] != "pronta_iniciar"),
+        rx.box(
+            rx.text(_status_label, font_size="7px", font_weight="800", color=_status_color,
+                    font_family=S.FONT_TECH, letter_spacing="0.06em"),
+            padding="1px 5px", border_radius="3px",
+            border=rx.cond(item["status_atividade"] == "em_execucao", "1px solid rgba(59,130,246,0.4)", f"1px solid rgba(255,255,255,0.1)"),
+            bg=rx.cond(item["status_atividade"] == "em_execucao", "rgba(59,130,246,0.08)", "rgba(255,255,255,0.04)"),
+            flex_shrink="0",
+        ),
+        rx.fragment(),
+    )
+
     # Micro count badge for macros with children
     micro_count_badge = rx.cond(
         is_macro & has_micros,
@@ -2181,6 +2209,7 @@ def _cron_display_row(item: dict) -> rx.Component:
                 rx.cond(is_critical, rx.icon(tag="circle-alert", size=11, color=S.DANGER)),
                 rx.text(item["atividade"], font_size=font_sz, font_weight=font_w, color="var(--text-main)", font_family=S.FONT_TECH, letter_spacing="0.01em"),
                 peso_badge,
+                status_badge,
                 pending_badge,
                 micro_count_badge,
                 spacing="1", align="center",
@@ -2225,6 +2254,357 @@ def _cron_display_row(item: dict) -> rx.Component:
         transition="all 0.15s ease",
         width="100%", align="center", spacing="2", overflow="hidden",
         margin_left=rx.cond(is_micro, "12px", "0px"),
+    )
+
+
+def _kpi_badge(label: str, value, color: str, icon_tag: str = "bar-chart-2", sub: str = "") -> rx.Component:
+    return rx.vstack(
+        rx.hstack(
+            rx.icon(tag=icon_tag, size=13, color=color),
+            rx.text(label, font_size="10px", color=S.TEXT_MUTED, font_family=S.FONT_MONO, letter_spacing="0.04em"),
+            spacing="1", align="center",
+        ),
+        rx.text(value, font_size="22px", color=color, font_family=S.FONT_TECH, font_weight="700", line_height="1"),
+        rx.text(sub, font_size="10px", color=S.TEXT_MUTED) if sub else rx.fragment(),
+        spacing="1", align="start",
+        padding="12px 16px",
+        border_radius=S.R_CONTROL,
+        bg="rgba(255,255,255,0.02)",
+        border=f"1px solid rgba(255,255,255,0.06)",
+        min_width="110px",
+        flex="1",
+    )
+
+
+def _cron_kpi_panel() -> rx.Component:
+    """Dashboard previsto vs realizado — KPIs alinhados em grid uniforme."""
+    kpi = HubState.cron_kpi_dashboard
+    desvio_color = rx.cond(
+        HubState.cron_kpi_dashboard["desvio_pp"].startswith("+"),
+        S.PATINA,
+        rx.cond(HubState.cron_kpi_dashboard["desvio_pp"] == "0.0", S.TEXT_MUTED, S.DANGER),
+    )
+    return rx.cond(
+        HubState.cron_kpi_dashboard["total_micros"] != "0",
+        rx.vstack(
+            # Header
+            rx.hstack(
+                rx.icon(tag="activity", size=14, color=S.COPPER),
+                rx.text("PREVISTO vs REALIZADO", font_size="11px", font_family=S.FONT_MONO,
+                        font_weight="700", color=S.COPPER, letter_spacing="0.08em"),
+                rx.spacer(),
+                rx.text(kpi["total_micros"] + " micro-atividades", font_size="10px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                width="100%", align="center",
+            ),
+            # KPI grid — 6 cards iguais em linha
+            rx.grid(
+                # Card 1: Programado Hoje
+                rx.vstack(
+                    rx.hstack(rx.icon(tag="calendar-check", size=12, color="#64748B"), rx.text("PROGRAMADO HOJE", font_size="9px", color=S.TEXT_MUTED, font_family=S.FONT_MONO, letter_spacing="0.06em"), spacing="1", align="center"),
+                    rx.text(kpi["pct_fisico_programado_hoje"] + "%", font_size="20px", color="#94A3B8", font_family=S.FONT_TECH, font_weight="700", line_height="1.1"),
+                    rx.text("físico programado", font_size="9px", color=S.TEXT_MUTED),
+                    spacing="1", align="start", padding="12px", border_radius=S.R_CONTROL,
+                    bg="rgba(255,255,255,0.03)", border=f"1px solid {S.BORDER_SUBTLE}",
+                    width="100%", height="90px", justify="start",
+                ),
+                # Card 2: Realizado
+                rx.vstack(
+                    rx.hstack(rx.icon(tag="trending-up", size=12, color=S.PATINA), rx.text("REALIZADO", font_size="9px", color=S.TEXT_MUTED, font_family=S.FONT_MONO, letter_spacing="0.06em"), spacing="1", align="center"),
+                    rx.text(kpi["pct_fisico_realizado"] + "%", font_size="20px", color=S.PATINA, font_family=S.FONT_TECH, font_weight="700", line_height="1.1"),
+                    rx.text("progresso ponderado", font_size="9px", color=S.TEXT_MUTED),
+                    spacing="1", align="start", padding="12px", border_radius=S.R_CONTROL,
+                    bg="rgba(255,255,255,0.03)", border=f"1px solid {S.BORDER_SUBTLE}",
+                    width="100%", height="90px", justify="start",
+                ),
+                # Card 3: Desvio
+                rx.vstack(
+                    rx.hstack(rx.icon(tag="minus-circle", size=12, color=desvio_color), rx.text("DESVIO (pp)", font_size="9px", color=S.TEXT_MUTED, font_family=S.FONT_MONO, letter_spacing="0.06em"), spacing="1", align="center"),
+                    rx.text(kpi["desvio_pp"] + "pp", font_size="20px", color=desvio_color, font_family=S.FONT_TECH, font_weight="700", line_height="1.1"),
+                    rx.text("pontos percentuais", font_size="9px", color=S.TEXT_MUTED),
+                    spacing="1", align="start", padding="12px", border_radius=S.R_CONTROL,
+                    bg="rgba(255,255,255,0.03)", border=f"1px solid {S.BORDER_SUBTLE}",
+                    width="100%", height="90px", justify="start",
+                ),
+                # Card 4: Em Risco
+                rx.vstack(
+                    rx.hstack(rx.icon(tag="alert-triangle", size=12, color=S.DANGER), rx.text("EM RISCO", font_size="9px", color=S.TEXT_MUTED, font_family=S.FONT_MONO, letter_spacing="0.06em"), spacing="1", align="center"),
+                    rx.text(kpi["atividades_em_risco"], font_size="20px", color=S.DANGER, font_family=S.FONT_TECH, font_weight="700", line_height="1.1"),
+                    rx.text("prod. abaixo do planejado", font_size="9px", color=S.TEXT_MUTED),
+                    spacing="1", align="start", padding="12px", border_radius=S.R_CONTROL,
+                    bg="rgba(255,255,255,0.03)", border=f"1px solid {S.BORDER_SUBTLE}",
+                    width="100%", height="90px", justify="start",
+                ),
+                # Card 5: Atrasadas
+                rx.vstack(
+                    rx.hstack(rx.icon(tag="clock", size=12, color="#F97316"), rx.text("ATRASADAS", font_size="9px", color=S.TEXT_MUTED, font_family=S.FONT_MONO, letter_spacing="0.06em"), spacing="1", align="center"),
+                    rx.text(kpi["atividades_atrasadas"], font_size="20px", color="#F97316", font_family=S.FONT_TECH, font_weight="700", line_height="1.1"),
+                    rx.text("término vencido", font_size="9px", color=S.TEXT_MUTED),
+                    spacing="1", align="start", padding="12px", border_radius=S.R_CONTROL,
+                    bg="rgba(255,255,255,0.03)", border=f"1px solid {S.BORDER_SUBTLE}",
+                    width="100%", height="90px", justify="start",
+                ),
+                # Card 6: Adiantadas
+                rx.vstack(
+                    rx.hstack(rx.icon(tag="zap", size=12, color=S.PATINA), rx.text("ADIANTADAS", font_size="9px", color=S.TEXT_MUTED, font_family=S.FONT_MONO, letter_spacing="0.06em"), spacing="1", align="center"),
+                    rx.text(kpi["atividades_adiantadas"], font_size="20px", color=S.PATINA, font_family=S.FONT_TECH, font_weight="700", line_height="1.1"),
+                    rx.text("prod. acima do planejado", font_size="9px", color=S.TEXT_MUTED),
+                    spacing="1", align="start", padding="12px", border_radius=S.R_CONTROL,
+                    bg="rgba(255,255,255,0.03)", border=f"1px solid {S.BORDER_SUBTLE}",
+                    width="100%", height="90px", justify="start",
+                ),
+                columns="6", gap="8px", width="100%",
+            ),
+            # Produção física total — linha compacta
+            rx.hstack(
+                rx.hstack(
+                    rx.icon(tag="package", size=13, color=S.TEXT_MUTED),
+                    rx.text("QTD PLANEJADA:", font_size="10px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                    rx.text(kpi["producao_total_prevista"], font_size="13px", color="white", font_family=S.FONT_TECH, font_weight="600"),
+                    spacing="2", align="center",
+                ),
+                rx.icon(tag="arrow-right", size=12, color=S.BORDER_SUBTLE),
+                rx.hstack(
+                    rx.text("QTD REALIZADA:", font_size="10px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                    rx.text(kpi["producao_total_realizada"], font_size="13px", color=S.PATINA, font_family=S.FONT_TECH, font_weight="600"),
+                    spacing="2", align="center",
+                ),
+                spacing="3", align="center",
+                padding="8px 12px",
+                bg="rgba(255,255,255,0.02)",
+                border=f"1px solid {S.BORDER_SUBTLE}",
+                border_radius=S.R_CONTROL,
+                width="fit-content",
+            ),
+            spacing="3", width="100%",
+            padding="16px",
+            bg="rgba(14,26,23,0.6)",
+            border=f"1px solid {S.BORDER_SUBTLE}",
+            border_radius=S.R_CARD,
+        ),
+    )
+
+
+def _forecast_row(row: dict) -> rx.Component:
+    """Single row in the productivity/forecast table."""
+    tendencia = row["_tendencia"]
+    tend_color = rx.cond(
+        tendencia == "acima", S.PATINA,
+        rx.cond(tendencia == "abaixo", S.DANGER,
+        rx.cond(tendencia == "concluida", "#A855F7", S.TEXT_MUTED))
+    )
+    tend_icon = rx.cond(
+        tendencia == "acima", "trending-up",
+        rx.cond(tendencia == "abaixo", "trending-down",
+        rx.cond(tendencia == "concluida", "check-circle", "minus"))
+    )
+    desvio_dias = row["_desvio_dias"]
+    desvio_color = rx.cond(
+        desvio_dias.startswith("-"), S.PATINA,   # negative = finishing early
+        rx.cond(desvio_dias == "0", S.TEXT_MUTED, S.DANGER)
+    )
+    return rx.hstack(
+        # Activity name + unit
+        rx.vstack(
+            rx.text(row["atividade"], font_size="12px", color="white", font_weight="600",
+                    overflow="hidden", text_overflow="ellipsis", white_space="nowrap", max_width="200px"),
+            rx.text(row["unidade"], font_size="10px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+            spacing="0", min_width="140px", flex="1",
+        ),
+        # Progress bar
+        rx.box(
+            rx.box(
+                height="4px",
+                width=row["conclusao_pct"] + "%",
+                bg=S.PATINA,
+                border_radius="2px",
+            ),
+            width="80px", height="4px",
+            bg="rgba(255,255,255,0.08)",
+            border_radius="2px",
+            overflow="hidden",
+        ),
+        rx.text(row["conclusao_pct"] + "%", font_size="11px", color=S.TEXT_MUTED,
+                font_family=S.FONT_MONO, min_width="36px", text_align="right"),
+        # Prod planejada / real
+        rx.vstack(
+            rx.text(row["_prod_real"] + "/" + row["_prod_planejada"],
+                    font_size="11px", color="white", font_family=S.FONT_MONO),
+            rx.text("real/plan", font_size="9px", color=S.TEXT_MUTED),
+            spacing="0", align="center", width="80px", flex_shrink="0",
+        ),
+        # Desvio %
+        rx.text(row["_desvio_pct"] + "%", font_size="11px",
+                color=rx.cond(row["_desvio_pct"].startswith("+"), S.PATINA,
+                rx.cond(row["_desvio_pct"] == "+0.0", S.TEXT_MUTED, S.DANGER)),
+                font_family=S.FONT_MONO, width="52px", flex_shrink="0", text_align="right"),
+        # Tendência
+        rx.hstack(
+            rx.icon(tag=tend_icon, size=13, color=tend_color),
+            rx.text(tendencia, font_size="10px", color=tend_color),
+            spacing="1", align="center", width="80px", flex_shrink="0",
+        ),
+        # EAC
+        rx.vstack(
+            rx.text(row["_data_fim_prevista"], font_size="11px", color="white", font_family=S.FONT_MONO),
+            rx.text(
+                rx.cond(row["_desvio_dias"] == "0", "—",
+                    rx.cond(row["_desvio_dias"].startswith("-"),
+                        row["_desvio_dias"] + "d",
+                        "+" + row["_desvio_dias"] + "d")),
+                font_size="10px", color=desvio_color, font_family=S.FONT_MONO,
+            ),
+            spacing="0", align="end",
+        ),
+        align="center", spacing="3", width="100%",
+        padding="8px 12px",
+        border_bottom=f"1px solid {S.BORDER_SUBTLE}",
+        _hover={"bg": "rgba(255,255,255,0.02)"},
+    )
+
+
+def _cron_forecast_panel() -> rx.Component:
+    """Tabela de produtividade / forecast por micro-atividade."""
+    return rx.cond(
+        HubState.cron_forecast_rows.length() > 0,
+        rx.vstack(
+            rx.hstack(
+                rx.icon(tag="radar", size=14, color="#A855F7"),
+                rx.text("PRODUTIVIDADE & FORECAST", font_size="11px", font_family=S.FONT_MONO,
+                        font_weight="700", color="#A855F7", letter_spacing="0.08em"),
+                rx.spacer(),
+                rx.text("real/plan por dia · desvio · EAC", font_size="10px", color=S.TEXT_MUTED, font_style="italic"),
+                width="100%", align="center",
+            ),
+            # Header — widths must match _forecast_row columns exactly
+            rx.hstack(
+                rx.text("ATIVIDADE", font_size="9px", color=S.TEXT_MUTED, font_family=S.FONT_MONO, flex="1", min_width="140px"),
+                rx.text("PROGRESSO", font_size="9px", color=S.TEXT_MUTED, font_family=S.FONT_MONO, width="116px", text_align="left"),
+                rx.text("PROD REAL/PLAN", font_size="9px", color=S.TEXT_MUTED, font_family=S.FONT_MONO, width="80px", text_align="center"),
+                rx.text("DESVIO", font_size="9px", color=S.TEXT_MUTED, font_family=S.FONT_MONO, width="52px", text_align="right"),
+                rx.text("TENDÊNCIA", font_size="9px", color=S.TEXT_MUTED, font_family=S.FONT_MONO, width="80px", text_align="left"),
+                rx.text("PREV. TÉRMINO", font_size="9px", color=S.TEXT_MUTED, font_family=S.FONT_MONO, width="80px", text_align="right"),
+                align="center", spacing="3", width="100%",
+                padding="6px 12px",
+                bg="rgba(255,255,255,0.03)",
+                border_bottom=f"1px solid {S.BORDER_SUBTLE}",
+            ),
+            rx.vstack(
+                rx.foreach(HubState.cron_forecast_rows, _forecast_row),
+                spacing="0", width="100%",
+            ),
+            spacing="0", width="100%",
+            border=f"1px solid {S.BORDER_SUBTLE}",
+            border_radius=S.R_CARD,
+            overflow="hidden",
+            bg="rgba(14,26,23,0.4)",
+        ),
+    )
+
+
+def _cron_import_dialog() -> rx.Component:
+    return rx.dialog.root(
+        rx.dialog.content(
+            rx.vstack(
+                # Header
+                rx.hstack(
+                    rx.icon(tag="sparkles", size=16, color="#A855F7"),
+                    rx.dialog.title("Importar Cronograma via IA", font_family=S.FONT_TECH, font_size="1rem", font_weight="700", color="var(--text-main)"),
+                    rx.spacer(),
+                    rx.dialog.close(rx.icon_button(rx.icon(tag="x", size=14), size="1", variant="ghost", cursor="pointer", on_click=HubState.close_import_preview)),
+                    align="center", width="100%",
+                ),
+                rx.divider(border_color=S.BORDER_SUBTLE),
+                # Error banner
+                rx.cond(
+                    HubState.cron_import_error != "",
+                    rx.callout.root(
+                        rx.callout.icon(rx.icon(tag="alert-triangle", size=16)),
+                        rx.callout.text(HubState.cron_import_error),
+                        color="red", variant="soft",
+                    ),
+                ),
+                # Info
+                rx.text(
+                    "Revise as atividades propostas pela IA. Selecione quais deseja importar e clique em Confirmar.",
+                    font_size="12px", color=S.TEXT_MUTED,
+                ),
+                # Select all / deselect all
+                rx.hstack(
+                    rx.text(HubState.cron_import_preview.length().to_string() + " atividades propostas", font_size="12px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                    rx.spacer(),
+                    rx.button("Selecionar todas", variant="ghost", size="1", color=S.COPPER, cursor="pointer", on_click=HubState.select_all_import),
+                    rx.button("Desmarcar todas", variant="ghost", size="1", color=S.TEXT_MUTED, cursor="pointer", on_click=HubState.deselect_all_import),
+                    align="center", width="100%",
+                ),
+                # Preview table
+                rx.box(
+                    rx.vstack(
+                        rx.foreach(
+                            HubState.cron_import_preview,
+                            lambda row: rx.hstack(
+                                rx.checkbox(
+                                    checked=HubState.cron_import_selected.contains(row["_tmp_id"]),
+                                    on_change=lambda checked: HubState.toggle_import_activity(row["_tmp_id"]),
+                                    color_scheme="amber",
+                                ),
+                                rx.vstack(
+                                    rx.hstack(
+                                        rx.box(
+                                            rx.text(rx.cond(row["nivel"] == "macro", "MACRO", "MICRO"), font_size="9px", font_family=S.FONT_MONO, font_weight="700"),
+                                            padding="1px 5px",
+                                            background=rx.cond(row["nivel"] == "macro", "rgba(232,152,69,0.15)", "rgba(74,222,128,0.1)"),
+                                            color=rx.cond(row["nivel"] == "macro", S.COPPER, S.PATINA),
+                                            border=rx.cond(row["nivel"] == "macro", f"1px solid rgba(232,152,69,0.4)", "1px solid rgba(74,222,128,0.3)"),
+                                            border_radius="3px",
+                                        ),
+                                        rx.text(row["atividade"], font_size="13px", color="white", font_weight="600"),
+                                        spacing="2", align="center",
+                                    ),
+                                    rx.hstack(
+                                        rx.text(row["fase_macro"], font_size="11px", color=S.TEXT_MUTED),
+                                        rx.text("·", color=S.BORDER_SUBTLE),
+                                        rx.text(row["inicio_previsto"] + " → " + row["termino_previsto"], font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                                        rx.text("·", color=S.BORDER_SUBTLE),
+                                        rx.text(row["dias_planejados"] + " dias", font_size="11px", color=S.COPPER, font_family=S.FONT_MONO),
+                                        spacing="1", align="center", flex_wrap="wrap",
+                                    ),
+                                    spacing="1",
+                                ),
+                                align="start", spacing="3", padding="10px 12px",
+                                border_bottom=f"1px solid {S.BORDER_SUBTLE}",
+                                _hover={"bg": "rgba(255,255,255,0.02)"},
+                                width="100%",
+                            ),
+                        ),
+                        spacing="0",
+                    ),
+                    max_height="360px",
+                    overflow_y="auto",
+                    border=f"1px solid {S.BORDER_SUBTLE}",
+                    border_radius=S.R_CONTROL,
+                ),
+                # Footer
+                rx.hstack(
+                    rx.dialog.close(rx.button("Cancelar", variant="ghost", size="2", color=S.TEXT_MUTED, cursor="pointer", on_click=HubState.close_import_preview)),
+                    rx.button(
+                        rx.cond(
+                            HubState.cron_import_loading,
+                            rx.hstack(rx.spinner(size="2"), rx.text("Importando..."), spacing="1"),
+                            rx.hstack(rx.icon(tag="download", size=13), rx.text("Confirmar Importação"), spacing="1", align="center"),
+                        ),
+                        on_click=HubState.confirm_import_cronograma,
+                        size="2",
+                        disabled=HubState.cron_import_loading,
+                        style={"background": "#A855F7", "color": "white", "fontFamily": S.FONT_TECH, "fontWeight": "700", "cursor": "pointer"},
+                    ),
+                    justify="end", spacing="2", width="100%", padding_top="8px",
+                ),
+                spacing="4", width="100%",
+            ),
+            bg=S.BG_ELEVATED, border=f"1px solid {S.BORDER_SUBTLE}", border_radius=S.R_CARD,
+            max_width="680px", width="95vw",
+        ),
+        open=HubState.cron_import_show,
     )
 
 
@@ -2327,76 +2707,147 @@ def _cron_edit_dialog() -> rx.Component:
                     rx.vstack(
                         rx.hstack(
                             rx.text("Peso %", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
-                            rx.spacer(),
-                            rx.box(
-                                rx.el.input(
-                                    type="number",
-                                    value=HubState.cron_edit_peso,
-                                    on_change=HubState.set_cron_edit_peso,
-                                    min="1", max="100",
-                                    style={"background":"transparent","border":"none","color":S.COPPER,"padding":"0","fontSize":"13px","width":"42px","outline":"none","textAlign":"right","fontWeight":"700","fontFamily":S.FONT_MONO},
-                                ),
-                                rx.text("%", font_size="12px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
-                                display="flex", align_items="center", gap="2px",
-                            ),
-                            width="100%", align="center",
+                            rx.text("(0–100)", font_size="10px", color=S.TEXT_MUTED, font_style="italic"),
+                            spacing="1", align="center",
                         ),
                         rx.el.input(
-                            type="range",
-                            value=HubState.cron_edit_peso,
-                            on_change=HubState.set_cron_edit_peso,
+                            type="number",
+                            default_value=HubState.cron_edit_peso,
+                            on_blur=HubState.set_cron_edit_peso,
                             min="1", max="100", step="1",
-                            style={
-                                "width": "100%",
-                                "height": "4px",
-                                "accentColor": S.COPPER,
-                                "cursor": "pointer",
-                                "outline": "none",
-                                "background": f"linear-gradient(to right, {S.COPPER} 0%, {S.COPPER} {HubState.cron_edit_peso}%, rgba(255,255,255,0.1) {HubState.cron_edit_peso}%, rgba(255,255,255,0.1) 100%)",
-                            },
+                            style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":S.COPPER,"padding":"8px 10px","fontSize":"14px","width":"90px","outline":"none","fontWeight":"700","fontFamily":S.FONT_MONO},
                         ),
                         spacing="1",
-                        min_width="160px",
-                        flex="1",
+                        min_width="120px",
                     ),
                     gap="12px", flex_wrap="wrap", align="start",
                 ),
-                # Row 4b: Progresso + Crítico
-                rx.hstack(
+                # Row 4b: Progresso + Status + Tipo Medição + Crítico
+                rx.flex(
                     rx.vstack(rx.text("Conclusão %", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
-                              rx.el.input(type="number", value=HubState.cron_edit_pct, on_change=HubState.set_cron_edit_pct, min="0", max="100", style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","padding":"8px 10px","fontSize":"13px","width":"120px","outline":"none"}), spacing="1"),
-                    rx.hstack(
-                        rx.checkbox(checked=HubState.cron_edit_critico, on_change=HubState.toggle_cron_edit_critico, color_scheme="red"),
-                        rx.text("Atividade Crítica", font_size="12px", color=rx.cond(HubState.cron_edit_critico, S.DANGER, S.TEXT_MUTED)),
-                        spacing="2", align="center", margin_top="18px",
-                    ),
-                    align="end", spacing="6",
-                ),
-                # Row 5: Dependência + Observações
-                rx.vstack(
-                    rx.text("Dependência", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
-                    rx.cond(
-                        HubState.cron_activity_options.length() > 0,
+                              rx.el.input(type="number", default_value=HubState.cron_edit_pct, on_blur=HubState.set_cron_edit_pct, min="0", max="100", style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","padding":"8px 10px","fontSize":"13px","width":"100px","outline":"none"}), spacing="1"),
+                    rx.vstack(
+                        rx.text("Status", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                         rx.select.root(
-                            rx.select.trigger(
-                                placeholder="— Sem dependência —",
-                                style={"background": "rgba(14,26,23,0.8)", "border": f"1px solid {S.BORDER_SUBTLE}", "borderRadius": S.R_CONTROL, "color": "white", "padding": "8px 10px", "fontSize": "13px", "width": "100%", "outline": "none"},
-                            ),
+                            rx.select.trigger(style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","fontSize":"13px","width":"160px","outline":"none"}),
                             rx.select.content(
-                                rx.select.item("— Sem dependência —", value="__none__"),
-                                rx.foreach(
-                                    HubState.cron_activity_options,
-                                    lambda name: rx.select.item(name, value=name),
-                                ),
+                                rx.select.item("Não iniciada", value="nao_iniciada"),
+                                rx.select.item("Pronta para iniciar", value="pronta_iniciar"),
+                                rx.select.item("Em execução", value="em_execucao"),
+                                rx.select.item("Concluída", value="concluida"),
+                                rx.select.item("Atrasada", value="atrasada"),
+                                rx.select.item("Paralisada", value="paralisada"),
+                                rx.select.item("Bloqueada", value="bloqueada"),
+                                rx.select.item("Cancelada", value="cancelada"),
                                 style={"background": S.BG_ELEVATED, "border": f"1px solid {S.BORDER_SUBTLE}", "zIndex": "9999"},
                                 position="popper",
                             ),
-                            value=rx.cond(HubState.cron_edit_dependencia == "", "__none__", HubState.cron_edit_dependencia),
-                            on_change=HubState.set_cron_edit_dependencia,
+                            value=HubState.cron_edit_status_atividade,
+                            on_change=HubState.set_cron_edit_status_atividade,
                         ),
-                        rx.text("Nenhuma atividade criada ainda", font_size="11px", color=S.TEXT_MUTED, font_style="italic"),
+                        spacing="1",
                     ),
-                    spacing="1", width="100%",
+                    rx.vstack(
+                        rx.text("Tipo Medição", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                        rx.select.root(
+                            rx.select.trigger(style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","fontSize":"13px","width":"140px","outline":"none"}),
+                            rx.select.content(
+                                rx.select.item("Quantidade", value="quantidade"),
+                                rx.select.item("Percentual", value="percentual"),
+                                rx.select.item("Marco", value="marco"),
+                                style={"background": S.BG_ELEVATED, "border": f"1px solid {S.BORDER_SUBTLE}", "zIndex": "9999"},
+                                position="popper",
+                            ),
+                            value=HubState.cron_edit_tipo_medicao,
+                            on_change=HubState.set_cron_edit_tipo_medicao,
+                        ),
+                        spacing="1",
+                    ),
+                    rx.hstack(
+                        rx.checkbox(checked=HubState.cron_edit_critico, on_change=HubState.toggle_cron_edit_critico, color_scheme="red"),
+                        rx.text("Crítico", font_size="12px", color=rx.cond(HubState.cron_edit_critico, S.DANGER, S.TEXT_MUTED)),
+                        spacing="2", align="center", margin_top="18px",
+                    ),
+                    gap="12px", flex_wrap="wrap", align="end",
+                ),
+                # Row 5: Dependência + Dias Planejados
+                rx.flex(
+                    rx.vstack(
+                        rx.hstack(
+                            rx.text("Dependência", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                            rx.text("(início auto-calculado)", font_size="10px", color=S.TEXT_MUTED, font_style="italic"),
+                            spacing="1", align="center",
+                        ),
+                        rx.cond(
+                            HubState.cron_parent_options.length() > 0,
+                            rx.select.root(
+                                rx.select.trigger(
+                                    placeholder="— Sem dependência —",
+                                    style={"background": "rgba(14,26,23,0.8)", "border": f"1px solid {S.BORDER_SUBTLE}", "borderRadius": S.R_CONTROL, "color": "white", "padding": "8px 10px", "fontSize": "13px", "width": "100%", "outline": "none"},
+                                ),
+                                rx.select.content(
+                                    rx.select.item("— Sem dependência —", value="__none__"),
+                                    rx.foreach(
+                                        HubState.cron_parent_options,
+                                        lambda opt: rx.select.item(opt["label"], value=opt["id"]),
+                                    ),
+                                    style={"background": S.BG_ELEVATED, "border": f"1px solid {S.BORDER_SUBTLE}", "zIndex": "9999"},
+                                    position="popper",
+                                ),
+                                value=rx.cond(HubState.cron_edit_dependencia_id == "", "__none__", HubState.cron_edit_dependencia_id),
+                                on_change=HubState.set_cron_edit_dependencia_id,
+                            ),
+                            rx.text("Nenhuma atividade criada ainda", font_size="11px", color=S.TEXT_MUTED, font_style="italic"),
+                        ),
+                        spacing="1", flex="1",
+                    ),
+                    rx.vstack(
+                        rx.hstack(
+                            rx.text("Dias Planejados", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                            rx.text("(dias úteis)", font_size="10px", color=S.TEXT_MUTED, font_style="italic"),
+                            spacing="1", align="center",
+                        ),
+                        rx.el.input(
+                            type="number",
+                            default_value=HubState.cron_edit_dias_planejados,
+                            on_blur=HubState.set_cron_edit_dias_planejados,
+                            placeholder="Ex: 10",
+                            min="0",
+                            style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","padding":"8px 10px","fontSize":"13px","width":"120px","outline":"none"},
+                        ),
+                        spacing="1",
+                    ),
+                    gap="12px", flex_wrap="wrap", align="start",
+                ),
+                # Row 6: Qtd Total + Unidade (quantidade física)
+                rx.flex(
+                    rx.vstack(
+                        rx.hstack(
+                            rx.text("Qtd Total", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                            rx.text("(0 = sem rastreio)", font_size="10px", color=S.TEXT_MUTED, font_style="italic"),
+                            spacing="1", align="center",
+                        ),
+                        rx.el.input(
+                            type="number",
+                            default_value=HubState.cron_edit_total_qty,
+                            on_blur=HubState.set_cron_edit_total_qty,
+                            placeholder="Ex: 500",
+                            min="0",
+                            style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","padding":"8px 10px","fontSize":"13px","width":"120px","outline":"none"},
+                        ),
+                        spacing="1",
+                    ),
+                    rx.vstack(
+                        rx.text("Unidade", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                        rx.el.input(
+                            default_value=HubState.cron_edit_unidade,
+                            on_blur=HubState.set_cron_edit_unidade,
+                            placeholder="Ex: m², kg, und",
+                            style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","padding":"8px 10px","fontSize":"14px","width":"100%","outline":"none"},
+                        ),
+                        spacing="1", flex="1",
+                    ),
+                    gap="12px", flex_wrap="wrap", align="start",
                 ),
                 rx.vstack(rx.text("Observações", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                           rx.el.textarea(default_value=HubState.cron_edit_observacoes, on_blur=HubState.set_cron_edit_observacoes, placeholder="Notas técnicas, impedimentos, contexto...", rows="3", style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","padding":"8px 10px","fontSize":"13px","width":"100%","outline":"none","resize":"vertical","fontFamily":S.FONT_BODY}), spacing="1", width="100%"),
@@ -2555,15 +3006,20 @@ def _gantt_bar(item: dict) -> rx.Component:
                         border_radius="3px",
                         min_width="8px",
                     ),
-                    # Today marker
-                    rx.box(
-                        position="absolute",
-                        left="0%",  # We can't compute today% in component; use CSS trick
-                        width="1px",
-                        height="100%",
-                        bg="rgba(201,139,42,0.4)",
-                        top="0",
-                        display="none",  # hidden for now; would need server-side today_pct
+                    # Forecast bar (EAC) — purple dashed, only when gantt_forecast_width is set
+                    rx.cond(
+                        item["gantt_forecast_width"] != "",
+                        rx.box(
+                            position="absolute",
+                            left=item["gantt_forecast_left"] + "%",
+                            width=item["gantt_forecast_width"] + "%",
+                            height="4px",
+                            top="28px",
+                            bg="transparent",
+                            border="1px dashed rgba(168,85,247,0.6)",
+                            border_radius="2px",
+                            min_width="4px",
+                        ),
                     ),
                     position="relative", height="22px", width="100%",
                 ),
@@ -2580,6 +3036,9 @@ def _gantt_bar(item: dict) -> rx.Component:
         padding="6px 0",
         border_bottom=f"1px solid {S.BORDER_SUBTLE}22",
         _last={"borderBottom": "none"},
+        _hover={"background": "rgba(255,255,255,0.02)", "borderRadius": "4px"},
+        cursor="default",
+        title=item["atividade"] + " | " + item["responsavel"] + " | " + item["conclusao_pct"] + "% | " + item["inicio_previsto"] + " → " + item["termino_previsto"],
     )
 
 
@@ -2597,6 +3056,18 @@ def _gantt_premium() -> rx.Component:
                     rx.icon(tag="arrow-right", size=10, color=S.TEXT_MUTED),
                     rx.text(HubState.gantt_date_range["end"], font_size="10px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                     spacing="2", align="center",
+                ),
+                # Legend
+                rx.hstack(
+                    rx.box(width="16px", height="4px", bg=S.COPPER, border_radius="2px"),
+                    rx.text("Programado", font_size="9px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                    rx.box(width="16px", height="4px", bg="transparent",
+                           border="1px dashed rgba(168,85,247,0.7)", border_radius="2px"),
+                    rx.text("Previsto (EAC)", font_size="9px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                    rx.box(width="8px", height="8px", bg="#EF4444", border_radius="50%"),
+                    rx.text("Atrasada", font_size="9px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                    spacing="2", align="center",
+                    display=rx.breakpoints(initial="none", md="flex"),
                 ),
                 rx.spacer(),
                 # IA Climate Analysis button
@@ -2702,6 +3173,7 @@ def _climate_analysis_panel() -> rx.Component:
 
 def _tab_cronograma() -> rx.Component:
     return rx.vstack(
+        _cron_import_dialog(),
         _cron_edit_dialog(),
         _cron_delete_dialog(),
         # ── Stats strip ──────────────────────────────────────────────────────────
@@ -2714,6 +3186,24 @@ def _tab_cronograma() -> rx.Component:
             rx.box(width="1px", height="40px", bg=S.BORDER_SUBTLE),
             _cron_stat_badge("Progresso", HubState.cron_stats["pct"] + "%", "#A855F7"),
             rx.spacer(),
+            rx.upload(
+                rx.button(
+                    rx.hstack(
+                        rx.cond(HubState.cron_import_loading, rx.spinner(size="1"), rx.icon(tag="sparkles", size=13)),
+                        rx.text("Importar via IA"),
+                        spacing="1", align="center",
+                    ),
+                    size="2",
+                    style={"background": "rgba(168,85,247,0.15)", "color": "#A855F7", "border": "1px solid rgba(168,85,247,0.4)", "fontFamily": S.FONT_TECH, "fontWeight": "700", "cursor": "pointer"},
+                    disabled=HubState.cron_import_loading,
+                ),
+                id="cron_import_upload",
+                accept={".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".xls": "application/vnd.ms-excel", ".csv": "text/csv", ".pdf": "application/pdf"},
+                max_files=1,
+                on_drop=HubState.import_cronograma_ia(rx.upload_files(upload_id="cron_import_upload")),
+                border="0",
+                padding="0",
+            ),
             rx.button(
                 rx.hstack(rx.icon(tag="plus", size=13), rx.text("Nova Atividade"), spacing="1", align="center"),
                 on_click=HubState.open_cron_new_root, size="2",
@@ -2835,6 +3325,10 @@ def _tab_cronograma() -> rx.Component:
                 ),
             ),
         ),
+        # ── KPI Dashboard: Previsto vs Realizado ──────────────────────────────
+        _cron_kpi_panel(),
+        # ── Forecast / Produtividade por atividade ────────────────────────────
+        _cron_forecast_panel(),
         # ── Gantt Premium ─────────────────────────────────────────────────────
         rx.cond(
             HubState.cron_rows.length() > 0,
@@ -4608,6 +5102,18 @@ def _novo_projeto_dialog() -> rx.Component:
                         ),
                         gap="12px",
                         flex_wrap="wrap",
+                        width="100%",
+                    ),
+                    # Row 7: Valor Contratado
+                    rx.vstack(
+                        rx.text("Valor Contratado (R$)", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                        rx.el.input(
+                            on_change=GlobalState.set_np_valor_contratado,
+                            placeholder="Ex: 1.250.000,00",
+                            type="text",
+                            style={**_INPUT_STYLE, "fontFamily": "var(--font-mono)"},
+                        ),
+                        spacing="1",
                         width="100%",
                     ),
                     spacing="4",

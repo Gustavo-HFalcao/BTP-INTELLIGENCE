@@ -1362,14 +1362,62 @@ def _section_cronograma() -> rx.Component:
                             rx.cond(
                                 RDOState.rdo_atividade_id != "",
                                 rx.vstack(
-                                    rx.text("Progresso atual (%)", size="1", color="rgba(255,255,255,0.5)", font_family="var(--font-mono)"),
-                                    rx.el.input(
-                                        type="number", min="0", max="100",
-                                        default_value=RDOState.rdo_progresso_atividade,
-                                        on_blur=RDOState.set_rdo_progresso_atividade,
-                                        style=dict(_CARD_INPUT, **{"width": "120px"}),
+                                    # Qty tracker — informativo
+                                    rx.cond(
+                                        RDOState.rdo_ativ_total_qty != "0",
+                                        rx.box(
+                                            rx.hstack(
+                                                rx.icon(tag="layers", size=13, color="rgba(201,139,42,0.7)"),
+                                                rx.text(
+                                                    RDOState.rdo_ativ_exec_qty + " / " + RDOState.rdo_ativ_total_qty + " " + RDOState.rdo_ativ_unidade + " executados",
+                                                    size="1",
+                                                    color="rgba(201,139,42,0.9)",
+                                                    font_family="var(--font-mono)",
+                                                ),
+                                                spacing="2", align="center",
+                                            ),
+                                            padding="6px 10px",
+                                            border_radius="6px",
+                                            bg="rgba(201,139,42,0.07)",
+                                            border="1px solid rgba(201,139,42,0.2)",
+                                            width="100%",
+                                            margin_bottom="6px",
+                                        ),
                                     ),
-                                    spacing="1",
+                                    # Production input
+                                    rx.cond(
+                                        RDOState.rdo_ativ_total_qty != "0",
+                                        rx.vstack(
+                                            rx.text(
+                                                "Produção de hoje (" + RDOState.rdo_ativ_unidade + ")",
+                                                size="1", color="rgba(255,255,255,0.5)", font_family="var(--font-mono)",
+                                            ),
+                                            rx.el.input(
+                                                type="number", min="0",
+                                                placeholder="Ex: 120",
+                                                default_value=RDOState.rdo_producao_dia,
+                                                on_blur=RDOState.set_rdo_producao_dia,
+                                                style=dict(_CARD_INPUT, **{"width": "160px"}),
+                                            ),
+                                            rx.text(
+                                                "O % será calculado automaticamente a partir da quantidade.",
+                                                size="1", color="rgba(255,255,255,0.3)", font_style="italic",
+                                            ),
+                                            spacing="1",
+                                        ),
+                                        # Fallback: manual % if no total_qty configured
+                                        rx.vstack(
+                                            rx.text("Progresso atual (%)", size="1", color="rgba(255,255,255,0.5)", font_family="var(--font-mono)"),
+                                            rx.el.input(
+                                                type="number", min="0", max="100",
+                                                default_value=RDOState.rdo_progresso_atividade,
+                                                on_blur=RDOState.set_rdo_progresso_atividade,
+                                                style=dict(_CARD_INPUT, **{"width": "120px"}),
+                                            ),
+                                            spacing="1",
+                                        ),
+                                    ),
+                                    spacing="1", width="100%",
                                 ),
                             ),
                             spacing="3", width="100%",

@@ -310,7 +310,7 @@ def _rdo_card(rdo: Dict[str, Any]) -> rx.Component:
                         rx.button(
                             rx.icon("pencil", size=14),
                             "Continuar",
-                            on_click=rx.redirect("/rdo-form"),
+                            on_click=[GlobalState.set_navigating, rx.redirect("/rdo-form")],
                             size="1",
                             style={
                                 "background": "rgba(255,255,255,0.06)",
@@ -448,7 +448,7 @@ def rdo_historico_page() -> rx.Component:
             rx.button(
                 rx.icon("plus", size=16),
                 "Novo RDO",
-                on_click=[RDOState.reset_for_new, rx.redirect("/rdo-form")],
+                on_click=[GlobalState.set_navigating, RDOState.reset_for_new, rx.redirect("/rdo-form")],
                 size="2",
                 style={"background": _BTN_PRI, "color": "#fff", "border_radius": "8px", "font_weight": "600", "min_height": "44px"},
             ),
@@ -515,7 +515,7 @@ def rdo_historico_page() -> rx.Component:
                                     rx.text("Nenhum RDO encontrado", size="3", color=_MUTED),
                                     rx.button(
                                         "Criar primeiro RDO",
-                                        on_click=[RDOState.reset_for_new, rx.redirect("/rdo-form")],
+                                        on_click=[GlobalState.set_navigating, RDOState.reset_for_new, rx.redirect("/rdo-form")],
                                         size="2",
                                         style={"background": _BTN_PRI, "color": "#fff", "border_radius": "6px"},
                                     ),

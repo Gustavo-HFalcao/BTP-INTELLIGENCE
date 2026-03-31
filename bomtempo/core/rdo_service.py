@@ -837,14 +837,14 @@ class RDOService:
             ai_html = f'<span style="font-size:9px;color:#2A9D8F;font-style:italic;margin-top:3px;display:block;">🤖 {analysis}</span>' if analysis else ""
             cards.append(f"""
             <div style="border:0.5px solid #e4e4e7;border-radius:4px;overflow:hidden;page-break-inside:avoid;">
-              <div style="background:#f4f4f5;">
-                <img src="{url}" style="width:100%;height:auto;display:block;" />
+              <div style="background:#f4f4f5;display:flex;align-items:center;justify-content:center;height:148px;overflow:hidden;">
+                <img src="{url}" style="width:100%;height:148px;object-fit:cover;display:block;" />
               </div>
-              <div style="padding:6px 8px 8px;background:#fafafa;border-left:2px solid #C98B2A;">
+              <div style="padding:5px 8px 7px;background:#fafafa;border-left:2px solid #C98B2A;">
                 {ts_html}{cap_html}{ai_html}
               </div>
             </div>""")
-        return f'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:6px 0;">{"".join(cards)}</div>'
+        return f'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;padding:6px 0;">{"".join(cards)}</div>'
 
     @staticmethod
     def build_html(rdo_data: Dict[str, Any], is_preview: bool = False) -> str:

@@ -1348,6 +1348,7 @@ def default_layout(content: rx.Component) -> rx.Component:
                     min_height="100vh",
                     overflow="hidden",
                     background=S.BG_VOID,
+                    class_name="main-layout-flex",
                 ),  # End rx.flex
                 position="relative",
                 width="100%",

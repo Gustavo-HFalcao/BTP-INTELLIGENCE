@@ -81,10 +81,207 @@ def _fase_color(fase: str) -> str:
     return FASE_COLORS.get(fase.lower().strip(), "#889999")
 
 
+def _add_working_days(start_iso: str, days: int) -> str:
+    """Return ISO date string = start_iso + `days` working days (Mon-Fri)."""
+    from datetime import date, timedelta
+    try:
+        current = date.fromisoformat(start_iso[:10])
+        added = 0
+        while added < days:
+            current += timedelta(days=1)
+            if current.weekday() < 5:  # Mon=0..Fri=4
+                added += 1
+        return current.isoformat()
+    except Exception:
+        return start_iso
+
+
 def _norm_str(v: object, fallback: str = "") -> str:
     if v is None or str(v) in ("None", "NaT", "nan", ""):
         return fallback
     return str(v)
+
+
+def _recalc_macro_dates(macro_id: str, contrato: str, client_id: str) -> None:
+    """After saving a micro, update its parent macro's inicio/termino from children dates."""
+    try:
+        children = sb_select("hub_atividades", filters={"parent_id": macro_id, "contrato": contrato}, limit=200)
+        starts = [r["inicio_previsto"] for r in children if r.get("inicio_previsto")]
+        ends = [r["termino_previsto"] for r in children if r.get("termino_previsto")]
+        if starts and ends:
+            sb_update("hub_atividades", filters={"id": macro_id}, data={
+                "inicio_previsto": min(starts),
+                "termino_previsto": max(ends),
+            })
+    except Exception as e:
+        logger.warning(f"_recalc_macro_dates error: {e}")
+
+
+def _log_schedule_diff_async(
+    contrato: str,
+    atividade_id: str,
+    atividade_nome: str,
+    old_row: dict,
+    new_row: dict,
+    autor: str,
+    client_id: str,
+) -> None:
+    """Fire-and-forget: record a full diff of changed fields into hub_cronograma_log
+    + summary entry in hub_timeline with AI impact note (best-effort).
+
+    Tracked fields:
+      inicio_previsto, termino_previsto, conclusao_pct, responsavel,
+      peso_pct, critico, nivel, fase_macro, fase, observacoes,
+      total_qty, unidade, dias_planejados
+    """
+    import threading
+
+    FIELD_LABELS = {
+        "inicio_previsto":  "Início",
+        "termino_previsto": "Término",
+        "conclusao_pct":    "Conclusão %",
+        "responsavel":      "Responsável",
+        "peso_pct":         "Peso %",
+        "critico":          "Crítico",
+        "nivel":            "Nível",
+        "fase_macro":       "Fase Macro",
+        "fase":             "Fase",
+        "observacoes":      "Observações",
+        "total_qty":        "Qtd Total",
+        "unidade":          "Unidade",
+        "dias_planejados":  "Dias Planejados",
+        "status_atividade": "Status",
+        "tipo_medicao":     "Tipo Medição",
+    }
+
+    def _fmt(field: str, v) -> str:
+        v = str(v or "")
+        if field in ("inicio_previsto", "termino_previsto", "data_inicio_real", "data_fim_real", "data_fim_prevista"):
+            return _utc_date_to_br(v) or "—"
+        if field == "critico":
+            return "Sim" if v.upper() in ("TRUE", "1", "SIM", "YES") else "Não"
+        return v or "—"
+
+    def _run():
+        try:
+            diffs = []
+            for field in FIELD_LABELS:
+                old_v = str(old_row.get(field, "") or "")
+                new_v = str(new_row.get(field, "") or "")
+                if old_v != new_v:
+                    diffs.append((field, old_v, new_v))
+
+            if not diffs:
+                return
+
+            # Insert one log row per changed field
+            for field, old_v, new_v in diffs:
+                try:
+                    sb_insert("hub_cronograma_log", {
+                        "contrato":       contrato,
+                        "atividade_id":   atividade_id or None,
+                        "atividade_nome": atividade_nome[:120],
+                        "campo":          field,
+                        "valor_anterior": _fmt(field, old_v)[:500],
+                        "valor_novo":     _fmt(field, new_v)[:500],
+                        "autor":          autor or "sistema",
+                        "client_id":      client_id or None,
+                    })
+                except Exception:
+                    pass
+
+            # Human-readable summary for timeline
+            date_fields = {"inicio_previsto", "termino_previsto"}
+            date_diffs = [(f, o, n) for f, o, n in diffs if f in date_fields]
+            other_diffs = [(f, o, n) for f, o, n in diffs if f not in date_fields]
+
+            parts = []
+            for f, o, n in date_diffs:
+                parts.append(f"{FIELD_LABELS[f]}: {_fmt(f, o)} → {_fmt(f, n)}")
+            for f, o, n in other_diffs[:4]:  # cap at 4 non-date changes per entry
+                label = FIELD_LABELS.get(f, f)
+                parts.append(f"{label}: {_fmt(f, o)} → {_fmt(f, n)}")
+
+            change_summary = " | ".join(parts)
+            titulo = f"[Cronograma] {atividade_nome[:60]} — {len(diffs)} campo(s) alterado(s)"
+
+            tl_id = None
+            try:
+                result = sb_insert("hub_timeline", {
+                    "contrato":    contrato,
+                    "tipo":        "Atualização",
+                    "titulo":      titulo,
+                    "descricao":   change_summary,
+                    "autor":       autor or "sistema",
+                    "mencoes":     [],
+                    "is_document": False,
+                    "is_cost":     False,
+                    "client_id":   client_id or None,
+                })
+                # sb_insert returns a dict (single row) or None
+                if result and isinstance(result, dict) and result.get("id"):
+                    tl_id = result["id"]
+                elif result and isinstance(result, list) and result[0].get("id"):
+                    tl_id = result[0]["id"]
+            except Exception:
+                pass
+
+            # AI impact analysis (best-effort, enriches the timeline entry)
+            try:
+                from bomtempo.core.ai_client import ai_client
+                diff_text = "\n".join(
+                    f"- {FIELD_LABELS.get(f, f)}: '{_fmt(f, o)}' → '{_fmt(f, n)}'"
+                    for f, o, n in diffs
+                )
+                msg = [{"role": "user", "content": (
+                    f"Atividade de obra: '{atividade_nome}'\n"
+                    f"Alterações registradas:\n{diff_text}\n\n"
+                    f"Em 1-2 frases objetivas: qual o impacto dessas mudanças no cronograma? "
+                    f"Considere dependências, prazo contratual e caminho crítico."
+                )}]
+                ai_note = ai_client.query(msg)
+                if ai_note:
+                    # Update timeline entry with AI note
+                    if tl_id:
+                        sb_update("hub_timeline", filters={"id": tl_id},
+                                  data={"descricao": f"{change_summary}\n\n🤖 {ai_note}"})
+                    # Also store impacto in the log rows for this batch
+                    try:
+                        from datetime import datetime, timezone
+                        # Update the most recent log row for this atividade
+                        sb_update(
+                            "hub_cronograma_log",
+                            filters={"atividade_id": atividade_id, "autor": autor},
+                            data={"ai_impacto": ai_note[:1000]},
+                        )
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+        except Exception as ex:
+            logger.warning(f"_log_schedule_diff_async error: {ex}")
+
+    threading.Thread(target=_run, daemon=True).start()
+
+
+# Keep legacy name as thin wrapper for backward compat
+def _log_schedule_change_async(
+    contrato: str, atividade: str,
+    old_inicio: str, new_inicio: str,
+    old_termino: str, new_termino: str,
+    autor: str, client_id: str,
+) -> None:
+    """Legacy wrapper — delegates to _log_schedule_diff_async."""
+    _log_schedule_diff_async(
+        contrato=contrato,
+        atividade_id="",
+        atividade_nome=atividade,
+        old_row={"inicio_previsto": old_inicio, "termino_previsto": old_termino},
+        new_row={"inicio_previsto": new_inicio, "termino_previsto": new_termino},
+        autor=autor,
+        client_id=client_id,
+    )
 
 
 def _norm_pct(v: object) -> str:
@@ -134,15 +331,30 @@ class HubState(rx.State):
     cron_edit_termino: str = ""
     cron_edit_pct: str = "0"
     cron_edit_critico: bool = False
-    cron_edit_dependencia: str = ""
+    cron_edit_dependencia: str = ""   # legacy text name (kept for compat)
+    cron_edit_dependencia_id: str = ""  # UUID of dependency activity
     cron_edit_observacoes: str = ""
     cron_saving: bool = False
     cron_error: str = ""
+    # Quantity tracking (#17)
+    cron_edit_total_qty: str = ""    # total planned quantity (e.g. "1456")
+    cron_edit_unidade: str = ""      # unit (e.g. "perfurações", "m²", "un")
+    cron_edit_dias_planejados: str = ""  # working days → auto-fill termino
+    # Forecast / status fields
+    cron_edit_status_atividade: str = "nao_iniciada"
+    cron_edit_tipo_medicao: str = "quantidade"
 
     # Delete confirm
     cron_delete_id: str = ""
     cron_delete_name: str = ""
     cron_show_delete: bool = False
+
+    # IA import from Excel/PDF
+    cron_import_loading: bool = False
+    cron_import_error: str = ""
+    cron_import_preview: List[Dict[str, str]] = []  # proposed activities to review
+    cron_import_show: bool = False
+    cron_import_selected: List[str] = []  # ids of proposals to confirm
 
     # ══════════════════════════════════════════════════════════════════════════
     # AUDITORIA (photo gallery bolsões)
@@ -341,7 +553,8 @@ class HubState(rx.State):
                     pass
 
         if not dates_start or not dates_end:
-            return [dict(r, gantt_left_pct="0", gantt_width_pct="100", gantt_overdue="0") for r in rows]
+            return [dict(r, gantt_left_pct="0", gantt_width_pct="100", gantt_overdue="0",
+                         gantt_forecast_left="", gantt_forecast_width="") for r in rows]
 
         global_start = min(dates_start)
         global_end = max(dates_end)
@@ -367,12 +580,45 @@ class HubState(rx.State):
                 overdue = "1" if e_date < today and int(r.get("conclusao_pct", "0") or "0") < 100 else "0"
             except Exception:
                 left_pct, width_pct, overdue = 0.0, 100.0, "0"
+                s_date = global_start
+                e_date = global_end
+
+            # Forecast bar: from s_date to EAC (data_fim_prevista) — only for micros with qty
+            gantt_forecast_left = ""
+            gantt_forecast_width = ""
+            try:
+                total_qty_f = float(r.get("total_qty", "0") or "0")
+                exec_qty_f  = float(r.get("exec_qty", "0") or "0")
+                dias_plan_f = int(r.get("dias_planejados", "0") or "0")
+                if total_qty_f > 0 and exec_qty_f > 0 and dias_plan_f > 0:
+                    prod_plan_f = total_qty_f / dias_plan_f
+                    d_inicio_f  = date.fromisoformat(s_iso[:10]) if s_iso and len(s_iso) >= 10 else None
+                    if d_inicio_f:
+                        dias_dec = max(1, int((today - d_inicio_f).days * 5 / 7))
+                        prod_real_f = exec_qty_f / dias_dec
+                        if prod_real_f > 0:
+                            saldo_f = max(0.0, total_qty_f - exec_qty_f)
+                            cal_rest = int((saldo_f / prod_real_f) * 1.4)
+                            from datetime import timedelta
+                            eac_date = today + timedelta(days=cal_rest)
+                            eac_left = round((s_date - global_start).days / total_days * 100, 1)
+                            eac_dur  = max((eac_date - s_date).days, 1)
+                            eac_w    = round(eac_dur / total_days * 100, 1)
+                            eac_left = max(0.0, eac_left)
+                            if eac_left + eac_w > 100:
+                                eac_w = 100.0 - eac_left
+                            gantt_forecast_left  = str(eac_left)
+                            gantt_forecast_width = str(max(eac_w, 0.5))
+            except Exception:
+                pass
 
             result.append(dict(
                 r,
                 gantt_left_pct=str(left_pct),
                 gantt_width_pct=str(max(width_pct, 0.8)),
                 gantt_overdue=overdue,
+                gantt_forecast_left=gantt_forecast_left,
+                gantt_forecast_width=gantt_forecast_width,
             ))
         return result
 
@@ -491,6 +737,183 @@ class HubState(rx.State):
             if r.get("nivel", "macro") in ("macro", "") and r.get("id") != self.cron_edit_id
         ]
 
+    # ── Forecast / Produtividade computed vars ────────────────────────────────
+
+    @rx.var
+    def cron_forecast_rows(self) -> List[Dict[str, str]]:
+        """
+        Enriches micro activities with forecast fields:
+          prod_planejada_dia, prod_real_media, desvio_pct, data_fim_prevista,
+          desvio_dias, tendencia ('acima'|'dentro'|'abaixo'|'sem_dados')
+        Only micros with total_qty > 0 AND exec_qty > 0 get a meaningful forecast.
+        """
+        from datetime import date, timedelta
+        today = date.today()
+        result = []
+        for r in self.cron_rows:
+            if r.get("nivel", "macro") != "micro":
+                continue
+            try:
+                total_qty  = float(r.get("total_qty",  "0") or "0")
+                exec_qty   = float(r.get("exec_qty",   "0") or "0")
+                dias_plan  = int(r.get("dias_planejados", "0") or "0")
+                pct        = int(r.get("conclusao_pct", "0") or "0")
+                inicio_iso = r.get("inicio_iso", "")
+                termino_iso = r.get("termino_iso", "")
+            except (ValueError, TypeError):
+                continue
+
+            # produtividade planejada
+            prod_plan = 0.0
+            if total_qty > 0 and dias_plan > 0:
+                prod_plan = total_qty / dias_plan
+
+            # dias decorridos desde início (aproximado, ignorando feriados)
+            dias_decorridos = 0
+            if inicio_iso and len(inicio_iso) >= 10:
+                try:
+                    d_inicio = date.fromisoformat(inicio_iso[:10])
+                    if d_inicio <= today:
+                        dias_decorridos = max(0, (today - d_inicio).days)
+                except Exception:
+                    pass
+
+            # produtividade real média (exec_qty / dias decorridos úteis estimados)
+            dias_uteis_decorridos = max(1, int(dias_decorridos * 5 / 7))  # rough weekday estimate
+            prod_real = exec_qty / dias_uteis_decorridos if dias_uteis_decorridos > 0 and exec_qty > 0 else 0.0
+
+            # desvio de produtividade
+            desvio_pct = 0.0
+            if prod_plan > 0:
+                desvio_pct = round((prod_real - prod_plan) / prod_plan * 100, 1)
+
+            # tendência
+            tol = 10.0  # ±10% tolerance
+            if exec_qty == 0 or dias_decorridos < 3:
+                tendencia = "sem_dados"
+            elif desvio_pct >= tol:
+                tendencia = "acima"
+            elif desvio_pct <= -tol:
+                tendencia = "abaixo"
+            else:
+                tendencia = "dentro"
+
+            # data fim prevista (EAC)
+            data_fim_prev_str = ""
+            desvio_dias = 0
+            if prod_real > 0 and total_qty > 0 and pct < 100:
+                saldo = total_qty - exec_qty
+                dias_restantes = max(0, int(saldo / prod_real))
+                # Convert working days → calendar days (rough ×1.4)
+                cal_restantes = int(dias_restantes * 1.4)
+                fim_prev = today + timedelta(days=cal_restantes)
+                data_fim_prev_str = fim_prev.isoformat()
+                if termino_iso and len(termino_iso) >= 10:
+                    try:
+                        fim_plan = date.fromisoformat(termino_iso[:10])
+                        desvio_dias = (fim_prev - fim_plan).days
+                    except Exception:
+                        pass
+            elif pct >= 100:
+                tendencia = "concluida"
+
+            result.append(dict(
+                r,
+                _prod_planejada=f"{prod_plan:.1f}",
+                _prod_real=f"{prod_real:.1f}",
+                _desvio_pct=f"{desvio_pct:+.1f}",
+                _tendencia=tendencia,
+                _data_fim_prevista=_utc_date_to_br(data_fim_prev_str) if data_fim_prev_str else "—",
+                _desvio_dias=str(desvio_dias),
+                _saldo_qty=f"{max(0.0, float(r.get('total_qty','0') or '0') - float(r.get('exec_qty','0') or '0')):.1f}",
+            ))
+        return result
+
+    @rx.var
+    def cron_kpi_dashboard(self) -> Dict[str, str]:
+        """
+        KPIs de alto nível do cronograma para o dashboard previsto vs realizado:
+          - pct_fisico_programado_hoje: % planejado até hoje (baseado em atividades vencidas)
+          - pct_fisico_realizado: média ponderada real de todas as atividades
+          - desvio_pp: diferença em pontos percentuais
+          - atividades_em_risco: count de micros com tendência 'abaixo' e >5% de desvio
+          - atividades_atrasadas: micros com termino < hoje e pct < 100
+          - atividades_adiantadas: micros com tendencia 'acima'
+          - producao_total_prevista: soma total_qty de todos os micros
+          - producao_total_realizada: soma exec_qty de todos os micros
+        """
+        from datetime import date
+        today = date.today()
+
+        micros = [r for r in self.cron_rows if r.get("nivel", "") == "micro"]
+        if not micros:
+            return {
+                "pct_fisico_programado_hoje": "0",
+                "pct_fisico_realizado": "0",
+                "desvio_pp": "0",
+                "atividades_em_risco": "0",
+                "atividades_atrasadas": "0",
+                "atividades_adiantadas": "0",
+                "producao_total_prevista": "0",
+                "producao_total_realizada": "0",
+                "total_micros": "0",
+            }
+
+        # Progresso realizado ponderado por peso
+        total_peso = sum(int(r.get("peso_pct", "0") or "0") for r in micros)
+        if total_peso > 0:
+            pct_realizado = sum(
+                int(r.get("conclusao_pct", "0") or "0") * int(r.get("peso_pct", "0") or "0")
+                for r in micros
+            ) / total_peso
+        else:
+            pct_realizado = sum(int(r.get("conclusao_pct", "0") or "0") for r in micros) / len(micros)
+
+        # Programado até hoje: atividades que deveriam estar concluídas (termino <= hoje)
+        vencidas = []
+        for r in micros:
+            t = r.get("termino_iso", "")
+            if t and len(t) >= 10:
+                try:
+                    if date.fromisoformat(t[:10]) <= today:
+                        vencidas.append(r)
+                except Exception:
+                    pass
+        pct_programado = (len(vencidas) / len(micros) * 100) if micros else 0.0
+        desvio_pp = round(pct_realizado - pct_programado, 1)
+
+        # Atividades atrasadas: termino < hoje e pct < 100
+        atrasadas = 0
+        for r in micros:
+            t = r.get("termino_iso", "")
+            pct = int(r.get("conclusao_pct", "0") or "0")
+            if t and len(t) >= 10 and pct < 100:
+                try:
+                    if date.fromisoformat(t[:10]) < today:
+                        atrasadas += 1
+                except Exception:
+                    pass
+
+        # Produção física total
+        prod_prev = sum(float(r.get("total_qty", "0") or "0") for r in micros)
+        prod_real = sum(float(r.get("exec_qty", "0") or "0") for r in micros)
+
+        # Atividades em risco (baseado em forecast_rows)
+        em_risco = sum(1 for r in self.cron_forecast_rows if r.get("_tendencia") == "abaixo")
+        adiantadas = sum(1 for r in self.cron_forecast_rows if r.get("_tendencia") == "acima")
+
+        return {
+            "pct_fisico_programado_hoje": str(round(pct_programado, 1)),
+            "pct_fisico_realizado": str(round(pct_realizado, 1)),
+            "desvio_pp": f"{desvio_pp:+.1f}",
+            "atividades_em_risco": str(em_risco),
+            "atividades_atrasadas": str(atrasadas),
+            "atividades_adiantadas": str(adiantadas),
+            "producao_total_prevista": str(round(prod_prev, 1)),
+            "producao_total_realizada": str(round(prod_real, 1)),
+            "total_micros": str(len(micros)),
+        }
+
     # ══════════════════════════════════════════════════════════════════════════
     # CRONOGRAMA — Load & CRUD
     # ══════════════════════════════════════════════════════════════════════════
@@ -538,6 +961,21 @@ class HubState(rx.State):
                     "parent_id":       _norm_str(r.get("parent_id")),
                     "peso_pct":        _norm_pct(r.get("peso_pct") if r.get("peso_pct") is not None else 100),
                     "pendente_aprovacao": pendente,
+                    # Quantity tracking
+                    "total_qty":       _norm_str(r.get("total_qty", "0") or "0"),
+                    "exec_qty":        _norm_str(r.get("exec_qty", "0") or "0"),
+                    "unidade":         _norm_str(r.get("unidade", "")),
+                    "dias_planejados": _norm_str(r.get("dias_planejados", "0") or "0"),
+                    "dependencia_id":  _norm_str(r.get("dependencia_id", "")),
+                    # Forecast fields (new)
+                    "status_atividade": _norm_str(r.get("status_atividade", "nao_iniciada") or "nao_iniciada"),
+                    "tipo_medicao":     _norm_str(r.get("tipo_medicao", "quantidade") or "quantidade"),
+                    "frente_servico":   _norm_str(r.get("frente_servico", "")),
+                    "data_inicio_real": _utc_date_to_br(_norm_str(r.get("data_inicio_real") or "")),
+                    "data_fim_real":    _utc_date_to_br(_norm_str(r.get("data_fim_real") or "")),
+                    "data_fim_prevista": _utc_date_to_br(_norm_str(r.get("data_fim_prevista") or "")),
+                    "data_inicio_real_iso": _norm_str(r.get("data_inicio_real") or "")[:10],
+                    "data_fim_real_iso":    _norm_str(r.get("data_fim_real") or "")[:10],
                 })
         except Exception as e:
             logger.error(f"load_cronograma error: {e}")
@@ -584,7 +1022,13 @@ class HubState(rx.State):
         self.cron_edit_pct = "0"
         self.cron_edit_critico = False
         self.cron_edit_dependencia = ""
+        self.cron_edit_dependencia_id = ""
         self.cron_edit_observacoes = ""
+        self.cron_edit_total_qty = ""
+        self.cron_edit_unidade = ""
+        self.cron_edit_dias_planejados = ""
+        self.cron_edit_status_atividade = "nao_iniciada"
+        self.cron_edit_tipo_medicao = "quantidade"
         self.cron_error = ""
         # Hierarchy defaults
         if parent_id:
@@ -615,11 +1059,17 @@ class HubState(rx.State):
         self.cron_edit_pct = row.get("conclusao_pct", "0")
         self.cron_edit_critico = row.get("critico", "0") == "1"
         self.cron_edit_dependencia = row.get("dependencia", "")
+        self.cron_edit_dependencia_id = row.get("dependencia_id", "")
         self.cron_edit_observacoes = row.get("observacoes", "")
+        self.cron_edit_total_qty = row.get("total_qty", "")
+        self.cron_edit_unidade = row.get("unidade", "")
+        self.cron_edit_dias_planejados = row.get("dias_planejados", "")
+        self.cron_edit_status_atividade = row.get("status_atividade", "nao_iniciada") or "nao_iniciada"
+        self.cron_edit_tipo_medicao = row.get("tipo_medicao", "quantidade") or "quantidade"
         # Hierarchy
         self.cron_edit_nivel = row.get("nivel", "macro")
         self.cron_edit_parent_id = row.get("parent_id", "")
-        self.cron_edit_peso = row.get("peso_pct", "100")
+        self.cron_edit_peso = str(row.get("peso_pct", "100") or "100")
         self.cron_error = ""
         self.cron_show_dialog = True
 
@@ -641,14 +1091,56 @@ class HubState(rx.State):
     def set_cron_edit_fase_macro(self, v: str): self.cron_edit_fase_macro = v
     def set_cron_edit_fase(self, v: str): self.cron_edit_fase = v
     def set_cron_edit_responsavel(self, v: str): self.cron_edit_responsavel = v
-    def set_cron_edit_inicio(self, v: str): self.cron_edit_inicio = v
+    def set_cron_edit_inicio(self, v: str):
+        self.cron_edit_inicio = v
+        # Auto-recalculate termino if dias_planejados is set
+        if self.cron_edit_dias_planejados.strip():
+            try:
+                dias = int(self.cron_edit_dias_planejados.strip())
+                self.cron_edit_termino = _add_working_days(v, dias)
+            except Exception:
+                pass
     def set_cron_edit_termino(self, v: str): self.cron_edit_termino = v
     def set_cron_edit_pct(self, v): self.cron_edit_pct = str(v)
     def toggle_cron_edit_critico(self): self.cron_edit_critico = not self.cron_edit_critico
     def set_cron_edit_dependencia(self, v: str): self.cron_edit_dependencia = "" if v == "__none__" else v
+    def set_cron_edit_dependencia_id(self, dep_id: str):
+        """Select a dependency by activity id — auto-fill inicio from its termino."""
+        if dep_id in ("", "__none__"):
+            self.cron_edit_dependencia_id = ""
+            self.cron_edit_dependencia = ""
+            return
+        self.cron_edit_dependencia_id = dep_id
+        dep_row = next((r for r in self.cron_rows if r["id"] == dep_id), None)
+        if dep_row:
+            self.cron_edit_dependencia = dep_row.get("atividade", "")
+            dep_termino = dep_row.get("termino_iso", "")
+            if dep_termino:
+                self.cron_edit_inicio = dep_termino
+                # Recalculate termino if dias_planejados is set
+                if self.cron_edit_dias_planejados.strip():
+                    try:
+                        dias = int(self.cron_edit_dias_planejados.strip())
+                        self.cron_edit_termino = _add_working_days(dep_termino, dias)
+                    except Exception:
+                        pass
+    def set_cron_edit_dias_planejados(self, v):
+        v = str(v) if v is not None else ""
+        self.cron_edit_dias_planejados = v
+        # Auto-calculate termino when dias changes and inicio is set
+        if v.strip() and self.cron_edit_inicio:
+            try:
+                dias = int(v.strip())
+                self.cron_edit_termino = _add_working_days(self.cron_edit_inicio, dias)
+            except Exception:
+                pass
+    def set_cron_edit_total_qty(self, v): self.cron_edit_total_qty = str(v) if v is not None else ""
+    def set_cron_edit_unidade(self, v: str): self.cron_edit_unidade = v
     def set_cron_edit_observacoes(self, v: str): self.cron_edit_observacoes = v
+    def set_cron_edit_status_atividade(self, v: str): self.cron_edit_status_atividade = v
+    def set_cron_edit_tipo_medicao(self, v: str): self.cron_edit_tipo_medicao = v
     def set_cron_edit_nivel(self, v: str): self.cron_edit_nivel = v
-    def set_cron_edit_peso(self, v): self.cron_edit_peso = str(v)
+    def set_cron_edit_peso(self, v): self.cron_edit_peso = str(v) if v is not None else "100"
     def set_cron_edit_parent_id(self, v: str): self.cron_edit_parent_id = v
 
     def toggle_macro_expanded(self, macro_id: str):
@@ -669,11 +1161,14 @@ class HubState(rx.State):
         contrato = ""
         atividade_nome = ""
         edit_id = ""
+        old_inicio = ""
+        old_termino = ""
         edit_inicio = ""
         edit_termino = ""
         edit_pct = 0
         edit_critico = False
         edit_dependencia = ""
+        edit_dependencia_id = ""
         edit_observacoes = ""
         edit_fase_macro = ""
         edit_fase = ""
@@ -681,7 +1176,13 @@ class HubState(rx.State):
         edit_nivel = "macro"
         edit_parent_id = ""
         edit_peso = 100
+        edit_total_qty = 0.0
+        edit_unidade = ""
+        edit_dias_planejados = 0
+        edit_status_atividade = "nao_iniciada"
+        edit_tipo_medicao = "quantidade"
         pending_review_id = ""
+        username = ""
 
         async with self:
             if not self.cron_edit_atividade.strip():
@@ -701,33 +1202,91 @@ class HubState(rx.State):
             edit_pct = int(self.cron_edit_pct or 0)
             edit_critico = self.cron_edit_critico
             edit_dependencia = self.cron_edit_dependencia.strip()
+            edit_dependencia_id = self.cron_edit_dependencia_id.strip() or None
             edit_observacoes = self.cron_edit_observacoes.strip()
             edit_nivel = self.cron_edit_nivel or "macro"
             edit_parent_id = self.cron_edit_parent_id or None
             edit_peso = int(self.cron_edit_peso or 100)
+            # #12 — Warn if sibling micros sum > 100%
+            if edit_nivel == "micro" and edit_parent_id:
+                siblings = [
+                    r for r in self.cron_rows
+                    if r.get("parent_id") == edit_parent_id
+                    and r.get("nivel") == "micro"
+                    and r.get("id") != (self.cron_edit_id or "")
+                ]
+                sibling_sum = sum(int(r.get("peso_pct", "0") or "0") for r in siblings)
+                if sibling_sum + edit_peso > 100:
+                    self.cron_error = (
+                        f"⚠ Pesos das sub-atividades somam {sibling_sum + edit_peso}% "
+                        f"(máximo 100%). Ajuste o peso para ≤ {100 - sibling_sum}%."
+                    )
+                    self.cron_saving = False
+                    return
+            try:
+                edit_total_qty = float(self.cron_edit_total_qty.replace(",", ".")) if self.cron_edit_total_qty.strip() else 0.0
+            except Exception:
+                edit_total_qty = 0.0
+            edit_unidade = self.cron_edit_unidade.strip()
+            try:
+                edit_dias_planejados = int(self.cron_edit_dias_planejados.strip()) if self.cron_edit_dias_planejados.strip() else 0
+            except Exception:
+                edit_dias_planejados = 0
+            edit_status_atividade = self.cron_edit_status_atividade or "nao_iniciada"
+            edit_tipo_medicao = self.cron_edit_tipo_medicao or "quantidade"
+            # Capture old values for full diff log
+            old_snapshot: Dict[str, str] = {}
+            if edit_id:
+                old_row = next((r for r in self.cron_rows if r["id"] == edit_id), {})
+                old_inicio = old_row.get("inicio_iso", "")
+                old_termino = old_row.get("termino_iso", "")
+                old_snapshot = {
+                    "inicio_previsto":  old_inicio,
+                    "termino_previsto": old_termino,
+                    "conclusao_pct":    old_row.get("conclusao_pct", ""),
+                    "responsavel":      old_row.get("responsavel", ""),
+                    "peso_pct":         old_row.get("peso_pct", ""),
+                    "critico":          old_row.get("critico", ""),
+                    "nivel":            old_row.get("nivel", ""),
+                    "fase_macro":       old_row.get("fase_macro", ""),
+                    "fase":             old_row.get("fase", ""),
+                    "observacoes":      old_row.get("observacoes", ""),
+                    "total_qty":        old_row.get("total_qty", ""),
+                    "unidade":          old_row.get("unidade", ""),
+                    "dias_planejados":  old_row.get("dias_planejados", ""),
+                    "status_atividade": old_row.get("status_atividade", ""),
+                    "tipo_medicao":     old_row.get("tipo_medicao", ""),
+                }
             # Sempre busca GlobalState para client_id + fallback de contrato
             gs = await self.get_state(GlobalState)
             if not contrato:
                 contrato = str(gs.selected_contrato or gs.selected_project or "")
             client_id = str(gs.current_client_id or "")
+            username = str(gs.current_user_name or "")
 
         try:
             data: Dict[str, Any] = {
-                "contrato":         contrato,
-                "fase_macro":       edit_fase_macro,
-                "fase":             edit_fase,
-                "atividade":        atividade_nome,
-                "responsavel":      edit_responsavel,
-                "inicio_previsto":  edit_inicio,
-                "termino_previsto": edit_termino,
-                "conclusao_pct":    edit_pct,
-                "critico":          edit_critico,
-                "dependencia":      edit_dependencia,
-                "observacoes":      edit_observacoes,
-                "nivel":            edit_nivel,
-                "parent_id":        edit_parent_id,
-                "peso_pct":         edit_peso,
-                "client_id":        client_id,
+                "contrato":          contrato,
+                "fase_macro":        edit_fase_macro,
+                "fase":              edit_fase,
+                "atividade":         atividade_nome,
+                "responsavel":       edit_responsavel,
+                "inicio_previsto":   edit_inicio,
+                "termino_previsto":  edit_termino,
+                "conclusao_pct":     edit_pct,
+                "critico":           edit_critico,
+                "dependencia":       edit_dependencia,
+                "dependencia_id":    edit_dependencia_id,
+                "observacoes":       edit_observacoes,
+                "nivel":             edit_nivel,
+                "parent_id":         edit_parent_id,
+                "peso_pct":          edit_peso,
+                "total_qty":         edit_total_qty,
+                "unidade":           edit_unidade,
+                "dias_planejados":   edit_dias_planejados,
+                "status_atividade":  edit_status_atividade,
+                "tipo_medicao":      edit_tipo_medicao,
+                "client_id":         client_id,
             }
 
             if edit_id:
@@ -735,14 +1294,47 @@ class HubState(rx.State):
                     data["pendente_aprovacao"] = False
                 sb_update("hub_atividades", filters={"id": edit_id}, data=data)
                 action = f"Atividade '{atividade_nome}' {'aprovada' if pending_review_id else 'atualizada'}"
+
+                # ── Full diff log → hub_cronograma_log + hub_timeline ─────────
+                if not pending_review_id:
+                    new_snapshot = {
+                        "inicio_previsto":  edit_inicio or "",
+                        "termino_previsto": edit_termino or "",
+                        "conclusao_pct":    str(edit_pct),
+                        "responsavel":      edit_responsavel,
+                        "peso_pct":         str(edit_peso),
+                        "critico":          "1" if edit_critico else "0",
+                        "nivel":            edit_nivel,
+                        "fase_macro":       edit_fase_macro,
+                        "fase":             edit_fase,
+                        "observacoes":      edit_observacoes,
+                        "total_qty":        str(edit_total_qty),
+                        "unidade":          edit_unidade,
+                        "dias_planejados":  str(edit_dias_planejados),
+                        "status_atividade": edit_status_atividade,
+                        "tipo_medicao":     edit_tipo_medicao,
+                    }
+                    _log_schedule_diff_async(
+                        contrato=contrato,
+                        atividade_id=edit_id,
+                        atividade_nome=atividade_nome,
+                        old_row=old_snapshot,
+                        new_row=new_snapshot,
+                        autor=username,
+                        client_id=client_id,
+                    )
             else:
                 sb_insert("hub_atividades", data)
                 action = f"Atividade '{atividade_nome}' criada"
 
+            # ── Auto-derive macro dates from micros ───────────────────────────
+            if edit_nivel == "micro" and edit_parent_id:
+                _recalc_macro_dates(edit_parent_id, contrato, client_id)
+
             audit_log(
                 category=AuditCategory.DATA_EDIT,
                 action=action,
-                username="",
+                username=username,
                 entity_type="hub_atividades",
                 entity_id=edit_id or "new",
                 metadata={"contrato": contrato, "atividade": atividade_nome},
@@ -934,6 +1526,222 @@ class HubState(rx.State):
 
     def clear_climate_analysis(self):
         self.cron_climate_analysis = ""
+
+    # ── IA Import from Excel / PDF ─────────────────────────────────────────────
+
+    async def import_cronograma_ia(self, files: list[rx.UploadFile]):
+        """Receive uploaded file via rx.upload, parse content, send to IA, propose activities."""
+        from bomtempo.state.global_state import GlobalState
+        import json
+
+        self.cron_import_loading = True
+        self.cron_import_error = ""
+        self.cron_import_preview = []
+        contrato = self.cron_rows[0].get("contrato", "") if self.cron_rows else ""
+        gs = await self.get_state(GlobalState)
+        if not contrato:
+            contrato = str(gs.selected_contrato or gs.selected_project or "")
+        yield
+
+        file_text = ""
+        if files:
+            upload_file = files[0]
+            name = upload_file.filename
+            raw_bytes = await upload_file.read()
+            try:
+                ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+                if ext in ("xlsx", "xls"):
+                    import io
+                    import openpyxl
+                    wb = openpyxl.load_workbook(io.BytesIO(raw_bytes), data_only=True)
+                    ws = wb.active
+                    lines = []
+                    for row in ws.iter_rows(values_only=True):
+                        cells = [str(c) if c is not None else "" for c in row]
+                        lines.append(" | ".join(cells))
+                    file_text = "\n".join(lines[:200])
+                elif ext == "csv":
+                    file_text = raw_bytes.decode("utf-8", errors="replace")[:8000]
+                else:
+                    # PDF or other: decode as text best-effort
+                    file_text = raw_bytes.decode("utf-8", errors="replace")[:8000]
+            except Exception as ex:
+                self.cron_import_error = f"Erro ao ler arquivo: {ex}"
+                self.cron_import_loading = False
+                return
+
+        if not file_text.strip():
+            self.cron_import_error = "Arquivo vazio ou não legível."
+            self.cron_import_loading = False
+            return
+
+        prompt = f"""Você é um assistente de gestão de obras. Analise o cronograma abaixo e retorne um JSON com a lista de atividades encontradas.
+
+ARQUIVO:
+{file_text[:6000]}
+
+Retorne SOMENTE um JSON válido no formato:
+[
+  {{
+    "atividade": "Nome da atividade",
+    "fase_macro": "Fase/disciplina (ex: Civil, Elétrica)",
+    "fase": "Sub-fase se houver",
+    "responsavel": "Responsável se disponível",
+    "inicio_previsto": "YYYY-MM-DD ou vazio",
+    "termino_previsto": "YYYY-MM-DD ou vazio",
+    "dias_planejados": número ou 0,
+    "critico": true ou false,
+    "nivel": "macro" ou "micro",
+    "observacoes": "qualquer nota relevante"
+  }}
+]
+
+Use nivel="macro" para atividades principais e "micro" para sub-atividades.
+Se não conseguir extrair datas, deixe os campos em branco.
+Retorne APENAS o JSON, sem explicações."""
+
+        import asyncio, queue as _queue, threading
+        result_q: _queue.Queue = _queue.Queue()
+
+        def _call_ai():
+            try:
+                from bomtempo.core.ai_client import ai_client
+                resp = ai_client.query([{"role": "user", "content": prompt}])
+                result_q.put(("ok", resp))
+            except Exception as ex:
+                result_q.put(("err", str(ex)))
+
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, _call_ai)
+
+        if result_q.empty():
+            self.cron_import_error = "IA não respondeu a tempo. Tente novamente."
+            self.cron_import_loading = False
+            return
+
+        status, raw = result_q.get()
+        if status == "err":
+            self.cron_import_error = f"Erro IA: {raw[:200]}"
+            self.cron_import_loading = False
+            return
+
+        # Parse JSON from response
+        try:
+            # Strip markdown code fences if present
+            cleaned = raw.strip()
+            if cleaned.startswith("```"):
+                cleaned = cleaned.split("\n", 1)[-1].rsplit("```", 1)[0]
+            proposals = json.loads(cleaned)
+            if not isinstance(proposals, list):
+                raise ValueError("Resposta não é uma lista")
+        except Exception as ex:
+            self.cron_import_error = f"IA retornou formato inválido: {ex}"
+            self.cron_import_loading = False
+            return
+
+        # Normalize proposals into display rows with temp IDs
+        import uuid
+        preview = []
+        for i, p in enumerate(proposals[:50]):
+            preview.append({
+                "_tmp_id":          str(uuid.uuid4()),
+                "atividade":        str(p.get("atividade", f"Atividade {i+1}")),
+                "fase_macro":       str(p.get("fase_macro", "")),
+                "fase":             str(p.get("fase", "")),
+                "responsavel":      str(p.get("responsavel", "")),
+                "inicio_previsto":  str(p.get("inicio_previsto", "")),
+                "termino_previsto": str(p.get("termino_previsto", "")),
+                "dias_planejados":  str(p.get("dias_planejados", 0) or 0),
+                "critico":          "1" if p.get("critico") else "0",
+                "nivel":            str(p.get("nivel", "macro")),
+                "observacoes":      str(p.get("observacoes", "")),
+                "contrato":         contrato,
+            })
+
+        self.cron_import_preview = preview
+        self.cron_import_selected = [r["_tmp_id"] for r in preview]
+        self.cron_import_show = True
+        self.cron_import_loading = False
+        yield rx.toast.success(f"{len(preview)} atividades identificadas — revise e confirme.", duration=6000)
+
+    def toggle_import_activity(self, tmp_id: str):
+        if tmp_id in self.cron_import_selected:
+            self.cron_import_selected = [x for x in self.cron_import_selected if x != tmp_id]
+        else:
+            new = list(self.cron_import_selected)
+            new.append(tmp_id)
+            self.cron_import_selected = new
+
+    def select_all_import(self):
+        self.cron_import_selected = [r["_tmp_id"] for r in self.cron_import_preview]
+
+    def deselect_all_import(self):
+        self.cron_import_selected = []
+
+    def close_import_preview(self):
+        self.cron_import_show = False
+        self.cron_import_preview = []
+        self.cron_import_selected = []
+
+    @rx.event(background=True)
+    async def confirm_import_cronograma(self):
+        """Bulk-insert selected proposals into hub_atividades."""
+        from bomtempo.state.global_state import GlobalState
+
+        async with self:
+            selected_ids = set(self.cron_import_selected)
+            to_insert = [r for r in self.cron_import_preview if r["_tmp_id"] in selected_ids]
+            contrato = to_insert[0]["contrato"] if to_insert else ""
+            gs = await self.get_state(GlobalState)
+            client_id = str(gs.current_client_id or "")
+            username = str(gs.current_user_name or "")
+            self.cron_import_loading = True
+
+        errors = 0
+        inserted = 0
+        for p in to_insert:
+            try:
+                dias = int(p.get("dias_planejados", 0) or 0)
+                inicio = p.get("inicio_previsto", "") or None
+                termino = p.get("termino_previsto", "") or None
+                # Auto-calc termino from dias if termino missing but inicio+dias set
+                if inicio and dias and not termino:
+                    termino = _add_working_days(inicio, dias)
+                sb_insert("hub_atividades", {
+                    "contrato":          contrato,
+                    "fase_macro":        p.get("fase_macro", ""),
+                    "fase":              p.get("fase", ""),
+                    "atividade":         p.get("atividade", ""),
+                    "responsavel":       p.get("responsavel", "") or None,
+                    "inicio_previsto":   inicio,
+                    "termino_previsto":  termino,
+                    "conclusao_pct":     0,
+                    "critico":           p.get("critico", "0") == "1",
+                    "nivel":             p.get("nivel", "macro"),
+                    "peso_pct":          100,
+                    "dias_planejados":   dias,
+                    "observacoes":       p.get("observacoes", ""),
+                    "status_atividade":  "nao_iniciada",
+                    "tipo_medicao":      p.get("tipo_medicao", "quantidade") or "quantidade",
+                    "client_id":         client_id or None,
+                })
+                inserted += 1
+            except Exception as ex:
+                logger.warning(f"confirm_import error on row: {ex}")
+                errors += 1
+
+        async with self:
+            self.cron_import_show = False
+            self.cron_import_preview = []
+            self.cron_import_selected = []
+            self.cron_import_loading = False
+
+        if inserted:
+            yield rx.toast.success(f"{inserted} atividade(s) importadas com sucesso!", duration=5000)
+        if errors:
+            yield rx.toast.warning(f"{errors} atividade(s) falharam na importação.", duration=5000)
+        if contrato:
+            yield HubState.load_cronograma(contrato)
 
     # ══════════════════════════════════════════════════════════════════════════
     # AUDITORIA — Load, gallery, lightbox

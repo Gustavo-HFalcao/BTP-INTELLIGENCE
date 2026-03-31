@@ -287,10 +287,23 @@ class UsuariosState(rx.State):
                 self.edit_user_old_login = u["username"]  # capture for filter
                 self.edit_user_password = ""
                 self.edit_user_role = u["user_role"]
-                self.edit_user_project = u["project"]
+                self.edit_user_project = u.get("project", "")
                 self.edit_user_email = u.get("email", "")
                 self.edit_user_whatsapp = u.get("whatsapp", "")
+                self.edit_user_client_id = u.get("client_id", self._current_client_id)
                 break
+        # Populate roles for the correct tenant
+        if self._is_master and self.edit_user_client_id:
+            try:
+                rows = sb_select("roles", filters={"client_id": self.edit_user_client_id}) or []
+                names = [str(r.get("name", "")) for r in rows if r.get("name")]
+                if "Administrador" not in names:
+                    names = ["Administrador"] + names
+                self.form_roles_list = names if names else ["Administrador"]
+            except Exception:
+                self.form_roles_list = [r["name"] for r in self.roles_list] or ["Administrador"]
+        else:
+            self.form_roles_list = [r["name"] for r in self.roles_list] or ["Administrador"]
         self.show_user_dialog = True
 
     def close_user_dialog(self):

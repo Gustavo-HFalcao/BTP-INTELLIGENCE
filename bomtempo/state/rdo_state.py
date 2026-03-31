@@ -137,6 +137,11 @@ class RDOState(rx.State):
     rdo_atividade_id: str = ""
     rdo_atividade_nome: str = ""
     rdo_progresso_atividade: str = "0"
+    # Quantity-based production tracking (#17)
+    rdo_producao_dia: str = ""       # units produced today (input by worker)
+    rdo_ativ_total_qty: str = "0"    # informativo: total_qty from hub_atividades
+    rdo_ativ_exec_qty: str = "0"     # informativo: exec_qty accumulated so far
+    rdo_ativ_unidade: str = ""       # informativo: unit name
     # If no existing activity: create a pending one (legacy single — kept for reset compat)
     rdo_nova_atividade: bool = False
     rdo_nova_atividade_nome: str = ""
@@ -1000,14 +1005,24 @@ class RDOState(rx.State):
     def set_rdo_atividade_id(self, v: str):
         real_v = "" if v == "__none__" else v
         self.rdo_atividade_id = real_v
+        self.rdo_producao_dia = ""
         opt = next((o for o in self.hub_atividades_options if o.get("id") == real_v), None)
         self.rdo_atividade_nome = opt["label"] if opt else ""
         # Pre-fill with current DB progress so user continues from where it left off
         if opt:
             current_pct = opt.get("pct", "0")
             self.rdo_progresso_atividade = current_pct
+            # Load qty info for informative display
+            self.rdo_ativ_total_qty = opt.get("total_qty", "0")
+            self.rdo_ativ_exec_qty = opt.get("exec_qty", "0")
+            self.rdo_ativ_unidade = opt.get("unidade", "")
+        else:
+            self.rdo_ativ_total_qty = "0"
+            self.rdo_ativ_exec_qty = "0"
+            self.rdo_ativ_unidade = ""
 
     def set_rdo_progresso_atividade(self, v): self.rdo_progresso_atividade = str(v)
+    def set_rdo_producao_dia(self, v: str): self.rdo_producao_dia = v
     def toggle_rdo_nova_atividade(self): self.rdo_nova_atividade = not self.rdo_nova_atividade
     def set_rdo_nova_atividade_nome(self, v: str): self.rdo_nova_atividade_nome = v
     def set_rdo_nova_atividade_fase(self, v: str): self.rdo_nova_atividade_fase = v
@@ -1090,13 +1105,20 @@ class RDOState(rx.State):
             )
             opts = [
                 {
-                    "id": str(r.get("id", "")),
-                    "label": f"{r.get('fase_macro', '')} — {r.get('atividade', '')}",
-                    "pct": str(int(r.get("conclusao_pct", 0) or 0)),
+                    "id":               str(r.get("id", "")),
+                    "label":            f"{r.get('fase_macro', '')} — {r.get('atividade', '')}",
+                    "pct":              str(int(r.get("conclusao_pct", 0) or 0)),
+                    "total_qty":        str(r.get("total_qty", 0) or 0),
+                    "exec_qty":         str(r.get("exec_qty", 0) or 0),
+                    "unidade":          str(r.get("unidade", "") or ""),
+                    "status_atividade": str(r.get("status_atividade", "") or "nao_iniciada"),
+                    "tipo_medicao":     str(r.get("tipo_medicao", "") or "quantidade"),
                 }
                 for r in (rows or [])
                 if r.get("id") and r.get("atividade")
                 and not str(r.get("pendente_aprovacao", "")).upper() in ("TRUE", "1")
+                # Exclude cancelled/blocked activities from RDO selection
+                and str(r.get("status_atividade", "") or "") not in ("cancelada", "bloqueada")
             ]
         except Exception as e:
             logger.error(f"load_hub_atividades error: {e}")
@@ -1271,6 +1293,7 @@ class RDOState(rx.State):
             async with self:
                 _ativ_id = str(self.rdo_atividade_id)
                 _progresso = int(self.rdo_progresso_atividade or "0")
+                _producao_dia_str = str(self.rdo_producao_dia or "").strip()
                 _nova_ativ = bool(self.rdo_nova_atividade)
                 _nova_nome = str(self.rdo_nova_atividade_nome)
                 _nova_fase = str(self.rdo_nova_atividade_fase)
@@ -1280,21 +1303,51 @@ class RDOState(rx.State):
             if _ativ_id:
                 try:
                     from bomtempo.core.supabase_client import sb_update as _sb_upd, sb_select as _sb_sel2, sb_insert as _sb_ins2
-                    # Fetch current pct for history
+                    # Fetch current state for history
                     cur_rows = await loop.run_in_executor(None, lambda: _sb_sel2("hub_atividades", filters={"id": _ativ_id}))
                     cur_pct = int((cur_rows[0].get("conclusao_pct", 0) or 0) if cur_rows else 0)
-                    # Update progress
-                    await loop.run_in_executor(None, lambda: _sb_upd("hub_atividades", filters={"id": _ativ_id}, data={"conclusao_pct": _progresso}))
-                    # Insert history record
+                    upd_data: dict = {"conclusao_pct": _progresso}
+                    # Accumulate exec_qty if daily production was informed
+                    if _producao_dia_str:
+                        try:
+                            producao_dia = float(_producao_dia_str.replace(",", "."))
+                            cur_exec = float((cur_rows[0].get("exec_qty", 0) or 0) if cur_rows else 0)
+                            total_qty = float((cur_rows[0].get("total_qty", 0) or 0) if cur_rows else 0)
+                            new_exec = cur_exec + producao_dia
+                            upd_data["exec_qty"] = new_exec
+                            # Auto-calc % if total_qty is set
+                            if total_qty > 0:
+                                new_pct = min(100, int((new_exec / total_qty) * 100))
+                                upd_data["conclusao_pct"] = new_pct
+                                _progresso = new_pct
+                        except Exception:
+                            pass
+                    # Auto-update status_atividade based on progress
+                    cur_status = (cur_rows[0].get("status_atividade", "") or "") if cur_rows else ""
+                    if _progresso >= 100:
+                        upd_data["status_atividade"] = "concluida"
+                    elif _progresso > 0 and cur_status in ("nao_iniciada", "pronta_iniciar", ""):
+                        upd_data["status_atividade"] = "em_execucao"
+                    # Update progress + qty + status
+                    await loop.run_in_executor(None, lambda: _sb_upd("hub_atividades", filters={"id": _ativ_id}, data=upd_data))
+                    # Insert history record (full production snapshot)
                     _cid = rdo_data.get("client_id") or None
+                    _hist_prod = float(_producao_dia_str.replace(",", ".")) if _producao_dia_str else None
+                    _hist_exec = upd_data.get("exec_qty")
+                    _hist_total = float((cur_rows[0].get("total_qty", 0) or 0) if cur_rows else 0) or None
+                    _hist_unidade = str((cur_rows[0].get("unidade", "") or "") if cur_rows else "")
                     await loop.run_in_executor(None, lambda: _sb_ins2("hub_atividade_historico", {
-                        "atividade_id": _ativ_id,
-                        "contrato": contrato,
-                        "rdo_id": id_rdo,
+                        "atividade_id":         _ativ_id,
+                        "contrato":             contrato,
+                        "rdo_id":               id_rdo,
                         "conclusao_pct_anterior": cur_pct,
-                        "conclusao_pct_novo": _progresso,
-                        "registrado_por": user_name,
-                        "client_id": _cid,
+                        "conclusao_pct_novo":   _progresso,
+                        "producao_dia":         _hist_prod,
+                        "exec_qty_novo":        _hist_exec,
+                        "total_qty":            _hist_total,
+                        "unidade":              _hist_unidade or None,
+                        "registrado_por":       user_name,
+                        "client_id":            _cid,
                     }))
                     logger.info(f"✅ Cronograma atualizado: atividade {_ativ_id} → {_progresso}%")
                 except Exception as e:
@@ -1563,6 +1616,10 @@ class RDOState(rx.State):
         self.rdo_atividade_id = ""
         self.rdo_atividade_nome = ""
         self.rdo_progresso_atividade = "0"
+        self.rdo_producao_dia = ""
+        self.rdo_ativ_total_qty = "0"
+        self.rdo_ativ_exec_qty = "0"
+        self.rdo_ativ_unidade = ""
         self.rdo_nova_atividade = False
         self.rdo_nova_atividade_nome = ""
         self.rdo_nova_atividade_fase = ""
