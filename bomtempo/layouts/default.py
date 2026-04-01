@@ -1015,7 +1015,7 @@ def default_layout(content: rx.Component) -> rx.Component:
                         width="100%",
                         overflow_x="hidden",
                         transition="all 0.3s ease-in-out",
-                        padding_x=rx.cond(GlobalState.is_fullscreen_page, "0px", rx.breakpoints(initial="16px", md="32px")),
+                        padding_x=rx.cond(GlobalState.is_fullscreen_page, "0px", "32px"),
                         padding_top=rx.cond(
                             GlobalState.is_fullscreen_page,
                             "0px",
@@ -1346,7 +1346,6 @@ def default_layout(content: rx.Component) -> rx.Component:
                     direction="row",
                     width="100%",
                     min_height="100vh",
-                    overflow="hidden",
                     background=S.BG_VOID,
                     class_name="main-layout-flex",
                 ),  # End rx.flex

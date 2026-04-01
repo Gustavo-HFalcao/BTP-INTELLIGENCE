@@ -799,7 +799,7 @@ class RDOState(rx.State):
         self.ev_editing_draft = ""
 
     def save_edit_caption(self):
-        """Commit the draft caption to evidencias_items."""
+        """Commit ev_editing_draft caption to evidencias_items (on_click)."""
         url   = self.ev_editing_url
         draft = self.ev_editing_draft.strip()
         if url:
@@ -809,6 +809,11 @@ class RDOState(rx.State):
             ]
         self.ev_editing_url   = ""
         self.ev_editing_draft = ""
+
+    def save_edit_caption_blur(self, value: str):
+        """Commit caption value received directly from on_blur event."""
+        self.ev_editing_draft = value
+        self.save_edit_caption()
 
     async def upload_epi_files(self, files: List[rx.UploadFile]):
         """Upload EPI photo — watermark + Supabase Storage."""

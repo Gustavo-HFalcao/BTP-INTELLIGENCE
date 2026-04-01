@@ -1397,23 +1397,18 @@ canvas:focus {
     to   { opacity: 1; }
 }
 
-/* ── Logo sizing (icon.png is 640×640 square, not a wide banner) ─────────── */
+/* ── Logo banner sizing ─────────────────────────────────────────── */
 .sidebar-logo-img img {
-    width: 36px;
-    height: 36px;
-    object-fit: cover;
-    border-radius: 6px;
-    flex-shrink: 0;
+    max-height: 52px;
+    width: 100%;
+    object-fit: contain;
+    object-position: center;
 }
 
 
-/* ── Sidebar zoom-crash fix ──────────────────────────────── */
-/* rx.cond wraps sidebar in an extra div — ensure it never shrinks
-   at high browser zoom levels where the viewport is narrower.    */
-.main-layout-flex > div:first-child {
-    flex-shrink: 0 !important;
-    min-width: fit-content;
-}
+/* ── Sidebar is position:fixed — spacer reserves its width in flex flow ── */
+/* No extra CSS needed; spacer box in sidebar() handles layout push.        */
+
 
 /* ── Safe Area Insets (notch / home-indicator support) ────── */
 body {
@@ -2077,5 +2072,60 @@ button.rt-reset {
     .reflex-app {
         overflow-x: hidden !important;
     }
+}
+
+/* ── Hub de Operações — font scaling ──────────────────────── */
+/* Reflex renders rx.text(font_size="11px") as <p style="font-size:11px">.
+   CSS attribute selectors work on the serialized style string. */
+
+.hub-content p[style*="font-size:11px"],
+.hub-content span[style*="font-size:11px"],
+.hub-content div[style*="font-size:11px"] {
+    font-size: 13px !important;
+}
+
+.hub-content p[style*="font-size: 11px"],
+.hub-content span[style*="font-size: 11px"],
+.hub-content div[style*="font-size: 11px"] {
+    font-size: 13px !important;
+}
+
+.hub-content p[style*="font-size:12px"],
+.hub-content span[style*="font-size:12px"],
+.hub-content div[style*="font-size:12px"] {
+    font-size: 14px !important;
+}
+
+.hub-content p[style*="font-size: 12px"],
+.hub-content span[style*="font-size: 12px"],
+.hub-content div[style*="font-size: 12px"] {
+    font-size: 14px !important;
+}
+
+.hub-content p[style*="font-size:13px"],
+.hub-content span[style*="font-size:13px"],
+.hub-content div[style*="font-size:13px"] {
+    font-size: 15px !important;
+}
+
+.hub-content p[style*="font-size: 13px"],
+.hub-content span[style*="font-size: 13px"],
+.hub-content div[style*="font-size: 13px"] {
+    font-size: 15px !important;
+}
+
+/* Labels (9-10px) get a small nudge to stay legible */
+.hub-content p[style*="font-size:10px"],
+.hub-content span[style*="font-size:10px"],
+.hub-content p[style*="font-size: 10px"],
+.hub-content span[style*="font-size: 10px"] {
+    font-size: 12px !important;
+}
+
+.hub-content p[style*="font-size:9px"],
+.hub-content span[style*="font-size:9px"],
+.hub-content p[style*="font-size: 9px"],
+.hub-content span[style*="font-size: 9px"] {
+    font-size: 11px !important;
 }
 

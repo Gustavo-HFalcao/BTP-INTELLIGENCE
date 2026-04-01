@@ -3526,8 +3526,21 @@ class GlobalState(rx.State):
     def set_np_localizacao(self, v: str):
         self.np_localizacao = v
 
+    def _recalc_np_termino(self):
+        """Auto-calcula data_termino = data_inicio + prazo_dias (dias corridos)."""
+        try:
+            from datetime import date, timedelta
+            inicio = self.np_data_inicio.strip()
+            prazo = self.np_prazo_dias.strip()
+            if inicio and prazo and int(prazo) > 0:
+                dt = date.fromisoformat(inicio) + timedelta(days=int(prazo))
+                self.np_data_termino = dt.isoformat()
+        except Exception:
+            pass
+
     def set_np_data_inicio(self, v: str):
         self.np_data_inicio = v
+        self._recalc_np_termino()
 
     def set_np_data_termino(self, v: str):
         self.np_data_termino = v
@@ -3540,6 +3553,7 @@ class GlobalState(rx.State):
 
     def set_np_prazo_dias(self, v: str):
         self.np_prazo_dias = v
+        self._recalc_np_termino()
 
     def set_np_priority(self, v: str):
         self.np_priority = v

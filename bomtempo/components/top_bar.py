@@ -209,7 +209,9 @@ def _left_context() -> rx.Component:
         height="100%",
         display="flex",
         align_items="center",
-        overflow="hidden",
+        overflow_x="auto",
+        overflow_y="hidden",
+        class_name="no-scrollbar",
     )
 
 

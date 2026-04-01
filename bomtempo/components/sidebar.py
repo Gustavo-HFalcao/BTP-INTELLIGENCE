@@ -110,38 +110,32 @@ def sidebar_content() -> rx.Component:
     return rx.vstack(
         # ── Header / Logo ──────────────────────────────────────────────
         rx.box(
-            rx.hstack(
+            rx.cond(
+                GlobalState.sidebar_open,
                 rx.image(
-                    src="/icon.png",
-                    width="36px",
-                    height="36px",
-                    border_radius=S.R_CONTROL,
-                    object_fit="cover",
-                    flex_shrink="0",
+                    src="/banner.png",
+                    width="100%",
+                    height="auto",
+                    max_height="52px",
+                    object_fit="contain",
+                    object_position="center",
+                    class_name="sidebar-logo-img",
                 ),
-                rx.cond(
-                    GlobalState.sidebar_open,
-                    rx.text(
-                        "BOMTEMPO",
-                        font_family=S.FONT_TECH,
-                        font_weight="900",
-                        font_size="15px",
-                        letter_spacing="0.12em",
-                        color="white",
-                        white_space="nowrap",
-                        overflow="hidden",
-                        opacity="1",
-                        transition="opacity 0.2s ease",
+                rx.center(
+                    rx.image(
+                        src="/icon.png",
+                        width="32px",
+                        height="32px",
+                        border_radius=S.R_CONTROL,
+                        object_fit="cover",
                     ),
+                    width="100%",
                 ),
-                spacing="3",
-                align="center",
             ),
             width="100%",
             height="64px",
             display="flex",
             align_items="center",
-            justify_content="center",
             padding_x=rx.cond(GlobalState.sidebar_open, "16px", "0"),
             border_bottom=f"1px solid {S.BORDER_SUBTLE}",
             flex_shrink="0",
@@ -265,8 +259,11 @@ def sidebar_content() -> rx.Component:
 # ─────────────────────────────────────────────────────────────
 
 def sidebar() -> rx.Component:
-    """Desktop sidebar — flush to viewport, grouped sections."""
-    return rx.box(
+    """Desktop sidebar — fixed to viewport with spacer for layout flow."""
+    # The sidebar itself is position:fixed — guaranteed to stay on screen
+    # regardless of any ancestor overflow setting.
+    # A spacer box of the same width sits in the flex flow to reserve space.
+    sidebar_box = rx.box(
         sidebar_content(),
         # Toggle button
         rx.box(
@@ -288,11 +285,10 @@ def sidebar() -> rx.Component:
             transition="all 0.15s ease",
             _hover={"border_color": S.COPPER, "bg": "rgba(201,139,42,0.08)"},
         ),
-        # Container props
+        # Fixed position — always visible, never affected by parent overflow
         width=rx.cond(GlobalState.sidebar_open, "236px", "64px"),
-        min_width=rx.cond(GlobalState.sidebar_open, "236px", "64px"),
         height="100vh",
-        position="sticky",
+        position="fixed",
         top="0",
         left="0",
         bg=S.BG_ELEVATED,
@@ -301,8 +297,17 @@ def sidebar() -> rx.Component:
         transition="width 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
         display=["none", "none", "block"],
         overflow="visible",
-        flex_shrink="0",
     )
+    # Spacer: sits in the flex flow to push main content to the right
+    spacer = rx.box(
+        width=rx.cond(GlobalState.sidebar_open, "236px", "64px"),
+        min_width=rx.cond(GlobalState.sidebar_open, "236px", "64px"),
+        height="100vh",
+        flex_shrink="0",
+        display=["none", "none", "block"],
+        transition="width 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+    )
+    return rx.fragment(sidebar_box, spacer)
 
 
 # ─────────────────────────────────────────────────────────────

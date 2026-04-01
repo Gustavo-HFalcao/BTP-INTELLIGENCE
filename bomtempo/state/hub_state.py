@@ -1088,7 +1088,16 @@ class HubState(rx.State):
             self.cron_pending_review_id = ""
 
     def set_cron_edit_atividade(self, v: str): self.cron_edit_atividade = v
-    def set_cron_edit_fase_macro(self, v: str): self.cron_edit_fase_macro = v
+    def set_cron_edit_fase_macro(self, v: str):
+        self.cron_edit_fase_macro = v
+        # Para atividades macro, o nome é a própria fase macro
+        if self.cron_edit_nivel == "macro":
+            self.cron_edit_atividade = v
+    def set_cron_edit_nivel(self, v: str):
+        self.cron_edit_nivel = v
+        # Ao mudar para macro, sincroniza o nome com fase_macro
+        if v == "macro" and self.cron_edit_fase_macro.strip():
+            self.cron_edit_atividade = self.cron_edit_fase_macro
     def set_cron_edit_fase(self, v: str): self.cron_edit_fase = v
     def set_cron_edit_responsavel(self, v: str): self.cron_edit_responsavel = v
     def set_cron_edit_inicio(self, v: str):
@@ -1139,7 +1148,6 @@ class HubState(rx.State):
     def set_cron_edit_observacoes(self, v: str): self.cron_edit_observacoes = v
     def set_cron_edit_status_atividade(self, v: str): self.cron_edit_status_atividade = v
     def set_cron_edit_tipo_medicao(self, v: str): self.cron_edit_tipo_medicao = v
-    def set_cron_edit_nivel(self, v: str): self.cron_edit_nivel = v
     def set_cron_edit_peso(self, v): self.cron_edit_peso = str(v) if v is not None else "100"
     def set_cron_edit_parent_id(self, v: str): self.cron_edit_parent_id = v
 
@@ -1381,17 +1389,24 @@ class HubState(rx.State):
             # Optimistic UI: remove imediatamente da lista local antes do DB call
             self.cron_rows = [r for r in self.cron_rows if r.get("id") != row_id]
 
+        delete_ok = False
         try:
-            sb_delete("hub_atividades", filters={"id": row_id})
-            audit_log(
-                category=AuditCategory.DATA_DELETE,
-                action=f"Atividade '{name}' excluída",
-                username="",
-                entity_type="hub_atividades",
-                entity_id=row_id,
-            )
+            logger.info(f"confirm_cron_delete: deleting id={row_id!r}")
+            delete_ok = sb_delete("hub_atividades", filters={"id": row_id})
+            if delete_ok:
+                audit_log(
+                    category=AuditCategory.DATA_DELETE,
+                    action=f"Atividade '{name}' excluída",
+                    username="",
+                    entity_type="hub_atividades",
+                    entity_id=row_id,
+                )
+            else:
+                logger.error(f"confirm_cron_delete: sb_delete retornou False para id={row_id}")
+                yield rx.toast.error("Erro ao excluir atividade no banco de dados.", duration=4000)
         except Exception as e:
             logger.error(f"confirm_cron_delete error: {e}")
+            yield rx.toast.error(f"Erro ao excluir: {str(e)[:100]}", duration=4000)
 
         if contrato:
             yield HubState.load_cronograma(contrato)
@@ -1556,12 +1571,17 @@ class HubState(rx.State):
                     import io
                     import openpyxl
                     wb = openpyxl.load_workbook(io.BytesIO(raw_bytes), data_only=True)
-                    ws = wb.active
-                    lines = []
-                    for row in ws.iter_rows(values_only=True):
-                        cells = [str(c) if c is not None else "" for c in row]
-                        lines.append(" | ".join(cells))
-                    file_text = "\n".join(lines[:200])
+                    all_lines = []
+                    # Itera TODAS as abas do Excel
+                    for sheet_name in wb.sheetnames:
+                        ws = wb[sheet_name]
+                        all_lines.append(f"\n=== ABA: {sheet_name} ===")
+                        for row in ws.iter_rows(values_only=True):
+                            cells = [str(c) if c is not None else "" for c in row]
+                            row_text = " | ".join(cells).strip(" |")
+                            if row_text:  # ignora linhas completamente vazias
+                                all_lines.append(row_text)
+                    file_text = "\n".join(all_lines[:400])
                 elif ext == "csv":
                     file_text = raw_bytes.decode("utf-8", errors="replace")[:8000]
                 else:
@@ -1577,30 +1597,38 @@ class HubState(rx.State):
             self.cron_import_loading = False
             return
 
-        prompt = f"""Você é um assistente de gestão de obras. Analise o cronograma abaixo e retorne um JSON com a lista de atividades encontradas.
+        prompt = f"""Você é um assistente especialista em gestão de obras e cronogramas. Analise o arquivo abaixo (pode ser um cronograma, Gantt, planilha de atividades ou lista de tarefas) e retorne um JSON estruturado com TODAS as atividades encontradas.
+
+INSTRUÇÕES DE EXTRAÇÃO:
+1. Se for um Gantt (barras em colunas de datas), leia as colunas de data do cabeçalho para determinar inicio_previsto e termino_previsto de cada barra.
+2. Se houver múltiplas abas (marcadas como "=== ABA: nome ==="), processe TODAS as abas.
+3. Para hierarquia: atividades de nível superior → nivel="macro"; sub-atividades → nivel="micro".
+4. Calcule dias_planejados como dias úteis entre inicio e termino quando possível. Se não tiver datas, use qualquer campo de duração disponível (dias, semanas×5, meses×22).
+5. Extraia total_qty e unidade se disponíveis (ex: "500 m²", "120 kg", "15 und").
+6. Datas em formato DD/MM/AAAA, DD/MM/AA ou MM/AAAA → converta para YYYY-MM-DD.
+7. Atividades marcadas como críticas, em vermelho ou com asterisco → critico=true.
+8. Se houver coluna de responsável/equipe, extraia em "responsavel".
 
 ARQUIVO:
-{file_text[:6000]}
+{file_text[:7000]}
 
-Retorne SOMENTE um JSON válido no formato:
+Retorne SOMENTE um JSON válido (array), sem texto antes ou depois, sem markdown:
 [
   {{
     "atividade": "Nome da atividade",
-    "fase_macro": "Fase/disciplina (ex: Civil, Elétrica)",
-    "fase": "Sub-fase se houver",
-    "responsavel": "Responsável se disponível",
+    "fase_macro": "Fase/disciplina principal (ex: Civil, Elétrica, Montagem)",
+    "fase": "Sub-fase se houver, senão vazio",
+    "responsavel": "Responsável/equipe se disponível, senão vazio",
     "inicio_previsto": "YYYY-MM-DD ou vazio",
     "termino_previsto": "YYYY-MM-DD ou vazio",
-    "dias_planejados": número ou 0,
+    "dias_planejados": número inteiro de dias úteis ou 0,
+    "total_qty": número ou 0,
+    "unidade": "m, m², m³, kg, und, kWh, kW, kWp ou vazio",
     "critico": true ou false,
     "nivel": "macro" ou "micro",
-    "observacoes": "qualquer nota relevante"
+    "observacoes": "notas relevantes ou vazio"
   }}
-]
-
-Use nivel="macro" para atividades principais e "micro" para sub-atividades.
-Se não conseguir extrair datas, deixe os campos em branco.
-Retorne APENAS o JSON, sem explicações."""
+]"""
 
         import asyncio, queue as _queue, threading
         result_q: _queue.Queue = _queue.Queue()
@@ -1654,6 +1682,8 @@ Retorne APENAS o JSON, sem explicações."""
                 "inicio_previsto":  str(p.get("inicio_previsto", "")),
                 "termino_previsto": str(p.get("termino_previsto", "")),
                 "dias_planejados":  str(p.get("dias_planejados", 0) or 0),
+                "total_qty":        str(p.get("total_qty", 0) or 0),
+                "unidade":          str(p.get("unidade", "") or ""),
                 "critico":          "1" if p.get("critico") else "0",
                 "nivel":            str(p.get("nivel", "macro")),
                 "observacoes":      str(p.get("observacoes", "")),
@@ -1690,14 +1720,23 @@ Retorne APENAS o JSON, sem explicações."""
         """Bulk-insert selected proposals into hub_atividades."""
         from bomtempo.state.global_state import GlobalState
 
+        # Ler state e GlobalState ANTES do async with self (get_state não pode ficar dentro do lock)
+        gs = await self.get_state(GlobalState)
+        client_id = str(gs.current_client_id or "")
+
         async with self:
             selected_ids = set(self.cron_import_selected)
             to_insert = [r for r in self.cron_import_preview if r["_tmp_id"] in selected_ids]
             contrato = to_insert[0]["contrato"] if to_insert else ""
-            gs = await self.get_state(GlobalState)
-            client_id = str(gs.current_client_id or "")
-            username = str(gs.current_user_name or "")
             self.cron_import_loading = True
+
+        if not to_insert:
+            async with self:
+                self.cron_import_loading = False
+            yield rx.toast.warning("Nenhuma atividade selecionada.", duration=3000)
+            return
+
+        logger.info(f"confirm_import_cronograma: inserindo {len(to_insert)} atividades para contrato={contrato!r}")
 
         errors = 0
         inserted = 0
@@ -1709,6 +1748,14 @@ Retorne APENAS o JSON, sem explicações."""
                 # Auto-calc termino from dias if termino missing but inicio+dias set
                 if inicio and dias and not termino:
                     termino = _add_working_days(inicio, dias)
+                total_qty = p.get("total_qty", 0) or 0
+                try:
+                    total_qty = float(total_qty) if total_qty else 0
+                except Exception:
+                    total_qty = 0
+                unidade = p.get("unidade", "") or ""
+                # Determina tipo_medicao com base na unidade/qty
+                tipo_medicao = "quantidade" if total_qty > 0 else "percentual"
                 sb_insert("hub_atividades", {
                     "contrato":          contrato,
                     "fase_macro":        p.get("fase_macro", ""),
@@ -1722,14 +1769,16 @@ Retorne APENAS o JSON, sem explicações."""
                     "nivel":             p.get("nivel", "macro"),
                     "peso_pct":          100,
                     "dias_planejados":   dias,
+                    "total_qty":         total_qty,
+                    "unidade":           unidade,
                     "observacoes":       p.get("observacoes", ""),
                     "status_atividade":  "nao_iniciada",
-                    "tipo_medicao":      p.get("tipo_medicao", "quantidade") or "quantidade",
+                    "tipo_medicao":      tipo_medicao,
                     "client_id":         client_id or None,
                 })
                 inserted += 1
             except Exception as ex:
-                logger.warning(f"confirm_import error on row: {ex}")
+                logger.warning(f"confirm_import error on row '{p.get('atividade','?')}': {ex}")
                 errors += 1
 
         async with self:

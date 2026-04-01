@@ -2635,18 +2635,10 @@ def _cron_edit_dialog() -> rx.Component:
                     align="center", width="100%",
                 ),
                 rx.divider(border_color=S.BORDER_SUBTLE),
-                # Row 1: Atividade + Responsável
+                # Row 1: Fase Macro + Fase
                 # Note: text inputs use default_value + on_blur (uncontrolled) to avoid
                 # per-keystroke round-trips to the server that cause input lag.
                 # Date/number inputs keep on_change (they don't have the lag problem).
-                rx.flex(
-                    rx.vstack(rx.text("Atividade *", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
-                              rx.el.input(default_value=HubState.cron_edit_atividade, on_blur=HubState.set_cron_edit_atividade, placeholder="Nome da atividade", style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","padding":"8px 10px","fontSize":"14px","width":"100%","outline":"none"}), spacing="1", flex="1"),
-                    rx.vstack(rx.text("Responsável", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
-                              rx.el.input(default_value=HubState.cron_edit_responsavel, on_blur=HubState.set_cron_edit_responsavel, placeholder="Ex: Engenheiro A", style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","padding":"8px 10px","fontSize":"14px","width":"100%","outline":"none"}), spacing="1", flex="1"),
-                    gap="12px", flex_wrap="wrap",
-                ),
-                # Row 2: Fase Macro + Fase
                 rx.flex(
                     rx.vstack(rx.text("Fase Macro", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                               rx.el.input(default_value=HubState.cron_edit_fase_macro, on_blur=HubState.set_cron_edit_fase_macro, placeholder="Ex: Elétrica", style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","padding":"8px 10px","fontSize":"14px","width":"100%","outline":"none"}), spacing="1", flex="1"),
@@ -2654,12 +2646,44 @@ def _cron_edit_dialog() -> rx.Component:
                               rx.el.input(default_value=HubState.cron_edit_fase, on_blur=HubState.set_cron_edit_fase, placeholder="Ex: SPDA", style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","padding":"8px 10px","fontSize":"14px","width":"100%","outline":"none"}), spacing="1", flex="1"),
                     gap="12px", flex_wrap="wrap",
                 ),
-                # Row 3: Datas
+                # Row 2: Atividade (oculto se macro — preenchido automaticamente) + Responsável
+                rx.cond(
+                    HubState.cron_edit_nivel == "micro",
+                    rx.flex(
+                        rx.vstack(rx.text("Atividade *", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                                  rx.el.input(default_value=HubState.cron_edit_atividade, on_blur=HubState.set_cron_edit_atividade, placeholder="Nome da atividade", style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","padding":"8px 10px","fontSize":"14px","width":"100%","outline":"none"}), spacing="1", flex="1"),
+                        rx.vstack(rx.text("Responsável", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                                  rx.el.input(default_value=HubState.cron_edit_responsavel, on_blur=HubState.set_cron_edit_responsavel, placeholder="Ex: Engenheiro A", style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","padding":"8px 10px","fontSize":"14px","width":"100%","outline":"none"}), spacing="1", flex="1"),
+                        gap="12px", flex_wrap="wrap",
+                    ),
+                    rx.flex(
+                        rx.vstack(rx.text("Responsável", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                                  rx.el.input(default_value=HubState.cron_edit_responsavel, on_blur=HubState.set_cron_edit_responsavel, placeholder="Ex: Engenheiro A", style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","padding":"8px 10px","fontSize":"14px","width":"100%","outline":"none"}), spacing="1", flex="1"),
+                        gap="12px", flex_wrap="wrap",
+                    ),
+                ),
+                # Row 3: Datas + Dias Planejados
                 rx.flex(
                     rx.vstack(rx.text("Início Previsto", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                               rx.el.input(type="date", value=HubState.cron_edit_inicio, on_change=HubState.set_cron_edit_inicio, style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","padding":"8px 10px","fontSize":"13px","width":"100%","outline":"none","colorScheme":"dark"}), spacing="1", flex="1"),
                     rx.vstack(rx.text("Término Previsto", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                               rx.el.input(type="date", value=HubState.cron_edit_termino, on_change=HubState.set_cron_edit_termino, style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","padding":"8px 10px","fontSize":"13px","width":"100%","outline":"none","colorScheme":"dark"}), spacing="1", flex="1"),
+                    rx.vstack(
+                        rx.hstack(
+                            rx.text("Dias Planejados", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                            rx.text("(úteis)", font_size="10px", color=S.TEXT_MUTED, font_style="italic"),
+                            spacing="1", align="center",
+                        ),
+                        rx.el.input(
+                            type="number",
+                            default_value=HubState.cron_edit_dias_planejados,
+                            on_blur=HubState.set_cron_edit_dias_planejados,
+                            placeholder="Ex: 10",
+                            min="0",
+                            style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","padding":"8px 10px","fontSize":"13px","width":"120px","outline":"none"},
+                        ),
+                        spacing="1",
+                    ),
                     gap="12px", flex_wrap="wrap",
                 ),
                 # Row 4a: Tipo (macro/micro) + Macro Pai
@@ -2770,7 +2794,7 @@ def _cron_edit_dialog() -> rx.Component:
                     ),
                     gap="12px", flex_wrap="wrap", align="end",
                 ),
-                # Row 5: Dependência + Dias Planejados
+                # Row 5: Dependência
                 rx.flex(
                     rx.vstack(
                         rx.hstack(
@@ -2801,22 +2825,6 @@ def _cron_edit_dialog() -> rx.Component:
                         ),
                         spacing="1", flex="1",
                     ),
-                    rx.vstack(
-                        rx.hstack(
-                            rx.text("Dias Planejados", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
-                            rx.text("(dias úteis)", font_size="10px", color=S.TEXT_MUTED, font_style="italic"),
-                            spacing="1", align="center",
-                        ),
-                        rx.el.input(
-                            type="number",
-                            default_value=HubState.cron_edit_dias_planejados,
-                            on_blur=HubState.set_cron_edit_dias_planejados,
-                            placeholder="Ex: 10",
-                            min="0",
-                            style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","padding":"8px 10px","fontSize":"13px","width":"120px","outline":"none"},
-                        ),
-                        spacing="1",
-                    ),
                     gap="12px", flex_wrap="wrap", align="start",
                 ),
                 # Row 6: Qtd Total + Unidade (quantidade física)
@@ -2839,13 +2847,27 @@ def _cron_edit_dialog() -> rx.Component:
                     ),
                     rx.vstack(
                         rx.text("Unidade", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
-                        rx.el.input(
-                            default_value=HubState.cron_edit_unidade,
-                            on_blur=HubState.set_cron_edit_unidade,
-                            placeholder="Ex: m², kg, und",
-                            style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","padding":"8px 10px","fontSize":"14px","width":"100%","outline":"none"},
+                        rx.select.root(
+                            rx.select.trigger(
+                                placeholder="Selecionar...",
+                                style={"background": "rgba(14,26,23,0.8)", "border": f"1px solid {S.BORDER_SUBTLE}", "borderRadius": S.R_CONTROL, "color": "white", "fontSize": "13px", "width": "140px", "outline": "none"},
+                            ),
+                            rx.select.content(
+                                rx.select.item("m",   value="m"),
+                                rx.select.item("m²",  value="m²"),
+                                rx.select.item("m³",  value="m³"),
+                                rx.select.item("kg",  value="kg"),
+                                rx.select.item("und", value="und"),
+                                rx.select.item("kWh", value="kWh"),
+                                rx.select.item("kW",  value="kW"),
+                                rx.select.item("kWp", value="kWp"),
+                                style={"background": S.BG_ELEVATED, "border": f"1px solid {S.BORDER_SUBTLE}", "zIndex": "9999"},
+                                position="popper",
+                            ),
+                            value=HubState.cron_edit_unidade,
+                            on_change=HubState.set_cron_edit_unidade,
                         ),
-                        spacing="1", flex="1",
+                        spacing="1",
                     ),
                     gap="12px", flex_wrap="wrap", align="start",
                 ),
@@ -3455,7 +3477,7 @@ def _audit_upload_dialog() -> rx.Component:
                 rx.vstack(
                     rx.text("URL da Imagem *", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                     rx.el.input(
-                        value=HubState.audit_upload_url, on_change=HubState.set_audit_upload_url,
+                        default_value=HubState.audit_upload_url, on_blur=HubState.set_audit_upload_url,
                         placeholder="https://... ou URL do Supabase Storage",
                         style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","padding":"8px 10px","fontSize":"13px","width":"100%","outline":"none"},
                     ),
@@ -3464,7 +3486,7 @@ def _audit_upload_dialog() -> rx.Component:
                 rx.vstack(
                     rx.text("Legenda", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                     rx.el.input(
-                        value=HubState.audit_upload_legenda, on_change=HubState.set_audit_upload_legenda,
+                        default_value=HubState.audit_upload_legenda, on_blur=HubState.set_audit_upload_legenda,
                         placeholder="Descrição da imagem...",
                         style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","padding":"8px 10px","fontSize":"13px","width":"100%","outline":"none"},
                     ),
@@ -4928,7 +4950,8 @@ def _novo_projeto_dialog() -> rx.Component:
                         rx.vstack(
                             rx.text("Código do Contrato *", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                             rx.el.input(
-                                on_change=GlobalState.set_np_contrato,
+                                default_value=GlobalState.np_contrato,
+                                on_blur=GlobalState.set_np_contrato,
                                 placeholder="Ex: SOL-2026-001",
                                 style={**_INPUT_STYLE, "fontFamily": "var(--font-mono)", "fontWeight": "700", "textTransform": "uppercase"},
                             ),
@@ -4964,7 +4987,8 @@ def _novo_projeto_dialog() -> rx.Component:
                         rx.vstack(
                             rx.text("Nome do Projeto *", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                             rx.el.input(
-                                on_change=GlobalState.set_np_projeto,
+                                default_value=GlobalState.np_projeto,
+                                on_blur=GlobalState.set_np_projeto,
                                 placeholder="Ex: Usina Solar Fazenda Boa Vista",
                                 style=_INPUT_STYLE,
                             ),
@@ -4974,7 +4998,8 @@ def _novo_projeto_dialog() -> rx.Component:
                         rx.vstack(
                             rx.text("Cliente *", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                             rx.el.input(
-                                on_change=GlobalState.set_np_cliente,
+                                default_value=GlobalState.np_cliente,
+                                on_blur=GlobalState.set_np_cliente,
                                 placeholder="Ex: Agropecuária Silva",
                                 style=_INPUT_STYLE,
                             ),
@@ -4994,7 +5019,8 @@ def _novo_projeto_dialog() -> rx.Component:
                             align="center",
                         ),
                         rx.el.input(
-                            on_change=GlobalState.set_np_localizacao,
+                            default_value=GlobalState.np_localizacao,
+                            on_blur=GlobalState.set_np_localizacao,
                             placeholder="Ex: Rua das Palmeiras 100, Petrolina – PE",
                             style=_INPUT_STYLE,
                         ),
@@ -5006,7 +5032,8 @@ def _novo_projeto_dialog() -> rx.Component:
                         rx.vstack(
                             rx.text("Terceirizado / Parceiro", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                             rx.el.input(
-                                on_change=GlobalState.set_np_terceirizado,
+                                default_value=GlobalState.np_terceirizado,
+                                on_blur=GlobalState.set_np_terceirizado,
                                 placeholder="Ex: Construtora ABC Ltda",
                                 style=_INPUT_STYLE,
                             ),
@@ -5016,7 +5043,8 @@ def _novo_projeto_dialog() -> rx.Component:
                         rx.vstack(
                             rx.text("Potência (kWp)", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                             rx.el.input(
-                                on_change=GlobalState.set_np_potencia_kwp,
+                                default_value=GlobalState.np_potencia_kwp,
+                                on_blur=GlobalState.set_np_potencia_kwp,
                                 placeholder="Ex: 142,5",
                                 type="text",
                                 input_mode="decimal",
@@ -5034,17 +5062,8 @@ def _novo_projeto_dialog() -> rx.Component:
                         rx.vstack(
                             rx.text("Data de Início", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                             rx.el.input(
+                                value=GlobalState.np_data_inicio,
                                 on_change=GlobalState.set_np_data_inicio,
-                                type="date",
-                                style={**_INPUT_STYLE, "colorScheme": "dark"},
-                            ),
-                            spacing="1",
-                            flex="1",
-                        ),
-                        rx.vstack(
-                            rx.text("Data de Término", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
-                            rx.el.input(
-                                on_change=GlobalState.set_np_data_termino,
                                 type="date",
                                 style={**_INPUT_STYLE, "colorScheme": "dark"},
                             ),
@@ -5054,11 +5073,27 @@ def _novo_projeto_dialog() -> rx.Component:
                         rx.vstack(
                             rx.text("Prazo Contratual (dias)", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                             rx.el.input(
-                                on_change=GlobalState.set_np_prazo_dias,
+                                default_value=GlobalState.np_prazo_dias,
+                                on_blur=GlobalState.set_np_prazo_dias,
                                 placeholder="Ex: 90",
                                 type="text",
                                 input_mode="numeric",
                                 style={**_INPUT_STYLE, "fontFamily": "var(--font-mono)"},
+                            ),
+                            spacing="1",
+                            flex="1",
+                        ),
+                        rx.vstack(
+                            rx.hstack(
+                                rx.text("Data de Término", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                                rx.text("(auto)", font_size="10px", color=S.TEXT_MUTED, font_style="italic"),
+                                spacing="1", align="center",
+                            ),
+                            rx.el.input(
+                                value=GlobalState.np_data_termino,
+                                on_change=GlobalState.set_np_data_termino,
+                                type="date",
+                                style={**_INPUT_STYLE, "colorScheme": "dark"},
                             ),
                             spacing="1",
                             flex="1",
@@ -5091,7 +5126,8 @@ def _novo_projeto_dialog() -> rx.Component:
                         rx.vstack(
                             rx.text("Efetivo Planejado (pessoas)", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                             rx.el.input(
-                                on_change=GlobalState.set_np_efetivo_planejado,
+                                default_value=GlobalState.np_efetivo_planejado,
+                                on_blur=GlobalState.set_np_efetivo_planejado,
                                 placeholder="Ex: 12",
                                 type="text",
                                 input_mode="numeric",
@@ -5108,7 +5144,8 @@ def _novo_projeto_dialog() -> rx.Component:
                     rx.vstack(
                         rx.text("Valor Contratado (R$)", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                         rx.el.input(
-                            on_change=GlobalState.set_np_valor_contratado,
+                            default_value=GlobalState.np_valor_contratado,
+                            on_blur=GlobalState.set_np_valor_contratado,
                             placeholder="Ex: 1.250.000,00",
                             type="text",
                             style={**_INPUT_STYLE, "fontFamily": "var(--font-mono)"},
@@ -5238,7 +5275,7 @@ def _edit_projeto_dialog() -> rx.Component:
                             rx.text("Nome do Projeto *", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                             rx.el.input(
                                 default_value=GlobalState.ep_projeto,
-                                on_change=GlobalState.set_ep_projeto,
+                                on_blur=GlobalState.set_ep_projeto,
                                 placeholder="Ex: Usina Solar Fazenda Boa Vista",
                                 style=_INPUT_STYLE,
                             ),
@@ -5249,7 +5286,7 @@ def _edit_projeto_dialog() -> rx.Component:
                             rx.text("Cliente *", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                             rx.el.input(
                                 default_value=GlobalState.ep_cliente,
-                                on_change=GlobalState.set_ep_cliente,
+                                on_blur=GlobalState.set_ep_cliente,
                                 placeholder="Ex: Agropecuária Silva",
                                 style=_INPUT_STYLE,
                             ),
@@ -5265,7 +5302,7 @@ def _edit_projeto_dialog() -> rx.Component:
                         rx.text("Localização / Endereço", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                         rx.el.input(
                             default_value=GlobalState.ep_localizacao,
-                            on_change=GlobalState.set_ep_localizacao,
+                            on_blur=GlobalState.set_ep_localizacao,
                             placeholder="Ex: Rua das Palmeiras 100, Petrolina – PE",
                             style=_INPUT_STYLE,
                         ),
@@ -5278,7 +5315,7 @@ def _edit_projeto_dialog() -> rx.Component:
                             rx.text("Terceirizado / Parceiro", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                             rx.el.input(
                                 default_value=GlobalState.ep_terceirizado,
-                                on_change=GlobalState.set_ep_terceirizado,
+                                on_blur=GlobalState.set_ep_terceirizado,
                                 placeholder="Ex: Construtora ABC Ltda",
                                 style=_INPUT_STYLE,
                             ),
@@ -5289,7 +5326,7 @@ def _edit_projeto_dialog() -> rx.Component:
                             rx.text("Potência (kWp)", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                             rx.el.input(
                                 default_value=GlobalState.ep_potencia_kwp,
-                                on_change=GlobalState.set_ep_potencia_kwp,
+                                on_blur=GlobalState.set_ep_potencia_kwp,
                                 placeholder="Ex: 142,5",
                                 type="text",
                                 input_mode="decimal",
@@ -5330,7 +5367,7 @@ def _edit_projeto_dialog() -> rx.Component:
                             rx.text("Prazo Contratual (dias)", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                             rx.el.input(
                                 default_value=GlobalState.ep_prazo_dias,
-                                on_change=GlobalState.set_ep_prazo_dias,
+                                on_blur=GlobalState.set_ep_prazo_dias,
                                 placeholder="Ex: 90",
                                 type="text",
                                 input_mode="numeric",
@@ -5368,7 +5405,7 @@ def _edit_projeto_dialog() -> rx.Component:
                             rx.text("Efetivo Planejado (pessoas)", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                             rx.el.input(
                                 default_value=GlobalState.ep_efetivo_planejado,
-                                on_change=GlobalState.set_ep_efetivo_planejado,
+                                on_blur=GlobalState.set_ep_efetivo_planejado,
                                 placeholder="Ex: 12",
                                 type="text",
                                 input_mode="numeric",
@@ -5520,4 +5557,5 @@ def hub_operacoes_page() -> rx.Component:
             ),
         ),
         width="100%",
+        class_name="hub-content",
     )

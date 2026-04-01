@@ -979,9 +979,8 @@ def _ev_card(item) -> rx.Component:
                         # Editing mode: input + save/cancel
                         rx.hstack(
                             rx.el.input(
-                                value=RDOState.ev_editing_draft,
-                                on_change=RDOState.set_ev_editing_draft,
-                                on_blur=RDOState.save_edit_caption,
+                                default_value=RDOState.ev_editing_draft,
+                                on_blur=RDOState.save_edit_caption_blur,
                                 auto_focus=True,
                                 placeholder="Legenda da foto…",
                                 style={
