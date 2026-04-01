@@ -336,3 +336,119 @@ def sb_rpc(fn_name: str, params: Dict[str, Any] = None) -> Any:
     except Exception as e:
         logger.error(f"Supabase RPC {fn_name} exception: {e}")
         return None
+
+
+# ── Async Client ───────────────────────────────────────────────────────────────
+# httpx.AsyncClient singleton — para uso em handlers async Reflex sem run_in_executor.
+# Elimina overhead de thread pool para operações de DB em handlers async diretos.
+#
+# Uso:
+#   from bomtempo.core.supabase_client import async_sb_select, async_sb_update
+#   rows = await async_sb_select("contratos", filters={"client_id": tenant_id})
+#
+# Quando usar async vs sync:
+#   - async_sb_*: handlers async sem @rx.event(background=True) — não usa thread pool
+#   - sb_*:       dentro de @rx.event(background=True) ou executors — OK chamar sync
+
+_async_http_client: Optional[httpx.AsyncClient] = None
+
+
+def _get_async_client() -> httpx.AsyncClient:
+    """Retorna AsyncClient singleton, criando se necessário."""
+    global _async_http_client
+    if _async_http_client is None or _async_http_client.is_closed:
+        _async_http_client = httpx.AsyncClient(limits=_LIMITS, timeout=_TIMEOUT)
+        logger.info("🔌 Async HTTP connection pool criado")
+    return _async_http_client
+
+
+async def async_sb_select(
+    table: str,
+    filters: Dict[str, Any] = None,
+    order: str = "",
+    limit: int = 1000,
+    raw_filters: Dict[str, str] = None,
+) -> List[Dict]:
+    """Async SELECT — use em handlers async para não bloquear o event loop."""
+    try:
+        params: Dict[str, str] = {"select": "*"}
+        for k, v in (filters or {}).items():
+            params[k] = f"eq.{v}"
+        for k, v in (raw_filters or {}).items():
+            params[k] = v
+        if order:
+            params["order"] = order
+        params["limit"] = str(limit)
+
+        resp = await _get_async_client().get(
+            f"{REST_BASE}/{table}",
+            headers=_headers(),
+            params=params,
+        )
+        if resp.status_code == 200:
+            result = resp.json()
+            logger.debug(f"async SELECT {table}: {len(result)} linhas")
+            return result
+        logger.error(f"async SELECT {table} → {resp.status_code}: {resp.text[:400]}")
+        return []
+    except Exception as e:
+        logger.error(f"async SELECT {table} exception: {e}")
+        return []
+
+
+async def async_sb_insert(table: str, data: Dict[str, Any]) -> Optional[Dict]:
+    """Async INSERT — retorna o registro inserido ou None em caso de falha."""
+    try:
+        resp = await _get_async_client().post(
+            f"{REST_BASE}/{table}",
+            headers=_headers(prefer_return=True),
+            json=data,
+        )
+        if resp.status_code in (200, 201):
+            result = resp.json()
+            return result[0] if isinstance(result, list) and result else result
+        err_msg = f"async INSERT {table} → {resp.status_code}: {resp.text[:400]}"
+        logger.error(err_msg)
+        raise ValueError(err_msg)
+    except Exception as e:
+        logger.error(f"async INSERT {table} exception: {e}")
+        raise
+
+
+async def async_sb_update(
+    table: str,
+    filters: Dict[str, Any],
+    data: Dict[str, Any],
+) -> bool:
+    """Async PATCH rows matching filters."""
+    try:
+        params = {k: f"eq.{v}" for k, v in filters.items()}
+        resp = await _get_async_client().patch(
+            f"{REST_BASE}/{table}",
+            headers=_headers(),
+            params=params,
+            json=data,
+        )
+        if resp.status_code not in (200, 204):
+            err_msg = f"async UPDATE {table} → {resp.status_code}: {resp.text[:400]}"
+            logger.error(err_msg)
+            raise ValueError(err_msg)
+        return True
+    except Exception as e:
+        logger.error(f"async UPDATE {table} exception: {e}")
+        raise
+
+
+async def async_sb_delete(table: str, filters: Dict[str, Any]) -> bool:
+    """Async DELETE rows matching filters."""
+    try:
+        params = {k: f"eq.{v}" for k, v in filters.items()}
+        resp = await _get_async_client().delete(
+            f"{REST_BASE}/{table}",
+            headers=_headers(),
+            params=params,
+        )
+        return resp.status_code in (200, 204)
+    except Exception as e:
+        logger.error(f"async DELETE {table} exception: {e}")
+        return False

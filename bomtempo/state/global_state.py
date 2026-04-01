@@ -184,20 +184,23 @@ class GlobalState(rx.State):
         self.is_processing_chat = False
         yield rx.call_script("window.scrollToBottom('chat-container')")
 
-    def save_chat_msg(self, role: str, content: str, tool_calls: any = None, tool_call_id: str = None):
-        """Salva uma mensagem no banco de dados de forma assíncrona (fire-and-forget)."""
-        if not self.chat_session_id: return
+    @rx.event(background=True)
+    async def save_chat_msg(self, role: str, content: str, tool_calls: any = None, tool_call_id: str = None):
+        """Salva mensagem no DB — background para não bloquear event loop."""
+        async with self:
+            session_id = self.chat_session_id
+        if not session_id:
+            return
         data = {
-            "session_id": self.chat_session_id,
+            "session_id": session_id,
             "role": role,
             "content": content,
             "tool_calls": tool_calls,
-            "tool_call_id": tool_call_id
+            "tool_call_id": tool_call_id,
         }
         try:
             sb_insert("chat_messages", data)
-            # Atualiza timestamp da sessão
-            sb_rpc("update_session_timestamp", {"sess_id": self.chat_session_id})
+            sb_rpc("update_session_timestamp", {"sess_id": session_id})
         except Exception as e:
             logger.warning(f"save_chat_msg falhou (não crítico): {e}")
 
@@ -1122,6 +1125,12 @@ class GlobalState(rx.State):
         self.current_client_id = ""
         self.current_client_name = ""
         self.client_is_master = False
+        # Limpa dados carregados para não vazar entre tenants na mesma sessão
+        self.contratos_list = []
+        self.projetos_list = []
+        self.obras_list = []
+        self.financeiro_list = []
+        self._data = {}
         # Limpa sessão de chat para não vazar histórico entre usuários
         self.chat_session_id = ""
         self.chat_history = []
@@ -1255,23 +1264,27 @@ class GlobalState(rx.State):
     def set_avatar_edit_icon(self, val: str):
         self.avatar_edit_icon = val
 
-    def save_avatar_pref(self):
-        """Persist avatar preferences to login table and update local state."""
+    @rx.event(background=True)
+    async def save_avatar_pref(self):
+        """Persist avatar preferences to login table — background para não bloquear event loop."""
         from bomtempo.core.supabase_client import sb_update
+        async with self:
+            avatar_icon = self.avatar_edit_icon
+            avatar_type = self.avatar_edit_type
+            username = self.current_user_name
         try:
             sb_update(
                 "login",
-                filters={"username": self.current_user_name},
-                data={
-                    "avatar_icon": self.avatar_edit_icon,
-                    "avatar_type": self.avatar_edit_type,
-                },
+                filters={"username": username},
+                data={"avatar_icon": avatar_icon, "avatar_type": avatar_type},
             )
-            self.current_user_avatar_icon = self.avatar_edit_icon
-            self.current_user_avatar_type = self.avatar_edit_type
+            async with self:
+                self.current_user_avatar_icon = avatar_icon
+                self.current_user_avatar_type = avatar_type
         except Exception as e:
             logger.error(f"Erro ao salvar preferência de avatar: {e}")
-        self.show_avatar_modal = False
+        async with self:
+            self.show_avatar_modal = False
 
     # ── Change password ────────────────────────────────────────────────────────
 
@@ -1284,42 +1297,56 @@ class GlobalState(rx.State):
     def set_pw_confirm(self, val: str):
         self.pw_confirm = val
 
-    def save_password(self):
-        self.pw_error = ""
-        self.pw_success = False
-
-        if not self.pw_new.strip():
-            self.pw_error = "A nova senha não pode estar vazia."
-            return
-        if len(self.pw_new.strip()) < 3:
-            self.pw_error = "A nova senha deve ter ao menos 3 caracteres."
-            return
-        if self.pw_new != self.pw_confirm:
-            self.pw_error = "As senhas não coincidem."
-            return
-
+    @rx.event(background=True)
+    async def save_password(self):
+        """Troca senha — background para não bloquear event loop durante queries de DB."""
         from bomtempo.core.supabase_client import sb_select, sb_update
+        async with self:
+            pw_new = self.pw_new.strip()
+            pw_current = self.pw_current.strip()
+            pw_confirm = self.pw_confirm.strip()
+            username = self.current_user_name
+            self.pw_error = ""
+            self.pw_success = False
+
+        if not pw_new:
+            async with self:
+                self.pw_error = "A nova senha não pode estar vazia."
+            return
+        if len(pw_new) < 3:
+            async with self:
+                self.pw_error = "A nova senha deve ter ao menos 3 caracteres."
+            return
+        if pw_new != pw_confirm:
+            async with self:
+                self.pw_error = "As senhas não coincidem."
+            return
+
         try:
-            rows = sb_select("login", filters={"username": self.current_user_name})
+            rows = sb_select("login", filters={"username": username})
             if not rows:
-                self.pw_error = "Usuário não encontrado."
+                async with self:
+                    self.pw_error = "Usuário não encontrado."
                 return
             db_pw = str(rows[0].get("password", ""))
-            if self.pw_current.strip() != db_pw:
-                self.pw_error = "Senha atual incorreta."
+            if pw_current != db_pw:
+                async with self:
+                    self.pw_error = "Senha atual incorreta."
                 return
             sb_update(
                 "login",
-                filters={"username": self.current_user_name},
-                data={"password": self.pw_new.strip()},
+                filters={"username": username},
+                data={"password": pw_new},
             )
-            self.pw_current = ""
-            self.pw_new = ""
-            self.pw_confirm = ""
-            self.pw_success = True
+            async with self:
+                self.pw_current = ""
+                self.pw_new = ""
+                self.pw_confirm = ""
+                self.pw_success = True
         except Exception as e:
             logger.error(f"Erro ao alterar senha: {e}")
-            self.pw_error = "Erro ao salvar. Tente novamente."
+            async with self:
+                self.pw_error = "Erro ao salvar. Tente novamente."
 
     # ── Contact info ───────────────────────────────────────────────────────────
 
@@ -1329,26 +1356,30 @@ class GlobalState(rx.State):
     def set_contact_edit_whatsapp(self, val: str):
         self.contact_edit_whatsapp = val
 
-    def save_contact(self):
-        """Save email and whatsapp for the current user."""
-        self.contact_error = ""
-        self.contact_success = False
+    @rx.event(background=True)
+    async def save_contact(self):
+        """Salva email e whatsapp — background para não bloquear event loop."""
         from bomtempo.core.supabase_client import sb_update
+        async with self:
+            email = self.contact_edit_email.strip()
+            whatsapp = self.contact_edit_whatsapp.strip()
+            username = self.current_user_name
+            self.contact_error = ""
+            self.contact_success = False
         try:
             sb_update(
                 "login",
-                filters={"username": self.current_user_name},
-                data={
-                    "email": self.contact_edit_email.strip(),
-                    "whatsapp": self.contact_edit_whatsapp.strip(),
-                },
+                filters={"username": username},
+                data={"email": email, "whatsapp": whatsapp},
             )
-            self.current_user_email = self.contact_edit_email.strip()
-            self.current_user_whatsapp = self.contact_edit_whatsapp.strip()
-            self.contact_success = True
+            async with self:
+                self.current_user_email = email
+                self.current_user_whatsapp = whatsapp
+                self.contact_success = True
         except Exception as e:
             logger.error(f"Erro ao salvar contato: {e}")
-            self.contact_error = "Erro ao salvar. Tente novamente."
+            async with self:
+                self.contact_error = "Erro ao salvar. Tente novamente."
 
     @rx.var
     def page_title(self) -> str:
@@ -1469,11 +1500,14 @@ class GlobalState(rx.State):
         self._recompute_fin_charts()
         self._recompute_popup_rows()
 
-    def load_data(self):
+    async def load_data(self):
         """Carrega dados iniciais com guard de autentização"""
+        import asyncio as _asyncio
+
         if not self.is_authenticated:
             logger.warning("🚫 Tentativa de load_data sem autenticação.")
-            return rx.redirect("/")
+            yield rx.redirect("/")
+            return
 
         self.is_navigating = False  # Encerra feedback de navegação ao chegar na nova página
         # Se já temos dados, não recarrega (Persistência na Sessão)
@@ -1487,7 +1521,8 @@ class GlobalState(rx.State):
 
         try:
             loader = DataLoader(client_id=self.current_client_id)
-            self._data = loader.load_all()
+            _loop = _asyncio.get_event_loop()
+            self._data = await _loop.run_in_executor(None, loader.load_all)
 
             # Helper to safely get DF
             def get_df(key: str) -> pd.DataFrame:
@@ -1606,16 +1641,9 @@ class GlobalState(rx.State):
         Chamado após commit no Editor de Dados para manter todas as páginas
         sincronizadas com as alterações mais recentes do banco.
         """
-        import os
-        from bomtempo.core.data_loader import CACHE_FILE
-
-        # 1. Invalida cache em disco para forçar fetch fresco
-        try:
-            if os.path.exists(CACHE_FILE):
-                os.remove(CACHE_FILE)
-                logger.info("🗑️ Cache invalidado (data_cache.pkl removido)")
-        except Exception as e:
-            logger.warning(f"⚠️ Falha ao remover cache: {e}")
+        # 1. Invalida cache Redis + pickle via DataLoader (único ponto de truth)
+        DataLoader.invalidate_cache(self.current_client_id)
+        logger.info("🗑️ Cache invalidado via force_refresh_data")
 
         # 2. Reseta guard vars para permitir recarregamento
         self.contratos_list = []
@@ -1749,10 +1777,10 @@ class GlobalState(rx.State):
                 self.is_authenticated = False
                 return
 
-            from bomtempo.core.supabase_client import sb_select
+            from bomtempo.core.supabase_client import async_sb_select
 
-            # Busca apenas o usuário específico — não carrega tabela inteira
-            user_rows = sb_select("login", filters={"username": username}, limit=1)
+            # Busca apenas o usuário específico — async para não bloquear event loop
+            user_rows = await async_sb_select("login", filters={"username": username}, limit=1)
             logger.info(f"Supabase login: query filtrada p/ '{username}' → {len(user_rows)} linha(s)")
 
             def _get_password_field(row: dict) -> str:
@@ -1836,7 +1864,6 @@ class GlobalState(rx.State):
 
             # ── Fetch module permissions + role icon from roles table ─────────
             try:
-                from bomtempo.core.supabase_client import sb_select
                 from bomtempo.state.usuarios_state import MODULE_SLUGS
                 role_rows = sb_select("roles", filters={"name": role, "client_id": self.current_client_id})
                 if role_rows:
@@ -1969,11 +1996,11 @@ class GlobalState(rx.State):
 
         start = time.monotonic()
 
-        # Executa load_data inline (itera o generator) para pré-carregar o cache
+        # Executa load_data inline (itera o async generator) para pré-carregar o cache
         # Assim quando on_load disparar na página destino, já bate no cache
         if not self.contratos_list:
-            for _ in self.load_data():
-                pass  # consome os yields do generator sem enviar deltas parciais
+            async for _ in self.load_data():
+                pass  # consome os yields do async generator sem enviar deltas parciais
 
         # Aquece connection pool para módulos pesados em background durante a animação
         # Enquanto a tela de loading exibe os 4.5s de animação, preparamos as conexões
@@ -3685,29 +3712,36 @@ class GlobalState(rx.State):
         try:
             sb_insert("contratos", payload)
 
-            # Auto-geocode if localizacao provided (Nominatim via requests)
+            # Auto-geocode if localizacao provided (Nominatim) — run in executor to avoid blocking event loop
             if localizacao:
                 try:
+                    import asyncio as _asyncio
                     import requests as _req
                     from bomtempo.core.supabase_client import sb_update
-                    resp = _req.get(
-                        "https://nominatim.openstreetmap.org/search",
-                        params={"q": localizacao, "format": "json", "limit": 1},
-                        headers={"User-Agent": "bomtempo-dashboard/1.0"},
-                        timeout=8,
-                    )
-                    results = resp.json()
+                    _loc = localizacao
+                    _contrato = contrato
+                    def _geocode():
+                        resp = _req.get(
+                            "https://nominatim.openstreetmap.org/search",
+                            params={"q": _loc, "format": "json", "limit": 1},
+                            headers={"User-Agent": "bomtempo-dashboard/1.0"},
+                            timeout=8,
+                        )
+                        return resp.json()
+                    results = await _asyncio.get_event_loop().run_in_executor(None, _geocode)
                     if results:
                         lat = float(results[0].get("lat", 0))
                         lng = float(results[0].get("lon", 0))
                         if lat or lng:
-                            sb_update("contratos", {"contrato": contrato}, {"lat": lat, "lng": lng})
+                            sb_update("contratos", {"contrato": _contrato}, {"lat": lat, "lng": lng})
                 except Exception:
                     pass  # geocode failure is non-fatal
 
             async with self:
                 self.np_saving = False
                 self.show_novo_projeto = False
+                self.contratos_list = []  # força recarga
+                DataLoader.invalidate_cache(self.current_client_id)
             yield GlobalState.load_data()
 
         except Exception as e:

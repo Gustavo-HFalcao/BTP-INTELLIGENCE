@@ -1378,6 +1378,8 @@ class HubState(rx.State):
             contrato = self.cron_rows[0].get("contrato", "") if self.cron_rows else ""
             self.cron_show_delete = False
             self.cron_delete_id = ""
+            # Optimistic UI: remove imediatamente da lista local antes do DB call
+            self.cron_rows = [r for r in self.cron_rows if r.get("id") != row_id]
 
         try:
             sb_delete("hub_atividades", filters={"id": row_id})

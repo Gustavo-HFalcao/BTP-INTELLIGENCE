@@ -1207,6 +1207,8 @@ class RDOState(rx.State):
     async def execute_submit(self):
         import threading
         from bomtempo.core.audit_logger import audit_log, AuditCategory
+        from bomtempo.core.executors import get_ai_executor, get_heavy_executor
+        from bomtempo.core.circuit_breaker import ia_breaker
 
         loop = asyncio.get_running_loop()
 
@@ -1239,15 +1241,26 @@ class RDOState(rx.State):
 
             # 2. Run AI analysis BEFORE PDF so the PDF contains the real analysis text
             ai_summary = ""
-            try:
-                _d_for_ai = dict(rdo_data)
-                _id_for_ai = str(id_rdo)
-                ai_summary = await loop.run_in_executor(
-                    None,
-                    lambda: RDOService.analyze_now(_d_for_ai, _id_for_ai),
-                )
-            except Exception as e:
-                logger.error(f"⚠️ AI: {e}")
+            if not ia_breaker.is_open():
+                try:
+                    _d_for_ai = dict(rdo_data)
+                    _id_for_ai = str(id_rdo)
+                    ai_summary = await asyncio.wait_for(
+                        loop.run_in_executor(
+                            get_ai_executor(),
+                            lambda: RDOService.analyze_now(_d_for_ai, _id_for_ai),
+                        ),
+                        timeout=45.0,
+                    )
+                    ia_breaker.record_success()
+                except asyncio.TimeoutError:
+                    ia_breaker.record_failure()
+                    logger.warning("⚠️ AI analysis timeout após 45s — continuando sem resumo IA")
+                except Exception as e:
+                    ia_breaker.record_failure(e)
+                    logger.error(f"⚠️ AI: {e}")
+            else:
+                logger.warning("⚠️ Circuit breaker IA aberto — pulando análise para este RDO")
 
             # Inject ai_summary into rdo_data so build_html renders it in PDF
             rdo_data_with_ai = {**rdo_data, "ai_summary": ai_summary}
@@ -1259,7 +1272,7 @@ class RDOState(rx.State):
             pdf_path = ""
             try:
                 pdf_result = await loop.run_in_executor(
-                    None,
+                    get_heavy_executor(),
                     lambda: RDOService.generate_pdf(rdo_data_with_ai, is_preview=False, id_rdo=id_rdo),
                 )
                 pdf_path = pdf_result[0] if pdf_result else ""

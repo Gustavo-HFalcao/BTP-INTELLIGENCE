@@ -36,7 +36,10 @@
       "Bash(py -c \"import ast; ast.parse\\(open\\(''bomtempo/pages/master_console.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''OK''\\)\")",
       "Bash(py -c \"import ast; ast.parse\\(open\\(''bomtempo/state/action_ai_state.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''OK''\\)\")",
       "Bash(py -c \"import ast; ast.parse\\(open\\(''bomtempo/state/master_state.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''OK''\\)\")",
-      "Bash(py -c \"import ast; ast.parse\\(open\\(''bomtempo/pages/hub_operacoes.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''hub_operacoes OK''\\)\")"
+      "Bash(py -c \"import ast; ast.parse\\(open\\(''bomtempo/pages/hub_operacoes.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''hub_operacoes OK''\\)\")",
+      "Bash(git pull:*)",
+      "Bash(py -c \"from bomtempo.core.redis_cache import is_redis_available, cache_stats; print\\(''Redis disponivel:'', is_redis_available\\(\\)\\); print\\(''Stats:'', cache_stats\\(''test-tenant''\\)\\)\")",
+      "Bash(py -c \"import ast, pathlib; ast.parse\\(pathlib.Path\\(''c:/Users/Samsung/bomtempo-dashboard/bomtempo/state/global_state.py''\\).read_text\\(encoding=''utf-8''\\)\\); print\\(''Syntax OK''\\)\")"
     ]
   }
 }

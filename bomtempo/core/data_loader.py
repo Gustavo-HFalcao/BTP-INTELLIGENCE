@@ -72,13 +72,20 @@ class DataLoader:
         self.client_id = client_id
 
     def load_all(self) -> dict:
-        """Carrega todos os dados (Cache -> Supabase), normaliza e retorna."""
+        """Carrega todos os dados (Redis Cache -> Pickle Cache -> Supabase), normaliza e retorna."""
+        from bomtempo.core.redis_cache import cache_get, cache_set, is_redis_available
         data = {}
 
-        # 1. Tentar cache recente (< 1h)
+        # 1. Tentar Redis cache (primário — sobrevive a restarts, TTL gerenciado automaticamente)
+        cached = cache_get(self.client_id, "data_all")
+        if cached:
+            logger.info(f"⚡ Dados carregados do Redis tenant={self.client_id[:8] if self.client_id else 'global'}")
+            return cached
+
+        # 2. Tentar pickle file cache (fallback quando Redis não disponível)
         cached = self._try_load_cache(fresh_only=True)
         if cached:
-            logger.info(f"✅ Dados carregados do Cache tenant={self.client_id[:8] if self.client_id else 'global'}")
+            logger.info(f"✅ Dados carregados do Cache (pickle) tenant={self.client_id[:8] if self.client_id else 'global'}")
             return cached
 
         # 2. Carregar do Supabase em paralelo
@@ -125,9 +132,12 @@ class DataLoader:
         # 3. Normalizar colunas
         data = self._normalize_all(data)
 
-        # 4. Salvar cache (já normalizado)
+        # 4. Salvar cache — Redis (primário) + pickle (fallback)
         if sucesso:
-            self._save_cache(data)
+            from bomtempo.core.redis_cache import cache_set, CACHE_TTL_SECONDS
+            saved_redis = cache_set(self.client_id, "data_all", data, ttl=CACHE_TTL_SECONDS)
+            if not saved_redis:
+                self._save_cache(data)  # fallback para pickle se Redis indisponível
 
         logger.info("✅ Carga de dados concluída")
         return data
@@ -136,14 +146,22 @@ class DataLoader:
 
     @staticmethod
     def invalidate_cache(client_id: str = ""):
-        """Remove o arquivo de cache do tenant, forçando recarga do Supabase na próxima requisição."""
+        """Remove cache do tenant (Redis + pickle) — força recarga do Supabase na próxima requisição."""
+        # 1. Invalida Redis (primário)
+        try:
+            from bomtempo.core.redis_cache import cache_invalidate
+            cache_invalidate(client_id, "data_all")
+        except Exception as e:
+            logger.debug(f"Redis invalidate falhou (ok se Redis não configurado): {e}")
+
+        # 2. Invalida pickle file (fallback)
         try:
             path = _cache_path(client_id)
             if os.path.exists(path):
                 os.remove(path)
-                logger.info(f"🗑️ Cache invalidado — tenant={client_id[:8] if client_id else 'global'}")
+                logger.info(f"🗑️ Cache pickle invalidado — tenant={client_id[:8] if client_id else 'global'}")
         except Exception as e:
-            logger.warning(f"Falha ao invalidar cache: {e}")
+            logger.warning(f"Falha ao invalidar cache pickle: {e}")
 
     def _try_load_cache(self, fresh_only: bool = True):
         path = _cache_path(self.client_id)
