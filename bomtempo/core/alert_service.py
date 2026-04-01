@@ -446,11 +446,17 @@ class CustomAlertRunner:
             alert_name = str(alert.get("alert_name", "Alerta"))
             alert_type = str(alert.get("alert_type", "custom"))
             contrato = alert.get("contrato")  # None = todos
+            alert_client_id = str(alert.get("client_id") or "")  # tenant isolation
             condition_field = alert.get("condition_field") or ""
             condition_op = str(alert.get("condition_op", "missing"))
             condition_value = str(alert.get("condition_value") or "")
             notify_emails = alert.get("notify_emails") or []
             description = str(alert.get("description", ""))
+
+            # Skip if no contrato AND no client_id — would evaluate across all tenants
+            if not contrato and not alert_client_id:
+                logger.warning(f"[CustomAlertRunner] Alerta '{alert_name}' sem contrato nem client_id — ignorado por segurança")
+                continue
 
             # Dedup: skip if already fired within the cooldown window
             last_fired_raw = alert.get("last_fired_at")

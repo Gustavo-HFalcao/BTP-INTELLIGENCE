@@ -645,25 +645,26 @@ class FuelService:
     # ── Email de notificação ───────────────────────────────────────────────────
 
     @staticmethod
-    def get_notification_emails() -> List[str]:
-        """Retorna lista de emails (strings) para notificação de reembolso."""
+    def get_notification_emails(client_id: str = "") -> List[str]:
+        """Retorna lista de emails (strings) para notificação de reembolso — filtrado por tenant."""
         try:
-            records = sb_select("email_sender", filters={"module": "reembolso"}) or []
+            filters: dict = {"module": "reembolso"}
+            if client_id:
+                filters["client_id"] = client_id
+            records = sb_select("email_sender", filters=filters) or []
             return [str(r.get("email", "")).strip() for r in records if r.get("email")]
         except Exception as e:
             logger.warning(f"⚠️ get_notification_emails: {e}")
             return []
 
     @staticmethod
-    def get_email_records() -> List[Dict[str, Any]]:
-        """Retorna registros completos de email para display no dashboard."""
+    def get_email_records(client_id: str = "") -> List[Dict[str, Any]]:
+        """Retorna registros completos de email para display no dashboard — filtrado por tenant."""
         try:
-            return (
-                sb_select(
-                    "email_sender", filters={"module": "reembolso"}, order="updated_date.desc"
-                )
-                or []
-            )
+            filters: dict = {"module": "reembolso"}
+            if client_id:
+                filters["client_id"] = client_id
+            return sb_select("email_sender", filters=filters, order="updated_date.desc") or []
         except Exception as e:
             logger.warning(f"⚠️ get_email_records: {e}")
             return []

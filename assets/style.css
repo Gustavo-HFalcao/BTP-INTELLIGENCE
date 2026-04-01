@@ -28,6 +28,26 @@
     --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* ── Light Mode Overrides ────────────────────────────────────── */
+/* Targets the Radix root div (class swapped dark→light via JS) and body.
+   Only app background + foreground text change; cards/sidebar/header unchanged. */
+[data-is-root-theme].light,
+body[data-theme="light"] {
+    background-color: #f0f2f0 !important;
+    background-image: none !important;
+    color: #0e1a17 !important;
+    --color-background: #f0f2f0 !important;
+    --app-bg: #f0f2f0;
+    --app-text: #0e1a17;
+    --app-text-muted: #3a5048;
+}
+
+/* Page-level text that sits directly on the app background */
+[data-is-root-theme].light .page-bg-text,
+body[data-theme="light"] .page-bg-text {
+    color: #0e1a17 !important;
+}
+
 /* ── Global ─────────────────────────────────────────────────── */
 body {
     font-family: 'Outfit', sans-serif !important;

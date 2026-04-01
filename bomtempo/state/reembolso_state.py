@@ -826,11 +826,13 @@ class ReembolsoState(rx.State):
             final_pdf = str(pdf_path)
             final_data = dict(data)
 
+            _email_client_id = str(current_client_id)
+
             def _send_email_fr():
                 try:
                     from bomtempo.core.email_service import EmailService
 
-                    recipients = FuelService.get_notification_emails()
+                    recipients = FuelService.get_notification_emails(client_id=_email_client_id)
                     if recipients:
                         EmailService.send_reembolso_email(recipients, final_data, final_pdf)
                 except Exception as ex:
@@ -1047,14 +1049,20 @@ class ReembolsoState(rx.State):
         }
 
     async def load_emails(self):
-        """Carrega lista de emails de notificação (module='reembolso')."""
+        """Carrega lista de emails de notificação (module='reembolso') — filtrado por tenant."""
         self.email_is_loading = True
         yield
         import asyncio
 
         loop = asyncio.get_running_loop()
         try:
-            records = await loop.run_in_executor(None, FuelService.get_email_records)
+            from bomtempo.state.global_state import GlobalState
+            _gs = await self.get_state(GlobalState)
+            _cid = str(_gs.current_client_id or "")
+        except Exception:
+            _cid = ""
+        try:
+            records = await loop.run_in_executor(None, lambda: FuelService.get_email_records(client_id=_cid))
             self.email_list = [self._normalize_email_record(r) for r in (records or [])]
         except Exception as e:
             logger.error(f"❌ load_emails: {e}")
@@ -1081,13 +1089,18 @@ class ReembolsoState(rx.State):
         except Exception:
             created_by = "admin"
 
+        _cid_add = ""
+        try:
+            _cid_add = str(gs.current_client_id or "")
+        except Exception:
+            pass
         ok = await loop.run_in_executor(
             None, lambda: FuelService.add_notification_email(contract, email_addr, created_by)
         )
         if ok:
             self.email_new_contract = ""
             self.email_new_address = ""
-            records = await loop.run_in_executor(None, FuelService.get_email_records)
+            records = await loop.run_in_executor(None, lambda: FuelService.get_email_records(client_id=_cid_add))
             self.email_list = [self._normalize_email_record(r) for r in (records or [])]
             yield rx.toast("✅ Email adicionado com sucesso.", position="top-center")
         else:
@@ -1098,12 +1111,19 @@ class ReembolsoState(rx.State):
         import asyncio
 
         loop = asyncio.get_running_loop()
+        _cid_del = ""
+        try:
+            from bomtempo.state.global_state import GlobalState
+            _gs_del = await self.get_state(GlobalState)
+            _cid_del = str(_gs_del.current_client_id or "")
+        except Exception:
+            pass
 
         ok = await loop.run_in_executor(
             None, lambda: FuelService.delete_notification_email(contract, email)
         )
         if ok:
-            records = await loop.run_in_executor(None, FuelService.get_email_records)
+            records = await loop.run_in_executor(None, lambda: FuelService.get_email_records(client_id=_cid_del))
             self.email_list = [self._normalize_email_record(r) for r in (records or [])]
             yield rx.toast("✅ Email removido.", position="top-center")
         else:

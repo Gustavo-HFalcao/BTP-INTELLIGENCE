@@ -508,11 +508,49 @@ def _user_avatar_pill() -> rx.Component:
     )
 
 
+def _theme_toggle_button() -> rx.Component:
+    """Sun/Moon icon to toggle light/dark mode."""
+    return rx.box(
+        rx.vstack(
+            rx.cond(
+                GlobalState.is_light_mode,
+                rx.icon("moon", size=18, color=S.TEXT_MUTED),
+                rx.icon("sun", size=18, color=S.TEXT_MUTED),
+            ),
+            rx.text(
+                rx.cond(GlobalState.is_light_mode, "Escuro", "Claro"),
+                font_family=S.FONT_MONO,
+                font_size="9px",
+                font_weight="600",
+                letter_spacing="0.06em",
+                color=S.TEXT_MUTED,
+                text_transform="uppercase",
+                white_space="nowrap",
+            ),
+            spacing="1",
+            align="center",
+        ),
+        on_click=GlobalState.toggle_theme,
+        padding="6px 10px",
+        border_radius="6px",
+        cursor="pointer",
+        transition="all 0.15s ease",
+        style={
+            "_hover": {
+                "background": "rgba(255,255,255,0.05)",
+                "& svg": {"color": "white"},
+                "& p": {"color": "white"},
+            },
+        },
+    )
+
+
 def _right_actions() -> rx.Component:
-    """Right action cluster: notifications + settings + logout + user pill."""
+    """Right action cluster: notifications + settings + theme + logout + user pill."""
     return rx.hstack(
         _notifications_button(),
         _settings_button(),
+        _theme_toggle_button(),
         _logout_button(),
         rx.box(width="4px", height="32px", bg=S.BORDER_SUBTLE, flex_shrink="0"),
         _user_avatar_pill(),

@@ -1286,159 +1286,283 @@ def _nova_atividade_row(item: dict) -> rx.Component:
 
 
 def _extra_atividade_row(extra: dict) -> rx.Component:
-    """Row for a single extra activity — uses _key for all event handlers."""
-    return rx.hstack(
-        rx.vstack(
-            rx.text("Atividade adicional", size="1", color="rgba(255,255,255,0.5)", font_family="var(--font-mono)"),
-            rx.select.root(
-                rx.select.trigger(placeholder="— Selecionar —", style=dict(_CARD_INPUT, **{"flex": "1"})),
-                rx.select.content(
-                    rx.select.item("— Nenhuma —", value="__none__"),
-                    rx.foreach(
-                        RDOState.hub_atividades_options,
-                        lambda opt: rx.select.item(opt["label"], value=opt["id"]),
+    """Row for a single extra activity - two-step macro then activity selection."""
+    return rx.vstack(
+        rx.hstack(
+            # Step 1: Macro phase select
+            rx.vstack(
+                rx.text("Disciplina", size="1", color="rgba(255,255,255,0.5)", font_family="var(--font-mono)"),
+                rx.select.root(
+                    rx.select.trigger(placeholder="Disciplina", style=dict(_CARD_INPUT, **{"min_width": "150px"})),
+                    rx.select.content(
+                        rx.select.item("Nenhuma", value="__none__"),
+                        rx.foreach(
+                            RDOState.hub_atividades_macros,
+                            lambda m: rx.select.item(m, value=m),
+                        ),
+                        style={"background": "#0D201C", "border": "1px solid rgba(255,255,255,0.1)"},
                     ),
-                    style={"background": "#0D201C", "border": "1px solid rgba(255,255,255,0.1)"},
+                    value=rx.cond(extra["fase_macro_sel"] == "", "__none__", extra["fase_macro_sel"]),
+                    on_change=RDOState.set_extra_fase_macro(extra["_key"]),
                 ),
-                value=rx.cond(extra["id"] == "", "__none__", extra["id"]),
-                on_change=RDOState.set_extra_atividade_id(extra["_key"]),
+                spacing="1",
             ),
-            spacing="1", flex="1",
-        ),
-        rx.vstack(
-            rx.text("%", size="1", color="rgba(255,255,255,0.5)", font_family="var(--font-mono)"),
-            rx.el.input(
-                type="number", min="0", max="100",
-                default_value=extra["progresso"],
-                on_blur=RDOState.set_extra_atividade_progresso(extra["_key"]),
-                style=dict(_CARD_INPUT, **{"width": "80px"}),
+            # Step 2: Activity select (shown after macro selected)
+            rx.cond(
+                extra["fase_macro_sel"] != "",
+                rx.vstack(
+                    rx.text("Atividade adicional", size="1", color="rgba(255,255,255,0.5)", font_family="var(--font-mono)"),
+                    rx.select.root(
+                        rx.select.trigger(placeholder="Atividade", style=dict(_CARD_INPUT, **{"min_width": "200px"})),
+                        rx.select.content(
+                            rx.select.item("Nenhuma", value="__none__"),
+                            rx.foreach(
+                                RDOState.hub_atividades_options,
+                                lambda opt: rx.cond(
+                                    opt["fase_macro"] == extra["fase_macro_sel"],
+                                    rx.select.item(opt["label"], value=opt["id"]),
+                                    rx.fragment(),
+                                ),
+                            ),
+                            style={"background": "#0D201C", "border": "1px solid rgba(255,255,255,0.1)"},
+                        ),
+                        value=rx.cond(extra["id"] == "", "__none__", extra["id"]),
+                        on_change=RDOState.set_extra_atividade_id(extra["_key"]),
+                    ),
+                    spacing="1", flex="1",
+                ),
+                rx.fragment(),
             ),
-            spacing="1",
+            rx.icon_button(
+                rx.icon(tag="x", size=14),
+                variant="ghost", size="1", cursor="pointer",
+                color="rgba(255,255,255,0.3)",
+                on_click=RDOState.remove_extra_atividade(extra["_key"]),
+                margin_top="18px",
+            ),
+            spacing="2", align="end", width="100%", flex_wrap="wrap",
         ),
-        rx.icon_button(
-            rx.icon(tag="x", size=14),
-            variant="ghost", size="1", cursor="pointer",
-            color="rgba(255,255,255,0.3)",
-            on_click=RDOState.remove_extra_atividade(extra["_key"]),
-            margin_top="18px",
+        # Progress fields shown after activity selected
+        rx.cond(
+            extra["id"] != "",
+            rx.vstack(
+                # Qty tracker badge
+                rx.cond(
+                    extra["total_qty"] != "0",
+                    rx.box(
+                        rx.hstack(
+                            rx.icon(tag="layers", size=13, color="rgba(201,139,42,0.7)"),
+                            rx.text(
+                                extra["exec_qty"] + " / " + extra["total_qty"] + " " + extra["unidade"] + " executados",
+                                size="1", color="rgba(201,139,42,0.9)", font_family="var(--font-mono)",
+                            ),
+                            spacing="2", align="center",
+                        ),
+                        padding="6px 10px", border_radius="6px",
+                        bg="rgba(201,139,42,0.07)", border="1px solid rgba(201,139,42,0.2)",
+                        width="100%",
+                    ),
+                ),
+                # Production qty input or manual % fallback
+                rx.cond(
+                    extra["total_qty"] != "0",
+                    rx.vstack(
+                        rx.text(
+                            "Producao de hoje (" + extra["unidade"] + ")",
+                            size="1", color="rgba(255,255,255,0.5)", font_family="var(--font-mono)"),
+                        rx.hstack(
+                            rx.el.input(
+                                type="number", min="0",
+                                placeholder="Ex: 120",
+                                default_value=extra["producao_dia"],
+                                on_change=RDOState.set_extra_atividade_producao(extra["_key"]),
+                                style=dict(_CARD_INPUT, **{"width": "160px"}),
+                            ),
+                            rx.text("% auto-calculado", size="1", color="rgba(255,255,255,0.3)", font_style="italic"),
+                            spacing="2", align="center",
+                        ),
+                        spacing="1",
+                    ),
+                    rx.vstack(
+                        rx.text("Progresso (%)", size="1", color="rgba(255,255,255,0.5)", font_family="var(--font-mono)"),
+                        rx.el.input(
+                            type="number", min="0", max="100",
+                            default_value=extra["progresso"],
+                            on_blur=RDOState.set_extra_atividade_progresso(extra["_key"]),
+                            style=dict(_CARD_INPUT, **{"width": "100px"}),
+                        ),
+                        spacing="1",
+                    ),
+                ),
+                spacing="2", width="100%",
+                padding_left="8px",
+                border_left="2px solid rgba(201,139,42,0.2)",
+            ),
         ),
-        spacing="2", align="end", width="100%",
+        spacing="2", width="100%",
     )
 
 
 def _section_cronograma() -> rx.Component:
-    """Section to link RDO submission to a cronograma activity and report progress."""
+    """Section to link RDO to a cronograma activity and report progress."""
+
+    def _progress_fields():
+        return rx.cond(
+            RDOState.rdo_atividade_id != "",
+            rx.vstack(
+                # Qty tracker badge — read-only, mostra acumulado
+                rx.cond(
+                    RDOState.rdo_ativ_total_qty != "0",
+                    rx.box(
+                        rx.hstack(
+                            rx.icon(tag="layers", size=13, color="rgba(201,139,42,0.7)"),
+                            rx.vstack(
+                                rx.text(
+                                    RDOState.rdo_ativ_exec_qty + " / " + RDOState.rdo_ativ_total_qty
+                                    + " " + RDOState.rdo_ativ_unidade + " executados",
+                                    size="1", color="rgba(201,139,42,0.95)",
+                                    font_family="var(--font-mono)", weight="bold",
+                                ),
+                                rx.text(
+                                    "Total planejado: " + RDOState.rdo_ativ_total_qty
+                                    + " " + RDOState.rdo_ativ_unidade
+                                    + ". Informe quantas foram realizadas HOJE.",
+                                    size="1", color="rgba(201,139,42,0.5)", font_style="italic",
+                                ),
+                                spacing="0",
+                            ),
+                            spacing="2", align="start",
+                        ),
+                        padding="8px 12px", border_radius="6px",
+                        bg="rgba(201,139,42,0.07)", border="1px solid rgba(201,139,42,0.25)",
+                        width="100%",
+                    ),
+                ),
+                # Qty input or manual % fallback
+                rx.cond(
+                    RDOState.rdo_ativ_total_qty != "0",
+                    rx.vstack(
+                        rx.text(
+                            "Producao de hoje (" + RDOState.rdo_ativ_unidade + ")",
+                            size="1", color="rgba(255,255,255,0.5)", font_family="var(--font-mono)",
+                        ),
+                        rx.hstack(
+                            rx.el.input(
+                                type="number", min="0",
+                                placeholder="Ex: 120",
+                                default_value=RDOState.rdo_producao_dia,
+                                on_change=RDOState.set_rdo_producao_dia,
+                                style=dict(_CARD_INPUT, **{"width": "160px"}),
+                            ),
+                            rx.text(
+                                "O % sera calculado automaticamente.",
+                                size="1", color="rgba(255,255,255,0.3)", font_style="italic",
+                            ),
+                            spacing="2", align="center",
+                        ),
+                        spacing="1",
+                    ),
+                    # Fallback: manual % when no total_qty configured
+                    rx.vstack(
+                        rx.text("Progresso atual (%)", size="1", color="rgba(255,255,255,0.5)", font_family="var(--font-mono)"),
+                        rx.hstack(
+                            rx.el.input(
+                                type="number", min="0", max="100",
+                                default_value=RDOState.rdo_progresso_atividade,
+                                on_blur=RDOState.set_rdo_progresso_atividade,
+                                style=dict(_CARD_INPUT, **{"width": "120px"}),
+                            ),
+                            rx.text("%", size="2", color="rgba(255,255,255,0.4)"),
+                            spacing="2", align="center",
+                        ),
+                        rx.text(
+                            "Atividade sem quantidade definida. Configure no cronograma para medicao automatica.",
+                            size="1", color="rgba(255,255,255,0.25)", font_style="italic",
+                        ),
+                        spacing="1",
+                    ),
+                ),
+                spacing="2", width="100%",
+            ),
+        )
+
     return _section_card(
         rx.vstack(
             # Loading state
             rx.cond(
                 RDOState.hub_atividades_loading,
-                rx.hstack(rx.spinner(size="2"), rx.text("Carregando atividades...", size="2", color="rgba(255,255,255,0.4)"), spacing="2", align="center"),
+                rx.hstack(
+                    rx.spinner(size="2"),
+                    rx.text("Carregando atividades...", size="2", color="rgba(255,255,255,0.4)"),
+                    spacing="2", align="center",
+                ),
                 rx.cond(
                     RDOState.hub_atividades_options.length() == 0,
-                    rx.text("Nenhuma atividade mapeada neste contrato.", size="2", color="rgba(255,255,255,0.4)", font_style="italic"),
-                    # Select existing activity
-                    rx.cond(
-                        ~RDOState.rdo_nova_atividade,
+                    rx.text(
+                        "Nenhuma atividade mapeada neste contrato.",
+                        size="2", color="rgba(255,255,255,0.4)", font_style="italic",
+                    ),
+                    # Two-step: disciplina -> atividade
+                    rx.vstack(
+                        # Step 1 — disciplina (fase macro)
                         rx.vstack(
+                            rx.text("Disciplina", size="1", color="rgba(255,255,255,0.5)", font_family="var(--font-mono)"),
+                            rx.select.root(
+                                rx.select.trigger(placeholder="Selecionar disciplina", style=_CARD_INPUT),
+                                rx.select.content(
+                                    rx.select.item("Nenhuma", value="__none__"),
+                                    rx.foreach(
+                                        RDOState.hub_atividades_macros,
+                                        lambda m: rx.select.item(m, value=m),
+                                    ),
+                                    style={"background": "#0D201C", "border": "1px solid rgba(255,255,255,0.1)"},
+                                ),
+                                value=rx.cond(
+                                    RDOState.rdo_fase_macro_sel == "", "__none__", RDOState.rdo_fase_macro_sel
+                                ),
+                                on_change=RDOState.set_rdo_fase_macro,
+                            ),
+                            spacing="1", width="100%",
+                        ),
+                        # Step 2 — atividade (filtrada pela disciplina)
+                        rx.cond(
+                            RDOState.rdo_fase_macro_sel != "",
                             rx.vstack(
                                 rx.text("Atividade vinculada", size="1", color="rgba(255,255,255,0.5)", font_family="var(--font-mono)"),
                                 rx.select.root(
-                                    rx.select.trigger(placeholder="— Selecionar atividade —", style=_CARD_INPUT),
+                                    rx.select.trigger(placeholder="Selecionar atividade", style=_CARD_INPUT),
                                     rx.select.content(
-                                        rx.select.item("— Nenhuma —", value="__none__"),
+                                        rx.select.item("Nenhuma", value="__none__"),
                                         rx.foreach(
-                                            RDOState.hub_atividades_options,
+                                            RDOState.hub_atividades_filtradas,
                                             lambda opt: rx.select.item(opt["label"], value=opt["id"]),
                                         ),
                                         style={"background": "#0D201C", "border": "1px solid rgba(255,255,255,0.1)"},
                                     ),
-                                    value=rx.cond(RDOState.rdo_atividade_id == "", "__none__", RDOState.rdo_atividade_id),
+                                    value=rx.cond(
+                                        RDOState.rdo_atividade_id == "", "__none__", RDOState.rdo_atividade_id
+                                    ),
                                     on_change=RDOState.set_rdo_atividade_id,
                                 ),
                                 spacing="1", width="100%",
                             ),
-                            rx.cond(
-                                RDOState.rdo_atividade_id != "",
-                                rx.vstack(
-                                    # Qty tracker — informativo
-                                    rx.cond(
-                                        RDOState.rdo_ativ_total_qty != "0",
-                                        rx.box(
-                                            rx.hstack(
-                                                rx.icon(tag="layers", size=13, color="rgba(201,139,42,0.7)"),
-                                                rx.text(
-                                                    RDOState.rdo_ativ_exec_qty + " / " + RDOState.rdo_ativ_total_qty + " " + RDOState.rdo_ativ_unidade + " executados",
-                                                    size="1",
-                                                    color="rgba(201,139,42,0.9)",
-                                                    font_family="var(--font-mono)",
-                                                ),
-                                                spacing="2", align="center",
-                                            ),
-                                            padding="6px 10px",
-                                            border_radius="6px",
-                                            bg="rgba(201,139,42,0.07)",
-                                            border="1px solid rgba(201,139,42,0.2)",
-                                            width="100%",
-                                            margin_bottom="6px",
-                                        ),
-                                    ),
-                                    # Production input
-                                    rx.cond(
-                                        RDOState.rdo_ativ_total_qty != "0",
-                                        rx.vstack(
-                                            rx.text(
-                                                "Produção de hoje (" + RDOState.rdo_ativ_unidade + ")",
-                                                size="1", color="rgba(255,255,255,0.5)", font_family="var(--font-mono)",
-                                            ),
-                                            rx.el.input(
-                                                type="number", min="0",
-                                                placeholder="Ex: 120",
-                                                default_value=RDOState.rdo_producao_dia,
-                                                on_blur=RDOState.set_rdo_producao_dia,
-                                                style=dict(_CARD_INPUT, **{"width": "160px"}),
-                                            ),
-                                            rx.text(
-                                                "O % será calculado automaticamente a partir da quantidade.",
-                                                size="1", color="rgba(255,255,255,0.3)", font_style="italic",
-                                            ),
-                                            spacing="1",
-                                        ),
-                                        # Fallback: manual % if no total_qty configured
-                                        rx.vstack(
-                                            rx.text("Progresso atual (%)", size="1", color="rgba(255,255,255,0.5)", font_family="var(--font-mono)"),
-                                            rx.el.input(
-                                                type="number", min="0", max="100",
-                                                default_value=RDOState.rdo_progresso_atividade,
-                                                on_blur=RDOState.set_rdo_progresso_atividade,
-                                                style=dict(_CARD_INPUT, **{"width": "120px"}),
-                                            ),
-                                            spacing="1",
-                                        ),
-                                    ),
-                                    spacing="1", width="100%",
-                                ),
-                            ),
-                            spacing="3", width="100%",
+                            rx.fragment(),
                         ),
-                        rx.fragment(),
+                        # Step 3 — campos de progresso
+                        _progress_fields(),
+                        spacing="3", width="100%",
                     ),
                 ),
             ),
-            # Extra activities
+            # Atividades adicionais
             rx.cond(
                 RDOState.hub_atividades_options.length() > 0,
                 rx.vstack(
-                    rx.foreach(
-                        RDOState.rdo_extra_atividades,
-                        _extra_atividade_row,
-                    ),
+                    rx.foreach(RDOState.rdo_extra_atividades, _extra_atividade_row),
                     rx.button(
                         rx.icon(tag="circle-plus", size=14),
                         "+ Outra atividade",
-                        variant="ghost",
-                        size="1",
-                        cursor="pointer",
+                        variant="ghost", size="1", cursor="pointer",
                         color="rgba(201,139,42,0.8)",
                         on_click=RDOState.add_extra_atividade,
                         _hover={"color": _COPPER},
@@ -1447,15 +1571,12 @@ def _section_cronograma() -> rx.Component:
                 ),
                 rx.fragment(),
             ),
-            # Lista de atividades não mapeadas
+            # Atividades nao mapeadas
             rx.foreach(RDOState.rdo_novas_atividades, _nova_atividade_row),
-            # Botão: adicionar atividade não mapeada
             rx.button(
                 rx.icon(tag="plus-circle", size=13),
-                "Registrar atividade não mapeada",
-                variant="ghost",
-                size="1",
-                cursor="pointer",
+                "Registrar atividade nao mapeada",
+                variant="ghost", size="1", cursor="pointer",
                 color="rgba(232,152,69,0.8)",
                 on_click=RDOState.add_nova_atividade_nao_mapeada,
                 _hover={"color": "#E89845"},
@@ -1467,8 +1588,6 @@ def _section_cronograma() -> rx.Component:
         icon="git-branch",
     )
 
-
-# ── Section: Observações ─────────────────────────────────────────────────────
 
 def _section_observacoes() -> rx.Component:
     return _section_card(

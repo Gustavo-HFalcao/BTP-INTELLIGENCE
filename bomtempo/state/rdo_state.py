@@ -142,6 +142,40 @@ class RDOState(rx.State):
     rdo_ativ_total_qty: str = "0"    # informativo: total_qty from hub_atividades
     rdo_ativ_exec_qty: str = "0"     # informativo: exec_qty accumulated so far
     rdo_ativ_unidade: str = ""       # informativo: unit name
+    # Two-step macro → activity selection
+    rdo_fase_macro_sel: str = ""     # selected macro phase (step 1)
+
+    @rx.var
+    def hub_atividades_macros(self) -> List[str]:
+        """Unique macro phases from loaded activities, sorted."""
+        seen = []
+        for o in self.hub_atividades_options:
+            m = o.get("fase_macro", "") or o.get("label", "").split(" — ")[0]
+            if m and m not in seen:
+                seen.append(m)
+        return sorted(seen)
+
+    @rx.var
+    def hub_atividades_filtradas(self) -> List[Dict[str, str]]:
+        """Activities filtered by selected macro phase (primary activity)."""
+        if not self.rdo_fase_macro_sel:
+            return []
+        return [
+            o for o in self.hub_atividades_options
+            if o.get("fase_macro", "") == self.rdo_fase_macro_sel
+        ]
+
+    @rx.var
+    def hub_atividades_por_fase(self) -> Dict[str, List[Dict[str, str]]]:
+        """All activities grouped by fase_macro — used by extra activity dropdowns."""
+        result: Dict[str, List[Dict[str, str]]] = {}
+        for o in self.hub_atividades_options:
+            fase = o.get("fase_macro", "Geral")
+            if fase not in result:
+                result[fase] = []
+            result[fase].append(o)
+        return result
+
     # If no existing activity: create a pending one (legacy single — kept for reset compat)
     rdo_nova_atividade: bool = False
     rdo_nova_atividade_nome: str = ""
@@ -1007,6 +1041,16 @@ class RDOState(rx.State):
 
     # ── Cronograma integration setters ────────────────────────
 
+    def set_rdo_fase_macro(self, v: str):
+        """Select macro phase and reset the activity selection."""
+        self.rdo_fase_macro_sel = "" if v == "__none__" else v
+        self.rdo_atividade_id = ""
+        self.rdo_atividade_nome = ""
+        self.rdo_producao_dia = ""
+        self.rdo_ativ_total_qty = "0"
+        self.rdo_ativ_exec_qty = "0"
+        self.rdo_ativ_unidade = ""
+
     def set_rdo_atividade_id(self, v: str):
         real_v = "" if v == "__none__" else v
         self.rdo_atividade_id = real_v
@@ -1064,8 +1108,22 @@ class RDOState(rx.State):
         """Add a new blank extra activity slot with a unique key."""
         import time
         new_list = list(self.rdo_extra_atividades)
-        new_list.append({"id": "", "nome": "", "progresso": "0", "_key": str(int(time.time() * 1000) + len(new_list))})
+        new_list.append({
+            "id": "", "nome": "", "progresso": "0", "_key": str(int(time.time() * 1000) + len(new_list)),
+            "total_qty": "0", "exec_qty": "0", "unidade": "", "producao_dia": "",
+            "fase_macro_sel": "",  # two-step: phase selection before activity
+        })
         self.rdo_extra_atividades = new_list
+
+    def set_extra_fase_macro(self, key: str, v: str):
+        """Select macro phase for an extra activity, resetting the activity selection."""
+        real_v = "" if v == "__none__" else v
+        self.rdo_extra_atividades = [
+            {**r, "fase_macro_sel": real_v, "id": "", "nome": "", "progresso": "0",
+             "total_qty": "0", "exec_qty": "0", "unidade": "", "producao_dia": ""}
+            if r.get("_key", "") == key else r
+            for r in self.rdo_extra_atividades
+        ]
 
     def remove_extra_atividade(self, key: str):
         """Remove extra activity by its _key."""
@@ -1073,21 +1131,33 @@ class RDOState(rx.State):
         self.rdo_extra_atividades = new_list
 
     def set_extra_atividade_id(self, key: str, v: str):
-        """Set activity id by _key."""
+        """Set activity id + carry qty metadata by _key."""
         real_v = "" if v == "__none__" else v
         opt = next((o for o in self.hub_atividades_options if o.get("id") == real_v), None)
         nome = opt["label"] if opt else ""
         pct = opt.get("pct", "0") if opt else None
+        total_qty = opt.get("total_qty", "0") if opt else "0"
+        exec_qty = opt.get("exec_qty", "0") if opt else "0"
+        unidade = opt.get("unidade", "") if opt else ""
         self.rdo_extra_atividades = [
-            {**r, "id": real_v, "nome": nome, **({"progresso": pct} if pct is not None else {})}
+            {**r, "id": real_v, "nome": nome,
+             "total_qty": total_qty, "exec_qty": exec_qty, "unidade": unidade, "producao_dia": "",
+             **({"progresso": pct} if pct is not None else {})}
             if r.get("_key", "") == key else r
             for r in self.rdo_extra_atividades
         ]
 
     def set_extra_atividade_progresso(self, key: str, v: str):
-        """Set progress by _key."""
+        """Set manual progress % by _key (only used when total_qty == 0)."""
         self.rdo_extra_atividades = [
             {**r, "progresso": str(v)} if r.get("_key", "") == key else r
+            for r in self.rdo_extra_atividades
+        ]
+
+    def set_extra_atividade_producao(self, key: str, v: str):
+        """Set daily production quantity by _key."""
+        self.rdo_extra_atividades = [
+            {**r, "producao_dia": str(v)} if r.get("_key", "") == key else r
             for r in self.rdo_extra_atividades
         ]
 
@@ -1111,7 +1181,8 @@ class RDOState(rx.State):
             opts = [
                 {
                     "id":               str(r.get("id", "")),
-                    "label":            f"{r.get('fase_macro', '')} — {r.get('atividade', '')}",
+                    "label":            str(r.get("atividade", "")),
+                    "fase_macro":       str(r.get("fase_macro", "") or "Geral"),
                     "pct":              str(int(r.get("conclusao_pct", 0) or 0)),
                     "total_qty":        str(r.get("total_qty", 0) or 0),
                     "exec_qty":         str(r.get("exec_qty", 0) or 0),
@@ -1418,20 +1489,52 @@ class RDOState(rx.State):
             for _extra in _extra_ativs:
                 _ex_id = _extra.get("id", "")
                 _ex_pct = int(_extra.get("progresso", "0") or "0")
+                _ex_prod_str = str(_extra.get("producao_dia", "") or "").strip()
                 if not _ex_id:
                     continue
                 try:
                     from bomtempo.core.supabase_client import sb_update as _sb_upd_ex, sb_select as _sb_sel_ex, sb_insert as _sb_ins_ex
                     _cur = await loop.run_in_executor(None, lambda i=_ex_id: _sb_sel_ex("hub_atividades", filters={"id": i}))
                     _cur_pct = int((_cur[0].get("conclusao_pct", 0) or 0) if _cur else 0)
-                    await loop.run_in_executor(None, lambda i=_ex_id, p=_ex_pct: _sb_upd_ex("hub_atividades", filters={"id": i}, data={"conclusao_pct": p}))
+                    _ex_upd: dict = {"conclusao_pct": _ex_pct}
+                    _ex_hist_prod = None
+                    _ex_hist_exec = None
+                    _ex_hist_total = None
+                    _ex_hist_unidade = str((_cur[0].get("unidade", "") or "") if _cur else "")
+                    # Accumulate exec_qty if daily production was informed
+                    if _ex_prod_str:
+                        try:
+                            _ex_prod_f = float(_ex_prod_str.replace(",", "."))
+                            _ex_cur_exec = float((_cur[0].get("exec_qty", 0) or 0) if _cur else 0)
+                            _ex_total = float((_cur[0].get("total_qty", 0) or 0) if _cur else 0)
+                            _ex_new_exec = _ex_cur_exec + _ex_prod_f
+                            _ex_upd["exec_qty"] = _ex_new_exec
+                            if _ex_total > 0:
+                                _ex_pct = min(100, int((_ex_new_exec / _ex_total) * 100))
+                                _ex_upd["conclusao_pct"] = _ex_pct
+                            _ex_hist_prod = _ex_prod_f
+                            _ex_hist_exec = _ex_new_exec
+                            _ex_hist_total = _ex_total or None
+                        except Exception:
+                            pass
+                    # Auto-update status
+                    _ex_cur_status = ((_cur[0].get("status_atividade", "") or "") if _cur else "")
+                    if _ex_pct >= 100:
+                        _ex_upd["status_atividade"] = "concluida"
+                    elif _ex_pct > 0 and _ex_cur_status in ("nao_iniciada", "pronta_iniciar", ""):
+                        _ex_upd["status_atividade"] = "em_execucao"
+                    await loop.run_in_executor(None, lambda i=_ex_id, d=_ex_upd: _sb_upd_ex("hub_atividades", filters={"id": i}, data=d))
                     _cid_ex = rdo_data.get("client_id") or None
-                    await loop.run_in_executor(None, lambda i=_ex_id, p=_ex_pct, cp=_cur_pct: _sb_ins_ex("hub_atividade_historico", {
+                    await loop.run_in_executor(None, lambda i=_ex_id, p=_ex_pct, cp=_cur_pct, hp=_ex_hist_prod, he=_ex_hist_exec, ht=_ex_hist_total, hu=_ex_hist_unidade: _sb_ins_ex("hub_atividade_historico", {
                         "atividade_id": i,
                         "contrato": contrato,
                         "rdo_id": id_rdo,
                         "conclusao_pct_anterior": cp,
                         "conclusao_pct_novo": p,
+                        "producao_dia": hp,
+                        "exec_qty_novo": he,
+                        "total_qty": ht,
+                        "unidade": hu or None,
                         "registrado_por": user_name,
                         "client_id": _cid_ex,
                     }))
@@ -1631,6 +1734,7 @@ class RDOState(rx.State):
         self.ferramentas_foto_items = []
         self.is_uploading_ferramentas = False
         # Cronograma integration
+        self.rdo_fase_macro_sel = ""
         self.rdo_atividade_id = ""
         self.rdo_atividade_nome = ""
         self.rdo_progresso_atividade = "0"

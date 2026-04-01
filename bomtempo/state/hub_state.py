@@ -81,15 +81,40 @@ def _fase_color(fase: str) -> str:
     return FASE_COLORS.get(fase.lower().strip(), "#889999")
 
 
-def _add_working_days(start_iso: str, days: int) -> str:
-    """Return ISO date string = start_iso + `days` working days (Mon-Fri)."""
+_DIAS_MAP = {"seg": 0, "ter": 1, "qua": 2, "qui": 3, "sex": 4, "sab": 5, "sáb": 5, "dom": 6}
+
+
+def _parse_dias_uteis(dias_str: str) -> set:
+    """Convert 'seg,ter,qua,qui,sex' to a set of weekday ints (0=Mon…6=Sun).
+    Falls back to Mon-Fri if the string is empty or unrecognized."""
+    if not dias_str:
+        return {0, 1, 2, 3, 4}
+    result = set()
+    for d in dias_str.split(","):
+        key = d.strip().lower()
+        if key in _DIAS_MAP:
+            result.add(_DIAS_MAP[key])
+    return result if result else {0, 1, 2, 3, 4}
+
+
+def _add_working_days(start_iso: str, days: int, working_days: set = None) -> str:
+    """Return ISO date string for an activity that starts on start_iso and lasts `days` working days.
+
+    The start day itself counts as day 1. So dias=1 → termino=inicio; dias=2 → termino=next working day.
+    working_days: set of weekday ints (0=Mon…6=Sun). Defaults to Mon-Fri.
+    """
     from datetime import date, timedelta
+    if working_days is None:
+        working_days = {0, 1, 2, 3, 4}
     try:
         current = date.fromisoformat(start_iso[:10])
-        added = 0
+        if not working_days or days <= 0:
+            return start_iso
+        # Day 1 is the start date itself; advance (days-1) additional working days
+        added = 1
         while added < days:
             current += timedelta(days=1)
-            if current.weekday() < 5:  # Mon=0..Fri=4
+            if current.weekday() in working_days:
                 added += 1
         return current.isoformat()
     except Exception:
@@ -312,6 +337,11 @@ class HubState(rx.State):
     #       inicio_previsto, termino_previsto, conclusao_pct, critico,
     #       dependencia, observacoes, color
     cron_rows: List[Dict[str, str]] = []
+
+    # Working days config for the current project (loaded from contratos.dias_uteis_semana)
+    cron_working_days_str: str = "seg,ter,qua,qui,sex"
+    # Current contract code (set by load_cronograma so upload handlers can read it)
+    cron_contrato: str = ""
 
     # Filter
     cron_fase_filter: str = ""
@@ -928,6 +958,12 @@ class HubState(rx.State):
             self.cron_search = ""
 
         try:
+            # Load project working days config
+            contrato_rows = sb_select("contratos", filters={"contrato": contrato}, limit=1)
+            dias_uteis_str = "seg,ter,qua,qui,sex"
+            if contrato_rows:
+                dias_uteis_str = str(contrato_rows[0].get("dias_uteis_semana", "") or "seg,ter,qua,qui,sex")
+
             rows = sb_select(
                 "hub_atividades",
                 filters={"contrato": contrato},
@@ -983,6 +1019,8 @@ class HubState(rx.State):
 
         async with self:
             self.cron_rows = normalized
+            self.cron_working_days_str = dias_uteis_str
+            self.cron_contrato = contrato
             self.cron_loading = False
 
     def set_cron_fase_filter(self, value: str):
@@ -1005,6 +1043,51 @@ class HubState(rx.State):
 
     def toggle_cron_critical(self):
         self.cron_show_only_critical = not self.cron_show_only_critical
+
+    @rx.event(background=True)
+    async def recalculate_cron_dates(self):
+        """Recalculate termino_previsto for all activities that have inicio_previsto + dias_planejados,
+        using the current project's working days config. Useful after changing dias_uteis_semana."""
+        from bomtempo.core.supabase_client import sb_update
+
+        contrato = ""
+        working_days_str = "seg,ter,qua,qui,sex"
+        rows_snapshot = []
+        async with self:
+            contrato = self.cron_contrato
+            working_days_str = self.cron_working_days_str
+            rows_snapshot = list(self.cron_rows)
+
+        if not contrato or not rows_snapshot:
+            yield rx.toast.warning("Nenhuma atividade carregada.", duration=3000)
+            return
+
+        wd = _parse_dias_uteis(working_days_str)
+        updated = 0
+        for r in rows_snapshot:
+            inicio_iso = r.get("inicio_iso", "")
+            dias_raw = r.get("dias_planejados", "0")
+            row_id = r.get("id", "")
+            if not inicio_iso or not row_id:
+                continue
+            try:
+                dias = int(dias_raw or 0)
+            except (ValueError, TypeError):
+                dias = 0
+            if dias <= 0:
+                continue
+            new_termino = _add_working_days(inicio_iso, dias, wd)
+            try:
+                sb_update("hub_atividades", {"id": row_id}, {"termino_previsto": new_termino})
+                updated += 1
+            except Exception as ex:
+                logger.warning(f"recalculate_cron_dates: erro ao atualizar {row_id}: {ex}")
+
+        if updated:
+            yield rx.toast.success(f"{updated} datas de término recalculadas.", duration=4000)
+            yield HubState.load_cronograma(contrato)
+        else:
+            yield rx.toast.info("Nenhuma atividade com início + dias para recalcular.", duration=3000)
 
     # ── Dialog open/close ─────────────────────────────────────────────────────
 
@@ -1106,7 +1189,8 @@ class HubState(rx.State):
         if self.cron_edit_dias_planejados.strip():
             try:
                 dias = int(self.cron_edit_dias_planejados.strip())
-                self.cron_edit_termino = _add_working_days(v, dias)
+                wd = _parse_dias_uteis(self.cron_working_days_str)
+                self.cron_edit_termino = _add_working_days(v, dias, wd)
             except Exception:
                 pass
     def set_cron_edit_termino(self, v: str): self.cron_edit_termino = v
@@ -1130,7 +1214,8 @@ class HubState(rx.State):
                 if self.cron_edit_dias_planejados.strip():
                     try:
                         dias = int(self.cron_edit_dias_planejados.strip())
-                        self.cron_edit_termino = _add_working_days(dep_termino, dias)
+                        wd = _parse_dias_uteis(self.cron_working_days_str)
+                        self.cron_edit_termino = _add_working_days(dep_termino, dias, wd)
                     except Exception:
                         pass
     def set_cron_edit_dias_planejados(self, v):
@@ -1140,7 +1225,8 @@ class HubState(rx.State):
         if v.strip() and self.cron_edit_inicio:
             try:
                 dias = int(v.strip())
-                self.cron_edit_termino = _add_working_days(self.cron_edit_inicio, dias)
+                wd = _parse_dias_uteis(self.cron_working_days_str)
+                self.cron_edit_termino = _add_working_days(self.cron_edit_inicio, dias, wd)
             except Exception:
                 pass
     def set_cron_edit_total_qty(self, v): self.cron_edit_total_qty = str(v) if v is not None else ""
@@ -1389,10 +1475,20 @@ class HubState(rx.State):
             # Optimistic UI: remove imediatamente da lista local antes do DB call
             self.cron_rows = [r for r in self.cron_rows if r.get("id") != row_id]
 
+        if not row_id:
+            logger.error("confirm_cron_delete: row_id vazio, abortando.")
+            yield rx.toast.error("ID da atividade não encontrado.", duration=4000)
+            return
+
         delete_ok = False
         try:
-            logger.info(f"confirm_cron_delete: deleting id={row_id!r}")
+            logger.info(f"confirm_cron_delete: deleting id={row_id!r} name={name!r}")
+            # Retry once on transient failure
             delete_ok = sb_delete("hub_atividades", filters={"id": row_id})
+            if not delete_ok:
+                import time as _time
+                _time.sleep(0.5)
+                delete_ok = sb_delete("hub_atividades", filters={"id": row_id})
             if delete_ok:
                 audit_log(
                     category=AuditCategory.DATA_DELETE,
@@ -1551,14 +1647,13 @@ class HubState(rx.State):
         from bomtempo.state.global_state import GlobalState
         import json
 
+        # Regular async upload handler — state writes are direct (no async with self needed)
         self.cron_import_loading = True
         self.cron_import_error = ""
         self.cron_import_preview = []
-        contrato = self.cron_rows[0].get("contrato", "") if self.cron_rows else ""
-        gs = await self.get_state(GlobalState)
-        if not contrato:
-            contrato = str(gs.selected_contrato or gs.selected_project or "")
-        yield
+        # Use cron_contrato (set by load_cronograma) as the authoritative source
+        contrato = self.cron_contrato or (self.cron_rows[0].get("contrato", "") if self.cron_rows else "")
+        yield  # flush loading=True to UI
 
         file_text = ""
         if files:
@@ -1597,38 +1692,47 @@ class HubState(rx.State):
             self.cron_import_loading = False
             return
 
-        prompt = f"""Você é um assistente especialista em gestão de obras e cronogramas. Analise o arquivo abaixo (pode ser um cronograma, Gantt, planilha de atividades ou lista de tarefas) e retorne um JSON estruturado com TODAS as atividades encontradas.
+        prompt = f"""Você é um assistente especialista em gestão de obras e cronogramas. Analise o arquivo abaixo e extraia EXATAMENTE as atividades que estão explicitamente listadas. NÃO invente, NÃO duplique, NÃO crie atividades que não estejam no documento.
 
-INSTRUÇÕES DE EXTRAÇÃO:
-1. Se for um Gantt (barras em colunas de datas), leia as colunas de data do cabeçalho para determinar inicio_previsto e termino_previsto de cada barra.
-2. Se houver múltiplas abas (marcadas como "=== ABA: nome ==="), processe TODAS as abas.
-3. Para hierarquia: atividades de nível superior → nivel="macro"; sub-atividades → nivel="micro".
-4. Calcule dias_planejados como dias úteis entre inicio e termino quando possível. Se não tiver datas, use qualquer campo de duração disponível (dias, semanas×5, meses×22).
-5. Extraia total_qty e unidade se disponíveis (ex: "500 m²", "120 kg", "15 und").
-6. Datas em formato DD/MM/AAAA, DD/MM/AA ou MM/AAAA → converta para YYYY-MM-DD.
-7. Atividades marcadas como críticas, em vermelho ou com asterisco → critico=true.
-8. Se houver coluna de responsável/equipe, extraia em "responsavel".
+REGRAS ESTRITAS:
+1. Extraia APENAS atividades que estão EXPLICITAMENTE no arquivo. Se não encontrar, retorne lista vazia.
+2. NÃO crie atividades derivadas ou inferidas. Se uma linha descreve quantidades de uma atividade já listada, use esses dados para preencher total_qty/unidade da atividade existente — NÃO crie outra atividade.
+3. NÃO duplique atividades: se a mesma atividade aparece em abas diferentes (ex: aba "Cronograma" e aba "Atividades"), use a ocorrência que contiver mais informações (datas, quantidades), ignorando as demais.
+4. Para hierarquia: linhas de fase/disciplina principal → nivel="macro"; sub-atividades → nivel="micro".
+5. Datas: se o arquivo tiver colunas de datas, extraia-as. Se for um Gantt (barras em colunas de datas), leia o cabeçalho para determinar inicio_previsto e termino_previsto. Datas em DD/MM/AAAA, DD/MM/AA → converta para YYYY-MM-DD. Se não houver data, deixe vazio — NÃO invente datas.
+6. dias_planejados: calcule como dias úteis entre inicio e termino SE ambas as datas existirem. Se houver coluna de duração explícita, use-a. Se não houver nenhuma informação, deixe 0.
+7. total_qty e unidade: extraia apenas se houver coluna explícita com quantidade (ex: "500 m²", "120 kg"). Se não houver, deixe 0 e vazio.
+8. Atividades marcadas como críticas, em vermelho ou com asterisco → critico=true.
+9. Se houver coluna de responsável/equipe, extraia em "responsavel".
+10. Ao final, adicione um campo "_confidence" (0.0 a 1.0) indicando sua confiança na extração:
+    - 1.0: arquivo estruturado com datas e atividades claras
+    - 0.7-0.9: bom estrutura mas algumas ambiguidades
+    - 0.4-0.6: pouca estrutura, muita inferência necessária
+    - <0.4: arquivo difícil de interpretar, resultados incertos
 
 ARQUIVO:
 {file_text[:7000]}
 
-Retorne SOMENTE um JSON válido (array), sem texto antes ou depois, sem markdown:
-[
-  {{
-    "atividade": "Nome da atividade",
-    "fase_macro": "Fase/disciplina principal (ex: Civil, Elétrica, Montagem)",
-    "fase": "Sub-fase se houver, senão vazio",
-    "responsavel": "Responsável/equipe se disponível, senão vazio",
-    "inicio_previsto": "YYYY-MM-DD ou vazio",
-    "termino_previsto": "YYYY-MM-DD ou vazio",
-    "dias_planejados": número inteiro de dias úteis ou 0,
-    "total_qty": número ou 0,
-    "unidade": "m, m², m³, kg, und, kWh, kW, kWp ou vazio",
-    "critico": true ou false,
-    "nivel": "macro" ou "micro",
-    "observacoes": "notas relevantes ou vazio"
-  }}
-]"""
+Retorne SOMENTE um JSON válido com dois campos: "activities" (array) e "confidence" (número 0.0-1.0), sem texto antes ou depois, sem markdown:
+{{
+  "confidence": 0.9,
+  "activities": [
+    {{
+      "atividade": "Nome exato da atividade conforme o arquivo",
+      "fase_macro": "Fase/disciplina principal",
+      "fase": "Sub-fase se houver, senão vazio",
+      "responsavel": "Responsável/equipe se disponível, senão vazio",
+      "inicio_previsto": "YYYY-MM-DD ou vazio",
+      "termino_previsto": "YYYY-MM-DD ou vazio",
+      "dias_planejados": número inteiro de dias úteis ou 0,
+      "total_qty": número ou 0,
+      "unidade": "m, m², m³, kg, und, kWh, kW, kWp ou vazio",
+      "critico": true ou false,
+      "nivel": "macro" ou "micro",
+      "observacoes": "notas relevantes ou vazio"
+    }}
+  ]
+}}"""
 
         import asyncio, queue as _queue, threading
         result_q: _queue.Queue = _queue.Queue()
@@ -1661,18 +1765,55 @@ Retorne SOMENTE um JSON válido (array), sem texto antes ou depois, sem markdown
             cleaned = raw.strip()
             if cleaned.startswith("```"):
                 cleaned = cleaned.split("\n", 1)[-1].rsplit("```", 1)[0]
-            proposals = json.loads(cleaned)
+            parsed = json.loads(cleaned)
+            # Support both new format {"confidence": X, "activities": [...]} and legacy plain list
+            if isinstance(parsed, dict):
+                confidence = float(parsed.get("confidence", 0.5))
+                proposals = parsed.get("activities", [])
+            elif isinstance(parsed, list):
+                confidence = 0.5  # legacy: assume medium confidence
+                proposals = parsed
+            else:
+                raise ValueError("Resposta não é um objeto nem lista")
             if not isinstance(proposals, list):
-                raise ValueError("Resposta não é uma lista")
+                raise ValueError("Campo 'activities' não é uma lista")
         except Exception as ex:
             self.cron_import_error = f"IA retornou formato inválido: {ex}"
             self.cron_import_loading = False
             return
 
+        # Dedup by normalized activity name to prevent duplicates from multi-sheet parsing
+        seen_names: dict = {}
+        deduped = []
+        for p in proposals:
+            name_key = str(p.get("atividade", "")).strip().lower()
+            if not name_key:
+                continue
+            if name_key not in seen_names:
+                seen_names[name_key] = p
+                deduped.append(p)
+            else:
+                # Keep whichever has more data (prefer the one with dates)
+                existing = seen_names[name_key]
+                existing_has_dates = bool(existing.get("inicio_previsto") or existing.get("termino_previsto"))
+                new_has_dates = bool(p.get("inicio_previsto") or p.get("termino_previsto"))
+                if new_has_dates and not existing_has_dates:
+                    # Replace with the version that has dates
+                    seen_names[name_key] = p
+                    deduped = [p if x is existing else x for x in deduped]
+
+        # Confidence label for display
+        if confidence >= 0.8:
+            conf_label = f"Alta ({int(confidence * 100)}%)"
+        elif confidence >= 0.5:
+            conf_label = f"Média ({int(confidence * 100)}%)"
+        else:
+            conf_label = f"Baixa ({int(confidence * 100)}%) — revise com atenção"
+
         # Normalize proposals into display rows with temp IDs
         import uuid
         preview = []
-        for i, p in enumerate(proposals[:50]):
+        for i, p in enumerate(deduped[:50]):
             preview.append({
                 "_tmp_id":          str(uuid.uuid4()),
                 "atividade":        str(p.get("atividade", f"Atividade {i+1}")),
@@ -1690,11 +1831,21 @@ Retorne SOMENTE um JSON válido (array), sem texto antes ou depois, sem markdown
                 "contrato":         contrato,
             })
 
+        # Count items with 0 dias_planejados for consistency warning
+        zero_days = sum(1 for r in preview if r["dias_planejados"] == "0")
+        has_dates = sum(1 for r in preview if r["inicio_previsto"] or r["termino_previsto"])
+
+        msg = f"{len(preview)} atividades identificadas. Confiança: {conf_label}."
+        if zero_days > 0 and has_dates == 0:
+            msg += f" Atenção: {zero_days} atividade(s) sem datas — preencha manualmente após importar."
+        elif zero_days > 0:
+            msg += f" {zero_days} atividade(s) sem duração calculada."
+
         self.cron_import_preview = preview
         self.cron_import_selected = [r["_tmp_id"] for r in preview]
         self.cron_import_show = True
         self.cron_import_loading = False
-        yield rx.toast.success(f"{len(preview)} atividades identificadas — revise e confirme.", duration=6000)
+        yield rx.toast.success(msg, duration=8000)
 
     def toggle_import_activity(self, tmp_id: str):
         if tmp_id in self.cron_import_selected:
@@ -1720,14 +1871,19 @@ Retorne SOMENTE um JSON válido (array), sem texto antes ou depois, sem markdown
         """Bulk-insert selected proposals into hub_atividades."""
         from bomtempo.state.global_state import GlobalState
 
-        # Ler state e GlobalState ANTES do async with self (get_state não pode ficar dentro do lock)
-        gs = await self.get_state(GlobalState)
-        client_id = str(gs.current_client_id or "")
+        client_id = ""
+        selected_ids = set()
+        to_insert = []
+        contrato = ""
 
+        working_days_str = "seg,ter,qua,qui,sex"
         async with self:
+            gs = await self.get_state(GlobalState)
+            client_id = str(gs.current_client_id or "")
             selected_ids = set(self.cron_import_selected)
             to_insert = [r for r in self.cron_import_preview if r["_tmp_id"] in selected_ids]
             contrato = to_insert[0]["contrato"] if to_insert else ""
+            working_days_str = self.cron_working_days_str
             self.cron_import_loading = True
 
         if not to_insert:
@@ -1747,7 +1903,8 @@ Retorne SOMENTE um JSON válido (array), sem texto antes ou depois, sem markdown
                 termino = p.get("termino_previsto", "") or None
                 # Auto-calc termino from dias if termino missing but inicio+dias set
                 if inicio and dias and not termino:
-                    termino = _add_working_days(inicio, dias)
+                    wd = _parse_dias_uteis(working_days_str)
+                    termino = _add_working_days(inicio, dias, wd)
                 total_qty = p.get("total_qty", 0) or 0
                 try:
                     total_qty = float(total_qty) if total_qty else 0
@@ -2056,9 +2213,12 @@ Retorne SOMENTE um JSON válido (array), sem texto antes ou depois, sem markdown
             logger.error(f"load_timeline error: {e}")
             entries = []
 
-        # Load mention users list
+        # Load mention users list — filtered by tenant
         try:
-            login_rows = sb_select("login", limit=100) or []
+            _login_filters = {}
+            if _tl_client_id:
+                _login_filters["client_id"] = _tl_client_id
+            login_rows = sb_select("login", filters=_login_filters if _login_filters else None, limit=100) or []
             mention_users = [str(r.get("user", "")).strip() for r in login_rows if r.get("user")]
         except Exception:
             mention_users = []

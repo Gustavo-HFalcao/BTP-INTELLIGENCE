@@ -214,6 +214,7 @@ class GlobalState(rx.State):
             question = self.chat_history[-1]["content"] if self.chat_history and self.chat_history[-1]["role"] == "user" else ""
             is_mobile = self.current_user_role == "Gestão-Mobile"
             tenant_name = self.current_client_name
+            _stream_client_id = str(self.current_client_id or "")
             self.save_chat_msg("user", question)
 
         system_prompt = AIContext.get_system_prompt(is_mobile=is_mobile, tenant_name=tenant_name)
@@ -235,7 +236,10 @@ class GlobalState(rx.State):
             async with self:
                 _selected_contrato = self.selected_contrato or self.obras_selected_contract or ""
             if _selected_contrato:
-                doc_rows = sb_select("hub_timeline", filters={"contrato": _selected_contrato, "is_document": True})
+                _tl_filters: dict = {"contrato": _selected_contrato, "is_document": True}
+                if _stream_client_id:
+                    _tl_filters["client_id"] = _stream_client_id
+                doc_rows = sb_select("hub_timeline", filters=_tl_filters)
                 if doc_rows:
                     doc_sections = []
                     for d in doc_rows:
@@ -560,6 +564,30 @@ class GlobalState(rx.State):
     project_campo_rdos: List[Dict[str, Any]] = []
     project_campo_loading: bool = False
 
+    # ── Theme toggle ─────────────────────────────────────────────────────────
+    is_light_mode: bool = False
+
+    def toggle_theme(self):
+        self.is_light_mode = not self.is_light_mode
+        if self.is_light_mode:
+            return rx.call_script(
+                "(function(){"
+                "var el=document.querySelector('[data-is-root-theme]')||document.body;"
+                "el.className=el.className.replace(/\\bdark\\b/g,'light');"
+                "document.body.style.background='#f0f2f0';"
+                "document.body.style.color='#0e1a17';"
+                "})()"
+            )
+        else:
+            return rx.call_script(
+                "(function(){"
+                "var el=document.querySelector('[data-is-root-theme]')||document.body;"
+                "el.className=el.className.replace(/\\blight\\b/g,'dark');"
+                "document.body.style.background='';"
+                "document.body.style.color='';"
+                "})()"
+            )
+
     # ── Hub filters panel ────────────────────────────────────────────────────
     hub_show_filters: bool = False
     hub_filter_tipo: str = ""        # EPC | O&M | Fornecimento | Consultoria | ""
@@ -585,6 +613,7 @@ class GlobalState(rx.State):
     np_priority: str = "Média"
     np_efetivo_planejado: str = ""
     np_valor_contratado: str = ""
+    np_dias_uteis: List[str] = ["seg", "ter", "qua", "qui", "sex"]
     np_saving: bool = False
     np_error: str = ""
 
@@ -604,6 +633,7 @@ class GlobalState(rx.State):
     ep_prazo_dias: str = ""
     ep_priority: str = "Média"
     ep_efetivo_planejado: str = ""
+    ep_dias_uteis: List[str] = ["seg", "ter", "qua", "qui", "sex"]
     ep_saving: bool = False
     ep_deleting: bool = False
     ep_error: str = ""
@@ -1848,7 +1878,7 @@ class GlobalState(rx.State):
             
             # Busca info do cliente para saber se é Master
             if self.current_client_id:
-                client_info = sb_select("clients", filters={"id": self.current_client_id}, limit=1)
+                client_info = await async_sb_select("clients", filters={"id": self.current_client_id}, limit=1)
                 if client_info:
                     self.current_client_name = str(client_info[0].get("name", ""))
                     self.client_is_master = bool(client_info[0].get("is_master", False))
@@ -1865,7 +1895,7 @@ class GlobalState(rx.State):
             # ── Fetch module permissions + role icon from roles table ─────────
             try:
                 from bomtempo.state.usuarios_state import MODULE_SLUGS
-                role_rows = sb_select("roles", filters={"name": role, "client_id": self.current_client_id})
+                role_rows = await async_sb_select("roles", filters={"name": role, "client_id": self.current_client_id})
                 if role_rows:
                     self.allowed_modules = list(role_rows[0].get("modules", []))
                     self.current_user_role_icon = str(role_rows[0].get("icon", "user") or "user")
@@ -3502,8 +3532,19 @@ class GlobalState(rx.State):
         self.np_priority = "Média"
         self.np_efetivo_planejado = ""
         self.np_valor_contratado = ""
+        self.np_dias_uteis = ["seg", "ter", "qua", "qui", "sex"]
         self.np_saving = False
         self.np_error = ""
+
+    def toggle_np_dia(self, dia: str):
+        """Toggle a working day in the novo projeto form."""
+        current = list(self.np_dias_uteis)
+        if dia in current:
+            if len(current) > 1:  # mínimo 1 dia
+                current.remove(dia)
+        else:
+            current.append(dia)
+        self.np_dias_uteis = current
 
     def close_novo_projeto(self):
         self.show_novo_projeto = False
@@ -3583,6 +3624,8 @@ class GlobalState(rx.State):
         self.ep_prazo_dias = str(row.get("prazo_contratual_dias", "") or "")
         self.ep_priority = str(row.get("priority", "Média") or "Média")
         self.ep_efetivo_planejado = str(row.get("efetivo_planejado", "") or "")
+        dias_raw = str(row.get("dias_uteis_semana", "") or "seg,ter,qua,qui,sex")
+        self.ep_dias_uteis = [d.strip() for d in dias_raw.split(",") if d.strip()] or ["seg", "ter", "qua", "qui", "sex"]
         self.ep_saving = False
         self.ep_deleting = False
         self.ep_error = ""
@@ -3605,6 +3648,16 @@ class GlobalState(rx.State):
     def set_ep_efetivo_planejado(self, v: str): self.ep_efetivo_planejado = v
     def toggle_ep_confirm_delete(self): self.ep_confirm_delete = not self.ep_confirm_delete
 
+    def toggle_ep_dia(self, dia: str):
+        """Toggle a working day in the edit projeto form."""
+        current = list(self.ep_dias_uteis)
+        if dia in current:
+            if len(current) > 1:  # mínimo 1 dia
+                current.remove(dia)
+        else:
+            current.append(dia)
+        self.ep_dias_uteis = current
+
     @rx.event(background=True)
     async def save_edit_projeto(self):
         async with self:
@@ -3623,6 +3676,7 @@ class GlobalState(rx.State):
                 potencia_raw = self.ep_potencia_kwp.strip().replace(",", ".")
                 prazo_raw = self.ep_prazo_dias.strip()
                 efetivo_raw = self.ep_efetivo_planejado.strip()
+                dias_uteis_str = ",".join(self.ep_dias_uteis) if self.ep_dias_uteis else "seg,ter,qua,qui,sex"
                 payload = {
                     "projeto":             projeto,
                     "cliente":             cliente,
@@ -3635,6 +3689,7 @@ class GlobalState(rx.State):
                     "prazo_contratual_dias": int(prazo_raw) if prazo_raw else None,
                     "priority":            self.ep_priority,
                     "efetivo_planejado":   int(efetivo_raw) if efetivo_raw else None,
+                    "dias_uteis_semana":   dias_uteis_str,
                 }
 
             sb_update("contratos", {"contrato": contrato}, {k: v for k, v in payload.items() if v is not None or k in ("data_inicio", "data_termino")})
@@ -3695,6 +3750,7 @@ class GlobalState(rx.State):
             valor = float(_raw_valor) if _raw_valor else 0.0
             client_id = str(self.current_client_id or "")
             localizacao = self.np_localizacao.strip()
+            dias_uteis_str = ",".join(self.np_dias_uteis) if self.np_dias_uteis else "seg,ter,qua,qui,sex"
             payload = {
                 "contrato":              contrato,
                 "projeto":               projeto,
@@ -3711,6 +3767,7 @@ class GlobalState(rx.State):
                 "status":                "Em Execução",
                 "valor_contratado":      valor,
                 "client_id":             client_id or None,
+                "dias_uteis_semana":     dias_uteis_str,
             }
 
         from bomtempo.core.supabase_client import sb_insert, sb_select
@@ -3846,11 +3903,16 @@ class GlobalState(rx.State):
     async def select_project(self, code: str):
         """Unified entry point for Gestão de Projetos Hub.
         Sets both legacy vars (for backward compat) and new unified var.
+        State update released immediately so UI can navigate; heavy loads fire as separate events.
         """
+        from bomtempo.state.hub_state import HubState
+        from bomtempo.state.fin_state import FinState
+
+        # ── 1. Sync state update — released before any I/O ───────────────────
         async with self:
             self.selected_project = code
-            self.selected_contrato = code            # drives filtered_projetos / activity_timeline
-            self.obras_selected_contract = code      # drives obra_kpi_fmt / disciplina_gauges_list
+            self.selected_contrato = code
+            self.obras_selected_contract = code
             self.hub_tab = "visao_geral"
             self.project_hub_tab = "visao_geral"
             self.projetos_fase_filter = ""
@@ -3861,15 +3923,14 @@ class GlobalState(rx.State):
             self.weather_data = {}
             self.project_campo_rdos = []
             self.project_campo_loading = False
-            yield GlobalState.load_weather_data
-            yield GlobalState.generate_obra_insight_bg
-            # Pre-load HubState modules for the selected project
-            from bomtempo.state.hub_state import HubState
-            from bomtempo.state.fin_state import FinState
-            yield HubState.load_cronograma(code)
-            yield HubState.load_auditoria(code)
-            yield HubState.load_timeline(code)
-            yield FinState.load_financeiro(code)
+
+        # ── 2. Fire heavy loaders OUTSIDE the lock — each runs independently ─
+        yield GlobalState.load_weather_data
+        yield GlobalState.generate_obra_insight_bg
+        yield HubState.load_cronograma(code)
+        yield HubState.load_auditoria(code)
+        yield HubState.load_timeline(code)
+        yield FinState.load_financeiro(code)
 
     @rx.event(background=True)
     async def deselect_project(self):
@@ -3999,7 +4060,10 @@ class GlobalState(rx.State):
 
         # ── Check 24h cache ──────────────────────────────────────────────────
         try:
-            cached = sb_select("hub_intelligence", filters={"contrato": selected, "insight_type": "obra_insight"}, limit=1)
+            _cache_filters = {"contrato": selected, "insight_type": "obra_insight"}
+            if client_id:
+                _cache_filters["client_id"] = client_id
+            cached = sb_select("hub_intelligence", filters=_cache_filters, limit=1)
             if cached:
                 row = cached[0]
                 gen_at_str = str(row.get("generated_at") or "")
@@ -4026,14 +4090,40 @@ class GlobalState(rx.State):
                 self.obra_insight_loading = False
             return
 
+        # ── Data completeness guard — never hallucinate on empty projects ────
+        bp = float(data.get("budget_planejado", 0) or 0)
+        br = float(data.get("budget_realizado", 0) or 0)
+        avanco_check = float(data.get("avanco_pct", 0) or 0)
+        efetivo_check = int(data.get("efetivo_planejado", 0) or 0)
+        has_financeiro = bp > 0 or br > 0
+        has_cronograma = len(disciplines) > 0 and any(
+            float(d.get("previsto_pct", 0) or 0) > 0 or float(d.get("realizado_pct", 0) or 0) > 0
+            for d in disciplines
+        )
+        has_equipe = efetivo_check > 0
+        data_score = sum([has_financeiro, has_cronograma, has_equipe])
+
+        if data_score == 0:
+            # Absolutely no data — return honest message, don't call AI
+            no_data_msg = (
+                f"O projeto {data.get('contrato', selected)} ainda não possui dados suficientes para análise. "
+                "Configure o cronograma de atividades, orçamento financeiro e equipe planejada "
+                "para que o Feed de Inteligência possa gerar recomendações baseadas em fatos reais."
+            )
+            now_brt_label = datetime.now(timezone(timedelta(hours=-3))).strftime("%d/%m %H:%M")
+            async with self:
+                self.obra_insight_text = no_data_msg
+                self.obra_insight_generated_at = now_brt_label
+                self.obra_insight_loading = False
+            return
+
         # ── Fetch timeline documents for doc-awareness ───────────────────────
         doc_context = ""
         try:
-            tl_docs = sb_select(
-                "hub_timeline",
-                filters={"contrato": selected, "is_document": True},
-                limit=20,
-            )
+            _tl_f = {"contrato": selected, "is_document": True}
+            if client_id:
+                _tl_f["client_id"] = client_id
+            tl_docs = sb_select("hub_timeline", filters=_tl_f, limit=20)
             if tl_docs:
                 doc_lines = []
                 for d in tl_docs:
@@ -4062,8 +4152,7 @@ class GlobalState(rx.State):
             if float(d.get("realizado_pct", 0)) >= float(d.get("previsto_pct", 0))
         ]
 
-        bp = float(data.get("budget_planejado", 0) or 0)
-        br = float(data.get("budget_realizado", 0) or 0)
+        # bp, br, avanco_check, efetivo_check already computed in guard block above
         if bp > 0:
             variance = ((br - bp) / bp) * 100
             if variance > 10:
@@ -4076,9 +4165,9 @@ class GlobalState(rx.State):
             budget_status = "orçamento não configurado"
 
         risco = int(data.get("risco_geral_score", 0) or 0)
-        avanco = float(data.get("avanco_pct", 0) or 0)
+        avanco = avanco_check
         equipe_hoje = int(data.get("equipe_presente_hoje", 0) or 0)
-        efetivo_plan = int(data.get("efetivo_planejado", 0) or 0)
+        efetivo_plan = efetivo_check
         chuva = float(data.get("chuva_acumulada_mm", 0) or 0)
 
         context = (
@@ -4094,17 +4183,29 @@ class GlobalState(rx.State):
             + doc_context
         )
 
+        data_partial_warn = ""
+        if data_score == 1:
+            data_partial_warn = (
+                " ATENÇÃO: os dados deste projeto são parciais — apenas "
+                + ("orçamento" if has_financeiro else ("cronograma" if has_cronograma else "equipe"))
+                + " está preenchido. Baseie-se ESTRITAMENTE nos dados fornecidos."
+                " NÃO infira, assuma, extrapole ou invente informações sobre o que não está nos dados."
+                " Se faltar informação para uma recomendação, diga explicitamente que o dado não está disponível."
+            )
+
         messages = [
             {
                 "role": "system",
                 "content": (
                     "Você é um analista sênior de obras de engenharia civil. "
                     "Gere UM parágrafo executivo (2 a 3 frases) de diagnóstico desta obra, em português. "
-                    "Seja direto, objetivo e use os dados fornecidos. Destaque o status geral, "
-                    "o principal risco e o ponto de atenção mais crítico. "
+                    "Baseie-se EXCLUSIVAMENTE nos dados numéricos fornecidos — jamais invente, assuma ou extrapole informações ausentes. "
+                    "Se um campo estiver zerado ou não configurado, mencione isso como uma lacuna, não como dado real. "
+                    "Destaque o status geral, o principal risco e o ponto de atenção mais crítico COM BASE NOS DADOS. "
                     "Se houver documentos do projeto (contratos, cláusulas, especificações), considere multas, "
                     "critérios de aceite e obrigações contratuais ao avaliar riscos. "
                     "NÃO use markdown, bullets ou títulos — apenas texto corrido profissional."
+                    + data_partial_warn
                 ),
             },
             {"role": "user", "content": context},
@@ -4135,7 +4236,10 @@ class GlobalState(rx.State):
         now_utc = datetime.now(timezone(timedelta(hours=0))).isoformat()
         now_brt_label = datetime.now(timezone(timedelta(hours=-3))).strftime("%d/%m %H:%M")
         try:
-            existing = sb_select("hub_intelligence", filters={"contrato": selected, "insight_type": "obra_insight"}, limit=1)
+            _exist_filters = {"contrato": selected, "insight_type": "obra_insight"}
+            if client_id:
+                _exist_filters["client_id"] = client_id
+            existing = sb_select("hub_intelligence", filters=_exist_filters, limit=1)
             record = {
                 "contrato": selected,
                 "client_id": client_id or None,
@@ -4167,12 +4271,16 @@ class GlobalState(rx.State):
         from bomtempo.core.supabase_client import sb_select, sb_update, sb_delete
         async with self:
             selected = self.obras_selected_contract or self.selected_project
+            client_id = str(self.current_client_id or "")
             self.obra_insight_loading = True
             self.obra_insight_text = ""
             self.obra_insight_generated_at = ""
         # Invalidate cache entry so generate_obra_insight_bg skips the cache check
         try:
-            existing = sb_select("hub_intelligence", filters={"contrato": selected, "insight_type": "obra_insight"}, limit=1)
+            _inv_filters = {"contrato": selected, "insight_type": "obra_insight"}
+            if client_id:
+                _inv_filters["client_id"] = client_id
+            existing = sb_select("hub_intelligence", filters=_inv_filters, limit=1)
             if existing:
                 # Set generated_at to 2 days ago to force cache miss
                 old_ts = (datetime.now(timezone(timedelta(hours=0))) - timedelta(hours=25)).isoformat()
@@ -4244,6 +4352,22 @@ class GlobalState(rx.State):
                         city = str(row.get("localizacao", "")).strip()
                         logger.debug(f"Weather lookup: found city '{city}' via CONTRATOS")
                         break
+
+        # ── Step 2b: fallback — query Supabase directly if cache miss ──────────
+        if (not city or city.lower() in ("", "nan")) and contract_to_use and contract_to_use != "Todos":
+            try:
+                from bomtempo.core.supabase_client import sb_select as _sb_select
+                target_code = (
+                    contract_to_use.split(" - ")[0].strip()
+                    if " - " in contract_to_use
+                    else contract_to_use
+                )
+                rows = _sb_select("contratos", filters={"contrato": target_code}, limit=1)
+                if rows and rows[0].get("localizacao"):
+                    city = str(rows[0]["localizacao"]).strip()
+                    logger.debug(f"Weather lookup: found city '{city}' via Supabase direct")
+            except Exception as sb_err:
+                logger.warning(f"Weather Supabase fallback error: {sb_err}")
 
         # ── Step 3: geocoding HTTP call — outside the lock ──────────────────
         if city and city.lower() not in ("", "nan"):

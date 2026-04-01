@@ -3227,6 +3227,13 @@ def _tab_cronograma() -> rx.Component:
                 padding="0",
             ),
             rx.button(
+                rx.hstack(rx.icon(tag="refresh-cw", size=13), rx.text("Recalcular Datas"), spacing="1", align="center"),
+                on_click=HubState.recalculate_cron_dates,
+                size="2",
+                title="Recalcula as datas de término com base nos dias úteis configurados no projeto",
+                style={"background": "rgba(42,157,143,0.15)", "color": S.PATINA, "border": f"1px solid rgba(42,157,143,0.4)", "fontFamily": S.FONT_TECH, "fontWeight": "700", "cursor": "pointer"},
+            ),
+            rx.button(
                 rx.hstack(rx.icon(tag="plus", size=13), rx.text("Nova Atividade"), spacing="1", align="center"),
                 on_click=HubState.open_cron_new_root, size="2",
                 style={"background": S.COPPER, "color": S.BG_VOID, "fontFamily": S.FONT_TECH, "fontWeight": "700", "cursor": "pointer"},
@@ -4913,6 +4920,64 @@ _SELECT_TRIGGER_STYLE = {
 }
 
 
+_DIAS_SEMANA = [
+    ("Seg", "seg"),
+    ("Ter", "ter"),
+    ("Qua", "qua"),
+    ("Qui", "qui"),
+    ("Sex", "sex"),
+    ("Sáb", "sab"),
+    ("Dom", "dom"),
+]
+
+
+def _dia_chip(label: str, value: str, dias_var, toggle_event) -> rx.Component:
+    """Single day toggle chip for the working days picker."""
+    is_active = dias_var.contains(value)
+    return rx.box(
+        rx.text(
+            label,
+            font_family=S.FONT_MONO,
+            font_size="11px",
+            font_weight="700",
+            color=rx.cond(is_active, S.BG_VOID, S.TEXT_MUTED),
+            line_height="1",
+        ),
+        on_click=toggle_event(value),
+        padding="5px 10px",
+        border_radius="4px",
+        cursor="pointer",
+        background=rx.cond(is_active, S.COPPER, "rgba(255,255,255,0.04)"),
+        border=rx.cond(
+            is_active,
+            f"1px solid {S.COPPER}",
+            f"1px solid rgba(255,255,255,0.08)",
+        ),
+        transition="all 0.12s ease",
+        _hover={"opacity": "0.85"},
+        flex_shrink="0",
+    )
+
+
+def _dias_uteis_picker(dias_var, toggle_event) -> rx.Component:
+    """Reusable working days picker row — Seg Ter Qua Qui Sex Sáb Dom chips."""
+    return rx.vstack(
+        rx.hstack(
+            rx.text("Dias Úteis da Obra", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+            rx.text("(mín. 1 dia)", font_size="10px", color=S.TEXT_MUTED, opacity="0.5"),
+            spacing="2",
+            align="center",
+        ),
+        rx.hstack(
+            *[_dia_chip(label, value, dias_var, toggle_event) for label, value in _DIAS_SEMANA],
+            spacing="1",
+            flex_wrap="wrap",
+        ),
+        spacing="1",
+        width="100%",
+    )
+
+
 def _novo_projeto_dialog() -> rx.Component:
     """Dialog for creating a new project / contract in contratos table."""
     return rx.dialog.root(
@@ -5153,6 +5218,8 @@ def _novo_projeto_dialog() -> rx.Component:
                         spacing="1",
                         width="100%",
                     ),
+                    # Row 8: Dias úteis da obra
+                    _dias_uteis_picker(GlobalState.np_dias_uteis, GlobalState.toggle_np_dia),
                     spacing="4",
                     width="100%",
                     key=GlobalState.np_form_key.to_string(),
@@ -5418,6 +5485,8 @@ def _edit_projeto_dialog() -> rx.Component:
                         flex_wrap="wrap",
                         width="100%",
                     ),
+                    # Row 7: Dias úteis da obra
+                    _dias_uteis_picker(GlobalState.ep_dias_uteis, GlobalState.toggle_ep_dia),
                     spacing="4",
                     width="100%",
                     key=GlobalState.ep_form_key.to_string(),

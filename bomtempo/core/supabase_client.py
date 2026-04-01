@@ -39,11 +39,12 @@ _client_lock = threading.Lock()
 _http_client: Optional[httpx.Client] = None
 
 _LIMITS = httpx.Limits(
-    max_connections=30,
-    max_keepalive_connections=15,
-    keepalive_expiry=30,
+    max_connections=100,       # was 30 — supports 100+ concurrent users
+    max_keepalive_connections=20,
+    keepalive_expiry=20,   # conservative — Supabase closes idle connections early
 )
-_TIMEOUT = httpx.Timeout(timeout=10.0, connect=5.0)
+_TIMEOUT = httpx.Timeout(timeout=20.0, connect=8.0)   # 20s for writes (was 10s)
+_WRITE_TIMEOUT = httpx.Timeout(timeout=30.0, connect=8.0)  # heavier ops (upsert, upload)
 
 
 def _get_client() -> httpx.Client:
@@ -53,8 +54,34 @@ def _get_client() -> httpx.Client:
         with _client_lock:
             if _http_client is None or _http_client.is_closed:
                 _http_client = httpx.Client(limits=_LIMITS, timeout=_TIMEOUT)
-                logger.info("🔌 HTTP connection pool criado (max_conn=30, keepalive=15)")
+                logger.info("🔌 HTTP connection pool criado (max_conn=30, keepalive=10)")
     return _http_client
+
+
+def _request_with_retry(method: str, url: str, max_retries: int = 2, **kwargs):
+    """Execute an httpx request with automatic retry on connection-reset errors.
+
+    Supabase/load-balancers can silently close idle keep-alive connections.
+    When httpx tries to reuse such a connection it raises RemoteProtocolError /
+    ConnectError.  One transparent retry with a fresh client resolves this.
+    """
+    global _http_client
+    for attempt in range(max_retries + 1):
+        try:
+            client = _get_client()
+            return getattr(client, method)(url, **kwargs)
+        except (httpx.RemoteProtocolError, httpx.ConnectError, httpx.ReadError) as exc:
+            if attempt < max_retries:
+                logger.warning(f"HTTP {method.upper()} connection error (attempt {attempt+1}), recycling pool: {exc}")
+                with _client_lock:
+                    try:
+                        if _http_client and not _http_client.is_closed:
+                            _http_client.close()
+                    except Exception:
+                        pass
+                    _http_client = None
+            else:
+                raise
 
 
 def _headers(prefer_return: bool = False) -> Dict[str, str]:
@@ -102,7 +129,8 @@ def sb_select_paginated(
         for k, v in (ilike_filters or {}).items():
             params[k] = f"ilike.*{v}*"
 
-        resp = _get_client().get(
+        resp = _request_with_retry(
+            "get",
             f"{REST_BASE}/{table}",
             headers=h,
             params=params,
@@ -146,7 +174,8 @@ def sb_select(
             params["order"] = order
         params["limit"] = str(limit)
 
-        resp = _get_client().get(
+        resp = _request_with_retry(
+            "get",
             f"{REST_BASE}/{table}",
             headers=_headers(),
             params=params,
@@ -165,10 +194,12 @@ def sb_select(
 def sb_insert(table: str, data: Dict[str, Any]) -> Optional[Dict]:
     """INSERT a row; returns the inserted record or None on failure."""
     try:
-        resp = _get_client().post(
+        resp = _request_with_retry(
+            "post",
             f"{REST_BASE}/{table}",
             headers=_headers(prefer_return=True),
             json=data,
+            timeout=_WRITE_TIMEOUT,
         )
         if resp.status_code in (200, 201):
             result = resp.json()
@@ -197,11 +228,13 @@ def sb_upsert(
     try:
         h = _headers()
         h["Prefer"] = "return=representation,resolution=merge-duplicates"
-        resp = _get_client().post(
+        resp = _request_with_retry(
+            "post",
             f"{REST_BASE}/{table}",
             headers=h,
             params={"on_conflict": on_conflict},
             json=record,
+            timeout=_WRITE_TIMEOUT,
         )
         if resp.status_code in (200, 201):
             return {"upserted": 1}
@@ -221,11 +254,13 @@ def sb_update(
     """PATCH rows matching filters with data."""
     try:
         params = {k: f"eq.{v}" for k, v in filters.items()}
-        resp = _get_client().patch(
+        resp = _request_with_retry(
+            "patch",
             f"{REST_BASE}/{table}",
             headers=_headers(),
             params=params,
             json=data,
+            timeout=_WRITE_TIMEOUT,
         )
         if resp.status_code not in (200, 204):
             err_msg = f"Supabase UPDATE {table} → {resp.status_code}: {resp.text[:400]}"
@@ -249,14 +284,16 @@ def sb_storage_ensure_bucket(bucket: str, public: bool = True) -> bool:
             "Content-Type": "application/json",
         }
         # Check existence first
-        resp = _get_client().get(
+        resp = _request_with_retry(
+            "get",
             f"{SUPABASE_URL}/storage/v1/bucket/{bucket}",
             headers=storage_headers,
         )
         if resp.status_code == 200:
             return True
         # Not found — create it
-        create = _get_client().post(
+        create = _request_with_retry(
+            "post",
             f"{SUPABASE_URL}/storage/v1/bucket",
             headers=storage_headers,
             json={"id": bucket, "name": bucket, "public": public},
@@ -293,7 +330,10 @@ def sb_storage_upload(
             "Content-Type": content_type,
             "x-upsert": "true",  # sobrescreve se já existir
         }
-        resp = _get_client().post(upload_url, headers=headers, content=file_bytes, timeout=60)
+        resp = _request_with_retry(
+            "post", upload_url, headers=headers, content=file_bytes,
+            timeout=httpx.Timeout(60.0, connect=8.0),
+        )
         if resp.status_code in (200, 201):
             public_url = f"{SUPABASE_URL}/storage/v1/object/public/{bucket}/{path}"
             logger.info(f"✅ Storage upload: {bucket}/{path} → {public_url}")
@@ -309,12 +349,17 @@ def sb_delete(table: str, filters: Dict[str, Any]) -> bool:
     """DELETE rows matching filters."""
     try:
         params = {k: f"eq.{v}" for k, v in filters.items()}
-        resp = _get_client().delete(
+        resp = _request_with_retry(
+            "delete",
             f"{REST_BASE}/{table}",
             headers=_headers(),
             params=params,
+            timeout=_WRITE_TIMEOUT,
         )
-        return resp.status_code in (200, 204)
+        ok = resp.status_code in (200, 204)
+        if not ok:
+            logger.error(f"Supabase DELETE {table} → HTTP {resp.status_code}: {resp.text[:300]}")
+        return ok
     except Exception as e:
         logger.error(f"Supabase DELETE {table} exception: {e}")
         return False
@@ -324,7 +369,8 @@ def sb_rpc(fn_name: str, params: Dict[str, Any] = None) -> Any:
     """Call a Supabase RPC (Stored Procedure)."""
     try:
         url = f"{SUPABASE_URL}/rest/v1/rpc/{fn_name}"
-        resp = _get_client().post(
+        resp = _request_with_retry(
+            "post",
             url,
             headers=_headers(),
             json=params or {},
