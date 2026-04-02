@@ -4,6 +4,7 @@ RDO Dashboard 360° — KPIs e gráficos para Admin/Gestor
 
 import reflex as rx
 
+from bomtempo.components.charts import chart_tooltip, chart_tooltip_pct
 from bomtempo.components.skeletons import rdo_sync_loader
 from bomtempo.core import styles as S
 from bomtempo.state.rdo_dashboard_state import RDODashboardState

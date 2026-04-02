@@ -35,6 +35,7 @@ BORDER_HIGHLIGHT = "rgba(201, 139, 42, 0.5)"
 
 # ── Brand Colors (Copper + Patina) ──────────────────────────
 COPPER = "#C98B2A"
+COPPER_500 = COPPER
 COPPER_LIGHT = "#E0A63B"
 COPPER_GLOW = "rgba(201, 139, 42, 0.15)"
 PATINA = "#2A9D8F"
@@ -174,6 +175,46 @@ TOOLTIP_STYLE = {
     "boxShadow": "0 10px 40px rgba(0, 0, 0, 0.5)",
     "fontSize": "12px",
     "color": TEXT_PRIMARY,
+}
+
+# Premium tooltip — Deep Tectonic glass, sharp, monospace
+TOOLTIP_PREMIUM = {
+    "background": "rgba(6,14,12,0.97)",
+    "border": f"1px solid {COPPER_500}",
+    "borderRadius": "6px",
+    "boxShadow": f"0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,139,42,0.08)",
+    "padding": "10px 14px",
+    "fontFamily": "JetBrains Mono, monospace",
+    "fontSize": "11px",
+    "color": TEXT_PRIMARY,
+    "backdropFilter": "blur(16px)",
+    "minWidth": "160px",
+}
+TOOLTIP_PREMIUM_LABEL = {
+    "color": COPPER_500,
+    "fontWeight": "700",
+    "fontSize": "10px",
+    "letterSpacing": "0.08em",
+    "textTransform": "uppercase",
+    "marginBottom": "6px",
+    "paddingBottom": "6px",
+    "borderBottom": f"1px solid rgba(201,139,42,0.2)",
+}
+TOOLTIP_PREMIUM_ITEM = {
+    "color": TEXT_PRIMARY,
+    "fontFamily": "JetBrains Mono, monospace",
+    "fontSize": "11px",
+    "padding": "2px 0",
+}
+TOOLTIP_CURSOR_PREMIUM = {
+    "fill": "rgba(201,139,42,0.04)",
+    "stroke": f"rgba(201,139,42,0.15)",
+    "strokeWidth": 1,
+}
+TOOLTIP_CURSOR_LINE = {
+    "stroke": f"rgba(201,139,42,0.3)",
+    "strokeWidth": 1,
+    "strokeDasharray": "4 2",
 }
 
 TOOLTIP_CURSOR = {"fill": "rgba(255, 255, 255, 0.03)"}

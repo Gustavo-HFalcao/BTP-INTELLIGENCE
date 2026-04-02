@@ -30,11 +30,25 @@ def _iso_to_br(val: str) -> str:
     return val
 
 
-from bomtempo.core.supabase_client import sb_select, sb_upsert, sb_insert, sb_delete
+from bomtempo.core.supabase_client import sb_select, sb_upsert, sb_insert, sb_delete, sb_bulk_upsert
 from bomtempo.core.logging_utils import get_logger
 from bomtempo.core.audit_logger import audit_log, audit_error, AuditCategory
 
 logger = get_logger(__name__)
+
+# Module-level cache for table column sets (stable at runtime, never changes)
+_table_schema_cache: dict = {}  # table_name → set of column names
+
+
+def _get_table_columns(table: str) -> set:
+    """Return the set of columns for `table`, cached permanently per process."""
+    if table not in _table_schema_cache:
+        try:
+            sample = sb_select(table, limit=1) or []
+            _table_schema_cache[table] = set(sample[0].keys()) if sample else set()
+        except Exception:
+            _table_schema_cache[table] = set()
+    return _table_schema_cache[table]
 
 class EditState(rx.State):
     projetos: List[str] = []
@@ -235,11 +249,8 @@ class EditState(rx.State):
 
         def _fetch():
             try:
-                # Descobre colunas reais da tabela antes de filtrar.
-                # Evita HTTP 400 do PostgREST quando a coluna não existe
-                # (ex: tabela "projetos" não tem coluna "Projeto").
-                schema_sample = sb_select(selected_tabela, limit=1) or []
-                existing_cols: set = set(schema_sample[0].keys()) if schema_sample else set()
+                # Descobre colunas reais da tabela (cached por process — sem HTTP extra)
+                existing_cols: set = _get_table_columns(selected_tabela)
 
                 filters: Dict[str, Any] = {}
                 if selected_contrato and "contrato" in existing_cols:
@@ -566,9 +577,8 @@ class EditState(rx.State):
 
             upload_cols = set(df.columns.tolist())
 
-            # Trava 2: schema guard — busca colunas reais da tabela destino
-            db_schema = sb_select(self.selected_tabela, limit=1) or []
-            db_cols = set(db_schema[0].keys()) if db_schema else set()
+            # Trava 2: schema guard — busca colunas reais da tabela destino (cached)
+            db_cols = _get_table_columns(self.selected_tabela)
 
             if db_cols:
                 known_cols = upload_cols & db_cols
@@ -702,38 +712,31 @@ class EditState(rx.State):
 
         result: Dict[str, Any] = {"upserted": 0, "inserted": 0, "errors": []}
 
-        # Descobre colunas válidas da tabela uma única vez (evita rejeição por coluna inexistente)
-        def _get_valid_columns() -> set:
-            try:
-                sample = sb_select(selected_tabela, limit=1) or []
-                return set(sample[0].keys()) if sample else set()
-            except Exception:
-                return set()
-
         def _do_upsert():
-            valid_cols = _get_valid_columns()
+            valid_cols = _get_table_columns(selected_tabela)  # cached, no extra HTTP call
+
+            upsert_batch = []   # rows with valid UUIDs → bulk upsert
+            insert_batch = []   # rows without IDs → bulk insert
 
             for rec in raw_data:
                 row_id = rec.get("id")
-                label = rec.get('projeto') or rec.get('contrato') or str(row_id or '?')
-
-                # Filtra colunas que não existem na tabela e colunas auto-geridas pelo DB
                 if valid_cols:
                     rec = {k: v for k, v in rec.items() if k in valid_cols and k not in _READONLY_COLS}
+                if row_id and _UUID_RE.match(str(row_id).strip()):
+                    upsert_batch.append(rec)
+                else:
+                    clean_rec = {k: v for k, v in rec.items() if k != "id"}
+                    insert_batch.append(clean_rec)
 
-                try:
-                    # Só vai para upsert se o ID for um UUID válido
-                    # Placeholders como "NOVO", "1", "linha X" → insert puro (banco gera UUID)
-                    if row_id and _UUID_RE.match(str(row_id).strip()):
-                        sb_upsert(selected_tabela, rec, on_conflict="id")
-                        result["upserted"] += 1
-                    else:
-                        # Sem ID ou ID inválido: insert puro, banco gera UUID
-                        clean_rec = {k: v for k, v in rec.items() if k != "id"}
-                        sb_insert(selected_tabela, clean_rec)
-                        result["inserted"] += 1
-                except Exception as ex:
-                    result["errors"].append(f"Linha '{label}': {str(ex)[:120]}")
+            if upsert_batch:
+                bulk_res = sb_bulk_upsert(selected_tabela, upsert_batch, on_conflict="id")
+                result["upserted"] += bulk_res["upserted"]
+                result["errors"].extend(bulk_res["errors"])
+
+            if insert_batch:
+                ins_res = sb_bulk_upsert(selected_tabela, insert_batch, on_conflict="id")
+                result["inserted"] += ins_res["upserted"]
+                result["errors"].extend(ins_res["errors"])
 
         try:
             await loop.run_in_executor(None, _do_upsert)

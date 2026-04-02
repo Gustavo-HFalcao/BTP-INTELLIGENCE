@@ -175,49 +175,67 @@ class UsuariosState(rx.State):
         except Exception as e:
             logger.error(f"Erro ao carregar tenants: {e}")
 
-    def load_users(self):
-        self.users_loading = True
-        try:
-            # Master vê todos; tenant-admin vê apenas seus usuários
-            if self._is_master:
+    @rx.event(background=True)
+    async def load_users(self):
+        import asyncio as _asyncio
+        async with self:
+            self.users_loading = True
+            _is_master = self._is_master
+            _cid = self._current_client_id
+
+        def _fetch():
+            if _is_master:
                 rows = sb_select("login", order="username") or []
-                # Mapa client_id → name para exibição
                 clients = sb_select("clients") or []
                 client_map = {str(c.get("id", "")): str(c.get("name", "—")) for c in clients}
             else:
-                filters = {"client_id": self._current_client_id} if self._current_client_id else {}
+                filters = {"client_id": _cid} if _cid else {}
                 rows = sb_select("login", filters=filters, order="username") or []
                 client_map = {}
+            return rows, client_map
 
-            self.users_list = [
+        try:
+            loop = _asyncio.get_running_loop()
+            rows, client_map = await loop.run_in_executor(None, _fetch)
+            users_list = [
                 {
                     "id":          str(r.get("id", "")),
                     "username":    str(r.get("username", r.get("user", ""))),
                     "user_role":   str(r.get("user_role", "")),
                     "project":     str(r.get("project", "") or ""),
                     "client_id":   str(r.get("client_id", "") or ""),
-                    "client_name": client_map.get(str(r.get("client_id", "")), "—") if self._is_master else "",
+                    "client_name": client_map.get(str(r.get("client_id", "")), "—") if _is_master else "",
                     "email":       str(r.get("email", "") or ""),
                     "whatsapp":    str(r.get("whatsapp", "") or ""),
                 }
                 for r in rows
             ]
+            async with self:
+                self.users_list = users_list
         except Exception as e:
             from bomtempo.core.error_logger import log_error
             log_error(e, module=__name__, function_name="load_users")
             logger.error(f"Erro ao carregar usuários: {e}")
         finally:
-            self.users_loading = False
+            async with self:
+                self.users_loading = False
 
-    def load_roles(self):
-        self.roles_loading = True
+    @rx.event(background=True)
+    async def load_roles(self):
+        import asyncio as _asyncio
+        async with self:
+            self.roles_loading = True
+            _is_master = self._is_master
+            _cid = self._current_client_id
+
+        def _fetch():
+            if _is_master or not _cid:
+                return sb_select("roles") or []
+            return sb_select("roles", filters={"client_id": _cid}) or []
+
         try:
-            # Roles filtradas por tenant (ou todas se master)
-            if self._is_master or not self._current_client_id:
-                rows = sb_select("roles") or []
-            else:
-                rows = sb_select("roles", filters={"client_id": self._current_client_id}) or []
-            # Deduplica por nome (master pode ver duplicatas de tenants diferentes)
+            loop = _asyncio.get_running_loop()
+            rows = await loop.run_in_executor(None, _fetch)
             seen = set()
             unique_rows = []
             for r in rows:
@@ -225,7 +243,7 @@ class UsuariosState(rx.State):
                 if name not in seen:
                     seen.add(name)
                     unique_rows.append(r)
-            self.roles_list = [
+            roles_list = [
                 {
                     "id": str(r.get("id", "")),
                     "name": str(r.get("name", "")),
@@ -235,10 +253,13 @@ class UsuariosState(rx.State):
                 }
                 for r in unique_rows
             ]
+            async with self:
+                self.roles_list = roles_list
         except Exception as e:
             logger.error(f"Erro ao carregar roles: {e}")
         finally:
-            self.roles_loading = False
+            async with self:
+                self.roles_loading = False
 
     # ─────────────────────────────────────────────────────────────
     # Usuários CRUD
@@ -349,116 +370,122 @@ class UsuariosState(rx.State):
             self.form_roles_list = ["Administrador"]
             self.edit_user_role = "Administrador"
 
+    @rx.event(background=True)
     async def save_user(self):
         """Salva usuário com feedback imediato no botão (#6)."""
-        self.user_form_error = ""
-        username = self.edit_user_login.strip()
-        password = self.edit_user_password.strip()
+        import asyncio as _asyncio
+        async with self:
+            self.user_form_error = ""
+            username = self.edit_user_login.strip()
+            password = self.edit_user_password.strip()
 
-        if not username:
-            self.user_form_error = "Login é obrigatório."
-            return
-        if not self.is_editing_user and not password:
-            self.user_form_error = "Senha é obrigatória para novo usuário."
-            return
-        if not self.edit_user_role:
-            self.user_form_error = "Perfil é obrigatório."
-            return
+            if not username:
+                self.user_form_error = "Login é obrigatório."
+                return
+            if not self.is_editing_user and not password:
+                self.user_form_error = "Senha é obrigatória para novo usuário."
+                return
+            if not self.edit_user_role:
+                self.user_form_error = "Perfil é obrigatório."
+                return
 
-        self.is_saving_user = True
-        yield
+            self.is_saving_user = True
+            _is_editing = self.is_editing_user
+            _edit_id = str(self.edit_user_id)
+            _old_login = str(self.edit_user_old_login)
+            _role = str(self.edit_user_role)
+            _project = self.edit_user_project.strip()
+            _email = self.edit_user_email.strip()
+            _whatsapp = self.edit_user_whatsapp.strip()
+            _client_id = (
+                self.edit_user_client_id
+                if self._is_master and self.edit_user_client_id
+                else self._current_client_id
+            )
+            _admin = self._get_admin()
+            _old_user = next((u for u in self.users_list if u["id"] == _edit_id), {})
 
+        loop = _asyncio.get_running_loop()
         try:
-            if self.is_editing_user:
-                # Determine what changed for audit metadata
-                old_user = next((u for u in self.users_list if u["id"] == self.edit_user_id), {})
-                changed: Dict[str, Any] = {}
-                if old_user.get("username") != username:
-                    changed["login"] = {"de": old_user.get("username"), "para": username}
-                if old_user.get("user_role") != self.edit_user_role:
-                    changed["role"] = {"de": old_user.get("user_role"), "para": self.edit_user_role}
-                if old_user.get("project") != self.edit_user_project.strip():
-                    changed["project"] = {"de": old_user.get("project"), "para": self.edit_user_project.strip()}
-                if password:
-                    changed["senha"] = "alterada"
-
-                data: Dict[str, Any] = {
-                    "username": username,
-                    "user_role": self.edit_user_role,
-                    "project": self.edit_user_project.strip(),
-                    "email": self.edit_user_email.strip(),
-                    "whatsapp": self.edit_user_whatsapp.strip(),
-                }
-                if password:
-                    from bomtempo.core.auth_utils import hash_password
-                    data["pw_hash"] = hash_password(password)
-
-                if self.edit_user_id:
-                    sb_update("login", filters={"id": self.edit_user_id}, data=data)
-                elif self.edit_user_old_login:
-                    sb_update("login", filters={"username": self.edit_user_old_login}, data=data)
-                else:
-                    raise ValueError("Não foi possível identificar o usuário para atualização.")
-
-                audit_log(
-                    category=AuditCategory.USER_MGMT,
-                    action=f"Usuário '{username}' atualizado por '{self._get_admin()}'",
-                    username=self._get_admin(),
-                    entity_type="login",
-                    entity_id=self.edit_user_id,
-                    metadata={"alteracoes": changed, "usuario_alvo": username},
-                )
-                logger.info(f"Usuário '{username}' atualizado por '{self._get_admin()}'")
-
-            else:
+            def _do_save():
                 from bomtempo.core.auth_utils import hash_password
-                # Determina o tenant: master escolhe explicitamente; tenant-admin usa o próprio
-                target_client_id = (
-                    self.edit_user_client_id
-                    if self._is_master and self.edit_user_client_id
-                    else self._current_client_id
-                )
-                insert_data: Dict[str, Any] = {
-                    "username": username,
-                    "password": hash_password(password),
-                    "user_role": self.edit_user_role,
-                    "project": self.edit_user_project.strip(),
-                    "email": self.edit_user_email.strip(),
-                    "whatsapp": self.edit_user_whatsapp.strip(),
-                    "client_id": target_client_id,
-                }
-                result = sb_insert("login", insert_data)
-                new_id = str(result.get("id", "")) if result else ""
+                if _is_editing:
+                    changed: Dict[str, Any] = {}
+                    if _old_user.get("username") != username:
+                        changed["login"] = {"de": _old_user.get("username"), "para": username}
+                    if _old_user.get("user_role") != _role:
+                        changed["role"] = {"de": _old_user.get("user_role"), "para": _role}
+                    if _old_user.get("project") != _project:
+                        changed["project"] = {"de": _old_user.get("project"), "para": _project}
+                    if password:
+                        changed["senha"] = "alterada"
+                    data: Dict[str, Any] = {
+                        "username": username,
+                        "user_role": _role,
+                        "project": _project,
+                        "email": _email,
+                        "whatsapp": _whatsapp,
+                    }
+                    if password:
+                        data["pw_hash"] = hash_password(password)
+                    if _edit_id:
+                        sb_update("login", filters={"id": _edit_id}, data=data)
+                    elif _old_login:
+                        sb_update("login", filters={"username": _old_login}, data=data)
+                    else:
+                        raise ValueError("Não foi possível identificar o usuário para atualização.")
+                    audit_log(
+                        category=AuditCategory.USER_MGMT,
+                        action=f"Usuário '{username}' atualizado por '{_admin}'",
+                        username=_admin,
+                        entity_type="login",
+                        entity_id=_edit_id,
+                        metadata={"alteracoes": changed, "usuario_alvo": username},
+                    )
+                    logger.info(f"Usuário '{username}' atualizado por '{_admin}'")
+                    return None
+                else:
+                    insert_data: Dict[str, Any] = {
+                        "username": username,
+                        "password": hash_password(password),
+                        "user_role": _role,
+                        "project": _project,
+                        "email": _email,
+                        "whatsapp": _whatsapp,
+                        "client_id": _client_id,
+                    }
+                    result = sb_insert("login", insert_data)
+                    new_id = str(result.get("id", "")) if result else ""
+                    audit_log(
+                        category=AuditCategory.USER_MGMT,
+                        action=f"Novo usuário '{username}' criado por '{_admin}'",
+                        username=_admin,
+                        entity_type="login",
+                        entity_id=new_id,
+                        metadata={"usuario_criado": username, "role": _role, "project": _project},
+                    )
+                    logger.info(f"Novo usuário '{username}' criado por '{_admin}'")
+                    return new_id
 
-                audit_log(
-                    category=AuditCategory.USER_MGMT,
-                    action=f"Novo usuário '{username}' criado por '{self._get_admin()}'",
-                    username=self._get_admin(),
-                    entity_type="login",
-                    entity_id=new_id,
-                    metadata={
-                        "usuario_criado": username,
-                        "role": self.edit_user_role,
-                        "project": self.edit_user_project.strip(),
-                    },
-                )
-                logger.info(f"Novo usuário '{username}' criado por '{self._get_admin()}'")
-
-            self.show_user_dialog = False
-            self.load_users()
+            await loop.run_in_executor(None, _do_save)
+            async with self:
+                self.show_user_dialog = False
+            yield UsuariosState.load_users
 
         except Exception as e:
             logger.error(f"Erro ao salvar usuário: {e}")
             audit_error(
                 action=f"Falha ao salvar usuário '{username}'",
-                username=self._get_admin(),
+                username=_admin,
                 entity_type="login",
                 error=e,
             )
-            self.user_form_error = f"Erro ao salvar: {e}"
+            async with self:
+                self.user_form_error = f"Erro ao salvar: {e}"
             yield rx.toast(f"❌ Erro ao salvar: {str(e)[:80]}", position="top-center")
         finally:
-            self.is_saving_user = False
+            async with self:
+                self.is_saving_user = False
 
     # ── Delete com confirmação (#13) ──────────────────────────────
 

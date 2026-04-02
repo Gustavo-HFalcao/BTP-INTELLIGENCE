@@ -15,13 +15,86 @@ def dark_cartesian_grid() -> rx.Component:
 
 def chart_tooltip(formatter=None) -> rx.Component:
     if formatter is None:
-        return rx.recharts.tooltip(
-            cursor=S.TOOLTIP_CURSOR,
-            content_style=S.TOOLTIP_STYLE,
+        return rx.recharts.graphing_tooltip(
+            cursor=S.TOOLTIP_CURSOR_PREMIUM,
+            content_style=S.TOOLTIP_PREMIUM,
+            label_style=S.TOOLTIP_PREMIUM_LABEL,
+            item_style=S.TOOLTIP_PREMIUM_ITEM,
         )
-    return rx.recharts.tooltip(
-        cursor=S.TOOLTIP_CURSOR,
-        content_style=S.TOOLTIP_STYLE,
+    return rx.recharts.graphing_tooltip(
+        cursor=S.TOOLTIP_CURSOR_PREMIUM,
+        content_style=S.TOOLTIP_PREMIUM,
+        label_style=S.TOOLTIP_PREMIUM_LABEL,
+        item_style=S.TOOLTIP_PREMIUM_ITEM,
+        formatter=formatter,
+    )
+
+
+def chart_tooltip_pct(label_map: dict | None = None) -> rx.Component:
+    """Tooltip premium para gráficos de percentual (curva S, disciplinas, SPI).
+    label_map: {'data_key': 'Label legível'} — mapeado via formatter JS."""
+    # Formatter que adiciona % e traduz nomes
+    map_js = "{" + ", ".join(f'"{k}":"{v}"' for k, v in (label_map or {}).items()) + "}"
+    formatter = rx.Var(
+        f"(value, name) => {{"
+        f"  var labels = {map_js};"
+        f"  var label = labels[name] || name;"
+        f"  var v = parseFloat(value);"
+        f"  var fmt = isNaN(v) ? value : v.toFixed(1) + '%';"
+        f"  return [fmt, label];"
+        f"}}"
+    )
+    return rx.recharts.graphing_tooltip(
+        cursor=S.TOOLTIP_CURSOR_LINE,
+        content_style=S.TOOLTIP_PREMIUM,
+        label_style=S.TOOLTIP_PREMIUM_LABEL,
+        item_style=S.TOOLTIP_PREMIUM_ITEM,
+        formatter=formatter,
+    )
+
+
+def chart_tooltip_money() -> rx.Component:
+    """Tooltip premium para gráficos monetários — formata em R$ M/k."""
+    formatter = rx.Var(
+        "(value, name) => {"
+        "  var labels = {'valor':'Valor','previsto':'Planejado','realizado':'Realizado',"
+        "    'executado':'Executado','previsto_acum':'Planejado Acum.','executado_acum':'Realizado Acum.',"
+        "    'total_contratado':'Contratado','total_realizado':'Realizado'};"
+        "  var label = labels[name] || name;"
+        "  var v = parseFloat(value);"
+        "  if (isNaN(v)) return [value, label];"
+        "  var fmt;"
+        "  if (v >= 1000000) fmt = 'R$ ' + (v/1000000).toFixed(2).replace('.',',') + 'M';"
+        "  else if (v >= 1000) fmt = 'R$ ' + (v/1000).toFixed(1).replace('.',',') + 'k';"
+        "  else fmt = 'R$ ' + v.toFixed(0);"
+        "  return [fmt, label];"
+        "}"
+    )
+    return rx.recharts.graphing_tooltip(
+        cursor=S.TOOLTIP_CURSOR_PREMIUM,
+        content_style=S.TOOLTIP_PREMIUM,
+        label_style=S.TOOLTIP_PREMIUM_LABEL,
+        item_style=S.TOOLTIP_PREMIUM_ITEM,
+        formatter=formatter,
+    )
+
+
+def chart_tooltip_spi() -> rx.Component:
+    """Tooltip premium para gráfico SPI — mostra valor + interpretação."""
+    formatter = rx.Var(
+        "(value, name) => {"
+        "  if (name === 'baseline') return ['1,00 (referência)', 'Linha Base'];"
+        "  var v = parseFloat(value);"
+        "  if (isNaN(v)) return [value, 'SPI'];"
+        "  var interp = v >= 1.05 ? '▲ Adiantado' : v >= 0.95 ? '● No prazo' : '▼ Atrasado';"
+        "  return [v.toFixed(2) + '  ' + interp, 'SPI'];"
+        "}"
+    )
+    return rx.recharts.graphing_tooltip(
+        cursor=S.TOOLTIP_CURSOR_LINE,
+        content_style=S.TOOLTIP_PREMIUM,
+        label_style=S.TOOLTIP_PREMIUM_LABEL,
+        item_style=S.TOOLTIP_PREMIUM_ITEM,
         formatter=formatter,
     )
 

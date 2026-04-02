@@ -985,6 +985,68 @@ def default_layout(content: rx.Component) -> rx.Component:
                     z_index="100",
                     display=["flex", "flex", "none"],
                 )),
+                # ── Mobile hub tabs strip — shown below top bar when on hub with project ──
+                rx.cond(
+                    ~GlobalState.is_fullscreen_page
+                    & (GlobalState.selected_project != "")
+                    & (
+                        (rx.State.router.page.path == "/hub")
+                        | (rx.State.router.page.path == "/hub-operacoes")
+                    ),
+                    rx.box(
+                        rx.hstack(
+                            *[
+                                rx.box(
+                                    rx.text(
+                                        label,
+                                        font_family=S.FONT_MONO,
+                                        font_size="11px",
+                                        font_weight=rx.cond(GlobalState.hub_tab == value, "700", "400"),
+                                        color=rx.cond(GlobalState.hub_tab == value, S.COPPER, S.TEXT_MUTED),
+                                        white_space="nowrap",
+                                    ),
+                                    on_click=GlobalState.set_hub_tab(value),
+                                    padding_x="12px",
+                                    height="100%",
+                                    display="flex",
+                                    align_items="center",
+                                    border_bottom=rx.cond(
+                                        GlobalState.hub_tab == value,
+                                        f"2px solid {S.COPPER}",
+                                        "2px solid transparent",
+                                    ),
+                                    cursor="pointer",
+                                    flex_shrink="0",
+                                )
+                                for label, value in [
+                                    ("Visão", "visao_geral"),
+                                    ("Dashboard", "dashboard"),
+                                    ("Cronograma", "cronograma"),
+                                    ("Auditoria", "auditoria"),
+                                    ("Timeline", "timeline"),
+                                    ("Financeiro", "financeiro"),
+                                ]
+                            ],
+                            height="100%",
+                            spacing="0",
+                            align="center",
+                            overflow_x="auto",
+                            class_name="no-scrollbar",
+                            width="100%",
+                        ),
+                        position="fixed",
+                        top="calc(52px + env(safe-area-inset-top, 0px))",
+                        left="0",
+                        right="0",
+                        height="40px",
+                        background="rgba(14,26,23,0.97)",
+                        style={"backdrop_filter": "blur(20px)", "-webkit-backdrop-filter": "blur(20px)"},
+                        border_bottom=f"1px solid rgba(255,255,255,0.06)",
+                        z_index="99",
+                        display=["flex", "flex", "none"],
+                        padding_x="4px",
+                    ),
+                ),
                 rx.flex(
                     # Desktop Sidebar
                     rx.cond(
@@ -1015,11 +1077,19 @@ def default_layout(content: rx.Component) -> rx.Component:
                         width="100%",
                         overflow_x="hidden",
                         transition="all 0.3s ease-in-out",
-                        padding_x=rx.cond(GlobalState.is_fullscreen_page, "0px", "32px"),
+                        padding_x=rx.cond(GlobalState.is_fullscreen_page, "0px", ["16px", "16px", "32px"]),
                         padding_top=rx.cond(
                             GlobalState.is_fullscreen_page,
                             "0px",
-                            "calc(56px + 2rem)",
+                            rx.cond(
+                                (GlobalState.selected_project != "")
+                                & (
+                                    (rx.State.router.page.path == "/hub")
+                                    | (rx.State.router.page.path == "/hub-operacoes")
+                                ),
+                                ["calc(52px + env(safe-area-inset-top,0px) + 40px + 1.5rem)", "calc(52px + env(safe-area-inset-top,0px) + 40px + 1.5rem)", "calc(56px + 2rem)"],
+                                ["calc(52px + env(safe-area-inset-top,0px) + 1.5rem)", "calc(52px + env(safe-area-inset-top,0px) + 1.5rem)", "calc(56px + 2rem)"],
+                            ),
                         ),
                         padding_bottom="2rem",
                         flex="1",

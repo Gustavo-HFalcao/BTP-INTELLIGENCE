@@ -509,28 +509,27 @@ def _user_avatar_pill() -> rx.Component:
 
 
 def _theme_toggle_button() -> rx.Component:
-    """Sun/Moon icon to toggle light/dark mode."""
+    """Sun/Moon icon — usa rx.toggle_color_mode nativo do Reflex/Radix."""
     return rx.box(
         rx.vstack(
-            rx.cond(
-                GlobalState.is_light_mode,
+            rx.color_mode_cond(
+                # light mode active → show moon (voltar para dark)
                 rx.icon("moon", size=18, color=S.TEXT_MUTED),
+                # dark mode active → show sun (ir para light)
                 rx.icon("sun", size=18, color=S.TEXT_MUTED),
             ),
-            rx.text(
-                rx.cond(GlobalState.is_light_mode, "Escuro", "Claro"),
-                font_family=S.FONT_MONO,
-                font_size="9px",
-                font_weight="600",
-                letter_spacing="0.06em",
-                color=S.TEXT_MUTED,
-                text_transform="uppercase",
-                white_space="nowrap",
+            rx.color_mode_cond(
+                rx.text("Escuro", font_family=S.FONT_MONO, font_size="9px",
+                        font_weight="600", letter_spacing="0.06em",
+                        color=S.TEXT_MUTED, text_transform="uppercase", white_space="nowrap"),
+                rx.text("Claro", font_family=S.FONT_MONO, font_size="9px",
+                        font_weight="600", letter_spacing="0.06em",
+                        color=S.TEXT_MUTED, text_transform="uppercase", white_space="nowrap"),
             ),
             spacing="1",
             align="center",
         ),
-        on_click=GlobalState.toggle_theme,
+        on_click=rx.toggle_color_mode,
         padding="6px 10px",
         border_radius="6px",
         cursor="pointer",

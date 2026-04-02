@@ -220,7 +220,7 @@ class ReembolsoState(rx.State):
         if contract_filter in ("Todos os Contratos", "", "nan"):
             self.dash_active_features = []
             return
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         try:
             from bomtempo.core.feature_flags import FeatureFlagsService
             features = await loop.run_in_executor(
@@ -587,7 +587,10 @@ class ReembolsoState(rx.State):
         # Verificação de duplicidade (se feature ativa)
         if "duplicate_detection" in self.form_active_features:
             try:
-                dup_id = FuelService.check_duplicate_hash(img_hash)
+                import asyncio as _aio
+                _loop = _aio.get_running_loop()
+                _hash = img_hash
+                dup_id = await _loop.run_in_executor(None, lambda: FuelService.check_duplicate_hash(_hash))
                 if dup_id:
                     self.duplicate_warning = dup_id
                     yield rx.toast(

@@ -33,6 +33,26 @@ from datetime import timezone
 _BRT = timezone(timedelta(hours=-3))
 
 
+# ── Schema context cache (TTL 5 min) — avoid 1 RPC call per chat message ──────
+_schema_cache: dict = {"text": None, "fetched_at": 0.0}
+_SCHEMA_TTL = 300.0  # 5 minutes
+
+
+def _get_schema_context() -> str:
+    import time as _time
+    now = _time.monotonic()
+    if _schema_cache["text"] and (now - _schema_cache["fetched_at"]) < _SCHEMA_TTL:
+        return _schema_cache["text"]
+    try:
+        result = sb_rpc("get_schema_context")
+        text = str(result) if result else ""
+        _schema_cache["text"] = text
+        _schema_cache["fetched_at"] = now
+        return text
+    except Exception:
+        return _schema_cache["text"] or ""
+
+
 def _extract_document_text(url: str, nome: str, max_chars: int = 8000) -> str:
     """Baixa um arquivo do Supabase Storage e extrai texto para contexto da IA.
     Suporta PDF (via PyPDF2), TXT, e ignora binários não suportados.
@@ -228,7 +248,7 @@ class GlobalState(rx.State):
             data_snapshot = self._data  # lê dentro do lock
 
         dashboard_context = AIContext.get_dashboard_context(data_snapshot)
-        schema_context = sb_rpc("get_schema_context")
+        schema_context = _get_schema_context()
 
         # Inject doc awareness from hub_timeline — inclui conteúdo real dos arquivos
         doc_context_str = ""
@@ -487,46 +507,46 @@ class GlobalState(rx.State):
         self.forgot_password_success = False
         self.forgot_password_email = ""
 
+    @rx.event(background=True)
     async def send_reset_link(self):
-        if not self.forgot_password_email or "@" not in self.forgot_password_email:
-            self.forgot_password_error = "Por favor, digite um email válido."
-            return
+        import asyncio as _asyncio
+        async with self:
+            if not self.forgot_password_email or "@" not in self.forgot_password_email:
+                self.forgot_password_error = "Por favor, digite um email válido."
+                return
+            self.is_sending_reset = True
+            self.forgot_password_error = ""
+            _email = str(self.forgot_password_email)
 
-        self.is_sending_reset = True
-        self.forgot_password_error = ""
-        yield
-
-        try:
-            # Check if user exists
-            user = sb_select("login", filters={"email": self.forgot_password_email}, limit=1)
-            
-            # Security: Always show success to prevent email enumeration, 
-            # but only send if user actually exists.
+        def _do_reset(email: str):
+            from bomtempo.core.supabase_client import sb_select, sb_insert
+            user = sb_select("login", filters={"email": email}, limit=1)
             if user:
-                token = secrets.token_urlsafe(32)
+                import secrets as _secrets
+                token = _secrets.token_urlsafe(32)
                 expires_at = (datetime.now() + timedelta(hours=1)).isoformat()
-
-                # Save token
                 sb_insert("password_reset_tokens", {
                     "user_id": user[0]["id"],
                     "token": token,
-                    "expires_at": expires_at
+                    "expires_at": expires_at,
                 })
-
-                # Send email
                 from bomtempo.core.email_service import EmailService
                 from bomtempo.core.config import Config
                 reset_link = f"{Config.APP_URL}/reset-password?token={token}"
-                
-                EmailService.send_password_reset_email(self.forgot_password_email, reset_link)
-            
-            self.forgot_password_success = True
-            
+                EmailService.send_password_reset_email(email, reset_link)
+
+        try:
+            loop = _asyncio.get_running_loop()
+            await loop.run_in_executor(None, lambda: _do_reset(_email))
+            async with self:
+                self.forgot_password_success = True
         except Exception as e:
             logger.error(f"Reset link error: {e}")
-            self.forgot_password_error = "Ocorreu um erro no servidor. Tente novamente."
-        
-        self.is_sending_reset = False
+            async with self:
+                self.forgot_password_error = "Ocorreu um erro no servidor. Tente novamente."
+        finally:
+            async with self:
+                self.is_sending_reset = False
 
     # Dados processados para UI
     contratos_list: List[Dict[str, Any]] = []
@@ -564,6 +584,15 @@ class GlobalState(rx.State):
     project_campo_rdos: List[Dict[str, Any]] = []
     project_campo_loading: bool = False
 
+    # ── Dashboard filters ────────────────────────────────────────────────────
+    dash_filter_period: str = "all"       # "7d" | "30d" | "90d" | "all"
+    dash_filter_macro: str = ""           # fase_macro filter (empty = all)
+    dash_filter_responsavel: str = ""     # responsavel filter (empty = all)
+
+    def set_dash_filter_period(self, v: str): self.dash_filter_period = v
+    def set_dash_filter_macro(self, v: str): self.dash_filter_macro = v
+    def set_dash_filter_responsavel(self, v: str): self.dash_filter_responsavel = v
+
     # ── Theme toggle ─────────────────────────────────────────────────────────
     is_light_mode: bool = False
 
@@ -572,19 +601,27 @@ class GlobalState(rx.State):
         if self.is_light_mode:
             return rx.call_script(
                 "(function(){"
-                "var el=document.querySelector('[data-is-root-theme]')||document.body;"
-                "el.className=el.className.replace(/\\bdark\\b/g,'light');"
-                "document.body.style.background='#f0f2f0';"
-                "document.body.style.color='#0e1a17';"
+                # Set on <html> — survives before body is available; CSS targets html[data-theme='light']
+                "document.documentElement.setAttribute('data-theme','light');"
+                # Also swap Radix root classes for their own theming
+                "['[data-is-root-theme]','.radix-themes'].forEach(function(sel){"
+                "  var el=document.querySelector(sel);"
+                "  if(el){el.classList.remove('dark');el.classList.add('light');"
+                "  el.setAttribute('data-appearance','light');}"
+                "});"
+                "try{localStorage.setItem('bomtempo-theme','light');}catch(e){}"
                 "})()"
             )
         else:
             return rx.call_script(
                 "(function(){"
-                "var el=document.querySelector('[data-is-root-theme]')||document.body;"
-                "el.className=el.className.replace(/\\blight\\b/g,'dark');"
-                "document.body.style.background='';"
-                "document.body.style.color='';"
+                "document.documentElement.removeAttribute('data-theme');"
+                "['[data-is-root-theme]','.radix-themes'].forEach(function(sel){"
+                "  var el=document.querySelector(sel);"
+                "  if(el){el.classList.remove('light');el.classList.add('dark');"
+                "  el.setAttribute('data-appearance','dark');}"
+                "});"
+                "try{localStorage.setItem('bomtempo-theme','dark');}catch(e){}"
                 "})()"
             )
 
@@ -677,6 +714,21 @@ class GlobalState(rx.State):
 
     # KPI Detail Popup State
     show_kpi_detail: str = ""  # "" | "total_contratado" | "total_medido" | "saldo_medir" | "contratos_ativos" | "receita_total"
+
+    # Nota de Risco breakdown popup
+    show_risk_breakdown: bool = False
+
+    def open_risk_breakdown(self):
+        self.show_risk_breakdown = True
+
+    def close_risk_breakdown(self):
+        self.show_risk_breakdown = False
+
+    # Alertas IA dialog
+    show_alertas_ia_dialog: bool = False
+
+    def set_show_alertas_ia_dialog(self, v: bool):
+        self.show_alertas_ia_dialog = v
 
     def set_analysis_dialog_open(self, value: bool):
         self.show_analysis_dialog = value
@@ -1551,7 +1603,7 @@ class GlobalState(rx.State):
 
         try:
             loader = DataLoader(client_id=self.current_client_id)
-            _loop = _asyncio.get_event_loop()
+            _loop = _asyncio.get_running_loop()
             self._data = await _loop.run_in_executor(None, loader.load_all)
 
             # Helper to safely get DF
@@ -1665,34 +1717,37 @@ class GlobalState(rx.State):
             self.is_loading = False
             logger.error(f"❌ Erro no estado global: {e}")
 
-    def force_refresh_data(self):
+    @rx.event(background=True)
+    async def force_refresh_data(self):
         """Recarrega TODOS os dados do Supabase, ignorando cache e guard.
 
         Chamado após commit no Editor de Dados para manter todas as páginas
         sincronizadas com as alterações mais recentes do banco.
         """
-        # 1. Invalida cache Redis + pickle via DataLoader (único ponto de truth)
-        DataLoader.invalidate_cache(self.current_client_id)
-        logger.info("🗑️ Cache invalidado via force_refresh_data")
+        import asyncio as _asyncio
 
-        # 2. Reseta guard vars para permitir recarregamento
-        self.contratos_list = []
-        self.projetos_list = []
-        self.obras_list = []
-        self.financeiro_list = []
-        self.om_list = []
-        self._data = {}
+        async with self:
+            _client_id = self.current_client_id
+            DataLoader.invalidate_cache(_client_id)
+            logger.info("🗑️ Cache invalidado via force_refresh_data")
+            self.contratos_list = []
+            self.projetos_list = []
+            self.obras_list = []
+            self.financeiro_list = []
+            self.om_list = []
+            self._data = {}
 
-        # 3. Recarrega tudo (inline — sem yield)
         logger.info("🔄 force_refresh_data: recarregando dados do Supabase...")
         try:
+            loop = _asyncio.get_running_loop()
             loader = DataLoader()
-            self._data = loader.load_all()
+            new_data = await loop.run_in_executor(None, loader.load_all)
 
             def get_df(key: str) -> pd.DataFrame:
-                d = self._data.get(key)
+                d = new_data.get(key)
                 return d if d is not None else pd.DataFrame()
 
+            new_lists = {}
             for table_key, attr_name in [
                 ("contratos", "contratos_list"),
                 ("projeto", "projetos_list"),
@@ -1700,7 +1755,7 @@ class GlobalState(rx.State):
                 ("financeiro", "financeiro_list"),
                 ("om", "om_list"),
             ]:
-                if table_key in self._data:
+                if table_key in new_data:
                     df = get_df(table_key)
                     if not df.empty:
                         for col in df.columns:
@@ -1711,25 +1766,30 @@ class GlobalState(rx.State):
                                 df[col] = df[col].fillna(0)
                             else:
                                 df[col] = df[col].fillna("")
-                        setattr(self, attr_name, df.to_dict("records"))
+                        new_lists[attr_name] = df.to_dict("records")
 
-            if "contratos" in self._data:
+            total_contratos = 0
+            valor_tcv = 0.0
+            contratos_ativos = 0
+            if "contratos" in new_data:
                 df = get_df("contratos")
                 if not df.empty:
-                    self.total_contratos = len(df)
-                    self.valor_tcv = (
-                        float(df["valor_contratado"].sum())
-                        if "valor_contratado" in df.columns
-                        else 0.0
-                    )
-                    self.contratos_ativos = (
-                        len(df[df["status"] == "Em Execução"]) if "status" in df.columns else 0
-                    )
+                    total_contratos = len(df)
+                    valor_tcv = float(df["valor_contratado"].sum()) if "valor_contratado" in df.columns else 0.0
+                    contratos_ativos = len(df[df["status"] == "Em Execução"]) if "status" in df.columns else 0
 
-            self.is_loading = False
+            async with self:
+                self._data = new_data
+                for attr_name, records in new_lists.items():
+                    setattr(self, attr_name, records)
+                self.total_contratos = total_contratos
+                self.valor_tcv = valor_tcv
+                self.contratos_ativos = contratos_ativos
+                self.is_loading = False
             logger.info("✅ force_refresh_data: estado global re-sincronizado")
         except Exception as e:
-            self.is_loading = False
+            async with self:
+                self.is_loading = False
             logger.error(f"❌ force_refresh_data falhou: {e}")
 
     def toggle_sidebar(self):
@@ -2654,64 +2714,77 @@ class GlobalState(rx.State):
 
     @rx.var
     def disciplina_progress_chart(self) -> List[Dict[str, Any]]:
-        """Progress by discipline (Civil, Estrutura Metálica, etc.)
-        Filtered by selected contract."""
-        df = self._data.get("obras")
+        """Progresso por fase_macro (disciplina) — construído a partir de hub_atividades.
+        Usa selected_project (hub) como fonte primária, fallback obras_selected_contract."""
+        df = self._data.get("projeto")
         if df is None or df.empty:
             return []
 
-        # Filter by selected contract
-        target = self.obras_selected_contract
-        if target:
+        # Determina contrato: hub tem precedência
+        code = self.selected_project
+        if not code:
+            target = self.obras_selected_contract
             code = target.split(" - ")[0].strip() if " - " in target else target
-            if "contrato" in df.columns:
-                df = df[df["contrato"] == code]
 
-        # Check if DataFrame is empty after filtering
+        if code and "contrato" in df.columns:
+            df = df[df["contrato"] == code].copy()
+
         if df.empty:
             return []
 
-        if "categoria" not in df.columns:
+        if "fase_macro" not in df.columns or "conclusao_pct" not in df.columns:
             return []
 
-        # Ensure previsto_pct and realizado_pct columns exist and are numeric
-        for col in ["previsto_pct", "realizado_pct"]:
-            if col not in df.columns:
-                return []  # Can't show progress without these columns
+        df["conclusao_pct"] = pd.to_numeric(df["conclusao_pct"], errors="coerce").fillna(0)
+        df["peso_pct"] = pd.to_numeric(df.get("peso_pct", pd.Series([1] * len(df))), errors="coerce").fillna(1)
 
-        # Get latest data per category
-        if "data" in df.columns:
-            # Remove NaT dates before sorting
-            df_valid = df[df["data"].notna()].copy()
-            if df_valid.empty:
-                # If no valid dates, use mean
-                latest = (
-                    df.groupby("categoria")
-                    .agg({"previsto_pct": "mean", "realizado_pct": "mean"})
-                    .reset_index()
-                )
+        # Calcula progresso ponderado por fase_macro
+        # previsto: para cada fase, assume que todas as atividades deveriam estar prontas até hoje
+        # (simplificação: previsto = média de quanto deveria estar completo pelo calendário)
+        from datetime import date as _date
+        today = pd.Timestamp(_date.today())
+
+        rows = []
+        for macro, grp in df.groupby("fase_macro"):
+            if not macro or str(macro).strip() == "":
+                continue
+            peso_total = grp["peso_pct"].sum()
+            if peso_total == 0:
+                continue
+            # Realizado ponderado
+            realizado = round(float((grp["conclusao_pct"] * grp["peso_pct"]).sum() / peso_total), 0)
+
+            # Previsto: progresso esperado pelo calendário até hoje
+            previsto = 0.0
+            if "inicio_previsto" in grp.columns and "termino_previsto" in grp.columns:
+                g = grp.copy()
+                g["inicio_previsto"] = pd.to_datetime(g["inicio_previsto"], errors="coerce")
+                g["termino_previsto"] = pd.to_datetime(g["termino_previsto"], errors="coerce")
+                for _, row in g.iterrows():
+                    p = float(row["peso_pct"]) / peso_total * 100
+                    ini = row["inicio_previsto"]
+                    fim = row["termino_previsto"]
+                    if pd.isna(ini) or pd.isna(fim):
+                        previsto += realizado * p / 100  # sem data = assume igual ao realizado
+                    else:
+                        dur = max(1, (fim - ini).days)
+                        if today >= fim:
+                            previsto += p
+                        elif today <= ini:
+                            previsto += 0.0
+                        else:
+                            previsto += (today - ini).days / dur * p
             else:
-                latest = df_valid.sort_values("data").groupby("categoria").last().reset_index()
-        else:
-            latest = (
-                df.groupby("categoria")
-                .agg({"previsto_pct": "mean", "realizado_pct": "mean"})
-                .reset_index()
-            )
+                previsto = realizado  # sem datas: não há base para desvio
 
-        if latest.empty:
-            return []
+            rows.append({
+                "label": str(macro),
+                "previsto_pct": int(round(previsto)),
+                "realizado_pct": int(realizado),
+            })
 
-        # Ensure numeric types and handle NaN/None
-        latest["previsto_pct"] = (
-            pd.to_numeric(latest["previsto_pct"], errors="coerce").fillna(0).round(0).astype(int)
-        )
-        latest["realizado_pct"] = (
-            pd.to_numeric(latest["realizado_pct"], errors="coerce").fillna(0).round(0).astype(int)
-        )
-
-        latest = latest.sort_values("previsto_pct", ascending=False)
-        return latest[["categoria", "previsto_pct", "realizado_pct"]].to_dict("records")
+        rows.sort(key=lambda x: -x["previsto_pct"])
+        return rows
 
     @rx.var
     def status_por_obra_chart(self) -> List[Dict[str, Any]]:
@@ -2972,31 +3045,77 @@ class GlobalState(rx.State):
 
     @rx.var
     def project_scurve_chart(self) -> List[Dict[str, Any]]:
-        """Daily previsto vs realizado for selected project S-curve chart."""
+        """Curva S — previsto vs realizado acumulado, construída a partir de hub_atividades.
+        Gera pontos mensais interpolando o progresso planejado (início→término) e usa
+        conclusao_pct atual como realizado para o período até hoje."""
+        from datetime import date as _date, timedelta as _td
         code = self.selected_project
         if not code:
             return []
-        df = self._data.get("obras")
-        if df is None or df.empty or "contrato" not in df.columns:
+        df = self._data.get("projeto")
+        if df is None or df.empty:
             return []
-        sub = df[df["contrato"] == code].copy()
-        if sub.empty or "data" not in sub.columns:
+        if "contrato" in df.columns:
+            df = df[df["contrato"] == code].copy()
+        if df.empty:
             return []
-        sub["data"] = pd.to_datetime(sub["data"], errors="coerce")
-        sub = sub.dropna(subset=["data"]).sort_values("data")
-        cols = {}
-        if "previsto_pct" in sub.columns:
-            cols["previsto"] = ("previsto_pct", "mean")
-        if "realizado_pct" in sub.columns:
-            cols["realizado"] = ("realizado_pct", "mean")
-        if not cols:
+        # Só atividades com datas válidas e peso
+        for col in ["inicio_previsto", "termino_previsto", "conclusao_pct", "peso_pct"]:
+            if col not in df.columns:
+                return []
+        df = df.dropna(subset=["inicio_previsto", "termino_previsto"]).copy()
+        if df.empty:
             return []
-        grp = sub.groupby("data").agg(**{k: pd.NamedAgg(column=v[0], aggfunc=v[1]) for k, v in cols.items()}).reset_index()
-        grp["data"] = grp["data"].dt.strftime("%d/%m")
-        for col in cols.keys():
-            if col in grp.columns:
-                grp[col] = grp[col].round(1)
-        return grp.to_dict("records")
+        df["inicio_previsto"] = pd.to_datetime(df["inicio_previsto"], errors="coerce")
+        df["termino_previsto"] = pd.to_datetime(df["termino_previsto"], errors="coerce")
+        df = df.dropna(subset=["inicio_previsto", "termino_previsto"])
+        df["conclusao_pct"] = pd.to_numeric(df["conclusao_pct"], errors="coerce").fillna(0)
+        df["peso_pct"] = pd.to_numeric(df["peso_pct"], errors="coerce").fillna(1)
+        if df.empty:
+            return []
+        peso_total = df["peso_pct"].sum()
+        if peso_total == 0:
+            return []
+        today = pd.Timestamp(_date.today())
+        start_date = df["inicio_previsto"].min()
+        end_date = df["termino_previsto"].max()
+        # Gerar pontos mensais de start_date até end_date (ou hoje + 2 meses)
+        plot_end = max(end_date, today + pd.DateOffset(months=1))
+        months = pd.date_range(start=start_date.to_period("M").to_timestamp(),
+                               end=plot_end.to_period("M").to_timestamp(),
+                               freq="MS")
+        result = []
+        for m in months:
+            m_end = (m + pd.DateOffset(months=1)) - pd.Timedelta(days=1)
+            # Previsto: fração da atividade concluída até fim do mês (interpolação linear)
+            previsto_acc = 0.0
+            realizado_acc = 0.0
+            for _, row in df.iterrows():
+                inicio = row["inicio_previsto"]
+                termino = row["termino_previsto"]
+                peso = float(row["peso_pct"]) / peso_total * 100
+                duracao = max(1, (termino - inicio).days)
+                # Previsto: quanto deveria estar pronto até m_end
+                if m_end < inicio:
+                    frac_prev = 0.0
+                elif m_end >= termino:
+                    frac_prev = 1.0
+                else:
+                    frac_prev = (m_end - inicio).days / duracao
+                previsto_acc += frac_prev * peso
+                # Realizado: usa conclusao_pct atual, mas só conta até hoje
+                if m_end <= today:
+                    realizado_acc += float(row["conclusao_pct"]) / 100.0 * peso
+                elif m.date() <= today.date():
+                    # Mês parcial — proporcional aos dias passados
+                    dias_mes = (m_end - m).days + 1
+                    dias_passados = (today - m).days + 1
+                    realizado_acc += float(row["conclusao_pct"]) / 100.0 * peso * min(1.0, dias_passados / dias_mes)
+            point: Dict[str, Any] = {"data": m.strftime("%m/%y"), "previsto": round(previsto_acc, 1)}
+            if m.date() <= today.date():
+                point["realizado"] = round(realizado_acc, 1)
+            result.append(point)
+        return result
 
     @rx.var
     def project_campo_rdos_display(self) -> List[Dict[str, str]]:
@@ -3138,6 +3257,111 @@ class GlobalState(rx.State):
         ]
 
     @rx.var
+    def dash_scurve_chart(self) -> List[Dict[str, Any]]:
+        """S-Curve para Dashboard — igual ao project_scurve_chart mas filtrável por período."""
+        base = list(self.project_scurve_chart)
+        if not base:
+            return []
+        period = self.dash_filter_period
+        if period == "7d":
+            return base[-7:] if len(base) >= 7 else base
+        if period == "30d":
+            return base[-30:] if len(base) >= 30 else base
+        if period == "90d":
+            return base[-90:] if len(base) >= 90 else base
+        return base
+
+    @rx.var
+    def dash_producao_diaria_chart(self) -> List[Dict[str, Any]]:
+        """Produtividade diária — avanço de conclusao_pct por dia via hub_atividade_historico.
+        Agrega por data: soma de conclusao_pct_novo - conclusao_pct_anterior (ponderado por peso)."""
+        code = self.selected_project
+        if not code:
+            return []
+        df = self._data.get("hub_historico")
+        if df is None or df.empty:
+            return []
+        if "contrato" in df.columns:
+            df = df[df["contrato"] == code].copy()
+        if df.empty:
+            return []
+        if "created_at" not in df.columns:
+            return []
+        df["created_at"] = pd.to_datetime(df["created_at"], errors="coerce", utc=True)
+        df = df.dropna(subset=["created_at"])
+        df["data"] = df["created_at"].dt.tz_convert("America/Sao_Paulo").dt.strftime("%d/%m")
+        df["delta"] = pd.to_numeric(df.get("conclusao_pct_novo", 0), errors="coerce").fillna(0) - \
+                      pd.to_numeric(df.get("conclusao_pct_anterior", 0), errors="coerce").fillna(0)
+        # Agrupa por data: soma de deltas (progresso acumulado no dia)
+        grp = df.groupby("data")["delta"].sum().reset_index()
+        grp = grp.rename(columns={"delta": "realizado"})
+        grp["realizado"] = grp["realizado"].round(1)
+        # Meta diária: total de peso / dias úteis do projeto (proxy simples)
+        ativ_df = self._data.get("projeto")
+        meta_dia = 0.0
+        if ativ_df is not None and not ativ_df.empty and "contrato" in ativ_df.columns:
+            sub = ativ_df[ativ_df["contrato"] == code]
+            if not sub.empty and "inicio_previsto" in sub.columns and "termino_previsto" in sub.columns:
+                ini = pd.to_datetime(sub["inicio_previsto"], errors="coerce").min()
+                fim = pd.to_datetime(sub["termino_previsto"], errors="coerce").max()
+                if pd.notna(ini) and pd.notna(fim):
+                    dur_dias = max(1, (fim - ini).days)
+                    meta_dia = round(100.0 / dur_dias, 2)
+        grp["meta"] = meta_dia
+        # Aplica filtro de período
+        period = self.dash_filter_period
+        if period == "7d":
+            grp = grp.tail(7)
+        elif period == "30d":
+            grp = grp.tail(30)
+        elif period == "90d":
+            grp = grp.tail(90)
+        return grp.to_dict("records")
+
+    @rx.var
+    def dash_spi_trend_chart(self) -> List[Dict[str, Any]]:
+        """Tendência de SPI (Schedule Performance Index) ao longo do tempo.
+        SPI = realizado / previsto — 1.0 = no prazo, <1.0 = atrasado, >1.0 = adiantado."""
+        base = list(self.project_scurve_chart)
+        if not base:
+            return []
+        result = []
+        for pt in base:
+            r = float(pt.get("realizado", 0) or 0)
+            p = float(pt.get("previsto", 0) or 0)
+            spi = round(r / p, 2) if p > 0.5 else None
+            if spi is not None:
+                result.append({"data": pt.get("data", ""), "spi": spi, "baseline": 1.0})
+        period = self.dash_filter_period
+        if period == "7d":
+            return result[-7:] if len(result) >= 7 else result
+        if period == "30d":
+            return result[-30:] if len(result) >= 30 else result
+        if period == "90d":
+            return result[-90:] if len(result) >= 90 else result
+        return result
+
+    @rx.var
+    def dash_disciplinas_chart(self) -> List[Dict[str, Any]]:
+        """Progresso por disciplina — filtrável por macro se selecionada."""
+        data = list(self.disciplina_progress_chart)
+        macro_filter = self.dash_filter_macro
+        if not macro_filter:
+            return data
+        return [d for d in data if macro_filter.lower() in str(d.get("label", d.get("categoria", ""))).lower()]
+
+    @rx.var
+    def dash_macro_options(self) -> List[str]:
+        """Lista de fase_macro únicas para filtro do dashboard."""
+        disc = self.disciplina_progress_chart
+        seen: list = []
+        for d in disc:
+            v = str(d.get("label", d.get("categoria", "")))
+            if v and v not in seen:
+                seen.append(v)
+        return seen
+
+    @rx.var
     def obra_kpi_fmt(self) -> Dict[str, Any]:
         """Pre-formatted KPI display strings for the obras detail view.
         All rounding and formatting done server-side to avoid float display issues.
@@ -3240,6 +3464,305 @@ class GlobalState(rx.State):
             "disc_sub": disc_sub,
             "disc_icon_color": disc_icon_color,
         }
+
+    @rx.var
+    def risk_score_data(self) -> Dict[str, Any]:
+        """
+        Calcula Nota de Risco 0-10 para o projeto selecionado com 7 fatores ponderados.
+        Retorna nota final, label, cor, e lista de fatores para popup breakdown.
+
+        Fatores e pesos:
+          - Atraso cronograma  30%  (SPI, tarefas vencidas, desvio PP)
+          - Criticidade        20%  (atividades críticas atrasadas)
+          - Clima              10%  (chuva acumulada, janelas perdidas)
+          - Produtividade      15%  (realizado vs planejado)
+          - Restrições         10%  (equipe abaixo do planejado)
+          - Custo/desvio       10%  (budget exec rate)
+          - Qualidade           5%  (placeholder — auditoria futura)
+        """
+        from datetime import date as _date
+
+        # ── Fonte de dados ────────────────────────────────────────────────────
+        data = self.obra_enterprise_data
+        kpi = self.obra_kpi_fmt
+        bp = float(data.get("budget_planejado", 0) or 0)
+        br = float(data.get("budget_realizado", 0) or 0)
+        avanco = float(data.get("avanco_pct", 0) or 0)
+        equipe = int(data.get("equipe_presente_hoje", 0) or 0)
+        efetivo = int(data.get("efetivo_planejado", 0) or 0)
+        chuva = float(data.get("chuva_acumulada_mm", 0) or 0)
+
+        # Dados de cronograma via hub_state (acessíveis via _data)
+        # Usamos disciplina_progress_chart e project_scurve_chart como proxy
+        disc_data = self.disciplina_progress_chart
+        disc_total = len(disc_data)
+        disc_atrasadas = sum(
+            1 for d in disc_data
+            if float(d.get("realizado_pct", 0)) < float(d.get("previsto_pct", 0)) - 5
+        )
+
+        # Curva S — último ponto para desvio real vs previsto
+        scurve = self.project_scurve_chart
+        desvio_pp = 0.0
+        if scurve:
+            last = scurve[-1]
+            r_last = float(last.get("realizado", 0) or 0)
+            p_last = float(last.get("previsto", 0) or 0)
+            if p_last > 0:
+                desvio_pp = r_last - p_last  # positivo = adiantado, negativo = atrasado
+
+        # ── FATOR 1 — Atraso de cronograma (peso 30%) ─────────────────────────
+        # Score 0-10: 0 = adiantado, 10 = muito atrasado
+        if desvio_pp >= 5:
+            f1_score = 0.0
+        elif desvio_pp >= 0:
+            f1_score = 1.0
+        elif desvio_pp >= -5:
+            f1_score = 3.0
+        elif desvio_pp >= -15:
+            f1_score = 6.0
+        elif desvio_pp >= -25:
+            f1_score = 8.0
+        else:
+            f1_score = 10.0
+
+        disc_atrasadas_pct = (disc_atrasadas / disc_total * 100) if disc_total > 0 else 0
+        f1_score = min(10.0, f1_score + disc_atrasadas_pct * 0.06)
+
+        f1_desc = f"Desvio PP: {desvio_pp:+.1f}pp | {disc_atrasadas}/{disc_total} disciplinas atrasadas"
+
+        # ── FATOR 2 — Criticidade (peso 20%) ──────────────────────────────────
+        disc_criticas = sum(
+            1 for d in disc_data
+            if float(d.get("realizado_pct", 0)) < float(d.get("previsto_pct", 0)) - 15
+        )
+        f2_score = min(10.0, disc_criticas * 2.5)
+        f2_desc = f"{disc_criticas} disciplinas com atraso crítico (>15pp)"
+
+        # ── FATOR 3 — Clima (peso 10%) ─────────────────────────────────────────
+        if chuva > 100:
+            f3_score = 8.0
+        elif chuva > 50:
+            f3_score = 5.0
+        elif chuva > 20:
+            f3_score = 2.0
+        else:
+            f3_score = 0.0
+        f3_desc = f"Chuva acumulada: {chuva:.0f}mm"
+
+        # ── FATOR 4 — Produtividade (peso 15%) ────────────────────────────────
+        # Proxy: equipe presente vs planejado
+        if efetivo > 0:
+            prod_ratio = equipe / efetivo
+            if prod_ratio >= 0.9:
+                f4_score = 1.0
+            elif prod_ratio >= 0.7:
+                f4_score = 4.0
+            elif prod_ratio >= 0.5:
+                f4_score = 7.0
+            else:
+                f4_score = 9.0
+            f4_desc = f"Efetivo: {equipe}/{efetivo} pessoas ({prod_ratio*100:.0f}% do planejado)"
+        else:
+            f4_score = 2.0
+            f4_desc = "Efetivo planejado não configurado"
+
+        # ── FATOR 5 — Restrições operacionais (peso 10%) ─────────────────────
+        # Proxy: % atividades em risco no forecast (via disc_atrasadas como sinal)
+        f5_score = min(10.0, disc_atrasadas_pct * 0.1)
+        f5_desc = f"Disciplinas em risco: {disc_atrasadas_pct:.0f}%"
+
+        # ── FATOR 6 — Custo/desvio (peso 10%) ────────────────────────────────
+        if bp > 0:
+            exec_rate = br / bp * 100
+            if exec_rate > 110:
+                f6_score = 9.0
+            elif exec_rate > 100:
+                f6_score = 6.0
+            elif exec_rate > 90:
+                f6_score = 2.0
+            else:
+                f6_score = 1.0
+            f6_desc = f"Orçamento executado: {exec_rate:.1f}%"
+        else:
+            f6_score = 2.0
+            f6_desc = "Orçamento não configurado"
+
+        # ── FATOR 7 — Qualidade/retrabalho (peso 5%) ─────────────────────────
+        # Placeholder — futuro: não conformidades de auditoria
+        f7_score = 2.0
+        f7_desc = "Qualidade — baseado em auditoria de campo"
+
+        # ── Score final ponderado ─────────────────────────────────────────────
+        PESOS = [0.30, 0.20, 0.10, 0.15, 0.10, 0.10, 0.05]
+        SCORES = [f1_score, f2_score, f3_score, f4_score, f5_score, f6_score, f7_score]
+        nota = round(sum(p * s for p, s in zip(PESOS, SCORES)), 1)
+
+        # ── Label e cor ───────────────────────────────────────────────────────
+        if nota <= 3:
+            label = "BAIXO"
+            color = "#22c55e"
+            bg = "rgba(34,197,94,0.12)"
+        elif nota <= 6:
+            label = "ATENÇÃO"
+            color = "#F59E0B"
+            bg = "rgba(245,158,11,0.12)"
+        elif nota <= 8:
+            label = "ALTO"
+            color = "#EF4444"
+            bg = "rgba(239,68,68,0.12)"
+        else:
+            label = "CRÍTICO"
+            color = "#dc2626"
+            bg = "rgba(220,38,38,0.18)"
+
+        FATORES = [
+            {"nome": "Atraso de Cronograma", "peso": "30%", "score": f1_score, "desc": f1_desc, "icon": "calendar-x"},
+            {"nome": "Criticidade de Atividades", "peso": "20%", "score": f2_score, "desc": f2_desc, "icon": "alert-triangle"},
+            {"nome": "Clima", "peso": "10%", "score": f3_score, "desc": f3_desc, "icon": "cloud-rain"},
+            {"nome": "Produtividade", "peso": "15%", "score": f4_score, "desc": f4_desc, "icon": "users"},
+            {"nome": "Restrições Operacionais", "peso": "10%", "score": f5_score, "desc": f5_desc, "icon": "wrench"},
+            {"nome": "Custo / Desvio", "peso": "10%", "score": f6_score, "desc": f6_desc, "icon": "dollar-sign"},
+            {"nome": "Qualidade / Campo", "peso": "5%", "score": f7_score, "desc": f7_desc, "icon": "camera"},
+        ]
+
+        fatores_serialized = [
+            {
+                "nome": str(f["nome"]),
+                "peso": str(f["peso"]),
+                "score": str(round(float(f["score"]), 1)),
+                "desc": str(f["desc"]),
+                "icon": str(f["icon"]),
+            }
+            for f in sorted(FATORES, key=lambda x: -x["score"])
+        ]
+
+        return {
+            "nota": str(nota),
+            "label": label,
+            "color": color,
+            "bg": bg,
+            "fatores": fatores_serialized,
+            "desvio_pp": f"{desvio_pp:+.1f}",
+        }
+
+    @rx.var
+    def risk_score_fatores(self) -> List[Dict[str, str]]:
+        """Retorna apenas a lista de fatores do risk_score_data, tipada para rx.foreach."""
+        return self.risk_score_data.get("fatores", [])  # type: ignore[return-value]
+
+    @rx.var
+    def risk_desvio_is_negative(self) -> bool:
+        """True se o desvio de prazo do risk score é negativo (atraso)."""
+        v = self.risk_score_data.get("desvio_pp", "+0.0")
+        try:
+            return float(str(v)) < 0
+        except Exception:
+            return False
+
+    @rx.var
+    def ia_alertas_list(self) -> List[Dict[str, str]]:
+        """
+        Gera alertas IA baseados em triggers reais de dados do projeto.
+        Triggers:
+          - Desvio físico negativo > 10pp (macro atraso)
+          - Disciplina com atraso > 20pp (caminho crítico)
+          - Equipe < 60% do planejado
+          - Budget > 105% (estouro de custo)
+          - Chuva acumulada > 50mm (impacto climático)
+        Retorna lista de dicts {severity, icon, title, desc, modulo}
+        """
+        alertas = []
+        data = self.obra_enterprise_data
+        disc_data = self.disciplina_progress_chart
+        scurve = self.project_scurve_chart
+
+        bp = float(data.get("budget_planejado", 0) or 0)
+        br = float(data.get("budget_realizado", 0) or 0)
+        equipe = int(data.get("equipe_presente_hoje", 0) or 0)
+        efetivo = int(data.get("efetivo_planejado", 0) or 0)
+        chuva = float(data.get("chuva_acumulada_mm", 0) or 0)
+
+        # Desvio físico global
+        if scurve:
+            last = scurve[-1]
+            r_last = float(last.get("realizado", 0) or 0)
+            p_last = float(last.get("previsto", 0) or 0)
+            if p_last > 0:
+                desvio = r_last - p_last
+                if desvio <= -20:
+                    alertas.append({
+                        "severity": "critical",
+                        "icon": "calendar-x",
+                        "title": "Atraso crítico no cronograma",
+                        "desc": f"Físico realizado {abs(desvio):.1f}pp abaixo do previsto. Risco de perda de prazo contratual.",
+                        "modulo": "cronograma",
+                    })
+                elif desvio <= -10:
+                    alertas.append({
+                        "severity": "high",
+                        "icon": "clock",
+                        "title": "Desvio de prazo relevante",
+                        "desc": f"Cronograma {abs(desvio):.1f}pp abaixo do planejado. Monitorar tendência.",
+                        "modulo": "cronograma",
+                    })
+
+        # Disciplinas críticas
+        for d in disc_data:
+            r_val = float(d.get("realizado_pct", 0))
+            p_val = float(d.get("previsto_pct", 0))
+            nome = str(d.get("label", d.get("categoria", "—")))
+            if p_val > 0 and (p_val - r_val) > 25:
+                alertas.append({
+                    "severity": "critical",
+                    "icon": "alert-triangle",
+                    "title": f"Disciplina crítica: {nome}",
+                    "desc": f"{nome} com {p_val-r_val:.0f}pp de atraso. Impacto em caminho crítico.",
+                    "modulo": "cronograma",
+                })
+                break  # só 1 disciplina crítica no card
+
+        # Equipe abaixo do planejado
+        if efetivo > 0 and equipe < efetivo * 0.6:
+            alertas.append({
+                "severity": "high",
+                "icon": "users",
+                "title": "Equipe abaixo do planejado",
+                "desc": f"Apenas {equipe}/{efetivo} pessoas em campo ({equipe/efetivo*100:.0f}%). Meta de produção em risco.",
+                "modulo": "dashboard",
+            })
+
+        # Estouro de custo
+        if bp > 0 and br > bp * 1.05:
+            exec_rate = br / bp * 100
+            alertas.append({
+                "severity": "high",
+                "icon": "dollar-sign",
+                "title": "Orçamento acima do planejado",
+                "desc": f"Execução financeira em {exec_rate:.1f}% do orçamento. Revisar EAC.",
+                "modulo": "financeiro",
+            })
+
+        # Chuva acumulada
+        if chuva > 80:
+            alertas.append({
+                "severity": "medium",
+                "icon": "cloud-rain",
+                "title": "Chuva acumulada elevada",
+                "desc": f"{chuva:.0f}mm acumulados. Verificar impacto em frentes expostas.",
+                "modulo": "visao_geral",
+            })
+
+        return [
+            {
+                "severity": str(a["severity"]),
+                "icon": str(a["icon"]),
+                "title": str(a["title"]),
+                "desc": str(a["desc"]),
+                "modulo": str(a["modulo"]),
+            }
+            for a in alertas[:5]
+        ]
 
     @rx.var
     def disciplina_gauges_list(self) -> List[Dict[str, Any]]:
@@ -3799,7 +4322,7 @@ class GlobalState(rx.State):
                             timeout=8,
                         )
                         return resp.json()
-                    results = await _asyncio.get_event_loop().run_in_executor(None, _geocode)
+                    results = await _asyncio.get_running_loop().run_in_executor(None, _geocode)
                     if results:
                         lat = float(results[0].get("lat", 0))
                         lng = float(results[0].get("lon", 0))
@@ -3953,9 +4476,13 @@ class GlobalState(rx.State):
         self.project_hub_tab = "visao_geral"
 
     def set_hub_tab(self, tab: str):
-        """Set hub sub-page tab — mirrors project_hub_tab."""
+        """Set hub sub-page tab — mirrors project_hub_tab.
+        When switching to Dashboard, auto-trigger Agente de Atividades."""
         self.hub_tab = tab
         self.project_hub_tab = tab
+        if tab == "dashboard" and self.selected_project:
+            from bomtempo.state.hub_state import HubState
+            return HubState.run_agente_atividades(self.selected_project)
 
     @rx.event(background=True)
     async def sync_financeiro_list(self):
@@ -4095,20 +4622,25 @@ class GlobalState(rx.State):
         br = float(data.get("budget_realizado", 0) or 0)
         avanco_check = float(data.get("avanco_pct", 0) or 0)
         efetivo_check = int(data.get("efetivo_planejado", 0) or 0)
+        equipe_presente = int(data.get("equipe_presente_hoje", 0) or 0)
         has_financeiro = bp > 0 or br > 0
         has_cronograma = len(disciplines) > 0 and any(
             float(d.get("previsto_pct", 0) or 0) > 0 or float(d.get("realizado_pct", 0) or 0) > 0
             for d in disciplines
         )
         has_equipe = efetivo_check > 0
+        # Operational activity: obra has some actual execution happening
+        has_operational_data = avanco_check > 0 or equipe_presente > 0 or br > 0
         data_score = sum([has_financeiro, has_cronograma, has_equipe])
 
-        if data_score == 0:
-            # Absolutely no data — return honest message, don't call AI
+        # Block AI when there is no meaningful operational data to analyze.
+        # Having only planned/contract values (bp, efetivo_planejado) with everything
+        # else at zero means the obra hasn't started — nothing real to analyze.
+        if data_score == 0 or (data_score <= 1 and not has_operational_data):
             no_data_msg = (
-                f"O projeto {data.get('contrato', selected)} ainda não possui dados suficientes para análise. "
-                "Configure o cronograma de atividades, orçamento financeiro e equipe planejada "
-                "para que o Feed de Inteligência possa gerar recomendações baseadas em fatos reais."
+                f"O projeto {data.get('contrato', selected)} ainda não possui dados operacionais suficientes para análise. "
+                "Preencha o cronograma de atividades com avanço real, registre o orçamento executado "
+                "e a equipe em campo para que o Feed de Inteligência possa gerar diagnósticos baseados em fatos."
             )
             now_brt_label = datetime.now(timezone(timedelta(hours=-3))).strftime("%d/%m %H:%M")
             async with self:

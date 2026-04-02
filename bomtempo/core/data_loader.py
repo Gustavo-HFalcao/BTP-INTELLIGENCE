@@ -92,10 +92,11 @@ class DataLoader:
         logger.info(f"Carregando dados do Supabase — tenant={self.client_id[:8] if self.client_id else 'global'}...")
         # (table_name_in_db, state_key)
         TABLE_MAP = [
-            ("contratos",      "contratos"),
-            ("hub_atividades", "projeto"),
-            ("fin_custos",     "financeiro"),   # fin_custos é a fonte de budget
-            ("om_geracoes",     "om"),
+            ("contratos",              "contratos"),
+            ("hub_atividades",         "projeto"),
+            ("hub_atividade_historico","hub_historico"),
+            ("fin_custos",             "financeiro"),
+            ("om_geracoes",            "om"),
         ]
         # "obras" será derivado de contratos + hub_atividades + fin_custos abaixo
         sucesso = False

@@ -158,7 +158,7 @@ app = rx.App(
         "/animations.css",  # Smooth transitions and loading animations
     ],
     theme=rx.theme(
-        appearance="dark",
+        appearance="inherit",
         accent_color="amber",
         radius="none",
     ),
@@ -168,6 +168,11 @@ app = rx.App(
     head_components=[
         rx.el.link(rel="icon", type="image/svg+xml", href="/favicon-badge.svg"),
         rx.el.link(rel="shortcut icon", href="/favicon-badge.svg"),
+        # Garante dark como default se não houver preferência salva (Reflex usa chave "color-mode")
+        rx.el.script(
+            "(function(){try{if(!localStorage.getItem('color-mode'))"
+            "{localStorage.setItem('color-mode','dark');}}catch(e){}})()"
+        ),
     ],
 )
 

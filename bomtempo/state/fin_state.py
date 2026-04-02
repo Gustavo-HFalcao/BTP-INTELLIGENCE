@@ -103,6 +103,9 @@ class FinState(rx.State):
     # ── Activity options (from hub_atividades for this contract) ─────────────
     fin_atividade_options: List[Dict[str, str]] = []
 
+    # ── Tenant context (cached at load time to avoid cross-state reads in save) ─
+    _fin_client_id: str = ""
+
     # ═════════════════════════════════════════════════════════════════════════
     # Computed vars
     # ═════════════════════════════════════════════════════════════════════════
@@ -154,6 +157,13 @@ class FinState(rx.State):
             self.fin_filter_categoria = ""
             self.fin_search = ""
             self.fin_search_input = ""
+            # Cache client_id at load time so save_fin_custo doesn't need cross-state reads
+            try:
+                from bomtempo.state.global_state import GlobalState
+                gs = await self.get_state(GlobalState)
+                self._fin_client_id = str(gs.current_client_id or "")
+            except Exception:
+                pass
 
         try:
             # Load categorias (once, small table)
@@ -349,15 +359,25 @@ class FinState(rx.State):
         prev_val = _pf(prev_str)
         exec_val = _pf(exec_str)
 
-        # Get username + client_id
+        # Get username + client_id — use cached value first, fall back to cross-state read
         client_id = ""
+        username = ""
         try:
-            from bomtempo.state.global_state import GlobalState
-            gs = await self.get_state(GlobalState)
-            username = gs.username
-            client_id = str(gs.current_client_id or "")
+            async with self:
+                client_id = self._fin_client_id
+            if not client_id:
+                from bomtempo.state.global_state import GlobalState
+                gs = await self.get_state(GlobalState)
+                username = str(gs.username or "")
+                client_id = str(gs.current_client_id or "")
+                async with self:
+                    self._fin_client_id = client_id
+            else:
+                from bomtempo.state.global_state import GlobalState
+                gs = await self.get_state(GlobalState)
+                username = str(gs.username or "")
         except Exception:
-            username = ""
+            pass
 
         if not client_id:
             async with self:

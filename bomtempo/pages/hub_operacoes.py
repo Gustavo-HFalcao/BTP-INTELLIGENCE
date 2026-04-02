@@ -11,6 +11,12 @@ import reflex as rx
 
 from bomtempo.components.skeletons import page_loading_skeleton
 from bomtempo.components.windy_map_widget import windy_map_widget
+from bomtempo.components.charts import (
+    chart_tooltip_pct,
+    chart_tooltip_money,
+    chart_tooltip_spi,
+    chart_tooltip,
+)
 from bomtempo.core import styles as S
 from bomtempo.state.global_state import GlobalState
 from bomtempo.state.hub_state import HubState, AUDIT_CATEGORIES, ENTRY_TYPES
@@ -1218,14 +1224,367 @@ def _vg_site_telemetry() -> rx.Component:
     )
 
 
+def _risk_factor_row(fator: dict) -> rx.Component:
+    """Single factor row in the Nota de Risco breakdown popup."""
+    score_val = fator["score"].to(float)
+    bar_pct = (score_val * 10).to_string() + "%"
+    score_color = rx.cond(
+        score_val >= 7, "#EF4444",
+        rx.cond(score_val >= 4, "#F59E0B", "#22c55e"),
+    )
+    return rx.hstack(
+        rx.center(
+            rx.icon(tag=fator["icon"], size=13, color=score_color),
+            width="28px", height="28px", border_radius="6px",
+            bg=rx.cond(
+                score_val >= 7, "rgba(239,68,68,0.1)",
+                rx.cond(score_val >= 4, "rgba(245,158,11,0.1)", "rgba(34,197,94,0.1)"),
+            ),
+            flex_shrink="0",
+        ),
+        rx.vstack(
+            rx.hstack(
+                rx.text(fator["nome"], font_size="12px", font_weight="600", color="var(--text-main)", flex="1"),
+                rx.text(fator["peso"], font_size="10px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                rx.text(fator["score"], font_size="14px", font_weight="700", color=score_color, font_family=S.FONT_TECH, min_width="28px", text_align="right"),
+                width="100%", align="center", spacing="2",
+            ),
+            rx.box(
+                rx.box(height="100%", bg=score_color, width=bar_pct, border_radius="2px", transition="width 0.6s ease-out"),
+                height="3px", bg="rgba(255,255,255,0.06)", border_radius="2px", overflow="hidden", width="100%",
+            ),
+            rx.text(fator["desc"], font_size="10px", color=S.TEXT_MUTED, font_family=S.FONT_BODY, line_height="1.4"),
+            spacing="1", width="100%", align="start",
+        ),
+        spacing="3", align="start", width="100%",
+        padding="12px 14px",
+        border_radius="8px",
+        bg="rgba(255,255,255,0.02)",
+        border=f"1px solid {S.BORDER_SUBTLE}",
+    )
+
+
+def _risk_breakdown_dialog() -> rx.Component:
+    """Popup modal — breakdown da Nota de Risco por fator."""
+    rsd = GlobalState.risk_score_data
+    nota = rsd.get("nota", "—")
+    label = rsd.get("label", "—")
+    color = rsd.get("color", S.COPPER)
+
+    return rx.dialog.root(
+        rx.dialog.content(
+            rx.vstack(
+                # Header
+                rx.hstack(
+                    rx.center(
+                        rx.icon(tag="shield-alert", size=22, color=color),
+                        width="44px", height="44px", border_radius="10px",
+                        bg=rsd.get("bg", S.COPPER_GLOW),
+                        border=f"1px solid {S.BORDER_ACCENT}",
+                        flex_shrink="0",
+                    ),
+                    rx.vstack(
+                        rx.dialog.title(
+                            "NOTA DE RISCO DO PROJETO",
+                            color=color,
+                            font_family=S.FONT_TECH,
+                            font_size="1.1rem",
+                            letter_spacing="0.04em",
+                            margin="0",
+                        ),
+                        rx.text(
+                            "Composição dos fatores que determinam o índice de risco",
+                            color=S.TEXT_MUTED, font_size="12px", margin="0",
+                        ),
+                        spacing="0", align="start",
+                    ),
+                    rx.spacer(),
+                    # Big score
+                    rx.vstack(
+                        rx.text(nota, font_family=S.FONT_TECH, font_size="2.2rem", font_weight="700", color=color, line_height="1"),
+                        rx.box(
+                            label,
+                            padding="2px 8px", border_radius="3px", font_size="9px",
+                            font_family=S.FONT_MONO, font_weight="700",
+                            color=color, bg=rsd.get("bg", S.COPPER_GLOW),
+                            border=f"1px solid {color}",
+                        ),
+                        spacing="1", align="center",
+                    ),
+                    rx.dialog.close(
+                        rx.icon_button(rx.icon(tag="x", size=18), variant="ghost", color_scheme="amber", on_click=GlobalState.close_risk_breakdown),
+                    ),
+                    width="100%", align="center", spacing="4", margin_bottom="24px",
+                ),
+                rx.divider(border_color=S.BORDER_SUBTLE, margin_bottom="16px"),
+                # Factor rows
+                rx.scroll_area(
+                    rx.vstack(
+                        rx.foreach(GlobalState.risk_score_fatores, _risk_factor_row),
+                        spacing="3", width="100%",
+                    ),
+                    max_height="55vh",
+                    type="hover",
+                    scrollbars="vertical",
+                    width="100%",
+                ),
+                # Footer summary
+                rx.box(
+                    rx.hstack(
+                        rx.icon(tag="info", size=13, color=S.TEXT_MUTED),
+                        rx.text(
+                            "Nota calculada automaticamente. Fatores com maior peso têm maior impacto no score final.",
+                            font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_BODY, line_height="1.5",
+                        ),
+                        spacing="2", align="start",
+                    ),
+                    padding="10px 14px", border_radius="8px",
+                    bg="rgba(255,255,255,0.02)", border=f"1px solid {S.BORDER_SUBTLE}",
+                    margin_top="16px",
+                ),
+                spacing="0", width="100%",
+            ),
+            bg="rgba(10, 31, 26, 0.98)",
+            backdrop_filter="blur(24px)",
+            border=f"1px solid {S.BORDER_ACCENT}",
+            max_width="560px",
+            width="95vw",
+            border_radius=S.R_CARD,
+            padding="28px",
+            box_shadow="0 32px 72px -12px rgba(0,0,0,0.75)",
+        ),
+        open=GlobalState.show_risk_breakdown,
+        on_open_change=GlobalState.close_risk_breakdown,
+    )
+
+
+def _alerta_row(alerta: dict) -> rx.Component:
+    """Single alert row in the alertas IA popup."""
+    sev_color = rx.cond(
+        alerta["severity"] == "critical", "#EF4444",
+        rx.cond(alerta["severity"] == "high", "#F59E0B", S.COPPER),
+    )
+    return rx.hstack(
+        rx.center(
+            rx.icon(tag=alerta["icon"], size=14, color=sev_color),
+            width="32px", height="32px", border_radius="6px",
+            bg=rx.cond(
+                alerta["severity"] == "critical", "rgba(239,68,68,0.1)",
+                rx.cond(alerta["severity"] == "high", "rgba(245,158,11,0.1)", "rgba(201,139,42,0.1)"),
+            ),
+            flex_shrink="0",
+        ),
+        rx.vstack(
+            rx.text(alerta["title"], font_size="12px", font_weight="600", color="var(--text-main)"),
+            rx.text(alerta["desc"], font_size="11px", color=S.TEXT_MUTED, line_height="1.4"),
+            spacing="0", align="start", flex="1",
+        ),
+        rx.button(
+            rx.icon(tag="arrow-right", size=12),
+            variant="ghost", size="1", color_scheme="amber",
+            on_click=GlobalState.set_hub_tab(alerta["modulo"]),
+        ),
+        spacing="3", align="center", width="100%",
+        padding="12px 14px", border_radius="8px",
+        bg="rgba(255,255,255,0.02)", border=f"1px solid {S.BORDER_SUBTLE}",
+    )
+
+
+def _alertas_ia_dialog() -> rx.Component:
+    """Popup modal — alertas IA detalhados."""
+    alertas = GlobalState.ia_alertas_list
+    count = alertas.length()
+
+    return rx.dialog.root(
+        rx.dialog.content(
+            rx.vstack(
+                rx.hstack(
+                    rx.center(
+                        rx.icon(tag="brain-circuit", size=20, color=S.COPPER),
+                        width="40px", height="40px", border_radius="8px",
+                        bg=S.COPPER_GLOW, border=f"1px solid {S.BORDER_ACCENT}", flex_shrink="0",
+                    ),
+                    rx.vstack(
+                        rx.dialog.title(
+                            "ALERTAS DE INTELIGÊNCIA IA",
+                            color=S.COPPER, font_family=S.FONT_TECH, font_size="1.05rem",
+                            letter_spacing="0.04em", margin="0",
+                        ),
+                        rx.text(
+                            count.to_string() + " alertas detectados automaticamente",
+                            color=S.TEXT_MUTED, font_size="12px", margin="0",
+                        ),
+                        spacing="0", align="start",
+                    ),
+                    rx.spacer(),
+                    rx.dialog.close(
+                        rx.icon_button(rx.icon(tag="x", size=18), variant="ghost", color_scheme="amber"),
+                    ),
+                    width="100%", align="center", spacing="4", margin_bottom="20px",
+                ),
+                rx.cond(
+                    alertas.length() == 0,
+                    rx.center(
+                        rx.vstack(
+                            rx.icon(tag="check-circle", size=32, color="#22c55e"),
+                            rx.text("Nenhum alerta ativo", font_size="14px", color=S.TEXT_MUTED),
+                            rx.text("Todos os indicadores dentro do esperado.", font_size="12px", color="rgba(255,255,255,0.3)"),
+                            spacing="2", align="center",
+                        ),
+                        padding_y="24px",
+                    ),
+                    rx.vstack(
+                        rx.foreach(alertas, _alerta_row),
+                        spacing="2", width="100%",
+                    ),
+                ),
+                spacing="0", width="100%",
+            ),
+            bg="rgba(10,31,26,0.98)", backdrop_filter="blur(24px)",
+            border=f"1px solid {S.BORDER_ACCENT}",
+            max_width="520px", width="95vw",
+            border_radius=S.R_CARD, padding="28px",
+            box_shadow="0 32px 72px -12px rgba(0,0,0,0.75)",
+        ),
+        open=GlobalState.show_alertas_ia_dialog,
+        on_open_change=GlobalState.set_show_alertas_ia_dialog,
+    )
+
+
+def _vg_risk_kpi_card() -> rx.Component:
+    """Nota de risco card — clicável, abre popup de breakdown."""
+    rsd = GlobalState.risk_score_data
+    nota = rsd.get("nota", "—")
+    label = rsd.get("label", "—")
+    color = rsd.get("color", S.COPPER)
+    bg = rsd.get("bg", S.COPPER_GLOW)
+
+    return rx.box(
+        rx.vstack(
+            rx.text(
+                "NOTA DE RISCO",
+                font_size="9px", font_family=S.FONT_MONO,
+                color="rgba(218,229,225,0.5)",
+                text_transform="uppercase", letter_spacing="0.1em",
+            ),
+            rx.hstack(
+                rx.center(
+                    rx.icon(tag="shield-alert", size=14, color=color),
+                    width="28px", height="28px",
+                    bg="rgba(255,255,255,0.04)", border_radius="4px", flex_shrink="0",
+                ),
+                rx.text(
+                    nota,
+                    font_family=S.FONT_TECH, font_size="2rem",
+                    font_weight="700", color=color, line_height="1",
+                ),
+                spacing="3", align="center",
+            ),
+            rx.hstack(
+                rx.box(
+                    label,
+                    padding="2px 7px", border_radius="3px",
+                    font_size="9px", font_family=S.FONT_MONO, font_weight="700",
+                    color=color, bg=bg, border=f"1px solid {color}",
+                ),
+                rx.icon(tag="chevron-right", size=12, color=S.TEXT_MUTED),
+                spacing="1", align="center",
+            ),
+            spacing="1", align="start",
+        ),
+        on_click=GlobalState.open_risk_breakdown,
+        cursor="pointer",
+        **{**_GLASS_COMPACT, "transition": "all 0.15s ease", "border_radius": "8px",
+           "_hover": {"border_color": color, "background": "rgba(255,255,255,0.06)"}},
+        flex="1",
+        min_width="150px",
+        flex_direction="column",
+        display="flex",
+    )
+
+
+def _vg_alertas_kpi_card() -> rx.Component:
+    """Alertas IA card — mostra count, clicável p/ detalhe."""
+    alertas = GlobalState.ia_alertas_list
+    count = alertas.length()
+    critical_count = alertas.length()  # proxy — todos contam
+
+    card_color = rx.cond(
+        count >= 3, "#EF4444",
+        rx.cond(count >= 1, "#F59E0B", "#22c55e"),
+    )
+    label = rx.cond(
+        count == 0, "Tudo em ordem",
+        rx.cond(count == 1, "1 alerta ativo", count.to_string() + " alertas ativos"),
+    )
+
+    return rx.box(
+        rx.vstack(
+            rx.text(
+                "ALERTAS IA",
+                font_size="9px", font_family=S.FONT_MONO,
+                color="rgba(218,229,225,0.5)",
+                text_transform="uppercase", letter_spacing="0.1em",
+            ),
+            rx.hstack(
+                rx.center(
+                    rx.icon(tag="brain-circuit", size=14, color=card_color),
+                    width="28px", height="28px",
+                    bg="rgba(255,255,255,0.04)", border_radius="4px", flex_shrink="0",
+                ),
+                rx.text(
+                    count.to_string(),
+                    font_family=S.FONT_TECH, font_size="2rem",
+                    font_weight="700", color=card_color, line_height="1",
+                ),
+                spacing="3", align="center",
+            ),
+            rx.hstack(
+                rx.text(label, font_size="10px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                rx.icon(tag="chevron-right", size=12, color=S.TEXT_MUTED),
+                spacing="1", align="center",
+            ),
+            spacing="1", align="start",
+        ),
+        on_click=GlobalState.set_show_alertas_ia_dialog(True),
+        cursor="pointer",
+        **{**_GLASS_COMPACT, "transition": "all 0.15s ease", "border_radius": "8px",
+           "_hover": {"border_color": card_color}},
+        flex="1",
+        min_width="150px",
+        flex_direction="column",
+        display="flex",
+    )
+
+
 def _tab_visao_geral() -> rx.Component:
+    """
+    Visão Geral do projeto — triagem rápida para tomada de decisão.
+    Layout:
+      - KPI Strip: Progresso | Nota de Risco | Alertas IA | Desvio | Clima
+      - Row 2: Agente de Atividades (8) | Feed Inteligência IA (4)
+      - Row 3: Mapa Meteorológico (12)
+    """
     fmt = GlobalState.obra_kpi_fmt
     data = GlobalState.obra_enterprise_data
     progress_val = data.get("progress", "0").to(float).to(int).to_string() + "%"
 
+    # Desvio prazo/custo combinado card
+    desvio_prazo = GlobalState.risk_score_data.get("desvio_pp", "—")
+    desvio_color = rx.cond(
+        GlobalState.risk_desvio_is_negative,
+        S.DANGER,
+        rx.cond(desvio_prazo == "+0.0", S.TEXT_MUTED, S.PATINA),
+    )
+
     return rx.vstack(
+        # ── Popups (hidden until triggered) ───────────────────────────────────
+        _risk_breakdown_dialog(),
+        _alertas_ia_dialog(),
+
         # ── KPI Strip ─────────────────────────────────────────────────────────
         rx.flex(
+            # 1 — Progresso Físico
             _vg_kpi_card(
                 "trending-up",
                 "PROGRESSO FÍSICO",
@@ -1234,237 +1593,37 @@ def _tab_visao_geral() -> rx.Component:
                 value_color=S.PATINA,
                 bar_pct=progress_val,
             ),
+            # 2 — Nota de Risco (clicável)
+            _vg_risk_kpi_card(),
+            # 3 — Alertas IA (clicável)
+            _vg_alertas_kpi_card(),
+            # 4 — Desvio de Prazo
             _vg_kpi_card(
-                "shield-check",
-                "SALDO DO PROJETO",
-                data.get("nota_risco", "—"),
-                "Nota de risco",
-                value_color=S.COPPER,
+                "calendar-x",
+                "DESVIO DE PRAZO",
+                desvio_prazo,
+                "vs planejado (pp)",
+                value_color=desvio_color,
             ),
-            _vg_kpi_card(
-                "brain-circuit",
-                "DISRUPÇÕES IA",
-                fmt.get("disrupcoes_ia", "—"),
-                "Alertas ativos",
-                value_color="#E89845",
-            ),
-            _vg_kpi_card(
-                "percent",
-                "DESVIO FINANCEIRO",
-                fmt.get("budget_variacao_fmt", "—"),
-                fmt.get("budget_exec_rate_fmt", ""),
-                value_color=rx.cond(
-                    fmt.get("budget_over", False),
-                    S.DANGER,
-                    S.PATINA,
-                ),
-            ),
+            # 5 — Clima
             _vg_weather_card(),
             gap="12px",
             flex_wrap="wrap",
             width="100%",
             align_items="stretch",
         ),
-        # ── Row 2: S-Curve + AI feed ──────────────────────────────────────────
+
+        # ── Row 2: Agente de Atividades + Feed IA ────────────────────────────
         rx.grid(
-            # LEFT: S-Curve chart card
             rx.box(
-                rx.vstack(
-                    # Header
-                    rx.hstack(
-                        rx.hstack(
-                            rx.icon(
-                                tag="trending-up",
-                                size=15,
-                                color=S.PATINA,
-                                margin_right="6px",
-                            ),
-                            rx.text(
-                                "ANÁLISE DE CURVA S INTEGRADA",
-                                font_family=S.FONT_TECH,
-                                font_size="1rem",
-                                font_weight="700",
-                                text_transform="uppercase",
-                                color="var(--text-main)",
-                                letter_spacing="0.04em",
-                            ),
-                            align="center",
-                        ),
-                        rx.spacer(),
-                        # Legend
-                        rx.hstack(
-                            rx.box(
-                                width="20px",
-                                height="2px",
-                                bg="transparent",
-                                border_top=f"2px dashed {S.TEXT_MUTED}",
-                            ),
-                            rx.text(
-                                "Previsto",
-                                font_size="9px",
-                                color=S.TEXT_MUTED,
-                                font_weight="700",
-                            ),
-                            rx.box(width="12px"),
-                            rx.box(
-                                width="20px",
-                                height="3px",
-                                bg=S.PATINA,
-                                border_radius="2px",
-                            ),
-                            rx.text(
-                                "Realizado",
-                                font_size="9px",
-                                color=S.TEXT_MUTED,
-                                font_weight="700",
-                            ),
-                            align="center",
-                            spacing="2",
-                        ),
-                        width="100%",
-                        align="center",
-                        margin_bottom="16px",
-                    ),
-                    # Chart
-                    rx.cond(
-                        GlobalState.project_scurve_chart,
-                        rx.recharts.area_chart(
-                            rx.recharts.area(
-                                data_key="previsto",
-                                stroke=S.TEXT_MUTED,
-                                fill="rgba(136,153,153,0.04)",
-                                stroke_dasharray="5 3",
-                                dot=False,
-                                stroke_width=2,
-                            ),
-                            rx.recharts.area(
-                                data_key="realizado",
-                                stroke=S.PATINA,
-                                fill="rgba(42,157,143,0.12)",
-                                dot={"fill": S.PATINA, "r": 3, "strokeWidth": 0},
-                                active_dot={
-                                    "fill": S.COPPER,
-                                    "r": 5,
-                                    "stroke": "rgba(201,139,42,0.4)",
-                                    "strokeWidth": 3,
-                                },
-                                stroke_width=2,
-                            ),
-                            rx.recharts.x_axis(
-                                data_key="data",
-                                tick={
-                                    "fontSize": 10,
-                                    "fill": S.TEXT_MUTED,
-                                    "fontFamily": "JetBrains Mono",
-                                },
-                            ),
-                            rx.recharts.y_axis(
-                                unit="%",
-                                tick={
-                                    "fontSize": 10,
-                                    "fill": S.TEXT_MUTED,
-                                    "fontFamily": "JetBrains Mono",
-                                },
-                                domain=[0, 100],
-                                width=36,
-                            ),
-                            rx.recharts.cartesian_grid(
-                                stroke_dasharray="3 3",
-                                stroke="rgba(255,255,255,0.04)",
-                            ),
-                            rx.recharts.graphing_tooltip(
-                                content_style={
-                                    "background": "rgba(8,18,16,0.96)",
-                                    "border": f"1px solid {S.BORDER_ACCENT}",
-                                    "borderRadius": "8px",
-                                    "fontSize": "12px",
-                                    "boxShadow": "0 8px 32px rgba(0,0,0,0.6)",
-                                    "backdropFilter": "blur(12px)",
-                                    "padding": "12px 16px",
-                                },
-                                label_style={
-                                    "color": S.TEXT_MUTED,
-                                    "fontSize": "9px",
-                                    "fontWeight": "700",
-                                    "textTransform": "uppercase",
-                                    "letterSpacing": ".1em",
-                                },
-                            ),
-                            data=GlobalState.project_scurve_chart,
-                            height=200,
-                            width="100%",
-                            class_name="chart-enter",
-                        ),
-                        rx.center(
-                            rx.vstack(
-                                rx.icon(tag="line-chart", size=32, color=S.BORDER_SUBTLE),
-                                rx.text(
-                                    "Curva S — dados do contrato selecionado",
-                                    font_size="13px",
-                                    color=S.TEXT_MUTED,
-                                    text_align="center",
-                                ),
-                                spacing="2",
-                                align="center",
-                            ),
-                            height="200px",
-                        ),
-                    ),
-                    # AI footer strip
-                    rx.cond(
-                        GlobalState.obra_insight_loading,
-                        rx.hstack(
-                            rx.spinner(size="1", color=S.COPPER),
-                            rx.text("IA analisando projeto...", font_size="11px", color=S.TEXT_MUTED, font_style="italic"),
-                            padding="8px 12px", border_radius=S.R_CONTROL,
-                            bg="rgba(201,139,42,0.03)", border=f"1px solid {S.BORDER_ACCENT}",
-                            width="100%", align="center", spacing="2", margin_top="10px",
-                        ),
-                        rx.cond(
-                            GlobalState.obra_insight_text != "",
-                            rx.hstack(
-                                rx.center(
-                                    rx.icon(tag="brain-circuit", size=11, color=S.COPPER),
-                                    width="20px", height="20px",
-                                    bg=S.COPPER_GLOW, border_radius="50%", flex_shrink="0",
-                                ),
-                                rx.text(
-                                    GlobalState.obra_insight_text,
-                                    font_size="11px", color=S.TEXT_MUTED,
-                                    line_height="1.5", overflow="hidden",
-                                    white_space="nowrap", text_overflow="ellipsis",
-                                ),
-                                padding="8px 12px", border_radius=S.R_CONTROL,
-                                bg="rgba(201,139,42,0.03)", border=f"1px solid {S.BORDER_ACCENT}",
-                                width="100%", align="center", spacing="2", margin_top="10px",
-                            ),
-                        ),
-                    ),
-                    width="100%",
-                ),
-                **_GLASS_PANEL,
+                _agente_panel(),
                 grid_column=rx.breakpoints(initial="span 12", lg="span 8"),
                 height="100%",
             ),
-            # RIGHT: AI feed
             rx.box(
                 _vg_ai_feed(),
                 grid_column=rx.breakpoints(initial="span 12", lg="span 4"),
                 height="100%",
-            ),
-            # Row 3: site telemetry + windy map
-            rx.box(
-                _vg_site_telemetry(),
-                grid_column=rx.breakpoints(initial="span 12", lg="span 4"),
-                height="100%",
-            ),
-            rx.box(
-                windy_map_widget(),
-                grid_column=rx.breakpoints(initial="span 12", lg="span 8"),
-                height="100%",
-                min_height="380px",
-                border_radius="8px",
-                overflow="hidden",
             ),
             columns="12",
             gap="24px",
@@ -1472,6 +1631,16 @@ def _tab_visao_geral() -> rx.Component:
             align_items="stretch",
             class_name="animate-fade-in",
         ),
+
+        # ── Row 3: Mapa meteorológico (full width) ────────────────────────────
+        rx.box(
+            windy_map_widget(),
+            width="100%",
+            min_height="380px",
+            border_radius="8px",
+            overflow="hidden",
+        ),
+
         width="100%",
         spacing="6",
     )
@@ -1480,6 +1649,319 @@ def _tab_visao_geral() -> rx.Component:
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 2 — DASHBOARD
 # ══════════════════════════════════════════════════════════════════════════════
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# AGENTE DE ATIVIDADES — AI insight cards
+# ══════════════════════════════════════════════════════════════════════════════
+
+_AGENTE_TYPE_COLORS = {
+    "delay":    ("#EF4444", "rgba(239,68,68,0.12)"),
+    "ahead":    ("#22c55e", "rgba(34,197,94,0.12)"),
+    "crew":     ("#E89845", "rgba(232,152,69,0.12)"),
+    "weather":  ("#3B82F6", "rgba(59,130,246,0.12)"),
+    "optimize": (S.PATINA, "rgba(42,157,143,0.12)"),
+    "alert":    (S.COPPER, S.COPPER_GLOW),
+}
+
+_AGENTE_PRIORITY_BORDER = {
+    "high":   "#EF4444",
+    "medium": S.COPPER,
+    "low":    S.BORDER_SUBTLE,
+}
+
+
+def _agente_insight_card(card: dict) -> rx.Component:
+    """Single AI insight card for the Agente de Atividades panel."""
+    # We can't do dict lookup dynamically in Reflex frontend — use rx.cond chains
+    card_type = card["type"]
+    color = rx.cond(
+        card_type == "delay", "#EF4444",
+        rx.cond(card_type == "ahead", "#22c55e",
+        rx.cond(card_type == "crew", "#E89845",
+        rx.cond(card_type == "weather", "#3B82F6",
+        rx.cond(card_type == "optimize", S.PATINA, S.COPPER)))),
+    )
+    bg_color = rx.cond(
+        card_type == "delay", "rgba(239,68,68,0.08)",
+        rx.cond(card_type == "ahead", "rgba(34,197,94,0.08)",
+        rx.cond(card_type == "crew", "rgba(232,152,69,0.08)",
+        rx.cond(card_type == "weather", "rgba(59,130,246,0.08)",
+        rx.cond(card_type == "optimize", "rgba(42,157,143,0.08)", "rgba(201,139,42,0.08)")))),
+    )
+    border_color = rx.cond(
+        card["priority"] == "high", "#EF4444",
+        rx.cond(card["priority"] == "medium", S.COPPER, S.BORDER_SUBTLE),
+    )
+
+    return rx.box(
+        rx.vstack(
+            # Header: icon + type badge + priority dot
+            rx.hstack(
+                rx.center(
+                    rx.icon(tag=card["icon"], size=16, color=color),
+                    width="32px",
+                    height="32px",
+                    border_radius="6px",
+                    bg=bg_color,
+                    flex_shrink="0",
+                ),
+                rx.vstack(
+                    rx.text(
+                        card["title"],
+                        font_family=S.FONT_TECH,
+                        font_size="0.875rem",
+                        font_weight="700",
+                        color="var(--text-main)",
+                        line_height="1.2",
+                    ),
+                    rx.cond(
+                        card["atividade"] != "",
+                        rx.text(
+                            card["atividade"],
+                            font_size="10px",
+                            color=color,
+                            font_family=S.FONT_MONO,
+                            font_weight="600",
+                            letter_spacing="0.03em",
+                        ),
+                        rx.fragment(),
+                    ),
+                    spacing="0",
+                    align="start",
+                    flex="1",
+                    min_width="0",
+                ),
+                # Priority badge
+                rx.box(
+                    rx.cond(card["priority"] == "high", "CRÍTICO",
+                    rx.cond(card["priority"] == "medium", "MÉDIO", "BAIXO")),
+                    padding="2px 6px",
+                    border_radius="3px",
+                    font_size="9px",
+                    font_family=S.FONT_MONO,
+                    font_weight="700",
+                    letter_spacing="0.06em",
+                    color=border_color,
+                    style={"border": "1px solid", "border_color": border_color},
+                    bg=rx.cond(
+                        card["priority"] == "high", "rgba(239,68,68,0.08)",
+                        rx.cond(card["priority"] == "medium", "rgba(201,139,42,0.08)", "rgba(255,255,255,0.04)"),
+                    ),
+                    white_space="nowrap",
+                    flex_shrink="0",
+                ),
+                spacing="3",
+                align="start",
+                width="100%",
+                margin_bottom="10px",
+            ),
+            # Body text
+            rx.text(
+                card["body"],
+                font_size="12px",
+                color="rgba(255,255,255,0.75)",
+                font_family=S.FONT_BODY,
+                line_height="1.6",
+            ),
+            spacing="0",
+            width="100%",
+        ),
+        padding="16px",
+        border_radius="10px",
+        background=S.BG_GLASS,
+        style={
+            "backdropFilter": "blur(8px)",
+            "border": "1px solid",
+            "border_color": border_color,
+            "transition": "border-color 0.15s ease",
+        },
+        _hover={"border_color": color},
+    )
+
+
+def _agente_panel() -> rx.Component:
+    """Agente de Atividades — AI insight panel in the Dashboard tab."""
+    contrato_var = GlobalState.selected_project
+
+    return rx.box(
+        rx.vstack(
+            # Header
+            rx.hstack(
+                rx.hstack(
+                    rx.box(
+                        rx.box(
+                            width="8px",
+                            height="8px",
+                            border_radius="50%",
+                            bg=S.COPPER,
+                            class_name="animate-pulse",
+                        ),
+                        position="absolute",
+                        top="-3px",
+                        right="-3px",
+                    ),
+                    rx.center(
+                        rx.icon(tag="brain-circuit", size=18, color=S.COPPER),
+                        width="36px",
+                        height="36px",
+                        border_radius="8px",
+                        bg=S.COPPER_GLOW,
+                        border=f"1px solid rgba(201,139,42,0.3)",
+                        position="relative",
+                    ),
+                    rx.vstack(
+                        rx.text(
+                            "AGENTE DE ATIVIDADES",
+                            font_family=S.FONT_TECH,
+                            font_size="1rem",
+                            font_weight="700",
+                            text_transform="uppercase",
+                            letter_spacing="0.06em",
+                            color=S.COPPER,
+                        ),
+                        rx.text(
+                            "Insights inteligentes baseados em cronograma + RDO",
+                            font_size="11px",
+                            color=S.TEXT_MUTED,
+                            font_family=S.FONT_BODY,
+                        ),
+                        spacing="0",
+                        align="start",
+                    ),
+                    spacing="3",
+                    align="center",
+                ),
+                rx.spacer(),
+                rx.hstack(
+                    # Last updated timestamp
+                    rx.cond(
+                        HubState.agente_last_updated != "",
+                        rx.text(
+                            "Atualizado: " + HubState.agente_last_updated,
+                            font_size="10px",
+                            color=S.TEXT_MUTED,
+                            font_family=S.FONT_MONO,
+                        ),
+                        rx.fragment(),
+                    ),
+                    # Regenerate button
+                    rx.button(
+                        rx.cond(
+                            HubState.agente_loading,
+                            rx.hstack(
+                                rx.spinner(size="1"),
+                                rx.text("Analisando…", font_size="12px"),
+                                spacing="2",
+                                align="center",
+                            ),
+                            rx.hstack(
+                                rx.icon(tag="sparkles", size=13),
+                                rx.text("Gerar Insights", font_size="12px"),
+                                spacing="2",
+                                align="center",
+                            ),
+                        ),
+                        on_click=HubState.force_run_agente(contrato_var),
+                        is_loading=HubState.agente_loading,
+                        variant="outline",
+                        color_scheme="amber",
+                        size="1",
+                        cursor="pointer",
+                        style={
+                            "border": f"1px solid rgba(201,139,42,0.4)",
+                            "color": S.COPPER,
+                            "background": "rgba(201,139,42,0.06)",
+                            "_hover": {"background": "rgba(201,139,42,0.12)"},
+                        },
+                    ),
+                    spacing="3",
+                    align="center",
+                ),
+                width="100%",
+                align="center",
+                flex_wrap="wrap",
+                gap="12px",
+            ),
+            # Error state
+            rx.cond(
+                HubState.agente_error != "",
+                rx.hstack(
+                    rx.icon(tag="alert-triangle", size=14, color="#EF4444"),
+                    rx.text(HubState.agente_error, font_size="12px", color="#EF4444"),
+                    spacing="2",
+                    align="center",
+                    padding="10px 14px",
+                    border_radius="8px",
+                    bg="rgba(239,68,68,0.06)",
+                    border="1px solid rgba(239,68,68,0.2)",
+                    width="100%",
+                ),
+                rx.fragment(),
+            ),
+            # Loading skeleton
+            rx.cond(
+                HubState.agente_loading & (HubState.agente_insights.length() == 0),
+                rx.grid(
+                    *[
+                        rx.box(
+                            height="110px",
+                            border_radius="10px",
+                            bg="rgba(255,255,255,0.04)",
+                            border=f"1px solid {S.BORDER_SUBTLE}",
+                            class_name="animate-pulse",
+                        )
+                        for _ in range(4)
+                    ],
+                    columns=rx.breakpoints(initial="1", md="2"),
+                    gap="14px",
+                    width="100%",
+                ),
+                rx.fragment(),
+            ),
+            # Empty state — no insights yet
+            rx.cond(
+                ~HubState.agente_loading & (HubState.agente_insights.length() == 0) & (HubState.agente_error == ""),
+                rx.center(
+                    rx.vstack(
+                        rx.icon(tag="brain-circuit", size=36, color=S.BORDER_SUBTLE),
+                        rx.text(
+                            "Nenhum insight gerado ainda",
+                            font_size="14px",
+                            font_weight="600",
+                            color=S.TEXT_MUTED,
+                        ),
+                        rx.text(
+                            'Clique em "Gerar Insights" para analisar as atividades do cronograma.',
+                            font_size="12px",
+                            color="rgba(255,255,255,0.3)",
+                            text_align="center",
+                        ),
+                        spacing="2",
+                        align="center",
+                    ),
+                    padding_y="32px",
+                    width="100%",
+                ),
+                rx.fragment(),
+            ),
+            # Insight cards grid
+            rx.cond(
+                HubState.agente_insights.length() > 0,
+                rx.grid(
+                    rx.foreach(HubState.agente_insights, _agente_insight_card),
+                    columns=rx.breakpoints(initial="1", md="2"),
+                    gap="14px",
+                    width="100%",
+                ),
+                rx.fragment(),
+            ),
+            spacing="4",
+            width="100%",
+        ),
+        **_GLASS_PANEL,
+        width="100%",
+    )
 
 
 def _dashboard_chart_card(
@@ -1533,270 +2015,299 @@ def _dashboard_chart_card(
     )
 
 
+def _dash_empty(icon: str, msg: str, height: str = "180px") -> rx.Component:
+    return rx.center(
+        rx.vstack(
+            rx.icon(tag=icon, size=28, color=S.BORDER_SUBTLE),
+            rx.text(msg, font_size="11px", color=S.TEXT_MUTED),
+            spacing="2", align="center",
+        ),
+        height=height,
+    )
+
+
+def _dash_filter_pill(label: str, value: str, current_var, on_click) -> rx.Component:
+    is_active = current_var == value
+    return rx.box(
+        label,
+        on_click=on_click,
+        padding="4px 12px",
+        border_radius="999px",
+        font_size="11px",
+        font_family=S.FONT_MONO,
+        font_weight=rx.cond(is_active, "700", "400"),
+        color=rx.cond(is_active, S.COPPER, S.TEXT_MUTED),
+        bg=rx.cond(is_active, S.COPPER_GLOW, "rgba(255,255,255,0.03)"),
+        border=rx.cond(is_active, f"1px solid {S.COPPER}", f"1px solid {S.BORDER_SUBTLE}"),
+        cursor="pointer",
+        transition="all 0.12s ease",
+        white_space="nowrap",
+    )
+
+
+_TOOLTIP_STYLE = {
+    "background": "rgba(8,18,16,0.97)",
+    "border": f"1px solid rgba(201,139,42,0.3)",
+    "borderRadius": "6px",
+    "fontSize": "11px",
+}
+_TICK_STYLE = {"fontSize": 9, "fill": "#889999", "fontFamily": "JetBrains Mono"}
+
+
 def _tab_dashboard() -> rx.Component:
+    """
+    Dashboard analítico — evolução temporal, SPI, produtividade, disciplinas.
+    Filtros: período | disciplina
+    Gráficos: Curva S | SPI trend | Produtividade diária | Disciplinas planned vs actual
+    """
     return rx.vstack(
-        # Header
+        # ── Header + filtros ──────────────────────────────────────────────────
         rx.hstack(
             rx.vstack(
                 rx.text(
-                    "DASHBOARD DO PROJETO",
-                    font_family=S.FONT_TECH,
-                    font_size="1.25rem",
-                    font_weight="700",
-                    text_transform="uppercase",
-                    color="var(--text-main)",
-                    letter_spacing="0.04em",
+                    "DASHBOARD ANALÍTICO",
+                    font_family=S.FONT_TECH, font_size="1.15rem", font_weight="700",
+                    text_transform="uppercase", color="var(--text-main)", letter_spacing="0.04em",
                 ),
                 rx.text(
-                    "Métricas consolidadas e gráficos analíticos do projeto selecionado.",
-                    font_size="13px",
-                    color=S.TEXT_MUTED,
-                    font_family=S.FONT_BODY,
+                    "Evolução temporal, performance de prazo e produtividade do projeto.",
+                    font_size="12px", color=S.TEXT_MUTED, font_family=S.FONT_BODY,
                 ),
-                spacing="1",
-                align="start",
+                spacing="0", align="start",
             ),
+            rx.spacer(),
+            # Period filter pills
+            rx.hstack(
+                _dash_filter_pill("7D",  "7d",  GlobalState.dash_filter_period, GlobalState.set_dash_filter_period("7d")),
+                _dash_filter_pill("30D", "30d", GlobalState.dash_filter_period, GlobalState.set_dash_filter_period("30d")),
+                _dash_filter_pill("90D", "90d", GlobalState.dash_filter_period, GlobalState.set_dash_filter_period("90d")),
+                _dash_filter_pill("Tudo","all", GlobalState.dash_filter_period, GlobalState.set_dash_filter_period("all")),
+                spacing="2", align="center", flex_wrap="wrap",
+            ),
+            align="end",
             width="100%",
+            flex_wrap="wrap",
+            gap="12px",
             margin_bottom="4px",
         ),
-        # 2x2 chart grid
+
+        # ── Row 1: Curva S (span 2) + SPI Trend (span 1) ─────────────────────
         rx.grid(
-            # 1 — Evolução do Progresso
+            # Curva S integrada
             rx.box(
                 _dashboard_chart_card(
-                    "Evolução do Progresso",
+                    "Curva S — Planned vs Actual",
                     "Avanço físico acumulado no tempo",
                     "trending-up",
                     S.PATINA,
                     rx.cond(
-                        GlobalState.project_scurve_chart,
-                        rx.recharts.line_chart(
-                            rx.recharts.line(
-                                data_key="realizado",
-                                stroke=S.PATINA,
-                                dot=False,
-                                stroke_width=2,
+                        GlobalState.dash_scurve_chart,
+                        rx.recharts.area_chart(
+                            rx.recharts.area(
+                                data_key="previsto", stroke=S.TEXT_MUTED,
+                                fill="rgba(136,153,153,0.05)", stroke_dasharray="5 3",
+                                dot=False, stroke_width=1.5, name="Planejado",
                             ),
-                            rx.recharts.line(
-                                data_key="previsto",
-                                stroke=S.TEXT_MUTED,
-                                stroke_dasharray="4 3",
-                                dot=False,
-                                stroke_width=1.5,
+                            rx.recharts.area(
+                                data_key="realizado", stroke=S.PATINA,
+                                fill="rgba(42,157,143,0.12)",
+                                dot=False, stroke_width=2, name="Realizado",
                             ),
-                            rx.recharts.x_axis(
-                                data_key="data",
-                                tick={"fontSize": 9, "fill": S.TEXT_MUTED, "fontFamily": "JetBrains Mono"},
+                            rx.recharts.x_axis(data_key="data", tick=_TICK_STYLE),
+                            rx.recharts.y_axis(unit="%", tick=_TICK_STYLE, width=32),
+                            rx.recharts.cartesian_grid(stroke_dasharray="3 3", stroke="rgba(255,255,255,0.04)"),
+                            chart_tooltip_pct({"previsto": "Planejado", "realizado": "Realizado"}),
+                            rx.recharts.legend(
+                                icon_type="line",
+                                wrapper_style={"fontSize": "10px", "color": S.TEXT_MUTED, "paddingTop": "8px"},
                             ),
-                            rx.recharts.y_axis(
-                                unit="%",
-                                tick={"fontSize": 9, "fill": S.TEXT_MUTED, "fontFamily": "JetBrains Mono"},
-                                width=32,
-                            ),
-                            rx.recharts.cartesian_grid(
-                                stroke_dasharray="3 3",
-                                stroke="rgba(255,255,255,0.04)",
-                            ),
-                            rx.recharts.graphing_tooltip(
-                                content_style={
-                                    "background": "rgba(8,18,16,0.96)",
-                                    "border": f"1px solid {S.BORDER_ACCENT}",
-                                    "borderRadius": "6px",
-                                    "fontSize": "11px",
-                                },
-                            ),
-                            data=GlobalState.project_scurve_chart,
-                            height=180,
-                            width="100%",
+                            data=GlobalState.dash_scurve_chart,
+                            height=200, width="100%",
                         ),
-                        rx.center(
-                            rx.vstack(
-                                rx.icon(tag="line-chart", size=32, color=S.BORDER_SUBTLE),
-                                rx.text("Sem dados de progresso", font_size="12px", color=S.TEXT_MUTED),
-                                spacing="2",
-                                align="center",
-                            ),
-                            height="180px",
-                        ),
+                        _dash_empty("line-chart", "Sem dados de progresso"),
                     ),
                 ),
-                grid_column=rx.breakpoints(initial="span 2", lg="span 1"),
+                grid_column=rx.breakpoints(initial="span 3", md="span 2"),
             ),
-            # 2 — Distribuição Financeira
+            # SPI Trend
             rx.box(
                 _dashboard_chart_card(
-                    "Distribuição Financeira",
-                    "Orçamento planejado vs realizado",
-                    "pie-chart",
+                    "Índice SPI",
+                    "Eficiência de prazo (1.0 = no prazo)",
+                    "gauge",
+                    "#3B82F6",
+                    rx.cond(
+                        GlobalState.dash_spi_trend_chart,
+                        rx.recharts.line_chart(
+                            rx.recharts.line(
+                                data_key="spi", stroke="#3B82F6", dot=False, stroke_width=2,
+                                name="SPI",
+                            ),
+                            rx.recharts.line(
+                                data_key="baseline", stroke=S.BORDER_SUBTLE,
+                                stroke_dasharray="4 3", dot=False, stroke_width=1,
+                                name="Linha base",
+                            ),
+                            rx.recharts.x_axis(data_key="data", tick=_TICK_STYLE),
+                            rx.recharts.y_axis(
+                                tick=_TICK_STYLE, width=36,
+                                domain=[0.5, 1.5],
+                            ),
+                            rx.recharts.cartesian_grid(stroke_dasharray="3 3", stroke="rgba(255,255,255,0.04)"),
+                            chart_tooltip_spi(),
+                            rx.recharts.reference_line(y=1, stroke=S.COPPER, stroke_dasharray="4 2", stroke_width=1),
+                            data=GlobalState.dash_spi_trend_chart,
+                            height=200, width="100%",
+                        ),
+                        _dash_empty("gauge", "Sem dados de SPI"),
+                    ),
+                ),
+                grid_column=rx.breakpoints(initial="span 3", md="span 1"),
+            ),
+            columns="3",
+            gap="20px",
+            width="100%",
+        ),
+
+        # ── Row 2: Produtividade diária (span 2) + Disciplinas (span 1) ───────
+        rx.grid(
+            # Produtividade diária
+            rx.box(
+                _dashboard_chart_card(
+                    "Produtividade Diária",
+                    "Avanço realizado vs meta por dia",
+                    "activity",
+                    "#E89845",
+                    rx.cond(
+                        GlobalState.dash_producao_diaria_chart,
+                        rx.recharts.bar_chart(
+                            rx.recharts.bar(
+                                data_key="meta", fill=S.TEXT_MUTED, fill_opacity=0.3,
+                                radius=2, name="Meta/dia",
+                            ),
+                            rx.recharts.bar(
+                                data_key="realizado", fill="#E89845", fill_opacity=0.85,
+                                radius=2, name="Realizado/dia",
+                            ),
+                            rx.recharts.x_axis(data_key="data", tick=_TICK_STYLE),
+                            rx.recharts.y_axis(unit="pp", tick=_TICK_STYLE, width=36),
+                            rx.recharts.cartesian_grid(stroke_dasharray="3 3", stroke="rgba(255,255,255,0.04)"),
+                            chart_tooltip_pct({"meta": "Meta/dia", "realizado": "Realizado/dia"}),
+                            rx.recharts.legend(
+                                wrapper_style={"fontSize": "10px", "color": S.TEXT_MUTED, "paddingTop": "8px"},
+                            ),
+                            data=GlobalState.dash_producao_diaria_chart,
+                            height=200, width="100%", bar_size=14,
+                        ),
+                        _dash_empty("activity", "Sem dados de produtividade"),
+                    ),
+                ),
+                grid_column=rx.breakpoints(initial="span 3", md="span 2"),
+            ),
+            # Disciplinas planned vs actual
+            rx.box(
+                _dashboard_chart_card(
+                    "Disciplinas",
+                    "Progresso planejado vs realizado",
+                    "layers",
+                    S.COPPER,
+                    rx.cond(
+                        GlobalState.dash_disciplinas_chart,
+                        rx.recharts.bar_chart(
+                            rx.recharts.bar(
+                                data_key="previsto_pct", fill=S.TEXT_MUTED, fill_opacity=0.3,
+                                radius=2, name="Planejado",
+                            ),
+                            rx.recharts.bar(
+                                data_key="realizado_pct", fill=S.PATINA, fill_opacity=0.85,
+                                radius=2, name="Realizado",
+                            ),
+                            rx.recharts.x_axis(
+                                data_key="label",
+                                tick={**_TICK_STYLE, "fontSize": 8},
+                                angle=-30, text_anchor="end", height=50,
+                            ),
+                            rx.recharts.y_axis(unit="%", tick=_TICK_STYLE, width=32),
+                            rx.recharts.cartesian_grid(stroke_dasharray="3 3", stroke="rgba(255,255,255,0.04)"),
+                            chart_tooltip_pct({"previsto_pct": "Planejado", "realizado_pct": "Realizado"}),
+                            data=GlobalState.dash_disciplinas_chart,
+                            height=200, width="100%", bar_size=12,
+                        ),
+                        _dash_empty("layers", "Sem dados de disciplinas"),
+                    ),
+                ),
+                grid_column=rx.breakpoints(initial="span 3", md="span 1"),
+            ),
+            columns="3",
+            gap="20px",
+            width="100%",
+        ),
+
+        # ── Row 3: Orçamento (full width half) + KPI cards ────────────────────
+        rx.grid(
+            # Orçamento planejado vs realizado
+            rx.box(
+                _dashboard_chart_card(
+                    "Orçamento Executado",
+                    "Planejado vs realizado em R$",
+                    "dollar-sign",
                     S.COPPER,
                     rx.cond(
                         GlobalState.obra_budget_chart,
                         rx.recharts.bar_chart(
                             rx.recharts.bar(
-                                data_key="planejado",
-                                fill=S.TEXT_MUTED,
-                                fill_opacity=0.4,
-                                radius=2,
-                                name="Planejado",
+                                data_key="valor", fill=S.COPPER, fill_opacity=0.75,
+                                radius=4, name="Valor",
+                                label={"position": "top", "fontSize": 10, "fill": S.TEXT_MUTED},
                             ),
-                            rx.recharts.bar(
-                                data_key="realizado",
-                                fill=S.COPPER,
-                                fill_opacity=0.85,
-                                radius=2,
-                                name="Realizado",
-                            ),
-                            rx.recharts.x_axis(
-                                data_key="label",
-                                tick={"fontSize": 9, "fill": S.TEXT_MUTED, "fontFamily": "JetBrains Mono"},
-                            ),
-                            rx.recharts.y_axis(
-                                tick={"fontSize": 9, "fill": S.TEXT_MUTED, "fontFamily": "JetBrains Mono"},
-                                width=32,
-                            ),
-                            rx.recharts.cartesian_grid(
-                                stroke_dasharray="3 3",
-                                stroke="rgba(255,255,255,0.04)",
-                            ),
-                            rx.recharts.graphing_tooltip(
-                                content_style={
-                                    "background": "rgba(8,18,16,0.96)",
-                                    "border": f"1px solid {S.BORDER_ACCENT}",
-                                    "borderRadius": "6px",
-                                    "fontSize": "11px",
-                                },
-                            ),
+                            rx.recharts.x_axis(data_key="categoria", tick=_TICK_STYLE),
+                            rx.recharts.y_axis(tick=_TICK_STYLE, width=52),
+                            rx.recharts.cartesian_grid(stroke_dasharray="3 3", stroke="rgba(255,255,255,0.04)"),
+                            chart_tooltip_money(),
                             data=GlobalState.obra_budget_chart,
-                            height=180,
-                            width="100%",
-                            bar_size=28,
+                            height=200, width="100%", bar_size=40,
                         ),
-                        rx.center(
-                            rx.vstack(
-                                rx.icon(tag="pie-chart", size=32, color=S.BORDER_SUBTLE),
-                                rx.text("Sem dados financeiros", font_size="12px", color=S.TEXT_MUTED),
-                                spacing="2",
-                                align="center",
-                            ),
-                            height="180px",
-                        ),
+                        _dash_empty("dollar-sign", "Orçamento não configurado"),
                     ),
                 ),
-                grid_column=rx.breakpoints(initial="span 2", lg="span 1"),
+                grid_column=rx.breakpoints(initial="span 2", md="span 1"),
             ),
-            # 3 — Alocação de Equipe
+            # KPI summary box
             rx.box(
-                _dashboard_chart_card(
-                    "Alocação de Equipe",
-                    "Efetivo presente vs planejado",
-                    "users",
-                    "#E89845",
-                    rx.center(
-                        rx.vstack(
-                            rx.recharts.radial_bar_chart(
-                                rx.recharts.radial_bar(
-                                    data_key="value",
-                                    fill=S.PATINA,
-                                    background={"fill": "rgba(255,255,255,0.03)"},
-                                    corner_radius=4,
-                                    label=False,
-                                ),
-                                data=[
-                                    {"name": "Equipe", "value": 78, "fill": S.PATINA},
-                                    {"name": "Meta", "value": 100, "fill": S.BORDER_SUBTLE},
-                                ],
-                                inner_radius="40%",
-                                outer_radius="90%",
-                                height=180,
-                                width=220,
-                            ),
-                            rx.text(
-                                "78% efetivo em campo",
-                                font_size="11px",
-                                color=S.TEXT_MUTED,
-                                font_family=S.FONT_MONO,
-                            ),
-                            spacing="1",
-                            align="center",
-                        ),
-                        height="180px",
-                    ),
+                rx.vstack(
+                    rx.text("KPIs DO PROJETO", font_family=S.FONT_TECH, font_size="0.85rem", font_weight="700",
+                            text_transform="uppercase", letter_spacing="0.06em", color=S.COPPER),
+                    rx.divider(border_color=S.BORDER_SUBTLE, margin_y="10px"),
+                    *[
+                        rx.hstack(
+                            rx.text(label, font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO, flex="1"),
+                            rx.text(val, font_size="13px", font_weight="700", color=color, font_family=S.FONT_TECH),
+                            width="100%", justify="between",
+                            padding_y="6px",
+                            border_bottom=f"1px solid {S.BORDER_SUBTLE}",
+                        )
+                        for label, val, color in [
+                            ("Progresso Físico",   GlobalState.obra_kpi_fmt.get("avanco_fmt", "—"),               S.PATINA),
+                            ("Orçamento Exec.",     GlobalState.obra_kpi_fmt.get("budget_exec_rate_fmt", "—"),     rx.cond(GlobalState.obra_kpi_fmt.get("budget_over", False), S.DANGER, S.PATINA)),
+                            ("Equipe/Planejado",    GlobalState.obra_kpi_fmt.get("equipe_val", "—"),               "#E89845"),
+                            ("Nota de Risco",       GlobalState.risk_score_data.get("nota", "—"),                  GlobalState.risk_score_data.get("color", S.COPPER)),
+                            ("Alertas Ativos",      GlobalState.ia_alertas_list.length().to_string(),              rx.cond(GlobalState.ia_alertas_list.length() > 2, S.DANGER, rx.cond(GlobalState.ia_alertas_list.length() > 0, "#F59E0B", S.PATINA))),
+                        ]
+                    ],
+                    spacing="0", width="100%",
                 ),
-                grid_column=rx.breakpoints(initial="span 2", lg="span 1"),
+                **_GLASS_PANEL,
+                height="100%",
+                grid_column=rx.breakpoints(initial="span 2", md="span 1"),
             ),
-            # 4 — Cronograma vs Realizado
-            rx.box(
-                _dashboard_chart_card(
-                    "Cronograma vs Realizado",
-                    "Desvio de prazo por disciplina",
-                    "calendar-clock",
-                    "#3B82F6",
-                    rx.cond(
-                        GlobalState.disciplina_progress_chart,
-                        rx.recharts.bar_chart(
-                            rx.recharts.bar(
-                                data_key="planejado_pct",
-                                fill=S.TEXT_MUTED,
-                                fill_opacity=0.35,
-                                name="Planejado",
-                                radius=2,
-                            ),
-                            rx.recharts.bar(
-                                data_key="realizado_pct",
-                                fill=S.PATINA,
-                                fill_opacity=0.8,
-                                name="Realizado",
-                                radius=2,
-                            ),
-                            rx.recharts.x_axis(
-                                data_key="categoria",
-                                tick={"fontSize": 8, "fill": S.TEXT_MUTED, "fontFamily": "JetBrains Mono"},
-                                angle=-30,
-                                text_anchor="end",
-                                height=48,
-                            ),
-                            rx.recharts.y_axis(
-                                unit="%",
-                                tick={"fontSize": 9, "fill": S.TEXT_MUTED, "fontFamily": "JetBrains Mono"},
-                                width=32,
-                            ),
-                            rx.recharts.cartesian_grid(
-                                stroke_dasharray="3 3",
-                                stroke="rgba(255,255,255,0.04)",
-                            ),
-                            rx.recharts.graphing_tooltip(
-                                content_style={
-                                    "background": "rgba(8,18,16,0.96)",
-                                    "border": f"1px solid {S.BORDER_ACCENT}",
-                                    "borderRadius": "6px",
-                                    "fontSize": "11px",
-                                },
-                            ),
-                            data=GlobalState.disciplina_progress_chart,
-                            height=180,
-                            width="100%",
-                            bar_size=16,
-                        ),
-                        rx.center(
-                            rx.vstack(
-                                rx.icon(tag="calendar-clock", size=32, color=S.BORDER_SUBTLE),
-                                rx.text("Sem dados de disciplinas", font_size="12px", color=S.TEXT_MUTED),
-                                spacing="2",
-                                align="center",
-                            ),
-                            height="180px",
-                        ),
-                    ),
-                ),
-                grid_column=rx.breakpoints(initial="span 2", lg="span 1"),
-            ),
-            columns=rx.breakpoints(initial="2", lg="4"),
+            columns="2",
             gap="20px",
             width="100%",
-            class_name="animate-fade-in",
         ),
+
         width="100%",
         spacing="6",
+        class_name="animate-fade-in",
     )
 
 
@@ -2523,10 +3034,26 @@ def _cron_import_dialog() -> rx.Component:
                         color="red", variant="soft",
                     ),
                 ),
-                # Info
-                rx.text(
-                    "Revise as atividades propostas pela IA. Selecione quais deseja importar e clique em Confirmar.",
-                    font_size="12px", color=S.TEXT_MUTED,
+                # Info + confidence badge
+                rx.hstack(
+                    rx.text(
+                        "Revise as atividades propostas pela IA. Selecione quais deseja importar e clique em Confirmar.",
+                        font_size="12px", color=S.TEXT_MUTED,
+                    ),
+                    rx.spacer(),
+                    rx.cond(
+                        HubState.cron_import_confidence_label != "",
+                        rx.badge(
+                            rx.hstack(rx.icon(tag="shield-check", size=10), rx.text("Confiança: " + HubState.cron_import_confidence_label, font_size="10px"), spacing="1", align="center"),
+                            color_scheme=rx.cond(
+                                HubState.cron_import_confidence_label.contains("Alta"),
+                                "green",
+                                rx.cond(HubState.cron_import_confidence_label.contains("Média"), "amber", "red"),
+                            ),
+                            variant="soft",
+                        ),
+                    ),
+                    align="center", width="100%",
                 ),
                 # Select all / deselect all
                 rx.hstack(
@@ -3333,20 +3860,40 @@ def _tab_cronograma() -> rx.Component:
         rx.cond(
             HubState.cron_loading,
             rx.center(rx.vstack(rx.spinner(size="3"), rx.text("Carregando atividades...", font_size="12px", color=S.TEXT_MUTED), spacing="2", align="center"), padding="40px"),
-            rx.cond(
+                rx.cond(
                 HubState.cron_display_rows.length() == 0,
-                rx.center(
+                rx.box(
                     rx.vstack(
-                        rx.icon(tag="calendar-off", size=32, color=S.BORDER_SUBTLE),
-                        rx.text("Nenhuma atividade encontrada", font_size="13px", color=S.TEXT_MUTED),
-                        rx.text("Clique em 'Nova Atividade' para começar", font_size="11px", color=S.TEXT_MUTED, opacity="0.7"),
-                        rx.button(
-                            rx.hstack(rx.icon(tag="plus", size=13), rx.text("Criar Primeira Atividade"), spacing="1"),
-                            on_click=HubState.open_cron_new_root, size="2", variant="soft",
-                            style={"cursor": "pointer", "marginTop": "8px"},
+                        rx.icon(tag="calendar-off", size=48, color=S.BORDER_SUBTLE),
+                        rx.text("Nenhuma atividade encontrada", font_size="15px", font_weight="600", color=S.TEXT_MUTED),
+                        rx.text("Importe via IA ou crie manualmente para comecar", font_size="12px", color=S.TEXT_MUTED, opacity="0.7", text_align="center"),
+                        rx.hstack(
+                            rx.upload(
+                                rx.button(
+                                    rx.hstack(rx.icon(tag="sparkles", size=13), rx.text("Importar via IA"), spacing="1"),
+                                    size="2",
+                                    style={"cursor": "pointer", "background": "rgba(168,85,247,0.12)", "color": "#a855f7", "border": "1px solid rgba(168,85,247,0.3)"},
+                                ),
+                                id="cron_import_upload_empty",
+                                accept={".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".xls": "application/vnd.ms-excel", ".csv": "text/csv", ".pdf": "application/pdf"},
+                                max_files=1,
+                                on_drop=HubState.import_cronograma_ia(rx.upload_files(upload_id="cron_import_upload_empty")),
+                                border="0", padding="0",
+                            ),
+                            rx.button(
+                                rx.hstack(rx.icon(tag="plus", size=13), rx.text("Nova Atividade"), spacing="1"),
+                                on_click=HubState.open_cron_new_root, size="2", variant="soft",
+                                style={"cursor": "pointer"},
+                            ),
+                            spacing="3",
                         ),
-                        spacing="2", align="center",
-                    ), padding="40px",
+                        spacing="4", align="center",
+                    ),
+                    display="flex",
+                    align_items="center",
+                    justify_content="center",
+                    width="100%",
+                    min_height="400px",
                 ),
                 rx.vstack(
                     rx.foreach(HubState.cron_display_rows, _cron_display_row),
@@ -4359,10 +4906,7 @@ def _fin_scurve_chart() -> rx.Component:
                     axisLine=False, tickLine=False,
                     width=65,
                 ),
-                rx.recharts.tooltip(
-                    content_style={"background": "#142420", "border": "1px solid rgba(255,255,255,0.08)", "borderRadius": "4px", "color": "white", "fontFamily": "'JetBrains Mono', monospace", "fontSize": "12px"},
-                    label_style={"color": "#C98B2A"},
-                ),
+                chart_tooltip_money(),
                 rx.recharts.legend(
                     wrapper_style={"fontSize": "11px", "fontFamily": "'JetBrains Mono', monospace", "color": "#889999"},
                 ),
@@ -4408,9 +4952,7 @@ def _fin_by_cat_chart() -> rx.Component:
                     axisLine=False, tickLine=False,
                     width=65,
                 ),
-                rx.recharts.tooltip(
-                    content_style={"background": "#142420", "border": "1px solid rgba(255,255,255,0.08)", "borderRadius": "4px", "color": "white", "fontFamily": "'JetBrains Mono', monospace", "fontSize": "12px"},
-                ),
+                chart_tooltip_money(),
                 rx.recharts.legend(
                     wrapper_style={"fontSize": "11px", "fontFamily": "'JetBrains Mono', monospace", "color": "#889999"},
                 ),

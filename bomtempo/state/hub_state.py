@@ -199,21 +199,25 @@ def _log_schedule_diff_async(
             if not diffs:
                 return
 
-            # Insert one log row per changed field
-            for field, old_v, new_v in diffs:
-                try:
-                    sb_insert("hub_cronograma_log", {
-                        "contrato":       contrato,
-                        "atividade_id":   atividade_id or None,
-                        "atividade_nome": atividade_nome[:120],
-                        "campo":          field,
-                        "valor_anterior": _fmt(field, old_v)[:500],
-                        "valor_novo":     _fmt(field, new_v)[:500],
-                        "autor":          autor or "sistema",
-                        "client_id":      client_id or None,
-                    })
-                except Exception:
-                    pass
+            # Bulk insert all diff rows in one HTTP request
+            log_rows = [
+                {
+                    "contrato":       contrato,
+                    "atividade_id":   atividade_id or None,
+                    "atividade_nome": atividade_nome[:120],
+                    "campo":          field,
+                    "valor_anterior": _fmt(field, old_v)[:500],
+                    "valor_novo":     _fmt(field, new_v)[:500],
+                    "autor":          autor or "sistema",
+                    "client_id":      client_id or None,
+                }
+                for field, old_v, new_v in diffs
+            ]
+            try:
+                from bomtempo.core.supabase_client import sb_bulk_upsert as _sb_bulk
+                _sb_bulk("hub_cronograma_log", log_rows, on_conflict="id")
+            except Exception:
+                pass
 
             # Human-readable summary for timeline
             date_fields = {"inicio_previsto", "termino_previsto"}
@@ -385,6 +389,7 @@ class HubState(rx.State):
     cron_import_preview: List[Dict[str, str]] = []  # proposed activities to review
     cron_import_show: bool = False
     cron_import_selected: List[str] = []  # ids of proposals to confirm
+    cron_import_confidence_label: str = ""  # e.g. "Alta (92%)"
 
     # ══════════════════════════════════════════════════════════════════════════
     # AUDITORIA (photo gallery bolsões)
@@ -468,6 +473,18 @@ class HubState(rx.State):
     # IA climate analysis result
     cron_climate_analysis: str = ""
     cron_climate_loading: bool = False
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # AGENTE DE ATIVIDADES
+    # ══════════════════════════════════════════════════════════════════════════
+
+    # List of insight cards: [{type, title, body, icon, priority, atividade}]
+    agente_insights: List[Dict[str, str]] = []
+    agente_loading: bool = False
+    agente_last_updated: str = ""  # BRT timestamp
+    agente_contrato: str = ""      # contract the insights are for
+    agente_error: str = ""
+    agente_last_rdo_id: str = ""   # ID do último RDO que gerou os insights (cache key)
 
     # ──────────────────────────────────────────────────────────────────────────
     # Internal helpers
@@ -1483,12 +1500,35 @@ class HubState(rx.State):
         delete_ok = False
         try:
             logger.info(f"confirm_cron_delete: deleting id={row_id!r} name={name!r}")
-            # Retry once on transient failure
+            # 1. Cascade child micros (parent_id FK) — delete their deps first, then the micros
+            try:
+                children = sb_select("hub_atividades", filters={"parent_id": row_id}, limit=200) or []
+                for child in children:
+                    child_id = str(child.get("id", ""))
+                    if not child_id:
+                        continue
+                    try:
+                        sb_delete("hub_atividade_historico", filters={"atividade_id": child_id})
+                    except Exception:
+                        pass
+                    try:
+                        sb_delete("hub_cronograma_log", filters={"atividade_id": child_id})
+                    except Exception:
+                        pass
+                    sb_delete("hub_atividades", filters={"id": child_id})
+            except Exception as child_ex:
+                logger.warning(f"confirm_cron_delete: erro ao deletar filhos de {row_id}: {child_ex}")
+            # 2. Delete deps of the target row itself
+            try:
+                sb_delete("hub_atividade_historico", filters={"atividade_id": row_id})
+            except Exception:
+                pass
+            try:
+                sb_delete("hub_cronograma_log", filters={"atividade_id": row_id})
+            except Exception:
+                pass
+            # 3. Delete the row
             delete_ok = sb_delete("hub_atividades", filters={"id": row_id})
-            if not delete_ok:
-                import time as _time
-                _time.sleep(0.5)
-                delete_ok = sb_delete("hub_atividades", filters={"id": row_id})
             if delete_ok:
                 audit_log(
                     category=AuditCategory.DATA_DELETE,
@@ -1692,39 +1732,86 @@ class HubState(rx.State):
             self.cron_import_loading = False
             return
 
-        prompt = f"""Você é um assistente especialista em gestão de obras e cronogramas. Analise o arquivo abaixo e extraia EXATAMENTE as atividades que estão explicitamente listadas. NÃO invente, NÃO duplique, NÃO crie atividades que não estejam no documento.
+        prompt = f"""Você é um assistente especialista em gestão de obras e cronogramas (engenharia civil, elétrica, solar, instalações). Analise o arquivo abaixo e extraia EXATAMENTE as atividades explicitamente listadas.
 
-REGRAS ESTRITAS:
-1. Extraia APENAS atividades que estão EXPLICITAMENTE no arquivo. Se não encontrar, retorne lista vazia.
-2. NÃO crie atividades derivadas ou inferidas. Se uma linha descreve quantidades de uma atividade já listada, use esses dados para preencher total_qty/unidade da atividade existente — NÃO crie outra atividade.
-3. NÃO duplique atividades: se a mesma atividade aparece em abas diferentes (ex: aba "Cronograma" e aba "Atividades"), use a ocorrência que contiver mais informações (datas, quantidades), ignorando as demais.
-4. Para hierarquia: linhas de fase/disciplina principal → nivel="macro"; sub-atividades → nivel="micro".
-5. Datas: se o arquivo tiver colunas de datas, extraia-as. Se for um Gantt (barras em colunas de datas), leia o cabeçalho para determinar inicio_previsto e termino_previsto. Datas em DD/MM/AAAA, DD/MM/AA → converta para YYYY-MM-DD. Se não houver data, deixe vazio — NÃO invente datas.
-6. dias_planejados: calcule como dias úteis entre inicio e termino SE ambas as datas existirem. Se houver coluna de duração explícita, use-a. Se não houver nenhuma informação, deixe 0.
-7. total_qty e unidade: extraia apenas se houver coluna explícita com quantidade (ex: "500 m²", "120 kg"). Se não houver, deixe 0 e vazio.
-8. Atividades marcadas como críticas, em vermelho ou com asterisco → critico=true.
-9. Se houver coluna de responsável/equipe, extraia em "responsavel".
-10. Ao final, adicione um campo "_confidence" (0.0 a 1.0) indicando sua confiança na extração:
-    - 1.0: arquivo estruturado com datas e atividades claras
-    - 0.7-0.9: bom estrutura mas algumas ambiguidades
-    - 0.4-0.6: pouca estrutura, muita inferência necessária
-    - <0.4: arquivo difícil de interpretar, resultados incertos
+═══════════════════════════════════════════════════
+ESTRUTURA DE HIERARQUIA (CRÍTICO — leia com atenção)
+═══════════════════════════════════════════════════
+O sistema organiza atividades em dois níveis:
+  • nivel="macro" → disciplina/fase principal (ex: "1. Fundações", "2. Estrutura", "Elétrica CA")
+  • nivel="micro" → sub-atividade dentro de uma macro (ex: "1.1 Escavação", "1.2 Armação")
+
+REGRA OBRIGATÓRIA: cada atividade micro DEVE ter o mesmo "fase_macro" que sua macro pai.
+  Exemplo correto:
+    {{ "atividade": "Elétrica CA", "nivel": "macro", "fase_macro": "Elétrica CA", "fase": "2" }}
+    {{ "atividade": "Do QGCA para o QGBT", "nivel": "micro", "fase_macro": "Elétrica CA", "fase": "2.1" }}
+    {{ "atividade": "Cabeamento", "nivel": "micro", "fase_macro": "Elétrica CA", "fase": "2.2" }}
+  Exemplo ERRADO (não faça):
+    {{ "atividade": "Do QGCA para o QGBT", "nivel": "micro", "fase_macro": "Fundações" }}  ← fase_macro errada!
+
+CAMPO "fase" = índice/número hierárquico da atividade no cronograma:
+  - Macros: "1", "2", "3"... ou o nome da seção se não houver número
+  - Micros: "1.1", "1.2", "2.3"... Se o arquivo não tiver numeração, infira pela posição
+  - Nunca deixe "fase" vazio — use pelo menos "1" para a primeira macro, "1.1" para a primeira micro dela
+
+═══════════════════════════════════════════════════
+REGRAS GERAIS
+═══════════════════════════════════════════════════
+1. Extraia APENAS atividades EXPLICITAMENTE no arquivo. Se não encontrar, retorne lista vazia.
+2. NÃO invente, NÃO duplique, NÃO crie atividades inferidas.
+3. NÃO duplique: se a mesma atividade aparece em abas diferentes, use a com mais informações.
+
+═══════════════════════════════════════════════════
+DATAS E DURAÇÃO
+═══════════════════════════════════════════════════
+4. DATAS — extraia com atenção:
+   a. Colunas "início", "start", "data início" → inicio_previsto
+   b. Colunas "término", "fim", "end", "conclusão" → termino_previsto
+   c. DD/MM/AAAA ou DD/MM/AA → YYYY-MM-DD (ex: 15/03/2025 → 2025-03-15)
+   d. MM/DD/YYYY → YYYY-MM-DD
+   e. "março 2025", "mar/25" → primeiro dia do mês (2025-03-01)
+   f. GANTT visual (barras em colunas): leia os cabeçalhos das colunas onde a barra começa e termina
+      - Seja assertivo: se o cabeçalho da primeira coluna com barra é "JAN/25" e última é "MAR/25",
+        extraia inicio_previsto="2025-01-01" e termino_previsto="2025-03-31"
+      - SOMENTE omita a data se não conseguir determinar a coluna com confiança
+   g. Sem info de data → deixe vazio
+
+5. dias_planejados:
+   a. USE coluna explícita de duração ("dias", "duration", "prazo", "Dur.") se existir
+   b. SE há inicio_previsto E termino_previsto → calcule como dias corridos (termino - inicio)
+   c. SE Gantt: conte as colunas ocupadas pela barra × período da coluna (ex: 3 colunas mensais = 90 dias)
+   d. Se não houver NENHUMA informação confiável → deixe 0
+
+6. total_qty e unidade: extraia APENAS se houver coluna explícita ("qtd", "quantidade", "m²", etc.). Senão 0 e vazio.
+
+═══════════════════════════════════════════════════
+OUTROS CAMPOS
+═══════════════════════════════════════════════════
+7. Crítico: atividades marcadas em vermelho, negrito, asterisco ou flag → critico=true
+8. responsavel: coluna de responsável/equipe/sub-empreiteiro, se existir
+9. observacoes: qualquer nota relevante que não caiba nos outros campos
+
+10. Confidence (0.0 a 1.0):
+    - 1.0: arquivo estruturado, hierarquia clara, datas explícitas
+    - 0.75-0.95: boa estrutura, pequenas ambiguidades
+    - 0.5-0.74: hierarquia parcialmente clara, datas ausentes em muitos itens
+    - <0.5: texto livre, Gantt difícil, estrutura muito ambígua
 
 ARQUIVO:
 {file_text[:7000]}
 
-Retorne SOMENTE um JSON válido com dois campos: "activities" (array) e "confidence" (número 0.0-1.0), sem texto antes ou depois, sem markdown:
+Retorne SOMENTE JSON válido, sem texto antes/depois, sem markdown:
 {{
   "confidence": 0.9,
   "activities": [
     {{
       "atividade": "Nome exato da atividade conforme o arquivo",
-      "fase_macro": "Fase/disciplina principal",
-      "fase": "Sub-fase se houver, senão vazio",
+      "fase_macro": "Nome da disciplina/fase principal — DEVE ser idêntico entre macro e suas micros",
+      "fase": "Índice numérico ex: '1', '1.1', '2.3' — nunca vazio",
       "responsavel": "Responsável/equipe se disponível, senão vazio",
       "inicio_previsto": "YYYY-MM-DD ou vazio",
       "termino_previsto": "YYYY-MM-DD ou vazio",
-      "dias_planejados": número inteiro de dias úteis ou 0,
+      "dias_planejados": número inteiro ou 0,
       "total_qty": número ou 0,
       "unidade": "m, m², m³, kg, und, kWh, kW, kWp ou vazio",
       "critico": true ou false,
@@ -1745,7 +1832,7 @@ Retorne SOMENTE um JSON válido com dois campos: "activities" (array) e "confide
             except Exception as ex:
                 result_q.put(("err", str(ex)))
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, _call_ai)
 
         if result_q.empty():
@@ -1843,6 +1930,7 @@ Retorne SOMENTE um JSON válido com dois campos: "activities" (array) e "confide
 
         self.cron_import_preview = preview
         self.cron_import_selected = [r["_tmp_id"] for r in preview]
+        self.cron_import_confidence_label = conf_label
         self.cron_import_show = True
         self.cron_import_loading = False
         yield rx.toast.success(msg, duration=8000)
@@ -1865,6 +1953,7 @@ Retorne SOMENTE um JSON válido com dois campos: "activities" (array) e "confide
         self.cron_import_show = False
         self.cron_import_preview = []
         self.cron_import_selected = []
+        self.cron_import_confidence_label = ""
 
     @rx.event(background=True)
     async def confirm_import_cronograma(self):
@@ -1881,7 +1970,12 @@ Retorne SOMENTE um JSON válido com dois campos: "activities" (array) e "confide
             gs = await self.get_state(GlobalState)
             client_id = str(gs.current_client_id or "")
             selected_ids = set(self.cron_import_selected)
-            to_insert = [r for r in self.cron_import_preview if r["_tmp_id"] in selected_ids]
+            all_preview = list(self.cron_import_preview)
+            # Fallback: se selected_ids estiver vazio mas há preview, assume todas selecionadas
+            # (pode acontecer quando o botão "Selecionar todas" é clicado logo antes de confirmar)
+            if not selected_ids and all_preview:
+                selected_ids = {r["_tmp_id"] for r in all_preview}
+            to_insert = [r for r in all_preview if r["_tmp_id"] in selected_ids]
             contrato = to_insert[0]["contrato"] if to_insert else ""
             working_days_str = self.cron_working_days_str
             self.cron_import_loading = True
@@ -1896,46 +1990,89 @@ Retorne SOMENTE um JSON válido com dois campos: "activities" (array) e "confide
 
         errors = 0
         inserted = 0
-        for p in to_insert:
+
+        def _build_row(p: dict, parent_id: str = "") -> dict:
+            dias = int(p.get("dias_planejados", 0) or 0)
+            inicio = p.get("inicio_previsto", "") or None
+            termino = p.get("termino_previsto", "") or None
+            if inicio and dias and not termino:
+                wd = _parse_dias_uteis(working_days_str)
+                termino = _add_working_days(inicio, dias, wd)
+            total_qty = 0.0
             try:
-                dias = int(p.get("dias_planejados", 0) or 0)
-                inicio = p.get("inicio_previsto", "") or None
-                termino = p.get("termino_previsto", "") or None
-                # Auto-calc termino from dias if termino missing but inicio+dias set
-                if inicio and dias and not termino:
-                    wd = _parse_dias_uteis(working_days_str)
-                    termino = _add_working_days(inicio, dias, wd)
-                total_qty = p.get("total_qty", 0) or 0
+                total_qty = float(p.get("total_qty", 0) or 0)
+            except Exception:
+                pass
+            unidade = p.get("unidade", "") or ""
+            tipo_medicao = "quantidade" if total_qty > 0 else "percentual"
+            row = {
+                "contrato":          contrato,
+                "fase_macro":        p.get("fase_macro", ""),
+                "fase":              p.get("fase", ""),
+                "atividade":         p.get("atividade", ""),
+                "responsavel":       p.get("responsavel", "") or None,
+                "inicio_previsto":   inicio,
+                "termino_previsto":  termino,
+                "conclusao_pct":     0,
+                "critico":           p.get("critico", "0") == "1",
+                "nivel":             p.get("nivel", "macro"),
+                "peso_pct":          100,
+                "dias_planejados":   dias,
+                "total_qty":         total_qty,
+                "unidade":           unidade,
+                "observacoes":       p.get("observacoes", ""),
+                "status_atividade":  "nao_iniciada",
+                "tipo_medicao":      tipo_medicao,
+                "client_id":         client_id or None,
+            }
+            if parent_id:
+                row["parent_id"] = parent_id
+            return row
+
+        # Separate macros from micros; sort each group by "fase" index numerically
+        def _fase_sort_key(p: dict) -> tuple:
+            """Sort by hierarchical index: '1' < '1.1' < '1.2' < '2' < '2.1'"""
+            fase = str(p.get("fase", "") or "")
+            parts = []
+            for seg in fase.split("."):
                 try:
-                    total_qty = float(total_qty) if total_qty else 0
-                except Exception:
-                    total_qty = 0
-                unidade = p.get("unidade", "") or ""
-                # Determina tipo_medicao com base na unidade/qty
-                tipo_medicao = "quantidade" if total_qty > 0 else "percentual"
-                sb_insert("hub_atividades", {
-                    "contrato":          contrato,
-                    "fase_macro":        p.get("fase_macro", ""),
-                    "fase":              p.get("fase", ""),
-                    "atividade":         p.get("atividade", ""),
-                    "responsavel":       p.get("responsavel", "") or None,
-                    "inicio_previsto":   inicio,
-                    "termino_previsto":  termino,
-                    "conclusao_pct":     0,
-                    "critico":           p.get("critico", "0") == "1",
-                    "nivel":             p.get("nivel", "macro"),
-                    "peso_pct":          100,
-                    "dias_planejados":   dias,
-                    "total_qty":         total_qty,
-                    "unidade":           unidade,
-                    "observacoes":       p.get("observacoes", ""),
-                    "status_atividade":  "nao_iniciada",
-                    "tipo_medicao":      tipo_medicao,
-                    "client_id":         client_id or None,
-                })
+                    parts.append(int(seg))
+                except ValueError:
+                    parts.append(0)
+            return tuple(parts) if parts else (9999,)
+
+        macros = sorted(
+            [p for p in to_insert if p.get("nivel", "macro") != "micro"],
+            key=_fase_sort_key,
+        )
+        micros = sorted(
+            [p for p in to_insert if p.get("nivel", "macro") == "micro"],
+            key=_fase_sort_key,
+        )
+
+        # Insert macros first, build fase_macro → db_id map for parent linking
+        fase_macro_to_id: dict = {}
+        for p in macros:
+            try:
+                result = sb_insert("hub_atividades", _build_row(p))
+                if result:
+                    db_id = str(result.get("id", ""))
+                    fm = p.get("fase_macro", "")
+                    if db_id and fm and fm not in fase_macro_to_id:
+                        fase_macro_to_id[fm] = db_id
                 inserted += 1
             except Exception as ex:
-                logger.warning(f"confirm_import error on row '{p.get('atividade','?')}': {ex}")
+                logger.warning(f"confirm_import macro error '{p.get('atividade','?')}': {ex}")
+                errors += 1
+
+        # Insert micros with parent_id resolved from fase_macro
+        for p in micros:
+            try:
+                parent_id = fase_macro_to_id.get(p.get("fase_macro", ""), "")
+                result = sb_insert("hub_atividades", _build_row(p, parent_id=parent_id))
+                inserted += 1
+            except Exception as ex:
+                logger.warning(f"confirm_import micro error '{p.get('atividade','?')}': {ex}")
                 errors += 1
 
         async with self:
@@ -2263,7 +2400,7 @@ Retorne SOMENTE um JSON válido com dois campos: "activities" (array) e "confide
             safe_name = _re.sub(r"[^\w\.\-]", "_", nome)
             path = f"{_dt.now().strftime('%Y%m%d_%H%M%S')}_{safe_name}"
 
-            loop = _asyncio.get_event_loop()
+            loop = _asyncio.get_running_loop()
             await loop.run_in_executor(None, lambda: sb_storage_ensure_bucket("timeline-anexos", public=True))
             url = await loop.run_in_executor(None, lambda: sb_storage_upload("timeline-anexos", path, data, "application/octet-stream"))
 
@@ -2388,3 +2525,239 @@ Retorne SOMENTE um JSON válido com dois campos: "activities" (array) e "confide
             logger.error(f"delete_timeline_entry error: {e}")
         if contrato:
             yield HubState.load_timeline(contrato)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # AGENTE DE ATIVIDADES — Insights pós-RDO
+    # ══════════════════════════════════════════════════════════════════════════
+
+    @rx.event(background=True)
+    async def run_agente_atividades(self, contrato: str = "", rdo_id: str = "", force: bool = False):
+        """
+        Generates AI-powered activity insights based on schedule data + last RDO.
+        Trigger: RDO submission (rdo_id muda) ou force=True (botão manual).
+        Cache: não re-executa se insights existem para o mesmo contrato+rdo_id.
+        """
+        import json
+        import asyncio
+        from datetime import date, datetime
+        from bomtempo.core.ai_client import ai_client
+        from bomtempo.core.supabase_client import sb_select
+        from bomtempo.core.circuit_breaker import ia_breaker
+
+        # Guard: skip if already loading or cache hit (mesmo contrato + mesmo rdo_id)
+        async with self:
+            _already_loading = self.agente_loading
+            _existing_contrato = self.agente_contrato
+            _existing_rdo_id = self.agente_last_rdo_id
+            _has_insights = len(self.agente_insights) > 0
+            _target = contrato or self.agente_contrato or self.cron_contrato
+
+        if _already_loading:
+            return
+        # Cache hit: mesmo contrato, mesmo rdo_id, tem insights — não gastar token
+        if (not force and _has_insights and _target == _existing_contrato
+                and rdo_id and rdo_id == _existing_rdo_id):
+            return
+        # Sem rdo_id e sem force: cache por contrato (comportamento anterior)
+        if not force and not rdo_id and _has_insights and _target == _existing_contrato:
+            return
+
+        async with self:
+            self.agente_loading = True
+            self.agente_error = ""
+            if contrato:
+                self.agente_contrato = contrato
+            _contrato = self.agente_contrato or self.cron_contrato
+
+        if not _contrato:
+            async with self:
+                self.agente_loading = False
+                self.agente_error = "Contrato não identificado."
+            return
+
+        loop = asyncio.get_running_loop()
+
+        # Ensure cronograma is loaded for this contract
+        async with self:
+            _cron_rows = list(self.cron_rows)
+            _cron_contrato = self.cron_contrato
+
+        if not _cron_rows or _cron_contrato != _contrato:
+            yield HubState.load_cronograma(_contrato)
+            await asyncio.sleep(2.0)
+            async with self:
+                _cron_rows = list(self.cron_rows)
+
+        # Fetch last RDO for this contract
+        def _fetch_rdo():
+            try:
+                rows = sb_select(
+                    "rdo",
+                    filters={"contrato": _contrato},
+                    limit=1,
+                    order="created_at.desc",
+                ) or []
+                return rows[0] if rows else {}
+            except Exception:
+                return {}
+
+        last_rdo = await loop.run_in_executor(None, _fetch_rdo)
+
+        # Build context for AI
+        today = date.today().isoformat()
+
+        # Activity summary (top 20 most relevant rows)
+        micros = [r for r in _cron_rows if r.get("nivel", "") == "micro"]
+        if not micros:
+            micros = _cron_rows  # fallback: all rows
+
+        def _ativ_summary(rows):
+            lines = []
+            for r in rows[:25]:
+                pct = r.get("conclusao_pct", "0")
+                name = r.get("atividade", "")
+                termino = r.get("termino_previsto", "")
+                inicio = r.get("inicio_previsto", "")
+                critico = r.get("critico", "0")
+                total_qty = r.get("total_qty", "")
+                exec_qty = r.get("exec_qty", "")
+                unidade = r.get("unidade", "")
+                responsavel = r.get("responsavel", "")
+                status = r.get("status_atividade", "nao_iniciada")
+                peso = r.get("peso_pct", "")
+                prod_info = f", qty: {exec_qty}/{total_qty} {unidade}".strip() if total_qty else ""
+                line = (
+                    f"- [{r.get('fase','')}.{r.get('fase_macro','')}] {name}"
+                    f" | {pct}% | {inicio}→{termino}"
+                    f" | resp: {responsavel} | status: {status}"
+                    f" | critico: {critico} | peso: {peso}%{prod_info}"
+                )
+                lines.append(line)
+            return "\n".join(lines)
+
+        ativ_text = _ativ_summary(micros)
+
+        # Last RDO summary
+        rdo_text = ""
+        if last_rdo:
+            rdo_text = (
+                f"Data: {last_rdo.get('data','')}\n"
+                f"Equipe presente: {last_rdo.get('equipe_presente','')}\n"
+                f"Equipe planejada: {last_rdo.get('equipe_planejada','')}\n"
+                f"Atividades do dia: {last_rdo.get('atividades_realizadas','') or last_rdo.get('atividades','')}\n"
+                f"Observações: {last_rdo.get('observacoes','')}\n"
+                f"Condições climáticas: {last_rdo.get('condicoes_climaticas','')}\n"
+            )
+
+        prompt = f"""Você é o Agente de Atividades da plataforma Bomtempo, especialista em gestão de obras civis e industriais.
+
+Com base nos dados de cronograma e último RDO a seguir, gere exatamente entre 3 e 6 insights práticos e acionáveis sobre o projeto.
+
+CONTRATO: {_contrato}
+DATA DE HOJE: {today}
+
+=== ATIVIDADES DO CRONOGRAMA ===
+{ativ_text or "Nenhuma atividade cadastrada."}
+
+=== ÚLTIMO RDO REGISTRADO ===
+{rdo_text or "Nenhum RDO encontrado para este contrato."}
+
+Responda APENAS com um array JSON válido (sem markdown, sem explicações), com 3 a 6 objetos:
+[
+  {{
+    "type": "delay|ahead|crew|weather|optimize|alert",
+    "priority": "high|medium|low",
+    "icon": "nome-do-icone-lucide",
+    "title": "Título curto do insight (max 60 chars)",
+    "atividade": "nome da atividade relacionada ou '' se geral",
+    "body": "Análise detalhada e recomendação prática (2-3 frases)"
+  }},
+  ...
+]
+
+Tipos e quando usar:
+- delay: atividade atrasada ou em risco de atraso
+- ahead: atividade adiantada — pode realocar equipe
+- crew: recomendação de dimensionamento de equipe
+- weather: impacto climático ou alerta meteorológico
+- optimize: oportunidade de otimização de cronograma (atividades paralelas, sequenciamento)
+- alert: alerta crítico geral
+
+Ícones Lucide sugeridos: alert-triangle, trending-up, trending-down, users, cloud-rain, calendar-check, zap, clock, hard-hat, wrench, check-circle
+
+Seja direto, use números quando possível. Foque em insights com valor real para o engenheiro de campo."""
+
+        def _call_ai():
+            try:
+                return ai_client.query(
+                    [{"role": "user", "content": prompt}],
+                    model="gpt-4o",
+                    username="agente_atividades",
+                )
+            except Exception as e:
+                logger.error(f"Agente IA error: {e}")
+                return ""
+
+        raw = ""
+        if not ia_breaker.is_open():
+            try:
+                raw = await asyncio.wait_for(
+                    loop.run_in_executor(None, _call_ai),
+                    timeout=40.0,
+                )
+                ia_breaker.record_success()
+            except asyncio.TimeoutError:
+                ia_breaker.record_failure()
+                raw = ""
+            except Exception as e:
+                ia_breaker.record_failure(e)
+                raw = ""
+
+        # Parse JSON from response
+        insights: list = []
+        if raw:
+            try:
+                # Strip possible markdown fences
+                text = raw.strip()
+                if text.startswith("```"):
+                    text = text.split("```")[1]
+                    if text.startswith("json"):
+                        text = text[4:]
+                parsed = json.loads(text.strip())
+                if isinstance(parsed, list):
+                    insights = [
+                        {
+                            "type": str(item.get("type", "alert")),
+                            "priority": str(item.get("priority", "medium")),
+                            "icon": str(item.get("icon", "zap")),
+                            "title": str(item.get("title", ""))[:80],
+                            "atividade": str(item.get("atividade", "")),
+                            "body": str(item.get("body", "")),
+                        }
+                        for item in parsed
+                        if isinstance(item, dict)
+                    ]
+            except Exception as parse_err:
+                logger.error(f"Agente parse error: {parse_err}\nraw={raw[:200]}")
+
+        now_brt = datetime.now(_BRT).strftime("%d/%m/%Y %H:%M")
+
+        async with self:
+            self.agente_loading = False
+            self.agente_last_updated = now_brt
+            self.agente_contrato = _contrato
+            if rdo_id:
+                self.agente_last_rdo_id = rdo_id
+            if insights:
+                self.agente_insights = insights
+                self.agente_error = ""
+            else:
+                self.agente_error = "Não foi possível gerar insights no momento. Tente novamente."
+
+    def force_run_agente(self, contrato: str = ""):
+        """Clear existing insights and force a fresh Agente run (botão manual)."""
+        self.agente_insights = []
+        self.agente_error = ""
+        self.agente_last_rdo_id = ""  # invalida cache
+        _c = contrato or self.agente_contrato or self.cron_contrato
+        return HubState.run_agente_atividades(_c, force=True)

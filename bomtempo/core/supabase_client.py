@@ -54,7 +54,7 @@ def _get_client() -> httpx.Client:
         with _client_lock:
             if _http_client is None or _http_client.is_closed:
                 _http_client = httpx.Client(limits=_LIMITS, timeout=_TIMEOUT)
-                logger.info("🔌 HTTP connection pool criado (max_conn=30, keepalive=10)")
+                logger.info("🔌 HTTP connection pool criado (max_conn=100, keepalive=20s)")
     return _http_client
 
 
@@ -244,6 +244,48 @@ def sb_upsert(
     except Exception as e:
         logger.error(f"Supabase UPSERT {table} exception: {e}")
         raise e
+
+
+def sb_bulk_upsert(
+    table: str,
+    records: list,
+    on_conflict: str = "id",
+    chunk_size: int = 100,
+) -> Dict[str, Any]:
+    """Bulk upsert up to `chunk_size` records per HTTP request using PostgREST array body.
+
+    Dramatically faster than calling sb_upsert() in a loop:
+      - 200 rows × 1 call each ≈ 200 round-trips (~10s)
+      - 200 rows ÷ 100/chunk  =   2 round-trips (~100ms)
+
+    Returns {"upserted": n, "errors": [...]}.
+    """
+    if not records:
+        return {"upserted": 0, "errors": []}
+    h = _headers()
+    h["Prefer"] = "return=minimal,resolution=merge-duplicates"
+    total_upserted = 0
+    errors = []
+    for i in range(0, len(records), chunk_size):
+        chunk = records[i : i + chunk_size]
+        try:
+            resp = _request_with_retry(
+                "post",
+                f"{REST_BASE}/{table}",
+                headers=h,
+                params={"on_conflict": on_conflict},
+                json=chunk,
+                timeout=_WRITE_TIMEOUT,
+            )
+            if resp.status_code in (200, 201, 204):
+                total_upserted += len(chunk)
+            else:
+                errors.append(f"chunk {i//chunk_size}: HTTP {resp.status_code} — {resp.text[:200]}")
+                logger.error(f"sb_bulk_upsert {table} chunk {i//chunk_size} → {resp.status_code}: {resp.text[:300]}")
+        except Exception as ex:
+            errors.append(f"chunk {i//chunk_size}: {str(ex)[:120]}")
+            logger.error(f"sb_bulk_upsert {table} chunk {i//chunk_size} exception: {ex}")
+    return {"upserted": total_upserted, "errors": errors}
 
 
 def sb_update(

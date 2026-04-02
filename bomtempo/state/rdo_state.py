@@ -733,7 +733,7 @@ class RDOState(rx.State):
         legenda  = str(self.ev_legenda)
         id_rdo   = str(self.draft_id_rdo)
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         # Auto-save to get an id_rdo if form not yet persisted
         if not id_rdo and contrato.strip():
@@ -864,7 +864,7 @@ class RDOState(rx.State):
         data     = str(self.rdo_data)
         id_rdo   = str(self.draft_id_rdo)
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         if not id_rdo and contrato.strip():
             rdo_data = self._build_rdo_data()
@@ -934,7 +934,7 @@ class RDOState(rx.State):
         data     = str(self.rdo_data)
         id_rdo   = str(self.draft_id_rdo)
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         if not id_rdo and contrato.strip():
             rdo_data = self._build_rdo_data()
@@ -1624,6 +1624,13 @@ class RDOState(rx.State):
             try:
                 from bomtempo.core.data_loader import DataLoader as _DL
                 _DL.invalidate_cache()
+            except Exception:
+                pass
+
+            # Trigger Agente de Atividades com o novo RDO como chave de cache
+            try:
+                from bomtempo.state.hub_state import HubState as _HS
+                yield _HS.run_agente_atividades(contrato, rdo_id=str(id_rdo))
             except Exception:
                 pass
 

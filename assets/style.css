@@ -29,22 +29,24 @@
 }
 
 /* ── Light Mode Overrides ────────────────────────────────────── */
-/* Targets the Radix root div (class swapped dark→light via JS) and body.
-   Only app background + foreground text change; cards/sidebar/header unchanged. */
+/* Radix com appearance="inherit" coloca class="light" em [data-is-root-theme].
+   Também cobre body diretamente para sobrescrever o background do :root. */
 [data-is-root-theme].light,
-body[data-theme="light"] {
+[data-is-root-theme].light body,
+[data-is-root-theme].light #__next {
     background-color: #f0f2f0 !important;
     background-image: none !important;
     color: #0e1a17 !important;
     --color-background: #f0f2f0 !important;
-    --app-bg: #f0f2f0;
-    --app-text: #0e1a17;
-    --app-text-muted: #3a5048;
+    --bg-void: #f0f2f0 !important;
+    --bg-depth: #e4e7e4 !important;
+    --bg-surface: #d8dbd8 !important;
+    --text-main: #0e1a17 !important;
+    --text-muted: #3a5048 !important;
 }
 
-/* Page-level text that sits directly on the app background */
-[data-is-root-theme].light .page-bg-text,
-body[data-theme="light"] .page-bg-text {
+/* Page-level text */
+[data-is-root-theme].light .page-bg-text {
     color: #0e1a17 !important;
 }
 

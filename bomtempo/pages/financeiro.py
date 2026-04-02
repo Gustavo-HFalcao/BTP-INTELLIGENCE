@@ -2,6 +2,7 @@ import reflex as rx
 
 from bomtempo.components.charts import (
     chart_tooltip,
+    chart_tooltip_money,
     dark_cartesian_grid,
     kpi_card,
     money_formatter_js,
@@ -213,7 +214,7 @@ def finance_cost_chart() -> rx.Component:
                         font_size=11,
                         width=110,
                     ),
-                    chart_tooltip(formatter=money_formatter_js()),
+                    chart_tooltip_money(),
                     rx.recharts.legend(
                         wrapper_style={"fontSize": "11px", "fontFamily": "'JetBrains Mono', monospace", "color": "#889999"},
                     ),
@@ -266,7 +267,7 @@ def finance_scurve_chart() -> rx.Component:
                         font_size=11,
                         tick_formatter=money_formatter_js(),
                     ),
-                    chart_tooltip(formatter=money_formatter_js()),
+                    chart_tooltip_money(),
                     rx.recharts.legend(
                         wrapper_style={"fontSize": "11px", "fontFamily": "'JetBrains Mono', monospace", "color": "#889999"},
                     ),
