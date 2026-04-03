@@ -2,11 +2,20 @@
 PDF utilities — HTML-to-PDF via Playwright + Microsoft Edge.
 """
 
+import threading
 from pathlib import Path
 
 from bomtempo.core.logging_utils import get_logger
 
 logger = get_logger(__name__)
+
+# ── Concurrency guard ─────────────────────────────────────────────────────────
+# 1GB RAM server: cada Chromium consome ~400-500 MB.
+# Mais de 1 instância simultânea = OOM garantido → crash sistêmico.
+# Este semáforo garante que apenas 1 PDF é gerado por vez, sistema-wide.
+# Demais chamadas ficam em fila (até 5 min) sem bloquear o event loop
+# (a chamada é feita dentro de run_in_executor no rdo_state.py).
+_PDF_SEMAPHORE = threading.Semaphore(1)
 
 
 def html_to_pdf(
@@ -25,6 +34,9 @@ def html_to_pdf(
     this function is safe to call from any context: sync code, asyncio handlers,
     or run_in_executor threads — no "Sync API inside asyncio loop" error.
 
+    Usa semáforo global para limitar a 1 instância Chromium simultânea.
+    Em caso de timeout, o processo browser é encerrado via SIGTERM/terminate().
+
     Args:
         html: Full HTML document string (UTF-8).
         path: Destination Path for the PDF file.
@@ -35,12 +47,13 @@ def html_to_pdf(
         footer_template: Override footer HTML. If None, uses default page-number footer.
 
     Raises:
-        RuntimeError: If Playwright or Edge is unavailable, or times out.
+        RuntimeError: If Playwright or Edge is unavailable, times out, or queue full.
     """
     import asyncio
-    import threading
 
     errors: list = []
+    # Compartilhado entre threads para cleanup de emergência no timeout
+    browser_proc: list = []
 
     async def _render() -> None:
         import sys
@@ -69,10 +82,13 @@ def html_to_pdf(
 
         async with async_playwright() as p:
             browser = await _launch(p)
+            # Registra o processo para cleanup de emergência caso timeout
+            if hasattr(browser, 'process') and browser.process:
+                browser_proc.append(browser.process)
             try:
                 page = await browser.new_page()
-                # wait_until="networkidle" ensures Google Fonts load before rendering
-                await page.set_content(html, wait_until="networkidle")
+                # timeout=30000ms evita hang indefinido por Google Fonts ou rede lenta
+                await page.set_content(html, wait_until="networkidle", timeout=30000)
                 _default_header = (
                     '<div style="width:100%;box-sizing:border-box;padding:0 48px;'
                     'font-family:Arial,sans-serif;font-size:8px;color:#9CA3AF;'
@@ -108,6 +124,7 @@ def html_to_pdf(
                 logger.debug(f"pdf_utils: PDF written → {path.name}")
             finally:
                 await browser.close()
+                browser_proc.clear()
 
     def _thread_main() -> None:
         loop = asyncio.new_event_loop()
@@ -119,11 +136,33 @@ def html_to_pdf(
         finally:
             loop.close()
 
-    t = threading.Thread(target=_thread_main, daemon=True)
-    t.start()
-    t.join(timeout=90)
+    # Aguarda vaga na fila — máximo 5 minutos antes de desistir
+    acquired = _PDF_SEMAPHORE.acquire(timeout=300)
+    if not acquired:
+        raise RuntimeError(
+            "PDF generation queue timeout (300s) — servidor sobrecarregado. "
+            "Tente novamente em alguns minutos."
+        )
 
-    if t.is_alive():
-        raise RuntimeError("PDF generation timed out after 90s")
-    if errors:
-        raise errors[0]
+    try:
+        t = threading.Thread(target=_thread_main, daemon=True)
+        t.start()
+        t.join(timeout=90)
+
+        if t.is_alive():
+            # Timeout: encerra browser órfão para liberar RAM imediatamente
+            for proc in browser_proc:
+                try:
+                    proc.terminate()
+                    logger.warning("pdf_utils: browser process encerrado por timeout")
+                except Exception:
+                    pass
+            browser_proc.clear()
+            raise RuntimeError("PDF generation timed out after 90s")
+
+        if errors:
+            raise errors[0]
+
+    finally:
+        # Libera semáforo — próximo da fila pode prosseguir
+        _PDF_SEMAPHORE.release()

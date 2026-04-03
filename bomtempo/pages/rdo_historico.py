@@ -47,7 +47,8 @@ class RDOHistoricoState(rx.State):
 
     @rx.var
     def count_rascunho(self) -> int:
-        return sum(1 for r in self.rdos_list if r.get("status") == "rascunho")
+        # Inclui processando_pdf — são drafts que falharam no PDF e podem ser reenviados
+        return sum(1 for r in self.rdos_list if r.get("status") in ("rascunho", "processando_pdf"))
 
     @rx.var
     def count_finalizado(self) -> int:
@@ -206,9 +207,9 @@ class RDOHistoricoState(rx.State):
             async with self:
                 yield rx.toast("❌ RDO não encontrado.", position="top-center")
             return
-        if rows.get("status") != "rascunho":
+        if rows.get("status") == "finalizado":
             async with self:
-                yield rx.toast("❌ Apenas rascunhos podem ser excluídos.", position="top-center")
+                yield rx.toast("❌ RDOs finalizados não podem ser excluídos.", position="top-center")
             return
         ok = await loop.run_in_executor(None, lambda: RDOService.delete_draft(id_rdo))
         async with self:
@@ -227,7 +228,11 @@ def _status_badge(status: str) -> rx.Component:
     return rx.cond(
         status == "finalizado",
         rx.badge("Finalizado", color_scheme="teal", variant="soft", size="1"),
-        rx.badge("Rascunho", color_scheme="amber", variant="soft", size="1"),
+        rx.cond(
+            status == "processando_pdf",
+            rx.badge("⏳ PDF Pendente", color_scheme="orange", variant="soft", size="1"),
+            rx.badge("Rascunho", color_scheme="amber", variant="soft", size="1"),
+        ),
     )
 
 
@@ -305,11 +310,11 @@ def _rdo_card(rdo: Dict[str, Any]) -> rx.Component:
                     ),
                 ),
                 rx.cond(
-                    rdo["status"] == "rascunho",
+                    (rdo["status"] == "rascunho") | (rdo["status"] == "processando_pdf"),
                     rx.hstack(
                         rx.button(
                             rx.icon("pencil", size=14),
-                            "Continuar",
+                            rx.cond(rdo["status"] == "processando_pdf", "Reprocessar", "Continuar"),
                             on_click=[GlobalState.set_navigating, rx.redirect("/rdo-form")],
                             size="1",
                             style={

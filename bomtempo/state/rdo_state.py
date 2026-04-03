@@ -1277,6 +1277,13 @@ class RDOState(rx.State):
             return
         self.is_submitting = True
         self.show_confirm_dialog = False
+        # Libera o usuário imediatamente — processamento continua 100% em background
+        yield rx.toast(
+            "⏳ RDO enviado! Processando PDF e análise IA em background. Você receberá o email em breve.",
+            position="top-center",
+            duration=8000,
+        )
+        yield rx.redirect("/rdo-historico")
         yield RDOState.execute_submit
 
     @rx.event(background=True)
@@ -1307,7 +1314,7 @@ class RDOState(rx.State):
 
             # 1. Upsert draft / save to DB
             id_rdo = await loop.run_in_executor(
-                None,
+                get_db_executor(),
                 lambda: RDOService.upsert_draft(rdo_data, mestre_id=user_name),
             )
             logger.info(f"💾 RDO2 salvo: {id_rdo}")
@@ -1344,14 +1351,27 @@ class RDOState(rx.State):
             async with self:
                 self.submit_status = "📄 Gerando PDF…"
 
-            # 3. Generate PDF (with AI already embedded)
+            # 3a. Marca status=processando_pdf antes de iniciar — rastreável se crashar
+            await loop.run_in_executor(
+                get_db_executor(),
+                lambda: RDOService.mark_processing(id_rdo),
+            )
+
+            # 3b. Generate PDF (with AI already embedded)
+            # O semáforo em pdf_utils.py garante 1 Chromium por vez — sem OOM.
+            # Demais chamadas ficam na fila (até 5 min) sem bloquear o event loop.
             pdf_path = ""
             try:
-                pdf_result = await loop.run_in_executor(
-                    get_heavy_executor(),
-                    lambda: RDOService.generate_pdf(rdo_data_with_ai, is_preview=False, id_rdo=id_rdo),
+                pdf_result = await asyncio.wait_for(
+                    loop.run_in_executor(
+                        get_heavy_executor(),
+                        lambda: RDOService.generate_pdf(rdo_data_with_ai, is_preview=False, id_rdo=id_rdo),
+                    ),
+                    timeout=400.0,  # 90s (pdf_utils interno) + fila (até 300s) + margem
                 )
                 pdf_path = pdf_result[0] if pdf_result else ""
+            except asyncio.TimeoutError:
+                logger.error("⚠️ PDF generation timeout total — continuando sem PDF")
             except Exception as e:
                 logger.error(f"⚠️ PDF: {e}")
 
@@ -1363,7 +1383,7 @@ class RDOState(rx.State):
             if pdf_path:
                 try:
                     pdf_url = await loop.run_in_executor(
-                        None,
+                        get_heavy_executor(),
                         lambda: RDOService.upload_pdf(pdf_path, id_rdo),
                     )
                 except Exception as e:
@@ -1372,9 +1392,9 @@ class RDOState(rx.State):
             async with self:
                 self.submit_status = "✅ Finalizando…"
 
-            # 5. Finalize in DB
+            # 5. Finalize in DB (status: processando_pdf → finalizado)
             await loop.run_in_executor(
-                None,
+                get_db_executor(),
                 lambda: RDOService.finalize_rdo(id_rdo, pdf_path, pdf_url, rdo_data_with_ai),
             )
 
@@ -1634,20 +1654,27 @@ class RDOState(rx.State):
             except Exception:
                 pass
 
-            toast_msg = f"✅ RDO enviado! {f'Email para {len(recipients)} destinatário(s).' if recipients else ''}"
+            toast_msg = f"✅ RDO processado! {f'Email enviado para {len(recipients)} destinatário(s).' if recipients else 'PDF gerado com sucesso.'}"
             async with self:
                 self._reset_form()
                 self.is_submitting = False
-                yield rx.toast(toast_msg, position="top-center")
-                yield rx.redirect("/rdo-historico")
+                self.submit_status = ""
+                # Usuário já está no /rdo-historico (redirecionado antes do processamento)
+                # Este toast aparece lá quando o processamento termina
+                yield rx.toast(toast_msg, position="top-center", duration=6000)
 
         except Exception as e:
             logger.error(f"❌ execute_submit: {e}", exc_info=True)
             async with self:
-                self.is_submitting = False
-                self.submit_status = ""
                 self.submit_error = str(e)[:100]
-                yield rx.toast(f"❌ Erro: {str(e)[:80]}", position="top-center")
+                yield rx.toast(f"❌ Erro no processamento do RDO: {str(e)[:80]}", position="top-center", duration=8000)
+
+        finally:
+            # Garante que is_submitting SEMPRE volta pra False — mesmo em crash/CancelledError/OOM
+            async with self:
+                if self.is_submitting:
+                    self.is_submitting = False
+                    self.submit_status = ""
 
     # ── Helpers ───────────────────────────────────────────────
 

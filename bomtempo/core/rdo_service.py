@@ -1222,6 +1222,21 @@ class RDOService:
         return id_rdo
 
     @staticmethod
+    def mark_processing(id_rdo: str) -> None:
+        """Marca RDO como processando_pdf antes da geração do PDF.
+
+        Permite distinguir RDOs que falharam durante processamento (crash/OOM)
+        de rascunhos genuínos. Status flow: rascunho → processando_pdf → finalizado.
+        Se o servidor crashar durante PDF, o RDO fica em 'processando_pdf'
+        e pode ser identificado e reprocessado pelo usuário no histórico.
+        """
+        from bomtempo.core.supabase_client import sb_update
+        try:
+            sb_update("rdo_master", filters={"id_rdo": id_rdo}, data={"status": "processando_pdf"})
+        except Exception:
+            pass  # best-effort — não impede o fluxo principal
+
+    @staticmethod
     def finalize_rdo(
         id_rdo: str,
         pdf_path: str,
@@ -1327,13 +1342,22 @@ class RDOService:
 
     @staticmethod
     def get_active_draft(mestre_id: str, contrato: str = "", client_id: str = "") -> Optional[Dict[str, Any]]:
-        """Retorna rascunho ativo do mestre (se existir)."""
-        filters: Dict[str, Any] = {"status": "rascunho", "mestre_id": mestre_id}
+        """Retorna rascunho ativo do mestre (se existir).
+
+        Considera tanto 'rascunho' quanto 'processando_pdf' — este último indica
+        um RDO que foi enviado mas o servidor crashou durante a geração do PDF.
+        O usuário pode reabrir e reenviar normalmente.
+        """
+        # raw_filters permite usar PostgREST in() para múltiplos valores
+        raw: Dict[str, str] = {
+            "status":    "in.(rascunho,processando_pdf)",
+            "mestre_id": f"eq.{mestre_id}",
+        }
         if contrato:
-            filters["contrato"] = contrato
+            raw["contrato"] = f"eq.{contrato}"
         if client_id:
-            filters["client_id"] = client_id
-        rows = sb_select("rdo_master", filters=filters, order="updated_at.desc", limit=1)
+            raw["client_id"] = f"eq.{client_id}"
+        rows = sb_select("rdo_master", raw_filters=raw, order="updated_at.desc", limit=1)
         return dict(rows[0]) if rows else None
 
     @staticmethod
