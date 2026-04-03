@@ -7,6 +7,7 @@ Padrão visual idêntico ao rdo_dashboard.py (benchmark).
 import reflex as rx
 
 from bomtempo.components.skeletons import page_centered_loader, page_loading_skeleton, table_skeleton
+from bomtempo.components.tooltips import TOOLTIP_MONEY, TOOLTIP_PIE
 from bomtempo.core import styles as S
 from bomtempo.state.reembolso_state import ReembolsoState
 
@@ -694,15 +695,7 @@ def _grafico_mensal() -> rx.Component:
                     stroke_dasharray="3 3",
                     stroke="rgba(255,255,255,0.05)",
                 ),
-                rx.recharts.tooltip(
-                    content_style={
-                        "background": S.BG_SURFACE,
-                        "border": f"1px solid {S.BORDER_ACCENT}",
-                        "border_radius": "8px",
-                    },
-                    label_style={"color": S.COPPER},
-                    item_style={"color": S.TEXT_PRIMARY},
-                ),
+                TOOLTIP_MONEY,
                 data=ReembolsoState.dash_chart_mensal,
                 height=220,
                 width="100%",
@@ -746,14 +739,7 @@ def _grafico_combustivel() -> rx.Component:
                     padding_angle=3,
                 ),
                 rx.recharts.legend(icon_type="circle"),
-                rx.recharts.tooltip(
-                    content_style={
-                        "background": S.BG_SURFACE,
-                        "border": f"1px solid {S.BORDER_ACCENT}",
-                        "border_radius": "8px",
-                    },
-                    item_style={"color": S.TEXT_PRIMARY},
-                ),
+                TOOLTIP_PIE,
                 height=250,
                 width="100%",
             ),
@@ -801,10 +787,7 @@ def _grafico_score() -> rx.Component:
                         padding_angle=3,
                     ),
                     rx.recharts.legend(icon_type="circle"),
-                    rx.recharts.tooltip(
-                        content_style={"background": S.BG_SURFACE, "border": f"1px solid {S.BORDER_ACCENT}", "border_radius": "8px"},
-                        item_style={"color": S.TEXT_PRIMARY},
-                    ),
+                    TOOLTIP_PIE,
                     height=230,
                     width="100%",
                 ),
@@ -854,10 +837,7 @@ def _grafico_gps() -> rx.Component:
                         padding_angle=3,
                     ),
                     rx.recharts.legend(icon_type="circle"),
-                    rx.recharts.tooltip(
-                        content_style={"background": S.BG_SURFACE, "border": f"1px solid {S.BORDER_ACCENT}", "border_radius": "8px"},
-                        item_style={"color": S.TEXT_PRIMARY},
-                    ),
+                    TOOLTIP_PIE,
                     height=230,
                     width="100%",
                 ),

@@ -4,7 +4,7 @@ RDO Dashboard 360° — KPIs e gráficos para Admin/Gestor
 
 import reflex as rx
 
-from bomtempo.components.charts import chart_tooltip, chart_tooltip_pct
+from bomtempo.components.tooltips import TOOLTIP_GENERIC, TOOLTIP_PIE
 from bomtempo.components.skeletons import rdo_sync_loader
 from bomtempo.core import styles as S
 from bomtempo.state.rdo_dashboard_state import RDODashboardState
@@ -80,15 +80,7 @@ def _chart_por_dia() -> rx.Component:
                 ),
                 rx.recharts.y_axis(tick={"fontSize": 9, "fill": S.TEXT_MUTED}, width=25),
                 rx.recharts.cartesian_grid(stroke_dasharray="3 3", stroke="rgba(255,255,255,0.05)"),
-                rx.recharts.tooltip(
-                    content_style={
-                        "background": S.BG_SURFACE,
-                        "border": f"1px solid {S.BORDER_ACCENT}",
-                        "border_radius": "8px",
-                    },
-                    label_style={"color": S.COPPER},
-                    item_style={"color": S.TEXT_PRIMARY},
-                ),
+                TOOLTIP_GENERIC,
                 data=RDODashboardState.grafico_por_dia,
                 height=200,
                 width="100%",
@@ -132,14 +124,7 @@ def _chart_clima() -> rx.Component:
                     label=True,
                     is_animation_active=False,
                 ),
-                rx.recharts.tooltip(
-                    content_style={
-                        "background": S.BG_SURFACE,
-                        "border": f"1px solid {S.BORDER_ACCENT}",
-                        "border_radius": "8px",
-                    },
-                    item_style={"color": S.TEXT_PRIMARY},
-                ),
+                TOOLTIP_PIE,
                 height=200,
                 width="100%",
             ),
@@ -181,14 +166,7 @@ def _chart_atividades_status() -> rx.Component:
                     label=True,
                     is_animation_active=False,
                 ),
-                rx.recharts.tooltip(
-                    content_style={
-                        "background": S.BG_SURFACE,
-                        "border": f"1px solid {S.BORDER_ACCENT}",
-                        "border_radius": "8px",
-                    },
-                    item_style={"color": S.TEXT_PRIMARY},
-                ),
+                TOOLTIP_PIE,
                 height=200,
                 width="100%",
             ),
@@ -227,14 +205,7 @@ def _chart_atividades_por_contrato() -> rx.Component:
                 rx.recharts.x_axis(data_key="contrato", tick={"fontSize": 9, "fill": S.TEXT_MUTED}),
                 rx.recharts.y_axis(tick={"fontSize": 9, "fill": S.TEXT_MUTED}, width=25),
                 rx.recharts.cartesian_grid(stroke_dasharray="3 3", stroke="rgba(255,255,255,0.05)"),
-                rx.recharts.tooltip(
-                    content_style={
-                        "background": S.BG_SURFACE,
-                        "border": f"1px solid {S.BORDER_ACCENT}",
-                        "border_radius": "8px",
-                    },
-                    item_style={"color": S.TEXT_PRIMARY},
-                ),
+                TOOLTIP_PIE,
                 data=RDODashboardState.grafico_atividades_por_contrato,
                 height=200,
                 width="100%",

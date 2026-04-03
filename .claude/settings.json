@@ -39,7 +39,21 @@
       "Bash(py -c \"import ast; ast.parse\\(open\\(''bomtempo/pages/hub_operacoes.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''hub_operacoes OK''\\)\")",
       "Bash(git pull:*)",
       "Bash(py -c \"from bomtempo.core.redis_cache import is_redis_available, cache_stats; print\\(''Redis disponivel:'', is_redis_available\\(\\)\\); print\\(''Stats:'', cache_stats\\(''test-tenant''\\)\\)\")",
-      "Bash(py -c \"import ast, pathlib; ast.parse\\(pathlib.Path\\(''c:/Users/Samsung/bomtempo-dashboard/bomtempo/state/global_state.py''\\).read_text\\(encoding=''utf-8''\\)\\); print\\(''Syntax OK''\\)\")"
+      "Bash(py -c \"import ast, pathlib; ast.parse\\(pathlib.Path\\(''c:/Users/Samsung/bomtempo-dashboard/bomtempo/state/global_state.py''\\).read_text\\(encoding=''utf-8''\\)\\); print\\(''Syntax OK''\\)\")",
+      "Bash(py -c \"from bomtempo.components.tooltips import gantt_hover_content; print\\('tooltips.py OK'\\)\")",
+      "Bash(py -c \"from bomtempo.pages.hub_operacoes import *; print\\('hub_operacoes OK'\\)\")",
+      "Bash(py -c ':*)",
+      "Bash(py -c \"import inspect, reflex as rx; print\\(inspect.signature\\(rx.Var.__init__\\)\\)\")",
+      "Bash(py -c \"from bomtempo.pages.financeiro import *; print\\('financeiro OK'\\)\")",
+      "Bash(py -c \"from bomtempo.pages.analytics import *; print\\('analytics OK'\\)\")",
+      "Bash(py -c \"from bomtempo.pages.rdo_dashboard import *; print\\('rdo_dashboard OK'\\)\")",
+      "Bash(py -c \"from bomtempo.pages.reembolso_dashboard import *; print\\('reembolso OK'\\)\")",
+      "Bash(py -c \"from bomtempo.pages.rdo_dashboard import *; print\\('rdo OK'\\)\")",
+      "Bash(py -m grep -rn \"chart_tooltip\\\\|content_style=_TOOLTIP_STYLE\\\\|rx\\\\.recharts\\\\.tooltip\\(\" bomtempo/pages/)",
+      "Bash(py -c \"from bomtempo.pages.hub_operacoes import *; print\\('hub OK'\\)\")",
+      "Bash(py -c \"import reflex; print\\(reflex.__version__\\)\")",
+      "Bash(rm -rf .web/app/routes)",
+      "Bash(py -c \"from bomtempo.components.tooltips import TOOLTIP_MONEY, TOOLTIP_SPI, TOOLTIP_PIE, TOOLTIP_GENERIC, TOOLTIP_PCT_SCURVE; print\\('OK'\\)\")"
     ]
   }
 }

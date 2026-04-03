@@ -1,10 +1,10 @@
 import reflex as rx
 
 from bomtempo.components.charts import (
-    chart_tooltip,
     dark_cartesian_grid,
     radar_chart_dual,
 )
+from bomtempo.components.tooltips import TOOLTIP_GENERIC
 from bomtempo.components.skeletons import page_loading_skeleton
 from bomtempo.core import styles as S
 from bomtempo.state.global_state import GlobalState
@@ -148,7 +148,7 @@ def benchmark_section() -> rx.Component:
                         font_size=12,
                         width=100,
                     ),
-                    chart_tooltip(),
+                    TOOLTIP_GENERIC,
                     rx.recharts.legend(),
                     rx.recharts.bar(
                         data_key="bomtempo",

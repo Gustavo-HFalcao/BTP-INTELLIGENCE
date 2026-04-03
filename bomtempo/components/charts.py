@@ -1,6 +1,9 @@
 import reflex as rx
 
 from bomtempo.core import styles as S
+from bomtempo.components.tooltips import (
+    TOOLTIP_MONEY, TOOLTIP_PIE, TOOLTIP_GENERIC,
+)
 
 # ── Shared Chart Helpers ─────────────────────────────────────
 
@@ -310,7 +313,7 @@ def bar_chart_horizontal(
             tick={"fill": S.TEXT_PRIMARY, "fontSize": 14},
             interval=0,
         ),
-        chart_tooltip(formatter=money_formatter_js()),
+        TOOLTIP_MONEY,
         data=data,
         layout="vertical",
         height=height,
@@ -351,7 +354,7 @@ def pie_chart_donut(
                     stroke="none",
                     is_animation_active=False,
                 ),
-                chart_tooltip(formatter=money_formatter_js()),
+                TOOLTIP_PIE,
             ),
             width="100%",
             height=height,
@@ -427,7 +430,7 @@ def composed_chart_om(
                 "(val) => { var v = parseFloat(val); if (v >= 1000) return (v/1000).toFixed(0) + 'k'; return v; }"
             ),
         ),
-        chart_tooltip(formatter=number_formatter_js()),
+        TOOLTIP_GENERIC,
         rx.recharts.legend(
             wrapper_style={"paddingTop": "20px", "fontSize": "12px"},
         ),
@@ -488,7 +491,7 @@ def dual_area_chart(
         dark_cartesian_grid(),
         chart_x_axis(x_key),
         chart_y_axis(),
-        chart_tooltip(),
+        TOOLTIP_GENERIC,
         rx.recharts.area(
             data_key=y1_key,
             stroke=stroke1,
@@ -558,7 +561,7 @@ def radar_chart_dual(
             fill_opacity=0.3,
         ),
         rx.recharts.legend(),
-        chart_tooltip(),
+        TOOLTIP_GENERIC,
         data=data,
         cx="50%",
         cy="50%",

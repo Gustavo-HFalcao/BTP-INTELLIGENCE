@@ -4674,12 +4674,12 @@ class GlobalState(rx.State):
 
         # Build context
         delayed = [
-            d["categoria"]
+            d.get("label", d.get("categoria", ""))
             for d in disciplines
             if float(d.get("realizado_pct", 0)) < float(d.get("previsto_pct", 0))
         ]
         on_track = [
-            d["categoria"]
+            d.get("label", d.get("categoria", ""))
             for d in disciplines
             if float(d.get("realizado_pct", 0)) >= float(d.get("previsto_pct", 0))
         ]

@@ -11,11 +11,13 @@ import reflex as rx
 
 from bomtempo.components.skeletons import page_loading_skeleton
 from bomtempo.components.windy_map_widget import windy_map_widget
-from bomtempo.components.charts import (
-    chart_tooltip_pct,
-    chart_tooltip_money,
-    chart_tooltip_spi,
-    chart_tooltip,
+from bomtempo.components.tooltips import (
+    gantt_hover_content,
+    TOOLTIP_MONEY,
+    TOOLTIP_SPI,
+    TOOLTIP_PCT_SCURVE,
+    TOOLTIP_PCT_DAILY,
+    TOOLTIP_PCT_DISC,
 )
 from bomtempo.core import styles as S
 from bomtempo.state.global_state import GlobalState
@@ -2116,7 +2118,7 @@ def _tab_dashboard() -> rx.Component:
                             rx.recharts.x_axis(data_key="data", tick=_TICK_STYLE),
                             rx.recharts.y_axis(unit="%", tick=_TICK_STYLE, width=32),
                             rx.recharts.cartesian_grid(stroke_dasharray="3 3", stroke="rgba(255,255,255,0.04)"),
-                            chart_tooltip_pct({"previsto": "Planejado", "realizado": "Realizado"}),
+                            TOOLTIP_PCT_SCURVE,
                             rx.recharts.legend(
                                 icon_type="line",
                                 wrapper_style={"fontSize": "10px", "color": S.TEXT_MUTED, "paddingTop": "8px"},
@@ -2154,7 +2156,7 @@ def _tab_dashboard() -> rx.Component:
                                 domain=[0.5, 1.5],
                             ),
                             rx.recharts.cartesian_grid(stroke_dasharray="3 3", stroke="rgba(255,255,255,0.04)"),
-                            chart_tooltip_spi(),
+                            TOOLTIP_SPI,
                             rx.recharts.reference_line(y=1, stroke=S.COPPER, stroke_dasharray="4 2", stroke_width=1),
                             data=GlobalState.dash_spi_trend_chart,
                             height=200, width="100%",
@@ -2192,7 +2194,7 @@ def _tab_dashboard() -> rx.Component:
                             rx.recharts.x_axis(data_key="data", tick=_TICK_STYLE),
                             rx.recharts.y_axis(unit="pp", tick=_TICK_STYLE, width=36),
                             rx.recharts.cartesian_grid(stroke_dasharray="3 3", stroke="rgba(255,255,255,0.04)"),
-                            chart_tooltip_pct({"meta": "Meta/dia", "realizado": "Realizado/dia"}),
+                            TOOLTIP_PCT_DAILY,
                             rx.recharts.legend(
                                 wrapper_style={"fontSize": "10px", "color": S.TEXT_MUTED, "paddingTop": "8px"},
                             ),
@@ -2229,7 +2231,7 @@ def _tab_dashboard() -> rx.Component:
                             ),
                             rx.recharts.y_axis(unit="%", tick=_TICK_STYLE, width=32),
                             rx.recharts.cartesian_grid(stroke_dasharray="3 3", stroke="rgba(255,255,255,0.04)"),
-                            chart_tooltip_pct({"previsto_pct": "Planejado", "realizado_pct": "Realizado"}),
+                            TOOLTIP_PCT_DISC,
                             data=GlobalState.dash_disciplinas_chart,
                             height=200, width="100%", bar_size=12,
                         ),
@@ -2263,7 +2265,7 @@ def _tab_dashboard() -> rx.Component:
                             rx.recharts.x_axis(data_key="categoria", tick=_TICK_STYLE),
                             rx.recharts.y_axis(tick=_TICK_STYLE, width=52),
                             rx.recharts.cartesian_grid(stroke_dasharray="3 3", stroke="rgba(255,255,255,0.04)"),
-                            chart_tooltip_money(),
+                            TOOLTIP_MONEY,
                             data=GlobalState.obra_budget_chart,
                             height=200, width="100%", bar_size=40,
                         ),
@@ -3503,7 +3505,7 @@ def _gantt_bar(item: dict) -> rx.Component:
         ),
         rx.fragment(),
     )
-    return rx.box(
+    bar_box = rx.box(
         rx.hstack(
             # Label column
             rx.vstack(
@@ -3587,7 +3589,12 @@ def _gantt_bar(item: dict) -> rx.Component:
         _last={"borderBottom": "none"},
         _hover={"background": "rgba(255,255,255,0.02)", "borderRadius": "4px"},
         cursor="default",
-        title=item["atividade"] + " | " + item["responsavel"] + " | " + item["conclusao_pct"] + "% | " + item["inicio_previsto"] + " → " + item["termino_previsto"],
+    )
+    return rx.hover_card.root(
+        rx.hover_card.trigger(bar_box, as_child=True),
+        gantt_hover_content(item),
+        open_delay=200,
+        close_delay=100,
     )
 
 
@@ -4906,7 +4913,7 @@ def _fin_scurve_chart() -> rx.Component:
                     axisLine=False, tickLine=False,
                     width=65,
                 ),
-                chart_tooltip_money(),
+                TOOLTIP_MONEY,
                 rx.recharts.legend(
                     wrapper_style={"fontSize": "11px", "fontFamily": "'JetBrains Mono', monospace", "color": "#889999"},
                 ),
@@ -4952,7 +4959,7 @@ def _fin_by_cat_chart() -> rx.Component:
                     axisLine=False, tickLine=False,
                     width=65,
                 ),
-                chart_tooltip_money(),
+                TOOLTIP_MONEY,
                 rx.recharts.legend(
                     wrapper_style={"fontSize": "11px", "fontFamily": "'JetBrains Mono', monospace", "color": "#889999"},
                 ),

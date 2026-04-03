@@ -658,4 +658,101 @@ Erros conhecidos do OXC Vite:
 - "Invalid Character" → aspas simples dentro de string Python simples, ou CSS string em style=
 - "Unexpected token" → sintaxe ES6 (arrow fn, template literal, optional chaining)
 - "stack overflow" → string JS muito longa em uma única linha
----
+---━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+APÊNDICE 3 — FIX CRÍTICO: React is not defined
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+── O QUE ACONTECEU ──────────────────────────────────────────────────────────
+
+React 17+ usa o "new JSX transform". O Vite não injeta mais `React` como
+global — ele importa apenas helpers internos como `_jsx`, `_jsxs`.
+
+O arquivo gerado pelo Reflex confirma isso:
+    import {Fragment, useEffect} from "react"
+    import {jsx} from "@emotion/react"       ← isso é o que está disponível
+
+`React.createElement` não está em scope. Mas `jsx` (do Emotion) ESTÁ.
+A assinatura de `jsx` é idêntica à de `React.createElement`:
+    jsx(type, props, ...children)
+Emotion's jsx é um wrapper que passa tudo para React.createElement internamente.
+
+── O FIX — UMA LINHA ────────────────────────────────────────────────────────
+
+No topo de CADA IIFE em tooltips.py, como PRIMEIRA linha dentro do
+`(function() {`, adicione:
+
+    var React = { createElement: jsx };
+
+Isso cria um objeto React local que delega para o `jsx` que JÁ ESTÁ em
+scope. Todo o código existente com React.createElement(...) funciona
+sem nenhuma outra mudança.
+
+ANTES (crashava):
+    js = """
+    (function() {
+      var fmt = function(v) { ... };
+      return function(props) {
+        if (!props.active) return null;
+        return React.createElement("div", {...}, ...);
+      };
+    })()
+    """
+
+DEPOIS (funciona):
+    js = """
+    (function() {
+      var React = { createElement: jsx };
+      var fmt = function(v) { ... };
+      return function(props) {
+        if (!props.active) return null;
+        return React.createElement("div", {...}, ...);
+      };
+    })()
+    """
+
+Aplique em todas as 4 funções: tooltip_money, tooltip_scurve,
+tooltip_pie, tooltip_gantt.
+
+── POR QUE FUNCIONA ─────────────────────────────────────────────────────────
+
+Nossa IIFE roda dentro do módulo _index.jsx gerado pelo Reflex.
+Esse módulo tem `jsx` importado no topo como binding de módulo.
+Bindings de módulo ficam no closure de TUDO que roda nesse módulo —
+incluindo nossa string injetada via rx.Var.
+
+Então `jsx` é acessível. `React` não é. Criamos `React` localmente
+apontando para `jsx`. Problema resolvido sem nenhuma dependência nova.
+
+── VALIDAÇÃO RÁPIDA ─────────────────────────────────────────────────────────
+
+Após aplicar o fix:
+
+1. Salve tooltips.py
+2. Delete o cache: Remove-Item -Recurse -Force .web\app\routes  (PowerShell)
+   ou:             rm -rf .web/app/routes                        (bash/WSL)
+3. reflex run
+4. Passe o mouse sobre qualquer gráfico — não deve mais crashar
+5. DevTools → Console → confirmar que não há erros de JS
+
+── SE AINDA FALHAR: fallback de segurança ───────────────────────────────────
+
+Se por alguma razão `jsx` também não estiver em scope (versão diferente
+do Reflex que usa outro import), use o fallback mais defensivo:
+
+    var React = { createElement: (typeof jsx !== "undefined") ? jsx :
+                  (typeof window !== "undefined" && window.React) ?
+                  window.React.createElement :
+                  function() { return null; } };
+
+Isso nunca vai crashar — no pior caso, o tooltip simplesmente não renderiza
+(retorna null) em vez de quebrar a página inteira.
+
+── REGRA PARA QUALQUER TOOLTIP FUTURO ───────────────────────────────────────
+
+Todo tooltip novo em tooltips.py DEVE ter como primeira linha da IIFE:
+
+    var React = { createElement: jsx };
+
+Sem essa linha, vai crashar em produção no momento em que o usuário
+passar o mouse sobre um gráfico. Trate isso como boilerplate obrigatório,
+não como workaround opcional.
