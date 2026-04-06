@@ -28,24 +28,9 @@
     --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* ── Light Mode Overrides ────────────────────────────────────── */
-/* Radix com appearance="inherit" coloca class="light" em [data-is-root-theme].
-   Também cobre body diretamente para sobrescrever o background do :root. */
-[data-is-root-theme].light,
-[data-is-root-theme].light body,
-[data-is-root-theme].light #__next {
-    background-color: #f0f2f0 !important;
-    background-image: none !important;
-    color: #0e1a17 !important;
-    --color-background: #f0f2f0 !important;
-    --bg-void: #f0f2f0 !important;
-    --bg-depth: #e4e7e4 !important;
-    --bg-surface: #d8dbd8 !important;
-    --text-main: #0e1a17 !important;
-    --text-muted: #3a5048 !important;
-}
-
-/* Page-level text */
+/* ── Light Mode: handled entirely by /light_theme.css ───────── */
+/* Do not add light mode rules here — light_theme.css is loaded after
+   this file and owns all [data-is-root-theme].light overrides. */
 [data-is-root-theme].light .page-bg-text {
     color: #0e1a17 !important;
 }
@@ -54,9 +39,10 @@
 body {
     font-family: 'Outfit', sans-serif !important;
     background-color: var(--bg-void) !important;
+    /* background-image uses CSS var so light theme can override via :root vars */
     background-image:
-        radial-gradient(circle at 50% 0%, #1a2e29 0%, transparent 40%),
-        url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E") !important;
+        var(--bg-gradient, radial-gradient(circle at 50% 0%, #1a2e29 0%, transparent 40%)),
+        var(--bg-noise, url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E"));
     color: var(--text-main);
     overflow-x: hidden;
     /* Smart Scaling: Adjusts base density for different screens */
@@ -2000,14 +1986,44 @@ button.rt-reset {
 .recharts-wrapper,
 .recharts-surface {
     overflow: visible;
-    /* Use will-change to move SVG rendering to GPU compositor layer.
-       This prevents main-thread JS repaints from causing visual stutter */
-    will-change: transform;
+    /* will-change: transform would create a new stacking context, trapping
+       tooltip z-index inside the chart layer. Use contents instead to get
+       GPU compositing benefits without the stacking context side-effect. */
+    will-change: contents;
 }
 
 /* Recharts responsive container: prevent height collapse during re-render */
 .recharts-responsive-container {
     min-height: 40px;
+}
+
+/* ── Tooltip: escape every stacking context ───────────────────
+   position: fixed is relative to the viewport, not to any ancestor
+   with transform/will-change/overflow — this is why the tooltip was
+   appearing behind adjacent charts. Recharts already computes pixel
+   coordinates from the chart rect, so the visual position stays correct. */
+.recharts-tooltip-wrapper {
+    position: fixed !important;
+    z-index: 9999 !important;
+    pointer-events: none;
+    animation: tooltip-fade-slide 0.14s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Pinned tooltip (class added by JS click handler) */
+.recharts-tooltip-wrapper.tooltip-pinned {
+    pointer-events: auto !important;
+    animation: none !important;
+}
+
+@keyframes tooltip-fade-slide {
+    from {
+        opacity: 0;
+        transform: translateY(-6px) scale(0.97);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
 }
 
 /* ── Skeleton shimmer class alias ──────────────────────────── */

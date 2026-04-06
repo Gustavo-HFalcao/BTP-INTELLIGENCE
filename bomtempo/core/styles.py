@@ -63,8 +63,8 @@ FONT_MONO = "'JetBrains Mono', monospace"
 # ── Global Style ─────────────────────────────────────────────
 GLOBAL_STYLE = {
     "font_family": FONT_BODY,
-    "background": BG_VOID,
-    "color": TEXT_PRIMARY,
+    "background": "var(--bg-void, " + BG_VOID + ")",
+    "color": "var(--text-main, " + TEXT_PRIMARY + ")",
     "::selection": {
         "background": "rgba(201, 139, 42, 0.35)",
         "color": "#fff",

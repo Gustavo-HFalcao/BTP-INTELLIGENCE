@@ -273,7 +273,7 @@ def _log_schedule_diff_async(
                     # Update timeline entry with AI note
                     if tl_id:
                         sb_update("hub_timeline", filters={"id": tl_id},
-                                  data={"descricao": f"{change_summary}\n\n🤖 {ai_note}"})
+                                  data={"descricao": f"{change_summary}\n\n[agente] {ai_note}"})
                     # Also store impacto in the log rows for this batch
                     try:
                         from datetime import datetime, timezone
@@ -1037,8 +1037,13 @@ class HubState(rx.State):
         async with self:
             self.cron_rows = normalized
             self.cron_working_days_str = dias_uteis_str
+            _prev_contrato = self.cron_contrato
             self.cron_contrato = contrato
             self.cron_loading = False
+
+        # If switching contracts, load persisted insights from Supabase for the new one
+        if contrato and contrato != _prev_contrato:
+            yield HubState.load_persisted_insights(contrato)
 
     def set_cron_fase_filter(self, value: str):
         self.cron_fase_filter = "" if self.cron_fase_filter == value else value
@@ -2604,7 +2609,8 @@ Retorne SOMENTE JSON válido, sem texto antes/depois, sem markdown:
         last_rdo = await loop.run_in_executor(None, _fetch_rdo)
 
         # Build context for AI
-        today = date.today().isoformat()
+        today_dt = date.today()
+        today = today_dt.isoformat()
 
         # Activity summary (top 20 most relevant rows)
         micros = [r for r in _cron_rows if r.get("nivel", "") == "micro"]
@@ -2647,45 +2653,147 @@ Retorne SOMENTE JSON válido, sem texto antes/depois, sem markdown:
                 f"Atividades do dia: {last_rdo.get('atividades_realizadas','') or last_rdo.get('atividades','')}\n"
                 f"Observações: {last_rdo.get('observacoes','')}\n"
                 f"Condições climáticas: {last_rdo.get('condicoes_climaticas','')}\n"
+                f"Avanço físico registrado: {last_rdo.get('avanco_fisico','') or last_rdo.get('progresso','')}\n"
             )
 
-        prompt = f"""Você é o Agente de Atividades da plataforma Bomtempo, especialista em gestão de obras civis e industriais.
+        # ── Compute derived metrics for richer prompt context ─────────────────
+        from datetime import date as _date_cls
+        late_lines: list = []
+        critical_late: list = []
+        ahead_lines: list = []
+        not_started_critical: list = []
+        total_peso = 0.0
+        realizado_peso = 0.0
 
-Com base nos dados de cronograma e último RDO a seguir, gere exatamente entre 3 e 6 insights práticos e acionáveis sobre o projeto.
+        for r in micros:
+            termino_iso = (r.get("data_fim_real_iso") or r.get("termino_previsto", ""))[:10]
+            pct_str = r.get("conclusao_pct", "0") or "0"
+            critico = r.get("critico", "0")
+            name = r.get("atividade", "")
+            status = r.get("status_atividade", "nao_iniciada")
+            try:
+                pct_val = float(pct_str)
+            except (ValueError, TypeError):
+                pct_val = 0.0
+            try:
+                peso_val = float(r.get("peso_pct", "0") or "0")
+                total_peso += peso_val
+                realizado_peso += peso_val * pct_val / 100.0
+            except (ValueError, TypeError):
+                pass
+            if pct_val < 100.0 and termino_iso:
+                try:
+                    term_dt = _date_cls.fromisoformat(termino_iso)
+                    delta = (today_dt - term_dt).days  # type: ignore[attr-defined]
+                    if delta > 0:
+                        tag = " [CRÍTICO]" if critico == "1" else ""
+                        late_lines.append(f"  - {name}: {delta}d atrasada{tag}")
+                        if critico == "1":
+                            critical_late.append((name, delta))
+                    elif delta < -30 and pct_val > 10:
+                        ahead_lines.append(f"  - {name}: {abs(delta)}d de folga, {pct_val:.0f}% concluído")
+                except ValueError:
+                    pass
+            if critico == "1" and status == "nao_iniciada":
+                inicio_iso = r.get("inicio_previsto", "")[:10]
+                try:
+                    ini_dt = _date_cls.fromisoformat(inicio_iso)
+                    if ini_dt <= today_dt:  # type: ignore[attr-defined]
+                        not_started_critical.append(name)
+                except ValueError:
+                    pass
 
-CONTRATO: {_contrato}
-DATA DE HOJE: {today}
+        spi_geral = round(realizado_peso / total_peso, 2) if total_peso > 0 else None
+        spi_line = f"SPI estimado do projeto: {spi_geral}" if spi_geral is not None else "SPI: dados insuficientes"
+        late_summary = "\n".join(late_lines[:12]) if late_lines else "  Nenhuma atividade com prazo vencido detectada."
+        ahead_summary = "\n".join(ahead_lines[:5]) if ahead_lines else "  Nenhuma."
+        not_started_summary = "\n".join(f"  - {n}" for n in not_started_critical[:5]) if not_started_critical else "  Nenhuma."
 
-=== ATIVIDADES DO CRONOGRAMA ===
+        # Crew gap analysis from last RDO
+        crew_context = ""
+        if last_rdo:
+            try:
+                presente = int(last_rdo.get("equipe_presente") or 0)
+                planejada = int(last_rdo.get("equipe_planejada") or 0)
+                if planejada > 0:
+                    gap = planejada - presente
+                    if gap > 0:
+                        prod_loss = round((gap / planejada) * 100)
+                        crew_context = (
+                            f"ALERTA DE EQUIPE: faltaram {gap} trabalhadores no último RDO "
+                            f"({presente}/{planejada} presentes = {prod_loss}% de perda de produtividade potencial)."
+                        )
+                    elif gap < 0:
+                        crew_context = (
+                            f"Equipe acima do planejado: {presente}/{planejada} — possível hora extra ou reforço."
+                        )
+                    else:
+                        crew_context = f"Equipe completa no último RDO: {presente}/{planejada}."
+            except (ValueError, TypeError):
+                crew_context = f"Equipe: {last_rdo.get('equipe_presente','?')}/{last_rdo.get('equipe_planejada','?')} (último RDO)."
+
+        today_str: str = today  # already defined as date.today().isoformat()
+
+        prompt = f"""Você é o Agente de Atividades da plataforma Bomtempo — especialista sênior em engenharia civil, gestão de obras e análise de cronograma.
+
+MISSÃO: gerar entre 4 e 6 insights CIRÚRGICOS, com números reais do projeto, que ajudem o engenheiro a tomar decisões hoje.
+
+═══ REGRAS OBRIGATÓRIAS (violá-las invalida o insight) ═══
+1. Cada insight DEVE citar ao menos 1 número real do projeto (dias de atraso, %, quantidade, nº de trabalhadores, dias de folga, etc.)
+2. Cada insight DEVE conter uma recomendação acionável com especificidade (ex: "realocar 3 soldadores de X para Y nos próximos 5 dias úteis")
+3. Atividades com critico=1 atrasadas → type="delay" ou "alert" com priority="high" OBRIGATORIAMENTE
+4. Não invente dados. Se não souber um número, estime com base nos dados fornecidos e sinalize com "(estimado)"
+5. O campo "atividade" deve ser o nome EXATO da atividade do cronograma (copie literalmente), ou '' se o insight for geral
+
+═══ CONTEXTO DO PROJETO ═══
+Contrato: {_contrato}
+Data de hoje: {today_str}
+{spi_line}
+
+═══ ATIVIDADES COM PRAZO VENCIDO ═══
+{late_summary}
+
+═══ ATIVIDADES ADIANTADAS (oportunidade de realocação) ═══
+{ahead_summary}
+
+═══ ATIVIDADES CRÍTICAS NÃO INICIADAS (deveriam ter começado) ═══
+{not_started_summary}
+
+═══ SITUAÇÃO DE EQUIPE (último RDO) ═══
+{crew_context or "Sem dados de equipe no RDO."}
+
+═══ CRONOGRAMA COMPLETO (formato: [fase.subfase] nome | %concluído | início→término | responsável | status | crítico | peso% | qty exec/total unidade) ═══
 {ativ_text or "Nenhuma atividade cadastrada."}
 
-=== ÚLTIMO RDO REGISTRADO ===
+═══ ÚLTIMO RDO REGISTRADO ═══
 {rdo_text or "Nenhum RDO encontrado para este contrato."}
 
-Responda APENAS com um array JSON válido (sem markdown, sem explicações), com 3 a 6 objetos:
+Responda APENAS com um array JSON válido (sem markdown, sem ```json, sem explicações fora do array):
 [
   {{
     "type": "delay|ahead|crew|weather|optimize|alert",
     "priority": "high|medium|low",
     "icon": "nome-do-icone-lucide",
-    "title": "Título curto do insight (max 60 chars)",
-    "atividade": "nome da atividade relacionada ou '' se geral",
-    "body": "Análise detalhada e recomendação prática (2-3 frases)"
-  }},
-  ...
+    "title": "Insight com número real (max 60 chars)",
+    "atividade": "nome exato da atividade ou ''",
+    "body": "2-3 frases com números específicos + recomendação acionável concreta"
+  }}
 ]
 
-Tipos e quando usar:
-- delay: atividade atrasada ou em risco de atraso
-- ahead: atividade adiantada — pode realocar equipe
-- crew: recomendação de dimensionamento de equipe
-- weather: impacto climático ou alerta meteorológico
-- optimize: oportunidade de otimização de cronograma (atividades paralelas, sequenciamento)
-- alert: alerta crítico geral
+Exemplos de body de ALTA QUALIDADE:
+- "Fundações Bloco A está 18 dias atrasada no caminho crítico. Com equipe atual de 6 vs 10 planejados, acumula ~1,5 dia de atraso/semana. Contratar 4 serventes adicionais e trabalhar sábados por 3 semanas elimina o deficit."
+- "Estrutura Metálica concluiu 78% vs meta de 65% — 13pp adiantada, com 12 dias de folga. Realocar 2 dos 8 soldadores para Instalações Elétricas (42% vs meta 55%) normaliza o portfólio sem risco."
+- "Equipe 40% abaixo do planejado no último RDO (6/10). Se padrão continuar, a atividade 'Concretagem Pilares' perderá 4,2pp de avanço físico esta semana e entrará em zona crítica em 9 dias."
 
-Ícones Lucide sugeridos: alert-triangle, trending-up, trending-down, users, cloud-rain, calendar-check, zap, clock, hard-hat, wrench, check-circle
+Tipos:
+- delay: atividade atrasada ou em risco iminente de atraso
+- ahead: atividade adiantada — oportunidade de realocar recursos
+- crew: dimensionamento de equipe — gap ou excesso detectado
+- weather: impacto climático registrado no RDO ou risco meteorológico
+- optimize: oportunidade de paralelismo, sequenciamento ou compressão de prazo
+- alert: alerta crítico geral sem atividade específica
 
-Seja direto, use números quando possível. Foque em insights com valor real para o engenheiro de campo."""
+Ícones Lucide: alert-triangle, trending-up, trending-down, users, cloud-rain, calendar-check, zap, clock, hard-hat, wrench, check-circle, flame, shield-alert, target, layers"""
 
         def _call_ai():
             try:
@@ -2753,6 +2861,98 @@ Seja direto, use números quando possível. Foque em insights com valor real par
                 self.agente_error = ""
             else:
                 self.agente_error = "Não foi possível gerar insights no momento. Tente novamente."
+
+        # Persist new insights to Supabase so they survive page navigation
+        if insights:
+            _insights_snapshot = list(insights)
+            _contrato_snap = _contrato
+            _rdo_snap = rdo_id or ""
+            _ts_snap = now_brt
+            def _save():
+                try:
+                    from bomtempo.core.supabase_client import sb_upsert
+                    import json as _json
+                    # insights column is jsonb — pass as JSON string, PostgREST will cast it
+                    sb_upsert(
+                        "agente_insights",
+                        {
+                            "contrato":    _contrato_snap,
+                            "insights":    _json.dumps(_insights_snapshot, ensure_ascii=False),
+                            "last_rdo_id": _rdo_snap,
+                            "updated_at":  _ts_snap,
+                        },
+                        on_conflict="contrato",
+                    )
+                    logger.info(f"agente_insights saved for {_contrato_snap}")
+                except Exception as _e:
+                    logger.warning(f"agente_insights save failed: {_e}")
+            import threading as _threading
+            _threading.Thread(target=_save, daemon=True).start()
+
+    @rx.event(background=True)
+    async def load_persisted_insights(self, contrato: str):
+        """
+        Load persisted insights from Supabase for the given contract.
+        Called when switching projects — shows saved insights instantly
+        without triggering a new AI call.
+        Does NOT set agente_loading=True (fast lookup, no spinner needed).
+        """
+        import json as _json
+        import asyncio
+
+        # Update contrato immediately, clear stale insights from previous project
+        async with self:
+            self.agente_insights = []
+            self.agente_error = ""
+            self.agente_contrato = contrato
+            self.agente_last_rdo_id = ""
+            self.agente_last_updated = ""
+
+        loop = asyncio.get_running_loop()
+
+        def _fetch():
+            try:
+                from bomtempo.core.supabase_client import sb_select
+                rows = sb_select(
+                    "agente_insights",
+                    filters={"contrato": contrato},
+                    limit=1,
+                )
+                return rows[0] if rows else None
+            except Exception as _e:
+                logger.warning(f"agente_insights load failed: {_e}")
+                return None
+
+        row = await loop.run_in_executor(None, _fetch)
+
+        if not row:
+            # No saved insights for this contract — leave empty so user can generate
+            return
+
+        async with self:
+            try:
+                raw_insights = row.get("insights", "[]")
+                # Handle both jsonb (already a list) and text (needs parsing)
+                if isinstance(raw_insights, list):
+                    saved = raw_insights
+                else:
+                    saved = _json.loads(raw_insights)
+                if isinstance(saved, list) and saved:
+                    self.agente_insights = [
+                        {
+                            "type":      str(x.get("type", "alert")),
+                            "priority":  str(x.get("priority", "medium")),
+                            "icon":      str(x.get("icon", "zap")),
+                            "title":     str(x.get("title", ""))[:80],
+                            "atividade": str(x.get("atividade", "")),
+                            "body":      str(x.get("body", "")),
+                        }
+                        for x in saved if isinstance(x, dict)
+                    ]
+                    self.agente_last_rdo_id = row.get("last_rdo_id", "")
+                    self.agente_last_updated = row.get("updated_at", "")
+            except Exception as _e:
+                logger.warning(f"agente_insights parse failed: {_e}")
 
     def force_run_agente(self, contrato: str = ""):
         """Clear existing insights and force a fresh Agente run (botão manual)."""

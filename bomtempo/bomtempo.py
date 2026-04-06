@@ -156,6 +156,7 @@ app = rx.App(
         S.FONT_URL,
         "/style.css",
         "/animations.css",  # Smooth transitions and loading animations
+        "/light_theme.css",  # Light mode overrides (activated by rx.toggle_color_mode)
     ],
     theme=rx.theme(
         appearance="inherit",

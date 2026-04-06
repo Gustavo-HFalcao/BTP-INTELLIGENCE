@@ -618,7 +618,7 @@ def _avatar_modal() -> rx.Component:
                 width="100%",
             ),
             max_width="460px",
-            background=S.BG_ELEVATED,
+            background="var(--bg-elevated)",
             border=f"1px solid {S.BORDER_SUBTLE}",
         ),
         open=GlobalState.show_avatar_modal,
@@ -765,8 +765,8 @@ _COPPER_OVERLAY = "#C98B2A"
 def _rdo_submit_overlay() -> rx.Component:
     """Full-screen RDO submit overlay — rendered at root level so position:fixed covers full viewport."""
     steps = [
-        ("💾", "Salvando RDO no banco de dados…"),
-        ("📄", "Gerando PDF…"),
+        ("[save]", "Salvando RDO no banco de dados…"),
+        ("[doc]", "Gerando PDF…"),
         ("☁️", "Enviando PDF para a nuvem…"),
         ("✅", "Finalizando e enviando e-mails…"),
     ]
@@ -837,6 +837,127 @@ def default_layout(content: rx.Component) -> rx.Component:
         rx.script(src="/js/sig_canvas.js"),
         # ── Chart.js global initializer (MutationObserver para gráficos do chat IA) ──
         chart_init_script(),
+        # ── Light theme: propagate Radix color-mode class to <html> and <body> ──
+        # CAUSA RAIZ: body está FORA de [data-is-root-theme], então CSS vars
+        # declaradas nesse seletor nunca chegam ao body via herança.
+        # SOLUÇÃO: copiar a classe light/dark para html e body explicitamente.
+        rx.script("""
+(function() {
+  if (window.__lightThemePatchInstalled) return;
+  window.__lightThemePatchInstalled = true;
+
+  function applyTheme(themeName) {
+    var html = document.documentElement;
+    var body = document.body;
+
+    // Propaga a classe para html e body — onde as CSS vars precisam estar
+    html.classList.remove('light', 'dark');
+    body.classList.remove('light', 'dark');
+    html.classList.add(themeName);
+    body.classList.add(themeName);
+
+    if (themeName === 'light') {
+      // Remove inline backgrounds que sobrescrevem o CSS
+      body.style.removeProperty('background');
+      body.style.removeProperty('background-color');
+      var radixRoot = document.querySelector('[data-is-root-theme]');
+      if (radixRoot) {
+        radixRoot.style.removeProperty('background');
+        radixRoot.style.removeProperty('background-color');
+      }
+      // Remove inline bg do main-layout-flex se existir
+      document.querySelectorAll('.main-layout-flex').forEach(function(el) {
+        el.style.removeProperty('background');
+        el.style.removeProperty('background-color');
+      });
+    } else {
+      // No dark: também limpar inline para deixar as vars do :root agirem
+      body.style.removeProperty('background');
+      body.style.removeProperty('background-color');
+    }
+  }
+
+  function checkMode() {
+    var root = document.querySelector('[data-is-root-theme]');
+    if (!root) return;
+    var themeName = root.classList.contains('light') ? 'light' : 'dark';
+    applyTheme(themeName);
+  }
+
+  function init() {
+    var radixRoot = document.querySelector('[data-is-root-theme]');
+    if (!radixRoot) {
+      setTimeout(init, 100);
+      return;
+    }
+    // Aplica o tema atual imediatamente
+    checkMode();
+    // Observa mudanças de classe no elemento Radix
+    var observer = new MutationObserver(function(mutations) {
+      for (var i = 0; i < mutations.length; i++) {
+        if (mutations[i].attributeName === 'class') {
+          checkMode();
+          break;
+        }
+      }
+    });
+    observer.observe(radixRoot, { attributes: true });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+  // Belt-and-suspenders: re-check após qualquer click (toggle button)
+  document.addEventListener('click', function() {
+    setTimeout(checkMode, 50);
+  }, false);
+})();
+"""),
+        # ── Sticky/Pinned Recharts tooltip — clique para fixar, clique novamente para soltar ──
+        rx.script("""
+(function() {
+  if (window.__tooltipPinInstalled) return;
+  window.__tooltipPinInstalled = true;
+  var pinned = null;
+  document.addEventListener("click", function(e) {
+    var wrapper = e.target.closest ? e.target.closest(".recharts-wrapper") : null;
+    if (!wrapper) {
+      // Click fora de qualquer chart — desafixa tooltip ativo
+      if (pinned) {
+        pinned.style.visibility = "";
+        pinned.style.pointerEvents = "";
+        pinned.classList.remove("tooltip-pinned");
+        pinned = null;
+      }
+      return;
+    }
+    var tooltip = wrapper.querySelector(".recharts-tooltip-wrapper");
+    if (!tooltip) return;
+    if (pinned === tooltip) {
+      // Segundo clique no mesmo chart — desafixa
+      tooltip.style.visibility = "";
+      tooltip.style.pointerEvents = "";
+      tooltip.classList.remove("tooltip-pinned");
+      pinned = null;
+    } else {
+      // Primeiro clique — afixa este tooltip
+      if (pinned) {
+        pinned.style.visibility = "";
+        pinned.style.pointerEvents = "";
+        pinned.classList.remove("tooltip-pinned");
+      }
+      // Garantir que está visível
+      tooltip.style.visibility = "visible";
+      tooltip.style.pointerEvents = "none";
+      tooltip.classList.add("tooltip-pinned");
+      pinned = tooltip;
+    }
+  }, false);
+})();
+"""),
         # ── PWA Init (manifest + SW + install prompt + viewport fix + favicon + iOS) ──
         rx.script("""
 (function () {
@@ -1416,7 +1537,7 @@ def default_layout(content: rx.Component) -> rx.Component:
                     direction="row",
                     width="100%",
                     min_height="100vh",
-                    background=S.BG_VOID,
+                    background="var(--bg-void)",
                     class_name="main-layout-flex",
                 ),  # End rx.flex
                 position="relative",
