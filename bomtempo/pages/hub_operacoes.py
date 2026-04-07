@@ -2635,21 +2635,26 @@ def _cron_fase_pill(fase: str) -> rx.Component:
 
 
 def _cron_display_row(item: dict) -> rx.Component:
-    """Unified row renderer for macro and micro activities (uses _display_mode field)."""
+    """Unified row renderer for macro / micro / sub activities (uses _display_mode field)."""
     is_critical = item["critico"] == "1"
     is_macro = item["_display_mode"] == "macro"
     is_micro = item["_display_mode"] == "micro"
+    is_sub   = item["_display_mode"] == "sub"
     has_micros = item["_has_micros"] == "1"
     is_expanded = item["_is_expanded"] == "1"
     pct = item["_computed_pct"]
     is_pending = item["pendente_aprovacao"] == "1"
 
-    # Indent micros
-    indent = rx.cond(is_micro, rx.box(width="20px", flex_shrink="0"), rx.fragment())
+    # Indent: macro=0, micro=20px, sub=40px
+    indent = rx.cond(
+        is_sub,  rx.box(width="40px", flex_shrink="0"),
+        rx.cond(is_micro, rx.box(width="20px", flex_shrink="0"), rx.fragment()),
+    )
 
-    # Color stripe — thicker for macro, thinner for micro
-    stripe_w = rx.cond(is_micro, "2px", "3px")
-    stripe = rx.box(width=stripe_w, height="100%", bg=item["color"], border_radius="2px", flex_shrink="0", align_self="stretch", min_height="32px")
+    # Color stripe — thicker for macro, thin for micro/sub
+    stripe_w = rx.cond(is_macro, "3px", "2px")
+    stripe_color = rx.cond(is_sub, "#8B5CF6", item["color"])
+    stripe = rx.box(width=stripe_w, height="100%", bg=stripe_color, border_radius="2px", flex_shrink="0", align_self="stretch", min_height="32px")
 
     # Expand toggle (only for macros with micros)
     expand_btn = rx.cond(
@@ -2665,13 +2670,13 @@ def _cron_display_row(item: dict) -> rx.Component:
         rx.box(width="20px", flex_shrink="0"),  # spacer to keep alignment
     )
 
-    # Peso badge for micros
+    # Peso badge for micros and subs
     peso_badge = rx.cond(
-        is_micro,
+        is_micro | is_sub,
         rx.box(
-            rx.text(item["peso_pct"] + "%", font_size="8px", font_weight="700", color=item["color"], font_family=S.FONT_MONO),
+            rx.text(item["peso_pct"] + "%", font_size="8px", font_weight="700", color=rx.cond(is_sub, "#8B5CF6", item["color"]), font_family=S.FONT_MONO),
             padding="1px 5px", border_radius="3px", bg="rgba(255,255,255,0.05)",
-            border=f"1px solid rgba(255,255,255,0.1)", flex_shrink="0",
+            border=rx.cond(is_sub, "1px solid rgba(139,92,246,0.3)", "1px solid rgba(255,255,255,0.1)"), flex_shrink="0",
         ),
         rx.fragment(),
     )
@@ -2687,7 +2692,7 @@ def _cron_display_row(item: dict) -> rx.Component:
         rx.fragment(),
     )
 
-    # Status badge (only for micros, only when not 'nao_iniciada')
+    # Status badge (micros and subs, only when not 'nao_iniciada')
     _status_label = rx.cond(
         item["status_atividade"] == "em_execucao", "EM EXEC.",
         rx.cond(item["status_atividade"] == "concluida", "CONCLUÍDA",
@@ -2703,7 +2708,7 @@ def _cron_display_row(item: dict) -> rx.Component:
         rx.cond(item["status_atividade"] == "cancelada", S.TEXT_MUTED, S.TEXT_MUTED))))
     )
     status_badge = rx.cond(
-        is_micro & (item["status_atividade"] != "nao_iniciada") & (item["status_atividade"] != "pronta_iniciar"),
+        (is_micro | is_sub) & (item["status_atividade"] != "nao_iniciada") & (item["status_atividade"] != "pronta_iniciar"),
         rx.box(
             rx.text(_status_label, font_size="7px", font_weight="800", color=_status_color,
                     font_family=S.FONT_TECH, letter_spacing="0.06em"),
@@ -2715,9 +2720,9 @@ def _cron_display_row(item: dict) -> rx.Component:
         rx.fragment(),
     )
 
-    # Micro count badge for macros with children
+    # Child-count badge: macros show "N sub", micros show "N sub" if they have subs
     micro_count_badge = rx.cond(
-        is_macro & has_micros,
+        has_micros,
         rx.box(
             rx.text(item["_micro_count"] + " sub", font_size="8px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
             padding="1px 5px", border_radius="3px", bg="rgba(255,255,255,0.04)",
@@ -2756,8 +2761,17 @@ def _cron_display_row(item: dict) -> rx.Component:
         rx.fragment(),
     )
 
-    font_sz = rx.cond(is_micro, "12px", "13px")
-    font_w = rx.cond(is_micro, "500", "600")
+    font_sz = rx.cond(is_macro, "13px", rx.cond(is_micro, "12px", "11px"))
+    font_w  = rx.cond(is_macro, "600",  rx.cond(is_micro, "500",  "400"))
+    row_padding = rx.cond(is_macro, "10px 14px", rx.cond(is_micro, "7px 14px 7px 4px", "5px 14px 5px 4px"))
+    row_border  = rx.cond(is_sub, "1px solid rgba(139,92,246,0.08)",
+                  rx.cond(is_micro, "1px solid rgba(255,255,255,0.04)", f"1px solid {S.BORDER_SUBTLE}"))
+    row_bg = rx.cond(
+        is_critical, "rgba(239,68,68,0.04)",
+        rx.cond(is_sub, "rgba(139,92,246,0.04)",
+        rx.cond(is_micro, "rgba(255,255,255,0.015)", "rgba(255,255,255,0.02)")),
+    )
+    row_margin = rx.cond(is_sub, "24px", rx.cond(is_micro, "12px", "0px"))
 
     return rx.hstack(
         indent,
@@ -2775,7 +2789,7 @@ def _cron_display_row(item: dict) -> rx.Component:
                 spacing="1", align="center",
             ),
             rx.hstack(
-                rx.text(item["fase_macro"], font_size="9px", color=item["color"], font_family=S.FONT_MONO, font_weight="700"),
+                rx.text(item["fase_macro"], font_size="9px", color=rx.cond(is_sub, "#8B5CF6", item["color"]), font_family=S.FONT_MONO, font_weight="700"),
                 rx.text("·", font_size="9px", color=S.TEXT_MUTED),
                 rx.text(item["fase"], font_size="9px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                 spacing="1", align="center",
@@ -2793,10 +2807,10 @@ def _cron_display_row(item: dict) -> rx.Component:
         # Progress bar + pct
         rx.vstack(
             rx.box(
-                rx.box(width=pct + "%", height="100%", bg=rx.cond(is_critical, S.DANGER, S.COPPER), border_radius="2px", transition="width 0.4s ease"),
+                rx.box(width=pct + "%", height="100%", bg=rx.cond(is_critical, S.DANGER, rx.cond(is_sub, "#8B5CF6", S.COPPER)), border_radius="2px", transition="width 0.4s ease"),
                 width="80px", height="4px", bg="rgba(255,255,255,0.08)", border_radius="2px", overflow="hidden",
             ),
-            rx.text(pct + "%", font_size="10px", color=rx.cond(is_critical, S.DANGER, S.COPPER), font_family=S.FONT_MONO, font_weight="700", text_align="center"),
+            rx.text(pct + "%", font_size="10px", color=rx.cond(is_critical, S.DANGER, rx.cond(is_sub, "#8B5CF6", S.COPPER)), font_family=S.FONT_MONO, font_weight="700", text_align="center"),
             spacing="1", align="center", flex_shrink="0",
         ),
         # Actions
@@ -2807,14 +2821,14 @@ def _cron_display_row(item: dict) -> rx.Component:
             rx.icon_button(rx.icon(tag="trash-2", size=12, color=S.DANGER), size="1", variant="ghost", on_click=HubState.request_cron_delete(item["id"]), cursor="pointer", _hover={"bg": "rgba(239,68,68,0.12)"}),
             spacing="1", flex_shrink="0",
         ),
-        padding=rx.cond(is_micro, "7px 14px 7px 4px", "10px 14px"),
+        padding=row_padding,
         border_radius=S.R_CONTROL,
-        border=rx.cond(is_micro, f"1px solid rgba(255,255,255,0.04)", f"1px solid {S.BORDER_SUBTLE}"),
-        bg=rx.cond(is_critical, "rgba(239,68,68,0.04)", rx.cond(is_micro, "rgba(255,255,255,0.015)", "rgba(255,255,255,0.02)")),
-        _hover={"bg": rx.cond(is_critical, "rgba(239,68,68,0.07)", "rgba(255,255,255,0.04)"), "border_color": S.BORDER_ACCENT},
+        border=row_border,
+        bg=row_bg,
+        _hover={"bg": rx.cond(is_critical, "rgba(239,68,68,0.07)", rx.cond(is_sub, "rgba(139,92,246,0.08)", "rgba(255,255,255,0.04)")), "border_color": S.BORDER_ACCENT},
         transition="all 0.15s ease",
         width="100%", align="center", spacing="2", overflow="hidden",
-        margin_left=rx.cond(is_micro, "12px", "0px"),
+        margin_left=row_margin,
     )
 
 
@@ -3355,7 +3369,7 @@ def _cron_edit_dialog() -> rx.Component:
                 # Row 4b: Progresso + Status + Tipo Medição + Crítico
                 rx.flex(
                     rx.vstack(rx.text("Conclusão %", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
-                              rx.el.input(type="number", default_value=HubState.cron_edit_pct, on_blur=HubState.set_cron_edit_pct, min="0", max="100", style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","padding":"8px 10px","fontSize":"13px","width":"100px","outline":"none"}), spacing="1"),
+                              rx.el.input(type="number", value=HubState.cron_edit_pct, on_change=HubState.set_cron_edit_pct, min="0", max="100", style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","padding":"8px 10px","fontSize":"13px","width":"100px","outline":"none"}), spacing="1"),
                     rx.vstack(
                         rx.text("Status", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                         rx.select.root(
@@ -3588,6 +3602,7 @@ def _cron_edit_dialog() -> rx.Component:
             ),
             bg=S.BG_ELEVATED, border=f"1px solid {S.BORDER_SUBTLE}", border_radius=S.R_CARD,
             max_width="600px", width="95vw",
+            key=HubState.cron_edit_id,
         ),
         open=HubState.cron_show_dialog,
         on_open_change=HubState.set_cron_show_dialog,
@@ -4055,7 +4070,7 @@ def _tab_cronograma() -> rx.Component:
         # ── Activity list ─────────────────────────────────────────────────────
         rx.cond(
             HubState.cron_loading,
-            rx.center(rx.vstack(rx.spinner(size="3"), rx.text("Carregando atividades...", font_size="12px", color=S.TEXT_MUTED), spacing="2", align="center"), padding="40px"),
+            rx.center(rx.vstack(rx.spinner(size="3"), rx.text("Carregando atividades...", font_size="12px", color=S.TEXT_MUTED), spacing="2", align="center"), padding="60px", width="100%", min_height="200px"),
                 rx.cond(
                 HubState.cron_display_rows.length() == 0,
                 rx.box(
@@ -4094,6 +4109,7 @@ def _tab_cronograma() -> rx.Component:
                 rx.vstack(
                     rx.foreach(HubState.cron_display_rows, _cron_display_row),
                     spacing="1", width="100%",
+                    class_name="cron-activity-list",
                 ),
             ),
         ),

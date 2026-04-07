@@ -1613,18 +1613,21 @@ class GlobalState(rx.State):
                     return pd.DataFrame()
                 return d
 
+            def _norm_df(df):
+                """Single-pass: convert datetime cols to str + fillna by dtype."""
+                for col in df.columns:
+                    if pd.api.types.is_datetime64_any_dtype(df[col]):
+                        df[col] = df[col].astype(str)
+                    elif pd.api.types.is_numeric_dtype(df[col]):
+                        df[col] = df[col].fillna(0)
+                    else:
+                        df[col] = df[col].fillna("")
+                return df
+
             if "contratos" in self._data:
                 df = get_df("contratos")
                 if not df.empty:
-                    # Convert Timestamp dates to strings
-                    for col in df.columns:
-                        if pd.api.types.is_datetime64_any_dtype(df[col]):
-                            df[col] = df[col].astype(str)
-                    for col in df.columns:
-                        if pd.api.types.is_numeric_dtype(df[col]):
-                            df[col] = df[col].fillna(0)
-                        else:
-                            df[col] = df[col].fillna("")
+                    df = _norm_df(df)
                     self.contratos_list = df.to_dict("records")
                     self.total_contratos = len(df)
                     self.valor_tcv = (
@@ -1639,52 +1642,22 @@ class GlobalState(rx.State):
             if "projeto" in self._data:
                 df = get_df("projeto")
                 if not df.empty:
-                    for col in ["inicio_previsto", "termino_previsto"]:
-                        if col in df.columns:
-                            df[col] = df[col].astype(str)
-                    for col in df.columns:
-                        if pd.api.types.is_numeric_dtype(df[col]):
-                            df[col] = df[col].fillna(0)
-                        else:
-                            df[col] = df[col].fillna("")
-                    self.projetos_list = df.to_dict("records")
+                    self.projetos_list = _norm_df(df).to_dict("records")
 
             if "obras" in self._data:
                 df = get_df("obras")
                 if not df.empty:
-                    if "data" in df.columns:
-                        df["data"] = df["data"].astype(str)
-                    for col in df.columns:
-                        if pd.api.types.is_numeric_dtype(df[col]):
-                            df[col] = df[col].fillna(0)
-                        else:
-                            df[col] = df[col].fillna("")
-                    self.obras_list = df.to_dict("records")
+                    self.obras_list = _norm_df(df).to_dict("records")
 
             if "financeiro" in self._data:
                 df = get_df("financeiro")
                 if not df.empty:
-                    if "data" in df.columns:
-                        df["data"] = df["data"].astype(str)
-                    # Fill NaN: 0 for numeric cols, "" for object cols to avoid type errors in agg
-                    for col in df.columns:
-                        if pd.api.types.is_numeric_dtype(df[col]):
-                            df[col] = df[col].fillna(0)
-                        else:
-                            df[col] = df[col].fillna("")
-                    self.financeiro_list = df.to_dict("records")
+                    self.financeiro_list = _norm_df(df).to_dict("records")
 
             if "om" in self._data:
                 df = get_df("om")
                 if not df.empty:
-                    if "data" in df.columns:
-                        df["data"] = df["data"].astype(str)
-                    for col in df.columns:
-                        if pd.api.types.is_numeric_dtype(df[col]):
-                            df[col] = df[col].fillna(0)
-                        else:
-                            df[col] = df[col].fillna("")
-                    self.om_list = df.to_dict("records")
+                    self.om_list = _norm_df(df).to_dict("records")
 
             # --- Update current page KPIs immediately on data load ---
             # Ideally this happens on page load, but we can pre-populate if data is ready.

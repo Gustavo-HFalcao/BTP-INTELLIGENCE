@@ -2167,3 +2167,105 @@ button.rt-reset {
     font-size: 11px !important;
 }
 
+/* ═══════════════════════════════════════════════════════════
+   UX POLISH — Input hover, dialog entrance, transitions
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Input hover state (before focus) ───────────────────── */
+input:not(.rt-TextFieldInput):not([type="date"]):not([type="number"]):hover,
+textarea:hover {
+    border-color: rgba(201, 139, 42, 0.25) !important;
+}
+
+/* ── Number & date inputs hover ─────────────────────────── */
+input[type="number"]:hover,
+input[type="date"]:hover {
+    border-color: rgba(201, 139, 42, 0.25) !important;
+}
+
+/* ── Dialog entrance animation ───────────────────────────── */
+@keyframes dialogSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-8px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.rt-DialogContent {
+    animation: dialogSlideIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+}
+
+/* ── Dialog scroll — smooth + visible scrollbar inside dialog ─ */
+.rt-DialogContent {
+    overflow-y: auto !important;
+    scroll-behavior: smooth !important;
+}
+
+/* ── Select trigger — smoother hover transition ──────────── */
+.rt-SelectTrigger {
+    transition: border-color 0.12s ease, box-shadow 0.12s ease !important;
+}
+
+/* ── Pill / box buttons — micro press feedback ───────────── */
+[data-pill-btn]:active,
+.dep-pill:active {
+    transform: scale(0.97) !important;
+}
+
+/* ── Icon buttons — faster hover response ────────────────── */
+.rt-IconButton {
+    transition: background-color 0.1s ease, color 0.1s ease !important;
+}
+
+/* ── Checkbox — smooth check animation ───────────────────── */
+.rt-CheckboxRoot {
+    transition: background-color 0.12s ease, border-color 0.12s ease !important;
+}
+
+/* ── Activity row expand — smooth height transition ─────── */
+.cron-activity-list > * {
+    animation: fadeSlideDown 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fadeSlideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ── Spinner — copper tint ───────────────────────────────── */
+.rt-Spinner {
+    color: var(--copper-500) !important;
+}
+
+/* ── Select content — entrance animation ─────────────────── */
+.rt-SelectContent {
+    animation: dialogSlideIn 0.14s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+}
+
+/* ── Form section labels — pointer cursor on interactive boxes ── */
+.rt-DialogContent [style*="cursor: pointer"],
+.rt-DialogContent [style*="cursor:pointer"] {
+    user-select: none !important;
+}
+
+/* ── Disable text selection on pill buttons ──────────────── */
+.rt-DialogContent .rt-Box[style*="cursor"] {
+    -webkit-user-select: none !important;
+    user-select: none !important;
+}
+
+/* ── Progress bars — smoother width transition ───────────── */
+[style*="transition: width"] {
+    will-change: width !important;
+}
+

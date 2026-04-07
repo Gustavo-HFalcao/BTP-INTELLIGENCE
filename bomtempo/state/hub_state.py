@@ -572,94 +572,82 @@ class HubState(rx.State):
     @rx.var
     def gantt_rows(self) -> List[Dict[str, str]]:
         """
-        Returns filtered_cron_rows enriched with Gantt positioning data:
-          - gantt_left_pct: CSS left% within the Gantt timeline (string, e.g. "12.5")
-          - gantt_width_pct: CSS width% within the Gantt timeline (string, e.g. "30.0")
-          - gantt_overdue: "1" if termino_iso < today and conclusao_pct < 100
-        All activities without valid ISO dates get left="0", width="100".
+        Returns filtered_cron_rows enriched with Gantt positioning data.
+        Optimized: single-pass date parsing, no redundant fromisoformat calls.
         """
-        from datetime import date
+        from datetime import date, timedelta
         rows = self.filtered_cron_rows
         if not rows:
             return []
 
-        # Compute global min/max from all rows (not just filtered) for consistent scale
-        all_rows = self.cron_rows
-        dates_start = []
-        dates_end = []
-        for r in all_rows:
-            s = r.get("inicio_iso", "")
-            e = r.get("termino_iso", "")
-            if s and len(s) >= 10:
-                try:
-                    dates_start.append(date.fromisoformat(s[:10]))
-                except Exception:
-                    pass
-            if e and len(e) >= 10:
-                try:
-                    dates_end.append(date.fromisoformat(e[:10]))
-                except Exception:
-                    pass
+        # Pre-parse all dates from cron_rows in one pass to find global min/max
+        today = date.today()
+        global_start_d: date | None = None
+        global_end_d: date | None = None
+        for r in self.cron_rows:
+            for key in ("inicio_iso", "termino_iso"):
+                iso = r.get(key, "")
+                if iso and len(iso) >= 10:
+                    try:
+                        d = date.fromisoformat(iso[:10])
+                        if global_start_d is None or d < global_start_d:
+                            global_start_d = d
+                        if global_end_d is None or d > global_end_d:
+                            global_end_d = d
+                    except ValueError:
+                        pass
 
-        if not dates_start or not dates_end:
+        if global_start_d is None or global_end_d is None:
             return [dict(r, gantt_left_pct="0", gantt_width_pct="100", gantt_overdue="0",
                          gantt_forecast_left="", gantt_forecast_width="") for r in rows]
 
-        global_start = min(dates_start)
-        global_end = max(dates_end)
-        total_days = (global_end - global_start).days or 1
-        today = date.today()
+        global_start = global_start_d
+        global_end = global_end_d
+        total_days = max((global_end - global_start).days, 1)
 
         result = []
         for r in rows:
             s_iso = r.get("inicio_iso", "")
             e_iso = r.get("termino_iso", "")
-            try:
-                s_date = date.fromisoformat(s_iso[:10]) if s_iso and len(s_iso) >= 10 else global_start
-                e_date = date.fromisoformat(e_iso[:10]) if e_iso and len(e_iso) >= 10 else global_end
-                left_days = (s_date - global_start).days
-                dur_days = max((e_date - s_date).days, 1)
-                left_pct = round(left_days / total_days * 100, 1)
-                width_pct = round(dur_days / total_days * 100, 1)
-                # Clamp
-                if left_pct < 0:
-                    left_pct = 0.0
-                if left_pct + width_pct > 100:
-                    width_pct = 100.0 - left_pct
-                overdue = "1" if e_date < today and int(r.get("conclusao_pct", "0") or "0") < 100 else "0"
-            except Exception:
-                left_pct, width_pct, overdue = 0.0, 100.0, "0"
-                s_date = global_start
-                e_date = global_end
+            # Parse once per row
+            s_date = global_start
+            e_date = global_end
+            if s_iso and len(s_iso) >= 10:
+                try: s_date = date.fromisoformat(s_iso[:10])
+                except ValueError: pass
+            if e_iso and len(e_iso) >= 10:
+                try: e_date = date.fromisoformat(e_iso[:10])
+                except ValueError: pass
 
-            # Forecast bar: from s_date to EAC (data_fim_prevista) — only for micros with qty
+            left_days = (s_date - global_start).days
+            dur_days = max((e_date - s_date).days, 1)
+            left_pct = round(left_days / total_days * 100, 1)
+            width_pct = round(dur_days / total_days * 100, 1)
+            if left_pct < 0:
+                left_pct = 0.0
+            if left_pct + width_pct > 100:
+                width_pct = 100.0 - left_pct
+            overdue = "1" if e_date < today and int(r.get("conclusao_pct", "0") or "0") < 100 else "0"
+
+            # Forecast bar — only for micros with qty data
             gantt_forecast_left = ""
             gantt_forecast_width = ""
-            try:
-                total_qty_f = float(r.get("total_qty", "0") or "0")
-                exec_qty_f  = float(r.get("exec_qty", "0") or "0")
-                dias_plan_f = int(r.get("dias_planejados", "0") or "0")
-                if total_qty_f > 0 and exec_qty_f > 0 and dias_plan_f > 0:
-                    prod_plan_f = total_qty_f / dias_plan_f
-                    d_inicio_f  = date.fromisoformat(s_iso[:10]) if s_iso and len(s_iso) >= 10 else None
-                    if d_inicio_f:
-                        dias_dec = max(1, int((today - d_inicio_f).days * 5 / 7))
-                        prod_real_f = exec_qty_f / dias_dec
-                        if prod_real_f > 0:
-                            saldo_f = max(0.0, total_qty_f - exec_qty_f)
-                            cal_rest = int((saldo_f / prod_real_f) * 1.4)
-                            from datetime import timedelta
-                            eac_date = today + timedelta(days=cal_rest)
-                            eac_left = round((s_date - global_start).days / total_days * 100, 1)
-                            eac_dur  = max((eac_date - s_date).days, 1)
-                            eac_w    = round(eac_dur / total_days * 100, 1)
-                            eac_left = max(0.0, eac_left)
-                            if eac_left + eac_w > 100:
-                                eac_w = 100.0 - eac_left
-                            gantt_forecast_left  = str(eac_left)
-                            gantt_forecast_width = str(max(eac_w, 0.5))
-            except Exception:
-                pass
+            total_qty_f = float(r.get("total_qty", "0") or "0")
+            exec_qty_f  = float(r.get("exec_qty", "0") or "0")
+            dias_plan_f = int(r.get("dias_planejados", "0") or "0")
+            if total_qty_f > 0 and exec_qty_f > 0 and dias_plan_f > 0:
+                dias_dec = max(1, int((today - s_date).days * 5 / 7))
+                prod_real_f = exec_qty_f / dias_dec
+                if prod_real_f > 0:
+                    saldo_f = max(0.0, total_qty_f - exec_qty_f)
+                    eac_date = today + timedelta(days=int(saldo_f / prod_real_f * 1.4))
+                    eac_left = round((s_date - global_start).days / total_days * 100, 1)
+                    eac_w    = round(max((eac_date - s_date).days, 1) / total_days * 100, 1)
+                    eac_left = max(0.0, eac_left)
+                    if eac_left + eac_w > 100:
+                        eac_w = 100.0 - eac_left
+                    gantt_forecast_left  = str(eac_left)
+                    gantt_forecast_width = str(max(eac_w, 0.5))
 
             result.append(dict(
                 r,
@@ -706,26 +694,53 @@ class HubState(rx.State):
     def cron_display_rows(self) -> List[Dict[str, str]]:
         """
         Flat ordered list for rx.foreach — macros interleaved with their micros.
-        Each row has _display_mode: 'macro' | 'micro' | 'pending_micro'.
+        Each row has _display_mode: 'macro' | 'micro' | 'sub'.
         Micros only appear when their parent macro is in cron_expanded_macros.
+        O(n) via pre-indexed dicts instead of nested loops.
         """
         result: List[Dict[str, str]] = []
         all_rows = self.filtered_cron_rows
-        # Separate macros, micros, and subs
-        macros = [r for r in all_rows if r.get("nivel", "macro") in ("macro", "")]
-        micros = [r for r in all_rows if r.get("nivel", "") == "micro"]
-        subs   = [r for r in all_rows if r.get("nivel", "") == "sub"]
         expanded = self.cron_expanded_macros
+
+        # Separate by nivel — single pass O(n)
+        macros: List[Dict[str, str]] = []
+        micros: List[Dict[str, str]] = []
+        subs: List[Dict[str, str]] = []
+        for r in all_rows:
+            nivel = r.get("nivel", "macro")
+            if nivel in ("macro", ""):
+                macros.append(r)
+            elif nivel == "micro":
+                micros.append(r)
+            else:
+                subs.append(r)
+
+        # Build lookup dicts — O(n) total
+        micros_by_parent: Dict[str, List[Dict[str, str]]] = {}
+        for m in micros:
+            pid = m.get("parent_id", "")
+            if pid not in micros_by_parent:
+                micros_by_parent[pid] = []
+            micros_by_parent[pid].append(m)
+
+        subs_by_parent: Dict[str, List[Dict[str, str]]] = {}
+        for s in subs:
+            pid = s.get("parent_id", "")
+            if pid not in subs_by_parent:
+                subs_by_parent[pid] = []
+            subs_by_parent[pid].append(s)
+
+        macro_ids: set = {m.get("id", "") for m in macros}
 
         for macro in macros:
             macro_id = macro.get("id", "")
-            # For each micro child, compute its pct from subs if any
-            children = []
-            for micro in micros:
-                if micro.get("parent_id", "") != macro_id:
-                    continue
+            micro_list = micros_by_parent.get(macro_id, [])
+
+            # For each micro child, compute its pct from subs if any — O(subs per micro)
+            children: List[tuple] = []
+            for micro in micro_list:
                 micro_id = micro.get("id", "")
-                sub_children = [s for s in subs if s.get("parent_id", "") == micro_id]
+                sub_children = subs_by_parent.get(micro_id, [])
                 if sub_children:
                     sub_peso = sum(int(s.get("peso_pct", "0") or "0") for s in sub_children)
                     if sub_peso > 0:
@@ -775,7 +790,6 @@ class HubState(rx.State):
                         _computed_pct=micro.get("conclusao_pct", "0"),
                         _micro_count=str(len(sub_children)),
                     ))
-                    # Always show subs inline (they don't collapse separately)
                     for sub in sub_children:
                         result.append(dict(
                             sub,
@@ -786,18 +800,17 @@ class HubState(rx.State):
                             _micro_count="0",
                         ))
 
-        # Standalone entries that are micros with no parent in current filter
-        macro_ids = {m.get("id", "") for m in macros}
-        orphan_micros = [m for m in micros if m.get("parent_id", "") not in macro_ids]
-        for micro in orphan_micros:
-            result.append(dict(
-                micro,
-                _display_mode="micro",
-                _has_micros="0",
-                _is_expanded="0",
-                _computed_pct=micro.get("conclusao_pct", "0"),
-                _micro_count="0",
-            ))
+        # Orphan micros (no macro parent in current filter)
+        for micro in micros:
+            if micro.get("parent_id", "") not in macro_ids:
+                result.append(dict(
+                    micro,
+                    _display_mode="micro",
+                    _has_micros="0",
+                    _is_expanded="0",
+                    _computed_pct=micro.get("conclusao_pct", "0"),
+                    _micro_count="0",
+                ))
 
         return result
 
@@ -852,48 +865,49 @@ class HubState(rx.State):
         """
         from datetime import date, timedelta
         today = date.today()
+        tol = 10.0  # ±10% deviation tolerance
         result = []
         for r in self.cron_rows:
             if r.get("nivel", "macro") != "micro":
                 continue
+
+            # Parse all numeric fields once, skip row on error
+            total_qty_s  = r.get("total_qty",  "0") or "0"
+            exec_qty_s   = r.get("exec_qty",   "0") or "0"
+            dias_plan_s  = r.get("dias_planejados", "0") or "0"
+            pct_s        = r.get("conclusao_pct", "0") or "0"
             try:
-                total_qty  = float(r.get("total_qty",  "0") or "0")
-                exec_qty   = float(r.get("exec_qty",   "0") or "0")
-                dias_plan  = int(r.get("dias_planejados", "0") or "0")
-                pct        = int(r.get("conclusao_pct", "0") or "0")
-                inicio_iso = r.get("inicio_iso", "")
-                termino_iso = r.get("termino_iso", "")
+                total_qty = float(total_qty_s)
+                exec_qty  = float(exec_qty_s)
+                dias_plan = int(dias_plan_s)
+                pct       = int(pct_s)
             except (ValueError, TypeError):
                 continue
 
-            # produtividade planejada
-            prod_plan = 0.0
-            if total_qty > 0 and dias_plan > 0:
-                prod_plan = total_qty / dias_plan
+            inicio_iso  = r.get("inicio_iso", "")
+            termino_iso = r.get("termino_iso", "")
 
-            # dias decorridos desde início (aproximado, ignorando feriados)
-            dias_decorridos = 0
+            # Produtividade planejada
+            prod_plan = total_qty / dias_plan if total_qty > 0 and dias_plan > 0 else 0.0
+
+            # Dias decorridos — parse date once
+            d_inicio: date | None = None
             if inicio_iso and len(inicio_iso) >= 10:
-                try:
-                    d_inicio = date.fromisoformat(inicio_iso[:10])
-                    if d_inicio <= today:
-                        dias_decorridos = max(0, (today - d_inicio).days)
-                except Exception:
-                    pass
+                try: d_inicio = date.fromisoformat(inicio_iso[:10])
+                except ValueError: pass
 
-            # produtividade real média (exec_qty / dias decorridos úteis estimados)
-            dias_uteis_decorridos = max(1, int(dias_decorridos * 5 / 7))  # rough weekday estimate
-            prod_real = exec_qty / dias_uteis_decorridos if dias_uteis_decorridos > 0 and exec_qty > 0 else 0.0
+            dias_decorridos = max(0, (today - d_inicio).days) if d_inicio and d_inicio <= today else 0
+            dias_uteis = max(1, int(dias_decorridos * 5 / 7))
+            prod_real  = exec_qty / dias_uteis if exec_qty > 0 else 0.0
 
-            # desvio de produtividade
-            desvio_pct = 0.0
-            if prod_plan > 0:
-                desvio_pct = round((prod_real - prod_plan) / prod_plan * 100, 1)
+            # Desvio
+            desvio_pct = round((prod_real - prod_plan) / prod_plan * 100, 1) if prod_plan > 0 else 0.0
 
-            # tendência
-            tol = 10.0  # ±10% tolerance
+            # Tendência
             if exec_qty == 0 or dias_decorridos < 3:
                 tendencia = "sem_dados"
+            elif pct >= 100:
+                tendencia = "concluida"
             elif desvio_pct >= tol:
                 tendencia = "acima"
             elif desvio_pct <= -tol:
@@ -901,24 +915,18 @@ class HubState(rx.State):
             else:
                 tendencia = "dentro"
 
-            # data fim prevista (EAC)
+            # EAC — data fim prevista
             data_fim_prev_str = ""
             desvio_dias = 0
             if prod_real > 0 and total_qty > 0 and pct < 100:
-                saldo = total_qty - exec_qty
-                dias_restantes = max(0, int(saldo / prod_real))
-                # Convert working days → calendar days (rough ×1.4)
-                cal_restantes = int(dias_restantes * 1.4)
-                fim_prev = today + timedelta(days=cal_restantes)
+                saldo = max(0.0, total_qty - exec_qty)
+                fim_prev = today + timedelta(days=int(saldo / prod_real * 1.4))
                 data_fim_prev_str = fim_prev.isoformat()
                 if termino_iso and len(termino_iso) >= 10:
                     try:
-                        fim_plan = date.fromisoformat(termino_iso[:10])
-                        desvio_dias = (fim_prev - fim_plan).days
-                    except Exception:
+                        desvio_dias = (fim_prev - date.fromisoformat(termino_iso[:10])).days
+                    except ValueError:
                         pass
-            elif pct >= 100:
-                tendencia = "concluida"
 
             result.append(dict(
                 r,
@@ -928,28 +936,23 @@ class HubState(rx.State):
                 _tendencia=tendencia,
                 _data_fim_prevista=_utc_date_to_br(data_fim_prev_str) if data_fim_prev_str else "—",
                 _desvio_dias=str(desvio_dias),
-                _saldo_qty=f"{max(0.0, float(r.get('total_qty','0') or '0') - float(r.get('exec_qty','0') or '0')):.1f}",
+                _saldo_qty=f"{max(0.0, total_qty - exec_qty):.1f}",
             ))
         return result
 
     @rx.var
     def cron_kpi_dashboard(self) -> Dict[str, str]:
         """
-        KPIs de alto nível do cronograma para o dashboard previsto vs realizado:
-          - pct_fisico_programado_hoje: % planejado até hoje (baseado em atividades vencidas)
-          - pct_fisico_realizado: média ponderada real de todas as atividades
-          - desvio_pp: diferença em pontos percentuais
-          - atividades_em_risco: count de micros com tendência 'abaixo' e >5% de desvio
-          - atividades_atrasadas: micros com termino < hoje e pct < 100
-          - atividades_adiantadas: micros com tendencia 'acima'
-          - producao_total_prevista: soma total_qty de todos os micros
-          - producao_total_realizada: soma exec_qty de todos os micros
+        KPIs de alto nível do cronograma — single-pass otimizado.
+        Evita reprocessar cron_forecast_rows (que é uma computed var pesada separada).
         """
         from datetime import date
         today = date.today()
+        tol = 10.0
 
         micros = [r for r in self.cron_rows if r.get("nivel", "") == "micro"]
-        if not micros:
+        n = len(micros)
+        if not n:
             return {
                 "pct_fisico_programado_hoje": "0",
                 "pct_fisico_realizado": "0",
@@ -962,48 +965,62 @@ class HubState(rx.State):
                 "total_micros": "0",
             }
 
-        # Progresso realizado ponderado por peso
-        total_peso = sum(int(r.get("peso_pct", "0") or "0") for r in micros)
-        if total_peso > 0:
-            pct_realizado = sum(
-                int(r.get("conclusao_pct", "0") or "0") * int(r.get("peso_pct", "0") or "0")
-                for r in micros
-            ) / total_peso
-        else:
-            pct_realizado = sum(int(r.get("conclusao_pct", "0") or "0") for r in micros) / len(micros)
-
-        # Programado até hoje: atividades que deveriam estar concluídas (termino <= hoje)
-        vencidas = []
-        for r in micros:
-            t = r.get("termino_iso", "")
-            if t and len(t) >= 10:
-                try:
-                    if date.fromisoformat(t[:10]) <= today:
-                        vencidas.append(r)
-                except Exception:
-                    pass
-        pct_programado = (len(vencidas) / len(micros) * 100) if micros else 0.0
-        desvio_pp = round(pct_realizado - pct_programado, 1)
-
-        # Atividades atrasadas: termino < hoje e pct < 100
+        # Single pass — compute all KPIs together
+        total_peso = 0
+        peso_pct_sum = 0.0
+        pct_sum = 0
+        vencidas = 0
         atrasadas = 0
+        prod_prev = 0.0
+        prod_real_qty = 0.0
+        em_risco = 0
+        adiantadas = 0
+
         for r in micros:
-            t = r.get("termino_iso", "")
-            pct = int(r.get("conclusao_pct", "0") or "0")
-            if t and len(t) >= 10 and pct < 100:
+            peso  = int(r.get("peso_pct", "0") or "0")
+            pct   = int(r.get("conclusao_pct", "0") or "0")
+            t_iso = r.get("termino_iso", "")
+            tqty  = float(r.get("total_qty", "0") or "0")
+            eqty  = float(r.get("exec_qty", "0") or "0")
+            dias  = int(r.get("dias_planejados", "0") or "0")
+
+            total_peso    += peso
+            peso_pct_sum  += peso * pct
+            pct_sum       += pct
+            prod_prev     += tqty
+            prod_real_qty += eqty
+
+            # Date checks — parse once per row
+            if t_iso and len(t_iso) >= 10:
                 try:
-                    if date.fromisoformat(t[:10]) < today:
+                    t_date = date.fromisoformat(t_iso[:10])
+                    if t_date <= today:
+                        vencidas += 1
+                    if t_date < today and pct < 100:
                         atrasadas += 1
-                except Exception:
+                except ValueError:
                     pass
 
-        # Produção física total
-        prod_prev = sum(float(r.get("total_qty", "0") or "0") for r in micros)
-        prod_real = sum(float(r.get("exec_qty", "0") or "0") for r in micros)
+            # Inline forecast tendency (same logic as cron_forecast_rows)
+            s_iso = r.get("inicio_iso", "")
+            if eqty > 0 and tqty > 0 and dias > 0 and s_iso and len(s_iso) >= 10:
+                try:
+                    d_inicio = date.fromisoformat(s_iso[:10])
+                    dias_dec = max(0, (today - d_inicio).days) if d_inicio <= today else 0
+                    if dias_dec >= 3:
+                        prod_plan = tqty / dias
+                        prod_r    = eqty / max(1, int(dias_dec * 5 / 7))
+                        desvio    = (prod_r - prod_plan) / prod_plan * 100 if prod_plan > 0 else 0.0
+                        if desvio <= -tol and pct < 100:
+                            em_risco += 1
+                        elif desvio >= tol:
+                            adiantadas += 1
+                except ValueError:
+                    pass
 
-        # Atividades em risco (baseado em forecast_rows)
-        em_risco = sum(1 for r in self.cron_forecast_rows if r.get("_tendencia") == "abaixo")
-        adiantadas = sum(1 for r in self.cron_forecast_rows if r.get("_tendencia") == "acima")
+        pct_realizado  = peso_pct_sum / total_peso if total_peso > 0 else (pct_sum / n)
+        pct_programado = vencidas / n * 100
+        desvio_pp      = round(pct_realizado - pct_programado, 1)
 
         return {
             "pct_fisico_programado_hoje": str(round(pct_programado, 1)),
@@ -1013,8 +1030,8 @@ class HubState(rx.State):
             "atividades_atrasadas": str(atrasadas),
             "atividades_adiantadas": str(adiantadas),
             "producao_total_prevista": str(round(prod_prev, 1)),
-            "producao_total_realizada": str(round(prod_real, 1)),
-            "total_micros": str(len(micros)),
+            "producao_total_realizada": str(round(prod_real_qty, 1)),
+            "total_micros": str(n),
         }
 
     # ══════════════════════════════════════════════════════════════════════════
@@ -1295,7 +1312,11 @@ class HubState(rx.State):
     def set_cron_edit_termino(self, v: str): self.cron_edit_termino = v
     def set_cron_edit_pct(self, v):
         """Set conclusao_pct. For 'progresso' dependency type, cap at predecessor's current pct."""
-        pct = int(str(v) or "0")
+        try:
+            pct = max(0, min(100, int(float(str(v) or "0"))))
+        except (ValueError, TypeError):
+            self.cron_edit_pct = str(v)  # keep raw while user is typing
+            return
         if self.cron_edit_dep_tipo == "progresso" and self.cron_edit_dependencia_id:
             pred = next(
                 (r for r in self.cron_rows if r["id"] == self.cron_edit_dependencia_id),
