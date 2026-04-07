@@ -1,11 +1,5 @@
 {
   "env": {},
-  "mcpServers": {
-    "supabase": {
-      "type": "http",
-      "url": "https://mcp.supabase.com/mcp?project_ref=zobukgyldeiparlwczga"
-    }
-  },
   "permissions": {
     "allow": [
       "Bash(/c/Users/Samsung/AppData/Local/reflex/bun/bin/bun.exe pm:*)",
@@ -40,7 +34,17 @@
       "WebFetch(domain:support.claude.com)",
       "Bash(git pull:*)",
       "Bash(py -c ':*)",
-      "Bash(rm -rf .web/app/routes)"
+      "Bash(rm -rf .web/app/routes)",
+      "Bash(py seed_demo.py)",
+      "Bash(where reflex:*)",
+      "Bash(where pip:*)",
+      "Bash(pip list:*)"
     ]
+  },
+  "mcpServers": {
+    "supabase": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp?project_ref=zobukgyldeiparlwczga"
+    }
   }
 }

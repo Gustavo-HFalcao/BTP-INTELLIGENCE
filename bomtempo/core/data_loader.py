@@ -253,7 +253,7 @@ class DataLoader:
                 elif cl == "fase_macro":
                     rename[col] = "fase_macro"
                 elif cl in ("peso_pct", "weight"):
-                    rename[col] = "weight"
+                    rename[col] = "peso_pct"
                 elif cl == "nivel":
                     rename[col] = "nivel"
                 elif cl == "parent_id":

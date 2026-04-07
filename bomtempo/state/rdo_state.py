@@ -1417,6 +1417,23 @@ class RDOState(rx.State):
                 lambda: RDOService.finalize_rdo(id_rdo, pdf_path, pdf_url, rdo_data_with_ai),
             )
 
+            # 5b-pre. Propagate equipe_alocada → contratos.equipe_presente_hoje
+            _equipe_val = rdo_data.get("equipe_alocada")
+            if _equipe_val is not None:
+                try:
+                    from bomtempo.core.supabase_client import sb_update as _sb_upd_eq
+                    await loop.run_in_executor(
+                        None,
+                        lambda: _sb_upd_eq(
+                            "contratos",
+                            filters={"contrato": contrato, "client_id": _submit_client_id},
+                            data={"equipe_presente_hoje": int(_equipe_val)},
+                        ),
+                    )
+                    logger.info(f"✅ equipe_presente_hoje atualizado: {_equipe_val} — contrato {contrato}")
+                except Exception as _eq_err:
+                    logger.warning(f"⚠️ Falha ao propagar equipe_alocada: {_eq_err}")
+
             # 5b. Cronograma integration: update activity progress or create pending
             async with self:
                 _ativ_id = str(self.rdo_atividade_id)
@@ -1637,6 +1654,10 @@ class RDOState(rx.State):
                         "client_id": _cid_ex,
                     }))
                     logger.info(f"✅ Extra atividade {_ex_id} → {_ex_pct}%")
+                    # Cascade: recalculate parent(s) weighted progress
+                    _ex_parent_id = str((_cur[0].get("parent_id", "") or "") if _cur else "")
+                    if _ex_parent_id:
+                        await _recalc_parent_progress(_ex_parent_id)
                 except Exception as e:
                     logger.warning(f"⚠️ Extra atividade update: {e}")
 

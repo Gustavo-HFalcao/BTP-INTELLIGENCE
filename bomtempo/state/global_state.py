@@ -3076,14 +3076,9 @@ class GlobalState(rx.State):
                 else:
                     frac_prev = (m_end - inicio).days / duracao
                 previsto_acc += frac_prev * peso
-                # Realizado: usa conclusao_pct atual, mas só conta até hoje
-                if m_end <= today:
+                # Realizado: usa conclusao_pct atual para meses já iniciados
+                if m_end <= today or m.date() <= today.date():
                     realizado_acc += float(row["conclusao_pct"]) / 100.0 * peso
-                elif m.date() <= today.date():
-                    # Mês parcial — proporcional aos dias passados
-                    dias_mes = (m_end - m).days + 1
-                    dias_passados = (today - m).days + 1
-                    realizado_acc += float(row["conclusao_pct"]) / 100.0 * peso * min(1.0, dias_passados / dias_mes)
             point: Dict[str, Any] = {"data": m.strftime("%m/%y"), "previsto": round(previsto_acc, 1)}
             if m.date() <= today.date():
                 point["realizado"] = round(realizado_acc, 1)
