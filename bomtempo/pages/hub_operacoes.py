@@ -2328,11 +2328,43 @@ def _activity_row(item: dict) -> rx.Component:
         "Outros": (S.TEXT_MUTED, "rgba(136,153,153,0.1)"),
     }
     # We use a fixed-color pill approach (can't do dict lookup dynamically in Reflex frontend)
-    fase = item.get("fase", "Outros")
+    fase = item["fase"]
     pct = item["conclusao_pct"].to(float).to(int)
 
+    indent_left = rx.cond(
+        item["nivel"] == "sub", "32px",
+        rx.cond(item["nivel"] == "micro", "16px", "0px"),
+    )
+    nivel_badge_text = rx.cond(
+        item["nivel"] == "sub", "SUB",
+        rx.cond(item["nivel"] == "micro", "MICRO", "MACRO"),
+    )
+    nivel_badge_color = rx.cond(
+        item["nivel"] == "sub", "#8B5CF6",
+        rx.cond(item["nivel"] == "micro", S.PATINA, S.COPPER),
+    )
+
     return rx.hstack(
-        # Type badge
+        # Indent spacer for hierarchy
+        rx.box(width=indent_left, flex_shrink="0"),
+        # Nivel badge (MACRO / MICRO / SUB)
+        rx.box(
+            nivel_badge_text,
+            padding="1px 5px",
+            border_radius="3px",
+            bg="rgba(255,255,255,0.04)",
+            border=rx.cond(
+                item["nivel"] == "sub", "1px solid rgba(139,92,246,0.4)",
+                rx.cond(item["nivel"] == "micro", f"1px solid rgba(42,157,143,0.4)", "1px solid rgba(201,139,42,0.4)"),
+            ),
+            font_size="8px",
+            font_family=S.FONT_MONO,
+            font_weight="700",
+            color=nivel_badge_color,
+            white_space="nowrap",
+            flex_shrink="0",
+        ),
+        # Phase badge
         rx.box(
             fase,
             padding="2px 8px",
@@ -2701,9 +2733,24 @@ def _cron_display_row(item: dict) -> rx.Component:
             rx.icon(tag="plus", size=10),
             size="1", variant="ghost", cursor="pointer",
             on_click=lambda: HubState.open_cron_new(item["id"]),
-            title="Adicionar sub-atividade",
+            title="Adicionar micro-atividade",
             color=S.TEXT_MUTED,
             _hover={"color": S.COPPER, "bg": "rgba(201,139,42,0.1)"},
+            flex_shrink="0",
+        ),
+        rx.fragment(),
+    )
+
+    # Add sub button (only for micros)
+    add_sub_btn = rx.cond(
+        is_micro,
+        rx.icon_button(
+            rx.icon(tag="plus", size=10),
+            size="1", variant="ghost", cursor="pointer",
+            on_click=lambda: HubState.open_cron_new(item["id"]),
+            title="Adicionar sub-atividade",
+            color="#8B5CF6",
+            _hover={"color": "#A78BFA", "bg": "rgba(139,92,246,0.12)"},
             flex_shrink="0",
         ),
         rx.fragment(),
@@ -2755,6 +2802,7 @@ def _cron_display_row(item: dict) -> rx.Component:
         # Actions
         rx.hstack(
             add_micro_btn,
+            add_sub_btn,
             rx.icon_button(rx.icon(tag="pencil", size=12), size="1", variant="ghost", on_click=HubState.open_cron_edit(item["id"]), cursor="pointer", _hover={"bg": "rgba(201,139,42,0.15)"}),
             rx.icon_button(rx.icon(tag="trash-2", size=12, color=S.DANGER), size="1", variant="ghost", on_click=HubState.request_cron_delete(item["id"]), cursor="pointer", _hover={"bg": "rgba(239,68,68,0.12)"}),
             spacing="1", flex_shrink="0",
@@ -2987,6 +3035,7 @@ def _cron_forecast_panel() -> rx.Component:
                 rx.spacer(),
                 rx.text("real/plan por dia · desvio · EAC", font_size="10px", color=S.TEXT_MUTED, font_style="italic"),
                 width="100%", align="center",
+                padding="10px 14px 8px 14px",
             ),
             # Header — widths must match _forecast_row columns exactly
             rx.hstack(
@@ -3177,7 +3226,7 @@ def _cron_edit_dialog() -> rx.Component:
                 ),
                 # Row 2: Atividade (oculto se macro — preenchido automaticamente) + Responsável
                 rx.cond(
-                    HubState.cron_edit_nivel == "micro",
+                    (HubState.cron_edit_nivel == "micro") | (HubState.cron_edit_nivel == "sub"),
                     rx.flex(
                         rx.vstack(rx.text("Atividade *", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                                   rx.el.input(default_value=HubState.cron_edit_atividade, on_blur=HubState.set_cron_edit_atividade, placeholder="Nome da atividade", style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","padding":"8px 10px","fontSize":"14px","width":"100%","outline":"none"}), spacing="1", flex="1"),
@@ -3215,15 +3264,16 @@ def _cron_edit_dialog() -> rx.Component:
                     ),
                     gap="12px", flex_wrap="wrap",
                 ),
-                # Row 4a: Tipo (macro/micro) + Macro Pai
+                # Row 4a: Tipo (macro/micro/sub) + Pai
                 rx.flex(
                     rx.vstack(
                         rx.text("Tipo", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                         rx.select.root(
-                            rx.select.trigger(style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","fontSize":"13px","width":"140px","outline":"none"}),
+                            rx.select.trigger(style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","fontSize":"13px","width":"160px","outline":"none"}),
                             rx.select.content(
                                 rx.select.item("Macro (Principal)", value="macro"),
                                 rx.select.item("Micro (Sub-atividade)", value="micro"),
+                                rx.select.item("Sub (Detalhe da micro)", value="sub"),
                                 style={"background": S.BG_ELEVATED, "border": f"1px solid {S.BORDER_SUBTLE}", "zIndex": "9999"},
                                 position="popper",
                             ),
@@ -3232,6 +3282,7 @@ def _cron_edit_dialog() -> rx.Component:
                         ),
                         spacing="1",
                     ),
+                    # Macro pai → quando nivel == "micro"
                     rx.cond(
                         HubState.cron_edit_nivel == "micro",
                         rx.vstack(
@@ -3257,10 +3308,36 @@ def _cron_edit_dialog() -> rx.Component:
                         ),
                         rx.fragment(),
                     ),
+                    # Micro pai → quando nivel == "sub"
+                    rx.cond(
+                        HubState.cron_edit_nivel == "sub",
+                        rx.vstack(
+                            rx.text("Micro Pai *", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                            rx.cond(
+                                HubState.cron_micro_options.length() > 0,
+                                rx.select.root(
+                                    rx.select.trigger(placeholder="Selecionar micro...", style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","fontSize":"13px","width":"220px","outline":"none"}),
+                                    rx.select.content(
+                                        rx.foreach(
+                                            HubState.cron_micro_options,
+                                            lambda opt: rx.select.item(opt["label"], value=opt["id"]),
+                                        ),
+                                        style={"background": S.BG_ELEVATED, "border": f"1px solid {S.BORDER_SUBTLE}", "zIndex": "9999"},
+                                        position="popper",
+                                    ),
+                                    value=HubState.cron_edit_parent_id,
+                                    on_change=HubState.set_cron_edit_parent_id,
+                                ),
+                                rx.text("Crie uma micro-atividade primeiro", font_size="11px", color=S.TEXT_MUTED, font_style="italic"),
+                            ),
+                            spacing="1", flex="1",
+                        ),
+                        rx.fragment(),
+                    ),
                     rx.vstack(
                         rx.hstack(
                             rx.text("Peso %", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
-                            rx.text("(0–100)", font_size="10px", color=S.TEXT_MUTED, font_style="italic"),
+                            rx.text("(importância relativa)", font_size="10px", color=S.TEXT_MUTED, font_style="italic"),
                             spacing="1", align="center",
                         ),
                         rx.el.input(
@@ -3323,82 +3400,163 @@ def _cron_edit_dialog() -> rx.Component:
                     ),
                     gap="12px", flex_wrap="wrap", align="end",
                 ),
-                # Row 5: Dependência
-                rx.flex(
-                    rx.vstack(
-                        rx.hstack(
-                            rx.text("Dependência", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
-                            rx.text("(início auto-calculado)", font_size="10px", color=S.TEXT_MUTED, font_style="italic"),
-                            spacing="1", align="center",
+                # Row 5: Tipo de Dependência — 3 modos de negócio
+                rx.vstack(
+                    rx.text("Tipo de Dependência", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                    # Mode selector — 3 pill buttons
+                    rx.hstack(
+                        rx.box(
+                            rx.text("Sem dependência", font_size="11px", font_weight="600"),
+                            padding="6px 12px",
+                            border_radius=S.R_CONTROL,
+                            cursor="pointer",
+                            bg=rx.cond(HubState.cron_edit_dep_tipo == "sem_dep", S.COPPER, "rgba(255,255,255,0.04)"),
+                            border=rx.cond(HubState.cron_edit_dep_tipo == "sem_dep", f"1px solid {S.COPPER}", f"1px solid {S.BORDER_SUBTLE}"),
+                            color=rx.cond(HubState.cron_edit_dep_tipo == "sem_dep", S.BG_VOID, S.TEXT_MUTED),
+                            on_click=HubState.set_cron_edit_dep_tipo("sem_dep"),
+                            transition="all 0.15s ease",
                         ),
-                        rx.cond(
-                            HubState.cron_parent_options.length() > 0,
-                            rx.select.root(
-                                rx.select.trigger(
-                                    placeholder="— Sem dependência —",
-                                    style={"background": "rgba(14,26,23,0.8)", "border": f"1px solid {S.BORDER_SUBTLE}", "borderRadius": S.R_CONTROL, "color": "white", "padding": "8px 10px", "fontSize": "13px", "width": "100%", "outline": "none"},
+                        rx.box(
+                            rx.text("Depende de data", font_size="11px", font_weight="600"),
+                            padding="6px 12px",
+                            border_radius=S.R_CONTROL,
+                            cursor="pointer",
+                            bg=rx.cond(HubState.cron_edit_dep_tipo == "tradicional", S.PATINA, "rgba(255,255,255,0.04)"),
+                            border=rx.cond(HubState.cron_edit_dep_tipo == "tradicional", f"1px solid {S.PATINA}", f"1px solid {S.BORDER_SUBTLE}"),
+                            color=rx.cond(HubState.cron_edit_dep_tipo == "tradicional", "white", S.TEXT_MUTED),
+                            on_click=HubState.set_cron_edit_dep_tipo("tradicional"),
+                            transition="all 0.15s ease",
+                        ),
+                        rx.box(
+                            rx.text("Depende de progresso", font_size="11px", font_weight="600"),
+                            padding="6px 12px",
+                            border_radius=S.R_CONTROL,
+                            cursor="pointer",
+                            bg=rx.cond(HubState.cron_edit_dep_tipo == "progresso", S.WARNING, "rgba(255,255,255,0.04)"),
+                            border=rx.cond(HubState.cron_edit_dep_tipo == "progresso", f"1px solid {S.WARNING}", f"1px solid {S.BORDER_SUBTLE}"),
+                            color=rx.cond(HubState.cron_edit_dep_tipo == "progresso", S.BG_VOID, S.TEXT_MUTED),
+                            on_click=HubState.set_cron_edit_dep_tipo("progresso"),
+                            transition="all 0.15s ease",
+                        ),
+                        spacing="2", flex_wrap="wrap",
+                    ),
+                    # Predecessor selector — shown only when not sem_dep
+                    rx.cond(
+                        HubState.cron_edit_dep_tipo != "sem_dep",
+                        rx.vstack(
+                            rx.cond(
+                                HubState.cron_edit_dep_tipo == "tradicional",
+                                rx.text(
+                                    "A data de início desta atividade será definida com base no término da predecessora.",
+                                    font_size="10px", color=S.TEXT_MUTED, font_style="italic",
                                 ),
-                                rx.select.content(
-                                    rx.select.item("— Sem dependência —", value="__none__"),
-                                    rx.foreach(
-                                        HubState.cron_parent_options,
-                                        lambda opt: rx.select.item(opt["label"], value=opt["id"]),
+                                rx.text(
+                                    "O avanço desta atividade ficará limitado ao percentual concluído da predecessora (regra 1:1).",
+                                    font_size="10px", color=S.WARNING, font_style="italic",
+                                ),
+                            ),
+                            rx.cond(
+                                HubState.cron_dep_options.length() > 0,
+                                rx.select.root(
+                                    rx.select.trigger(
+                                        placeholder="— Selecionar atividade predecessora —",
+                                        style={"background": "rgba(14,26,23,0.8)", "border": f"1px solid {S.BORDER_SUBTLE}", "borderRadius": S.R_CONTROL, "color": "white", "padding": "8px 10px", "fontSize": "13px", "width": "100%", "outline": "none"},
                                     ),
-                                    style={"background": S.BG_ELEVATED, "border": f"1px solid {S.BORDER_SUBTLE}", "zIndex": "9999"},
-                                    position="popper",
+                                    rx.select.content(
+                                        rx.select.item("— Sem predecessora —", value="__none__"),
+                                        rx.foreach(
+                                            HubState.cron_dep_options,
+                                            lambda opt: rx.select.item(opt["label"], value=opt["id"]),
+                                        ),
+                                        style={"background": S.BG_ELEVATED, "border": f"1px solid {S.BORDER_SUBTLE}", "zIndex": "9999"},
+                                        position="popper",
+                                    ),
+                                    value=rx.cond(HubState.cron_edit_dependencia_id == "", "__none__", HubState.cron_edit_dependencia_id),
+                                    on_change=HubState.set_cron_edit_dependencia_id,
                                 ),
-                                value=rx.cond(HubState.cron_edit_dependencia_id == "", "__none__", HubState.cron_edit_dependencia_id),
-                                on_change=HubState.set_cron_edit_dependencia_id,
+                                rx.text("Nenhuma atividade criada ainda", font_size="11px", color=S.TEXT_MUTED, font_style="italic"),
                             ),
-                            rx.text("Nenhuma atividade criada ainda", font_size="11px", color=S.TEXT_MUTED, font_style="italic"),
+                            spacing="2", width="100%",
                         ),
-                        spacing="1", flex="1",
+                        rx.fragment(),
                     ),
-                    gap="12px", flex_wrap="wrap", align="start",
+                    spacing="2", width="100%",
                 ),
-                # Row 6: Qtd Total + Unidade (quantidade física)
-                rx.flex(
-                    rx.vstack(
-                        rx.hstack(
-                            rx.text("Qtd Total", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
-                            rx.text("(0 = sem rastreio)", font_size="10px", color=S.TEXT_MUTED, font_style="italic"),
-                            spacing="1", align="center",
+                # Row 6: Qtd Total + Unidade — adaptive by tipo_medicao
+                # Marco: "Feito / Não feito" toggle (total_qty=1, unidade="marco")
+                # Percentual: total_qty hidden (conclusao_pct is the measure), unidade hidden
+                # Quantidade: number input + unit dropdown
+                rx.cond(
+                    HubState.cron_edit_tipo_medicao == "marco",
+                    rx.box(
+                        rx.text(
+                            "Marco — esta atividade é verificada como concluída (Sim/Não). Use Conclusão % acima para marcar 100% quando feita.",
+                            font_size="11px", color=S.TEXT_MUTED, font_style="italic",
                         ),
-                        rx.el.input(
-                            type="number",
-                            default_value=HubState.cron_edit_total_qty,
-                            on_blur=HubState.set_cron_edit_total_qty,
-                            placeholder="Ex: 500",
-                            min="0",
-                            style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","padding":"8px 10px","fontSize":"13px","width":"120px","outline":"none"},
-                        ),
-                        spacing="1",
+                        padding="8px 12px",
+                        border_radius=S.R_CONTROL,
+                        bg="rgba(201,139,42,0.06)",
+                        border=f"1px solid rgba(201,139,42,0.2)",
+                        width="100%",
                     ),
-                    rx.vstack(
-                        rx.text("Unidade", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
-                        rx.select.root(
-                            rx.select.trigger(
-                                placeholder="Selecionar...",
-                                style={"background": "rgba(14,26,23,0.8)", "border": f"1px solid {S.BORDER_SUBTLE}", "borderRadius": S.R_CONTROL, "color": "white", "fontSize": "13px", "width": "140px", "outline": "none"},
+                    rx.cond(
+                        HubState.cron_edit_tipo_medicao == "percentual",
+                        rx.box(
+                            rx.text(
+                                "Percentual — o avanço é medido diretamente em % de 0 a 100. Use o campo Conclusão % acima.",
+                                font_size="11px", color=S.TEXT_MUTED, font_style="italic",
                             ),
-                            rx.select.content(
-                                rx.select.item("m",   value="m"),
-                                rx.select.item("m²",  value="m²"),
-                                rx.select.item("m³",  value="m³"),
-                                rx.select.item("kg",  value="kg"),
-                                rx.select.item("und", value="und"),
-                                rx.select.item("kWh", value="kWh"),
-                                rx.select.item("kW",  value="kW"),
-                                rx.select.item("kWp", value="kWp"),
-                                style={"background": S.BG_ELEVATED, "border": f"1px solid {S.BORDER_SUBTLE}", "zIndex": "9999"},
-                                position="popper",
-                            ),
-                            value=HubState.cron_edit_unidade,
-                            on_change=HubState.set_cron_edit_unidade,
+                            padding="8px 12px",
+                            border_radius=S.R_CONTROL,
+                            bg="rgba(42,157,143,0.06)",
+                            border=f"1px solid rgba(42,157,143,0.2)",
+                            width="100%",
                         ),
-                        spacing="1",
+                        # quantidade (default)
+                        rx.flex(
+                            rx.vstack(
+                                rx.hstack(
+                                    rx.text("Qtd Total", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                                    rx.text("(0 = sem rastreio)", font_size="10px", color=S.TEXT_MUTED, font_style="italic"),
+                                    spacing="1", align="center",
+                                ),
+                                rx.el.input(
+                                    type="number",
+                                    default_value=HubState.cron_edit_total_qty,
+                                    on_blur=HubState.set_cron_edit_total_qty,
+                                    placeholder="Ex: 1456",
+                                    min="0",
+                                    style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","padding":"8px 10px","fontSize":"13px","width":"120px","outline":"none"},
+                                ),
+                                spacing="1",
+                            ),
+                            rx.vstack(
+                                rx.text("Unidade", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                                rx.select.root(
+                                    rx.select.trigger(
+                                        placeholder="Selecionar...",
+                                        style={"background": "rgba(14,26,23,0.8)", "border": f"1px solid {S.BORDER_SUBTLE}", "borderRadius": S.R_CONTROL, "color": "white", "fontSize": "13px", "width": "140px", "outline": "none"},
+                                    ),
+                                    rx.select.content(
+                                        rx.select.item("und", value="und"),
+                                        rx.select.item("m",   value="m"),
+                                        rx.select.item("m²",  value="m²"),
+                                        rx.select.item("m³",  value="m³"),
+                                        rx.select.item("kg",  value="kg"),
+                                        rx.select.item("kWh", value="kWh"),
+                                        rx.select.item("kW",  value="kW"),
+                                        rx.select.item("kWp", value="kWp"),
+                                        style={"background": S.BG_ELEVATED, "border": f"1px solid {S.BORDER_SUBTLE}", "zIndex": "9999"},
+                                        position="popper",
+                                    ),
+                                    value=HubState.cron_edit_unidade,
+                                    on_change=HubState.set_cron_edit_unidade,
+                                ),
+                                spacing="1",
+                            ),
+                            gap="12px", flex_wrap="wrap", align="start",
+                        ),
                     ),
-                    gap="12px", flex_wrap="wrap", align="start",
                 ),
                 rx.vstack(rx.text("Observações", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                           rx.el.textarea(default_value=HubState.cron_edit_observacoes, on_blur=HubState.set_cron_edit_observacoes, placeholder="Notas técnicas, impedimentos, contexto...", rows="3", style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","padding":"8px 10px","fontSize":"13px","width":"100%","outline":"none","resize":"vertical","fontFamily":S.FONT_BODY}), spacing="1", width="100%"),
@@ -3463,8 +3621,36 @@ def _cron_delete_dialog() -> rx.Component:
 
 def _gantt_bar(item: dict) -> rx.Component:
     """Single Gantt row: label + date-positioned bar with progress fill + badges."""
-    # Bar color: overdue → red, else activity color
-    bar_color = rx.cond(item["gantt_overdue"] == "1", "#EF4444", item["color"])
+    # Hierarchy indent: sub = 24px, micro = 12px, macro = 0
+    row_indent = rx.cond(
+        item["nivel"] == "sub", "24px",
+        rx.cond(item["nivel"] == "micro", "12px", "0px"),
+    )
+    # Nivel badge: only for micro and sub
+    nivel_badge = rx.cond(
+        item["nivel"] == "sub",
+        rx.box(
+            rx.text("SUB", font_size="7px", font_weight="800", color="#8B5CF6", font_family=S.FONT_TECH, letter_spacing="0.06em"),
+            padding="1px 4px", border_radius="2px",
+            border="1px solid rgba(139,92,246,0.5)", bg="rgba(139,92,246,0.08)",
+            flex_shrink="0",
+        ),
+        rx.cond(
+            item["nivel"] == "micro",
+            rx.box(
+                rx.text("MICRO", font_size="7px", font_weight="800", color=S.PATINA, font_family=S.FONT_TECH, letter_spacing="0.06em"),
+                padding="1px 4px", border_radius="2px",
+                border="1px solid rgba(42,157,143,0.5)", bg="rgba(42,157,143,0.08)",
+                flex_shrink="0",
+            ),
+            rx.fragment(),
+        ),
+    )
+    # Bar color: overdue → red, else activity color; sub → purple tint
+    bar_color = rx.cond(
+        item["gantt_overdue"] == "1", "#EF4444",
+        rx.cond(item["nivel"] == "sub", "#8B5CF6", item["color"]),
+    )
     progress_fill = rx.cond(
         item["conclusao_pct"] == "0",
         rx.fragment(),
@@ -3507,9 +3693,12 @@ def _gantt_bar(item: dict) -> rx.Component:
     )
     bar_box = rx.box(
         rx.hstack(
+            # Hierarchy indent spacer
+            rx.box(width=row_indent, flex_shrink="0"),
             # Label column
             rx.vstack(
                 rx.hstack(
+                    nivel_badge,
                     rx.text(
                         item["atividade"],
                         font_size="11px", color="rgba(255,255,255,0.85)",

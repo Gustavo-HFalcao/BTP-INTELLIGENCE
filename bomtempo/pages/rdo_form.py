@@ -442,6 +442,8 @@ def _section_header_info() -> rx.Component:
                 on_blur=RDOState.set_rdo_orientacao,
                 placeholder="Ex: Fixação de 24 painéis fotovoltaicos, cabamento da subestrutura do módulo L12…",
                 rows="3",
+                spell_check=True,
+                lang="pt-BR",
                 style={
                     "background": _INPUT_BG,
                     "border": f"1px solid {_BORDER}",
@@ -1548,6 +1550,27 @@ def _section_cronograma() -> rx.Component:
                             ),
                             rx.fragment(),
                         ),
+                        # Step 2b — hierarchy context badge (shown when a sub is selected)
+                        rx.cond(
+                            RDOState.rdo_ativ_nivel == "sub",
+                            rx.hstack(
+                                rx.icon(tag="git-branch", size=12, color="#8B5CF6"),
+                                rx.text(
+                                    "Sub-atividade  —  o progresso aqui atualiza automaticamente a micro e a macro pai.",
+                                    font_size="11px",
+                                    color="#8B5CF6",
+                                    font_style="italic",
+                                ),
+                                spacing="2",
+                                align="center",
+                                padding="6px 10px",
+                                border_radius="6px",
+                                bg="rgba(139,92,246,0.08)",
+                                border="1px solid rgba(139,92,246,0.25)",
+                                width="100%",
+                            ),
+                            rx.fragment(),
+                        ),
                         # Step 3 — campos de progresso
                         _progress_fields(),
                         spacing="3", width="100%",
@@ -1596,6 +1619,8 @@ def _section_observacoes() -> rx.Component:
             on_blur=RDOState.set_rdo_observacoes,
             placeholder="Descreva ocorrências gerais, problemas encontrados, decisões tomadas, pendências para o próximo dia…",
             rows="5",
+            spell_check=True,
+            lang="pt-BR",
             style={
                 "background": _INPUT_BG,
                 "border": f"1px solid {_BORDER}",
@@ -1794,6 +1819,8 @@ def _section_eventos_condicionais() -> rx.Component:
                                 on_blur=RDOState.set_rdo_descricao_acidente,
                                 placeholder="Descreva o acidente/ocorrência, providências tomadas e envolvidos...",
                                 rows="4",
+                                spell_check=True,
+                                lang="pt-BR",
                                 style={
                                     "background": _INPUT_BG,
                                     "border": f"1px solid rgba(224,82,82,0.4)",

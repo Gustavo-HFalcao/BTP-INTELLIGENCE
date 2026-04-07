@@ -142,6 +142,8 @@ class RDOState(rx.State):
     rdo_ativ_total_qty: str = "0"    # informativo: total_qty from hub_atividades
     rdo_ativ_exec_qty: str = "0"     # informativo: exec_qty accumulated so far
     rdo_ativ_unidade: str = ""       # informativo: unit name
+    rdo_ativ_nivel: str = "micro"    # nivel da atividade selecionada (macro/micro/sub)
+    rdo_ativ_parent_id: str = ""     # parent_id da atividade (para cascata de progresso)
     # Two-step macro → activity selection
     rdo_fase_macro_sel: str = ""     # selected macro phase (step 1)
 
@@ -1050,13 +1052,17 @@ class RDOState(rx.State):
         self.rdo_ativ_total_qty = "0"
         self.rdo_ativ_exec_qty = "0"
         self.rdo_ativ_unidade = ""
+        self.rdo_ativ_nivel = "micro"
+        self.rdo_ativ_parent_id = ""
 
     def set_rdo_atividade_id(self, v: str):
         real_v = "" if v == "__none__" else v
         self.rdo_atividade_id = real_v
         self.rdo_producao_dia = ""
         opt = next((o for o in self.hub_atividades_options if o.get("id") == real_v), None)
-        self.rdo_atividade_nome = opt["label"] if opt else ""
+        # Strip prefix from label for display name
+        raw_label = opt["label"] if opt else ""
+        self.rdo_atividade_nome = raw_label.lstrip("↳ ").strip()
         # Pre-fill with current DB progress so user continues from where it left off
         if opt:
             current_pct = opt.get("pct", "0")
@@ -1065,10 +1071,15 @@ class RDOState(rx.State):
             self.rdo_ativ_total_qty = opt.get("total_qty", "0")
             self.rdo_ativ_exec_qty = opt.get("exec_qty", "0")
             self.rdo_ativ_unidade = opt.get("unidade", "")
+            # Hierarchy info for cascading progress update on submit
+            self.rdo_ativ_nivel = opt.get("nivel", "micro")
+            self.rdo_ativ_parent_id = opt.get("parent_id", "")
         else:
             self.rdo_ativ_total_qty = "0"
             self.rdo_ativ_exec_qty = "0"
             self.rdo_ativ_unidade = ""
+            self.rdo_ativ_nivel = "micro"
+            self.rdo_ativ_parent_id = ""
 
     def set_rdo_progresso_atividade(self, v): self.rdo_progresso_atividade = str(v)
     def set_rdo_producao_dia(self, v: str): self.rdo_producao_dia = v
@@ -1178,11 +1189,17 @@ class RDOState(rx.State):
                 order="fase_macro.asc,atividade.asc",
                 limit=200,
             )
+            # Build id → row map for hierarchy lookup
+            _row_map = {str(r.get("id", "")): r for r in (rows or []) if r.get("id")}
+            def _nivel_prefix(nivel: str) -> str:
+                return {"micro": "↳ ", "sub": "↳↳ "}.get(nivel, "")
             opts = [
                 {
                     "id":               str(r.get("id", "")),
-                    "label":            str(r.get("atividade", "")),
+                    "label":            _nivel_prefix(str(r.get("nivel", "macro"))) + str(r.get("atividade", "")),
                     "fase_macro":       str(r.get("fase_macro", "") or "Geral"),
+                    "nivel":            str(r.get("nivel", "macro") or "macro"),
+                    "parent_id":        str(r.get("parent_id", "") or ""),
                     "pct":              str(int(r.get("conclusao_pct", 0) or 0)),
                     "total_qty":        str(r.get("total_qty", 0) or 0),
                     "exec_qty":         str(r.get("exec_qty", 0) or 0),
@@ -1195,6 +1212,8 @@ class RDOState(rx.State):
                 and not str(r.get("pendente_aprovacao", "")).upper() in ("TRUE", "1")
                 # Exclude cancelled/blocked activities from RDO selection
                 and str(r.get("status_atividade", "") or "") not in ("cancelada", "bloqueada")
+                # Exclude pure macro (aggregator) when it has micro/sub children — progress comes from children
+                # Macros without children are valid milestones/marcos
             ]
         except Exception as e:
             logger.error(f"load_hub_atividades error: {e}")
@@ -1414,8 +1433,15 @@ class RDOState(rx.State):
                     from bomtempo.core.supabase_client import sb_update as _sb_upd, sb_select as _sb_sel2, sb_insert as _sb_ins2
                     # Fetch current state for history
                     cur_rows = await loop.run_in_executor(None, lambda: _sb_sel2("hub_atividades", filters={"id": _ativ_id}))
+                    # If this activity has sub-children, direct % update from RDO is skipped —
+                    # the % is driven by subs' weighted average instead.
+                    # Only exec_qty accumulation and history are recorded.
+                    _has_subs = await loop.run_in_executor(
+                        None, lambda: bool(_sb_sel2("hub_atividades", filters={"parent_id": _ativ_id, "nivel": "sub"}, limit=1))
+                    )
                     cur_pct = int((cur_rows[0].get("conclusao_pct", 0) or 0) if cur_rows else 0)
-                    upd_data: dict = {"conclusao_pct": _progresso}
+                    # If activity has subs, conclusao_pct is driven by subs' weighted avg — don't overwrite
+                    upd_data: dict = {} if _has_subs else {"conclusao_pct": _progresso}
                     # Accumulate exec_qty if daily production was informed
                     if _producao_dia_str:
                         try:
@@ -1424,21 +1450,73 @@ class RDOState(rx.State):
                             total_qty = float((cur_rows[0].get("total_qty", 0) or 0) if cur_rows else 0)
                             new_exec = cur_exec + producao_dia
                             upd_data["exec_qty"] = new_exec
-                            # Auto-calc % if total_qty is set
-                            if total_qty > 0:
+                            # Auto-calc % only if activity has no subs (subs drive the % instead)
+                            if total_qty > 0 and not _has_subs:
                                 new_pct = min(100, int((new_exec / total_qty) * 100))
                                 upd_data["conclusao_pct"] = new_pct
                                 _progresso = new_pct
                         except Exception:
                             pass
-                    # Auto-update status_atividade based on progress
+                    # Auto-update status_atividade based on progress (always, even for activities with subs)
                     cur_status = (cur_rows[0].get("status_atividade", "") or "") if cur_rows else ""
-                    if _progresso >= 100:
+                    if _progresso >= 100 and not _has_subs:
                         upd_data["status_atividade"] = "concluida"
-                    elif _progresso > 0 and cur_status in ("nao_iniciada", "pronta_iniciar", ""):
+                    elif _progresso > 0 and cur_status in ("nao_iniciada", "pronta_iniciar", "") and not _has_subs:
                         upd_data["status_atividade"] = "em_execucao"
                     # Update progress + qty + status
-                    await loop.run_in_executor(None, lambda: _sb_upd("hub_atividades", filters={"id": _ativ_id}, data=upd_data))
+                    if upd_data:
+                        await loop.run_in_executor(None, lambda: _sb_upd("hub_atividades", filters={"id": _ativ_id}, data=upd_data))
+
+                    # ── Cascade: recalculate parent(s) weighted progress ──────────
+                    # If we updated a sub → recalculate micro parent
+                    # If we updated a micro → recalculate macro parent
+                    # Both are handled by the same recursive helper
+                    _upd_row = cur_rows[0] if cur_rows else {}
+                    _direct_parent_id = str(_upd_row.get("parent_id", "") or "")
+
+                    async def _recalc_parent_progress(parent_id: str):
+                        """Recalculate a parent's conclusao_pct from its children's weighted avg."""
+                        if not parent_id:
+                            return
+                        try:
+                            children = await loop.run_in_executor(
+                                None, lambda: _sb_sel2("hub_atividades", filters={"parent_id": parent_id}, limit=200)
+                            )
+                            if not children:
+                                return
+                            total_peso = sum(float(c.get("peso_pct", 0) or 0) for c in children)
+                            if total_peso <= 0:
+                                # Fall back to simple average
+                                avg_pct = sum(float(c.get("conclusao_pct", 0) or 0) for c in children) / len(children)
+                            else:
+                                avg_pct = sum(
+                                    float(c.get("conclusao_pct", 0) or 0) * float(c.get("peso_pct", 0) or 0)
+                                    for c in children
+                                ) / total_peso
+                            new_parent_pct = min(100, int(round(avg_pct)))
+                            # Auto status
+                            p_rows = await loop.run_in_executor(
+                                None, lambda: _sb_sel2("hub_atividades", filters={"id": parent_id}, limit=1)
+                            )
+                            p_status = str((p_rows[0].get("status_atividade", "") or "") if p_rows else "")
+                            p_update: dict = {"conclusao_pct": new_parent_pct}
+                            if new_parent_pct >= 100:
+                                p_update["status_atividade"] = "concluida"
+                            elif new_parent_pct > 0 and p_status in ("nao_iniciada", "pronta_iniciar", ""):
+                                p_update["status_atividade"] = "em_execucao"
+                            await loop.run_in_executor(
+                                None, lambda: _sb_upd("hub_atividades", filters={"id": parent_id}, data=p_update)
+                            )
+                            logger.info(f"✅ Cascata: parent {parent_id} → {new_parent_pct}%")
+                            # Recurse: recalculate grandparent if parent has a parent
+                            grand_parent_id = str((p_rows[0].get("parent_id", "") or "") if p_rows else "")
+                            if grand_parent_id:
+                                await _recalc_parent_progress(grand_parent_id)
+                        except Exception as _ce:
+                            logger.warning(f"⚠️ Cascata recalc parent {parent_id}: {_ce}")
+
+                    if _direct_parent_id:
+                        await _recalc_parent_progress(_direct_parent_id)
                     # Insert history record (full production snapshot)
                     _cid = rdo_data.get("client_id") or None
                     _hist_prod = float(_producao_dia_str.replace(",", ".")) if _producao_dia_str else None

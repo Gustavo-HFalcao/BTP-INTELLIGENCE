@@ -935,22 +935,42 @@ def gantt_hover_content(item: dict) -> rx.Component:
     )
     termino_color = rx.cond(item["gantt_overdue"] == "1", _RED, _TEXT)
 
+    # Nivel badge color and label
+    nivel_color = rx.cond(
+        item["nivel"] == "sub", "#8B5CF6",
+        rx.cond(item["nivel"] == "micro", "#2A9D8F", "#C98B2A"),
+    )
+    nivel_label = rx.cond(
+        item["nivel"] == "sub", "SUB-ATIVIDADE",
+        rx.cond(item["nivel"] == "micro", "MICRO", "MACRO"),
+    )
+
     return rx.hover_card.content(
         rx.vstack(
             # ── Header ────────────────────────────────────────────
             rx.hstack(
                 rx.text("\u26a1", font_size="20px", flex_shrink="0", line_height="1"),
                 rx.vstack(
-                    rx.text(
-                        item["atividade"],
-                        font_size="13px",
-                        font_weight="600",
-                        color=_TEXT,
-                        white_space="nowrap",
-                        overflow="hidden",
-                        text_overflow="ellipsis",
-                        max_width="220px",
-                        letter_spacing="-0.01em",
+                    rx.hstack(
+                        rx.text(
+                            item["atividade"],
+                            font_size="13px",
+                            font_weight="600",
+                            color=_TEXT,
+                            white_space="nowrap",
+                            overflow="hidden",
+                            text_overflow="ellipsis",
+                            max_width="180px",
+                            letter_spacing="-0.01em",
+                        ),
+                        rx.box(
+                            rx.text(nivel_label, font_size="7px", font_weight="800", color=nivel_color, letter_spacing="0.06em"),
+                            padding="1px 4px", border_radius="2px",
+                            border=rx.cond(item["nivel"] == "sub", "1px solid rgba(139,92,246,0.5)", rx.cond(item["nivel"] == "micro", "1px solid rgba(42,157,143,0.5)", "1px solid rgba(201,139,42,0.5)")),
+                            bg=rx.cond(item["nivel"] == "sub", "rgba(139,92,246,0.08)", rx.cond(item["nivel"] == "micro", "rgba(42,157,143,0.08)", "rgba(201,139,42,0.08)")),
+                            flex_shrink="0",
+                        ),
+                        spacing="2", align="center",
                     ),
                     rx.text(
                         item["fase_macro"],
@@ -1077,6 +1097,20 @@ def gantt_hover_content(item: dict) -> rx.Component:
                 width="100%",
                 justify="between",
                 align="center",
+            ),
+            # ── Qtd executada (quando rastreada) ─────────────────
+            rx.cond(
+                item["total_qty"] != "0",
+                _row(
+                    "Executado",
+                    rx.text(
+                        item["exec_qty"] + " / " + item["total_qty"] + " " + item["unidade"],
+                        font_size="12px",
+                        color=_TEXT,
+                        font_family="monospace",
+                        font_weight="600",
+                    ),
+                ),
             ),
             # ── Predecessoras (condicional) ───────────────────────
             rx.cond(

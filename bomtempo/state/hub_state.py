@@ -365,8 +365,10 @@ class HubState(rx.State):
     cron_edit_termino: str = ""
     cron_edit_pct: str = "0"
     cron_edit_critico: bool = False
-    cron_edit_dependencia: str = ""   # legacy text name (kept for compat)
-    cron_edit_dependencia_id: str = ""  # UUID of dependency activity
+    cron_edit_dependencia: str = ""      # legacy text name (kept for compat)
+    cron_edit_dependencia_id: str = ""   # UUID of dependency activity
+    # dep_tipo: 'sem_dep' | 'tradicional' | 'progresso'
+    cron_edit_dep_tipo: str = "sem_dep"
     cron_edit_observacoes: str = ""
     cron_saving: bool = False
     cron_error: str = ""
@@ -709,21 +711,39 @@ class HubState(rx.State):
         """
         result: List[Dict[str, str]] = []
         all_rows = self.filtered_cron_rows
-        # Separate macros and micros
+        # Separate macros, micros, and subs
         macros = [r for r in all_rows if r.get("nivel", "macro") in ("macro", "")]
         micros = [r for r in all_rows if r.get("nivel", "") == "micro"]
+        subs   = [r for r in all_rows if r.get("nivel", "") == "sub"]
         expanded = self.cron_expanded_macros
 
         for macro in macros:
             macro_id = macro.get("id", "")
-            # Calculate macro_progress from micros if any
-            children = [m for m in micros if m.get("parent_id", "") == macro_id]
+            # For each micro child, compute its pct from subs if any
+            children = []
+            for micro in micros:
+                if micro.get("parent_id", "") != macro_id:
+                    continue
+                micro_id = micro.get("id", "")
+                sub_children = [s for s in subs if s.get("parent_id", "") == micro_id]
+                if sub_children:
+                    sub_peso = sum(int(s.get("peso_pct", "0") or "0") for s in sub_children)
+                    if sub_peso > 0:
+                        sub_wpct = sum(
+                            int(s.get("conclusao_pct", "0") or "0") * int(s.get("peso_pct", "0") or "0")
+                            for s in sub_children
+                        ) / sub_peso
+                    else:
+                        sub_wpct = 0.0
+                    micro = dict(micro, conclusao_pct=str(round(sub_wpct)))
+                children.append((micro, sub_children))
+
             if children:
-                total_peso = sum(int(c.get("peso_pct", "0") or "0") for c in children)
+                total_peso = sum(int(m.get("peso_pct", "0") or "0") for m, _ in children)
                 if total_peso > 0:
                     weighted_pct = sum(
-                        int(c.get("conclusao_pct", "0") or "0") * int(c.get("peso_pct", "0") or "0")
-                        for c in children
+                        int(m.get("conclusao_pct", "0") or "0") * int(m.get("peso_pct", "0") or "0")
+                        for m, _ in children
                     ) / total_peso
                 else:
                     weighted_pct = 0.0
@@ -743,17 +763,28 @@ class HubState(rx.State):
                 _micro_count=str(len(children)),
             ))
 
-            # Append micros if expanded
+            # Append micros (and their subs) if expanded
             if macro_id in expanded:
-                for micro in children:
+                for micro, sub_children in children:
+                    has_subs = "1" if sub_children else "0"
                     result.append(dict(
                         micro,
                         _display_mode="micro",
-                        _has_micros="0",
+                        _has_micros=has_subs,
                         _is_expanded="0",
                         _computed_pct=micro.get("conclusao_pct", "0"),
-                        _micro_count="0",
+                        _micro_count=str(len(sub_children)),
                     ))
+                    # Always show subs inline (they don't collapse separately)
+                    for sub in sub_children:
+                        result.append(dict(
+                            sub,
+                            _display_mode="sub",
+                            _has_micros="0",
+                            _is_expanded="0",
+                            _computed_pct=sub.get("conclusao_pct", "0"),
+                            _micro_count="0",
+                        ))
 
         # Standalone entries that are micros with no parent in current filter
         macro_ids = {m.get("id", "") for m in macros}
@@ -782,6 +813,31 @@ class HubState(rx.State):
             {"id": r.get("id", ""), "label": r.get("atividade", "")}
             for r in self.cron_rows
             if r.get("nivel", "macro") in ("macro", "") and r.get("id") != self.cron_edit_id
+        ]
+
+    @rx.var
+    def cron_dep_options(self) -> List[Dict[str, str]]:
+        """All activities (macro + micro + sub) available as dependency targets, excluding self.
+        Label includes level prefix: macro=none, micro=↳, sub=↳↳"""
+        _prefixes = {"macro": "", "micro": "↳ ", "sub": "↳↳ "}
+        result = []
+        for r in self.cron_rows:
+            if r.get("id") == self.cron_edit_id:
+                continue
+            nivel = r.get("nivel", "macro")
+            atividade = r.get("atividade", "")
+            prefix = _prefixes.get(nivel, "")
+            result.append({"id": r.get("id", ""), "label": f"{prefix}{atividade}"})
+        return result
+
+    @rx.var
+    def cron_micro_options(self) -> List[Dict[str, str]]:
+        """List of micro activities available as parent for sub-activities.
+        Excludes the activity being edited."""
+        return [
+            {"id": r.get("id", ""), "label": r.get("fase", "") + " " + r.get("atividade", "")}
+            for r in self.cron_rows
+            if r.get("nivel", "macro") == "micro" and r.get("id") != self.cron_edit_id
         ]
 
     # ── Forecast / Produtividade computed vars ────────────────────────────────
@@ -1020,6 +1076,11 @@ class HubState(rx.State):
                     "unidade":         _norm_str(r.get("unidade", "")),
                     "dias_planejados": _norm_str(r.get("dias_planejados", "0") or "0"),
                     "dependencia_id":  _norm_str(r.get("dependencia_id", "")),
+                    # dep_tipo: fallback for legacy rows — if dependencia_id exists → 'tradicional'
+                    "dep_tipo": _norm_str(
+                        r.get("dep_tipo")
+                        or ("tradicional" if r.get("dependencia_id") else "sem_dep")
+                    ),
                     # Forecast fields (new)
                     "status_atividade": _norm_str(r.get("status_atividade", "nao_iniciada") or "nao_iniciada"),
                     "tipo_medicao":     _norm_str(r.get("tipo_medicao", "quantidade") or "quantidade"),
@@ -1128,6 +1189,7 @@ class HubState(rx.State):
         self.cron_edit_critico = False
         self.cron_edit_dependencia = ""
         self.cron_edit_dependencia_id = ""
+        self.cron_edit_dep_tipo = "sem_dep"
         self.cron_edit_observacoes = ""
         self.cron_edit_total_qty = ""
         self.cron_edit_unidade = ""
@@ -1135,15 +1197,26 @@ class HubState(rx.State):
         self.cron_edit_status_atividade = "nao_iniciada"
         self.cron_edit_tipo_medicao = "quantidade"
         self.cron_error = ""
-        # Hierarchy defaults
+        # Hierarchy defaults — auto-detect nivel based on parent's nivel
         if parent_id:
-            self.cron_edit_nivel = "micro"
             self.cron_edit_parent_id = parent_id
-            # Inherit fase_macro from parent
             parent = next((r for r in self.cron_rows if r["id"] == parent_id), None)
             if parent:
+                parent_nivel = parent.get("nivel", "macro")
+                # micro under macro → sub under micro
+                self.cron_edit_nivel = "sub" if parent_nivel == "micro" else "micro"
                 self.cron_edit_fase_macro = parent.get("fase_macro", "")
-                self.cron_edit_fase = parent.get("fase", "")
+                parent_fase = parent.get("fase", "")
+                if self.cron_edit_nivel == "sub" and parent_fase:
+                    siblings = [
+                        r for r in self.cron_rows
+                        if r.get("parent_id") == parent_id and r.get("nivel") == "sub"
+                    ]
+                    self.cron_edit_fase = f"{parent_fase}.{len(siblings) + 1}"
+                else:
+                    self.cron_edit_fase = parent_fase
+            else:
+                self.cron_edit_nivel = "micro"
         else:
             self.cron_edit_nivel = "macro"
             self.cron_edit_parent_id = ""
@@ -1165,6 +1238,7 @@ class HubState(rx.State):
         self.cron_edit_critico = row.get("critico", "0") == "1"
         self.cron_edit_dependencia = row.get("dependencia", "")
         self.cron_edit_dependencia_id = row.get("dependencia_id", "")
+        self.cron_edit_dep_tipo = row.get("dep_tipo", "sem_dep") or "sem_dep"
         self.cron_edit_observacoes = row.get("observacoes", "")
         self.cron_edit_total_qty = row.get("total_qty", "")
         self.cron_edit_unidade = row.get("unidade", "")
@@ -1203,6 +1277,9 @@ class HubState(rx.State):
         # Ao mudar para macro, sincroniza o nome com fase_macro
         if v == "macro" and self.cron_edit_fase_macro.strip():
             self.cron_edit_atividade = self.cron_edit_fase_macro
+        # Ao mudar para sub ou micro, limpa o parent_id para forçar seleção
+        if v in ("micro", "sub"):
+            self.cron_edit_parent_id = ""
     def set_cron_edit_fase(self, v: str): self.cron_edit_fase = v
     def set_cron_edit_responsavel(self, v: str): self.cron_edit_responsavel = v
     def set_cron_edit_inicio(self, v: str):
@@ -1216,8 +1293,33 @@ class HubState(rx.State):
             except Exception:
                 pass
     def set_cron_edit_termino(self, v: str): self.cron_edit_termino = v
-    def set_cron_edit_pct(self, v): self.cron_edit_pct = str(v)
+    def set_cron_edit_pct(self, v):
+        """Set conclusao_pct. For 'progresso' dependency type, cap at predecessor's current pct."""
+        pct = int(str(v) or "0")
+        if self.cron_edit_dep_tipo == "progresso" and self.cron_edit_dependencia_id:
+            pred = next(
+                (r for r in self.cron_rows if r["id"] == self.cron_edit_dependencia_id),
+                None,
+            )
+            if pred:
+                pred_pct = int(pred.get("conclusao_pct", "0") or "0")
+                if pct > pred_pct:
+                    self.cron_error = (
+                        f"⚠ Avanço limitado pelo progresso da predecessora: "
+                        f"máximo {pred_pct}% (predecessora em {pred_pct}%)."
+                    )
+                    pct = pred_pct
+                else:
+                    self.cron_error = ""
+        self.cron_edit_pct = str(pct)
     def toggle_cron_edit_critico(self): self.cron_edit_critico = not self.cron_edit_critico
+    def set_cron_edit_dep_tipo(self, v: str):
+        """Switch dependency mode. Clears predecessor selection when moving to 'sem_dep'."""
+        self.cron_edit_dep_tipo = v
+        if v == "sem_dep":
+            self.cron_edit_dependencia_id = ""
+            self.cron_edit_dependencia = ""
+
     def set_cron_edit_dependencia(self, v: str): self.cron_edit_dependencia = "" if v == "__none__" else v
     def set_cron_edit_dependencia_id(self, dep_id: str):
         """Select a dependency by activity id — auto-fill inicio from its termino."""
@@ -1255,9 +1357,36 @@ class HubState(rx.State):
     def set_cron_edit_unidade(self, v: str): self.cron_edit_unidade = v
     def set_cron_edit_observacoes(self, v: str): self.cron_edit_observacoes = v
     def set_cron_edit_status_atividade(self, v: str): self.cron_edit_status_atividade = v
-    def set_cron_edit_tipo_medicao(self, v: str): self.cron_edit_tipo_medicao = v
+    def set_cron_edit_tipo_medicao(self, v: str):
+        self.cron_edit_tipo_medicao = v
+        # Reset quantity/unit fields when switching to non-quantity modes
+        if v == "marco":
+            self.cron_edit_total_qty = "1"
+            self.cron_edit_unidade = "marco"
+        elif v == "percentual":
+            self.cron_edit_total_qty = "0"
+            self.cron_edit_unidade = ""
     def set_cron_edit_peso(self, v): self.cron_edit_peso = str(v) if v is not None else "100"
-    def set_cron_edit_parent_id(self, v: str): self.cron_edit_parent_id = v
+    def set_cron_edit_parent_id(self, v: str):
+        self.cron_edit_parent_id = v
+        if not v:
+            return
+        parent = next((r for r in self.cron_rows if r["id"] == v), None)
+        if not parent:
+            return
+        # Inherit fase_macro from parent (works for both micro→macro and sub→micro)
+        self.cron_edit_fase_macro = parent.get("fase_macro", "")
+        parent_fase = parent.get("fase", "")
+        # Build next sub-index: e.g. parent fase "1.5" → count existing subs → "1.5.1"
+        if self.cron_edit_nivel == "sub" and parent_fase:
+            siblings = [
+                r for r in self.cron_rows
+                if r.get("parent_id") == v and r.get("nivel") == "sub"
+            ]
+            next_idx = len(siblings) + 1
+            self.cron_edit_fase = f"{parent_fase}.{next_idx}"
+        else:
+            self.cron_edit_fase = parent_fase
 
     def toggle_macro_expanded(self, macro_id: str):
         if macro_id in self.cron_expanded_macros:
@@ -1317,28 +1446,32 @@ class HubState(rx.State):
             edit_termino = self.cron_edit_termino or None
             edit_pct = int(self.cron_edit_pct or 0)
             edit_critico = self.cron_edit_critico
+            edit_dep_tipo = self.cron_edit_dep_tipo or "sem_dep"
+            # Re-enforce progresso cap on save (not just on UI input)
+            if edit_dep_tipo == "progresso" and self.cron_edit_dependencia_id:
+                pred = next(
+                    (r for r in self.cron_rows if r["id"] == self.cron_edit_dependencia_id),
+                    None,
+                )
+                if pred:
+                    pred_pct = int(pred.get("conclusao_pct", "0") or "0")
+                    if edit_pct > pred_pct:
+                        self.cron_error = (
+                            f"⚠ Avanço limitado: predecessora está em {pred_pct}%. "
+                            f"Não é possível salvar com {edit_pct}%."
+                        )
+                        self.cron_saving = False
+                        return
             edit_dependencia = self.cron_edit_dependencia.strip()
-            edit_dependencia_id = self.cron_edit_dependencia_id.strip() or None
+            # Clear dependencia_id when type is sem_dep
+            edit_dependencia_id = (
+                (self.cron_edit_dependencia_id.strip() or None)
+                if edit_dep_tipo != "sem_dep" else None
+            )
             edit_observacoes = self.cron_edit_observacoes.strip()
             edit_nivel = self.cron_edit_nivel or "macro"
             edit_parent_id = self.cron_edit_parent_id or None
-            edit_peso = int(self.cron_edit_peso or 100)
-            # #12 — Warn if sibling micros sum > 100%
-            if edit_nivel == "micro" and edit_parent_id:
-                siblings = [
-                    r for r in self.cron_rows
-                    if r.get("parent_id") == edit_parent_id
-                    and r.get("nivel") == "micro"
-                    and r.get("id") != (self.cron_edit_id or "")
-                ]
-                sibling_sum = sum(int(r.get("peso_pct", "0") or "0") for r in siblings)
-                if sibling_sum + edit_peso > 100:
-                    self.cron_error = (
-                        f"⚠ Pesos das sub-atividades somam {sibling_sum + edit_peso}% "
-                        f"(máximo 100%). Ajuste o peso para ≤ {100 - sibling_sum}%."
-                    )
-                    self.cron_saving = False
-                    return
+            edit_peso = max(1, int(self.cron_edit_peso or 100))
             try:
                 edit_total_qty = float(self.cron_edit_total_qty.replace(",", ".")) if self.cron_edit_total_qty.strip() else 0.0
             except Exception:
@@ -1391,6 +1524,7 @@ class HubState(rx.State):
                 "termino_previsto":  edit_termino,
                 "conclusao_pct":     edit_pct,
                 "critico":           edit_critico,
+                "dep_tipo":          edit_dep_tipo,
                 "dependencia":       edit_dependencia,
                 "dependencia_id":    edit_dependencia_id,
                 "observacoes":       edit_observacoes,
@@ -1505,22 +1639,33 @@ class HubState(rx.State):
         delete_ok = False
         try:
             logger.info(f"confirm_cron_delete: deleting id={row_id!r} name={name!r}")
-            # 1. Cascade child micros (parent_id FK) — delete their deps first, then the micros
+            # 1. Cascade delete: children (micros) and grandchildren (subs) of the target
+            def _delete_activity_and_children(act_id: str):
+                """Recursively delete an activity and all its descendants."""
+                try:
+                    grandchildren = sb_select("hub_atividades", filters={"parent_id": act_id}, limit=200) or []
+                    for gc in grandchildren:
+                        gc_id = str(gc.get("id", ""))
+                        if gc_id:
+                            _delete_activity_and_children(gc_id)
+                except Exception:
+                    pass
+                try:
+                    sb_delete("hub_atividade_historico", filters={"atividade_id": act_id})
+                except Exception:
+                    pass
+                try:
+                    sb_delete("hub_cronograma_log", filters={"atividade_id": act_id})
+                except Exception:
+                    pass
+                sb_delete("hub_atividades", filters={"id": act_id})
+
             try:
                 children = sb_select("hub_atividades", filters={"parent_id": row_id}, limit=200) or []
                 for child in children:
                     child_id = str(child.get("id", ""))
-                    if not child_id:
-                        continue
-                    try:
-                        sb_delete("hub_atividade_historico", filters={"atividade_id": child_id})
-                    except Exception:
-                        pass
-                    try:
-                        sb_delete("hub_cronograma_log", filters={"atividade_id": child_id})
-                    except Exception:
-                        pass
-                    sb_delete("hub_atividades", filters={"id": child_id})
+                    if child_id:
+                        _delete_activity_and_children(child_id)
             except Exception as child_ex:
                 logger.warning(f"confirm_cron_delete: erro ao deletar filhos de {row_id}: {child_ex}")
             # 2. Delete deps of the target row itself
@@ -2895,18 +3040,20 @@ Tipos:
         Load persisted insights from Supabase for the given contract.
         Called when switching projects — shows saved insights instantly
         without triggering a new AI call.
-        Does NOT set agente_loading=True (fast lookup, no spinner needed).
+        Sets agente_loading=True while fetching so stale data from the previous
+        project is never exposed.
         """
         import json as _json
         import asyncio
 
-        # Update contrato immediately, clear stale insights from previous project
+        # Clear stale data immediately and show loading spinner
         async with self:
             self.agente_insights = []
             self.agente_error = ""
             self.agente_contrato = contrato
             self.agente_last_rdo_id = ""
             self.agente_last_updated = ""
+            self.agente_loading = True
 
         loop = asyncio.get_running_loop()
 
@@ -2927,6 +3074,8 @@ Tipos:
 
         if not row:
             # No saved insights for this contract — leave empty so user can generate
+            async with self:
+                self.agente_loading = False
             return
 
         async with self:
@@ -2953,6 +3102,8 @@ Tipos:
                     self.agente_last_updated = row.get("updated_at", "")
             except Exception as _e:
                 logger.warning(f"agente_insights parse failed: {_e}")
+            finally:
+                self.agente_loading = False
 
     def force_run_agente(self, contrato: str = ""):
         """Clear existing insights and force a fresh Agente run (botão manual)."""

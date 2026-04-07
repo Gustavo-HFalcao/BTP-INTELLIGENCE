@@ -2975,7 +2975,7 @@ class GlobalState(rx.State):
 
             # ── Days to deadline ──────────────────────────────────
             days_fmt = "—"
-            days_int = -1
+            days_int = 9999  # sentinel: no deadline defined → not overdue
             if df_proj is not None and not df_proj.empty and "contrato" in df_proj.columns:
                 ps = df_proj[df_proj["contrato"] == code]
                 if not ps.empty and "termino_previsto" in ps.columns:
@@ -4444,6 +4444,8 @@ class GlobalState(rx.State):
             self.obra_insight_generated_at = ""
             self.weather_loading = True
             self.weather_data = {}
+            self.weather_location_name = ""
+            self.weather_risk_level = "Unknown"
             self.project_campo_rdos = []
             self.project_campo_loading = False
 
