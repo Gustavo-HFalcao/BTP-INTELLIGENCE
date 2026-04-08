@@ -1604,7 +1604,7 @@ def _tab_visao_geral() -> rx.Component:
                 "calendar-x",
                 "DESVIO DE PRAZO",
                 desvio_prazo,
-                "vs planejado (pp)",
+                "vs planejado (%)",
                 value_color=desvio_color,
             ),
             # 5 — Clima
@@ -1814,7 +1814,7 @@ def _agente_panel() -> rx.Component:
                     ),
                     rx.vstack(
                         rx.text(
-                            "AGENTE DE ATIVIDADES",
+                            "AGENTE DE INTELIGÊNCIA ARTIFICIAL",
                             font_family=S.FONT_TECH,
                             font_size="1rem",
                             font_weight="700",
@@ -2098,7 +2098,7 @@ def _tab_dashboard() -> rx.Component:
             # Curva S integrada
             rx.box(
                 _dashboard_chart_card(
-                    "Curva S — Planned vs Actual",
+                    "Curva S — Planejado vs Realizado",
                     "Avanço físico acumulado no tempo",
                     "trending-up",
                     S.PATINA,
@@ -2134,8 +2134,8 @@ def _tab_dashboard() -> rx.Component:
             # SPI Trend
             rx.box(
                 _dashboard_chart_card(
-                    "Índice SPI",
-                    "Eficiência de prazo (1.0 = no prazo)",
+                    "Índice de Desempenho de Prazo (SPI)",
+                    "Eficiência de prazo — 1,0 = no prazo, >1,0 = adiantado",
                     "gauge",
                     "#3B82F6",
                     rx.cond(
@@ -2185,14 +2185,14 @@ def _tab_dashboard() -> rx.Component:
                         rx.recharts.bar_chart(
                             rx.recharts.bar(
                                 data_key="meta", fill=S.TEXT_MUTED, fill_opacity=0.3,
-                                radius=2, name="Meta/dia",
+                                radius=2, name="Meta do dia",
                             ),
                             rx.recharts.bar(
                                 data_key="realizado", fill="#E89845", fill_opacity=0.85,
-                                radius=2, name="Realizado/dia",
+                                radius=2, name="Realizado no dia",
                             ),
                             rx.recharts.x_axis(data_key="data", tick=_TICK_STYLE),
-                            rx.recharts.y_axis(unit="pp", tick=_TICK_STYLE, width=36),
+                            rx.recharts.y_axis(unit="%", tick=_TICK_STYLE, width=36),
                             rx.recharts.cartesian_grid(stroke_dasharray="3 3", stroke="rgba(255,255,255,0.04)"),
                             TOOLTIP_PCT_DAILY,
                             rx.recharts.legend(
@@ -2232,6 +2232,9 @@ def _tab_dashboard() -> rx.Component:
                             rx.recharts.y_axis(unit="%", tick=_TICK_STYLE, width=32),
                             rx.recharts.cartesian_grid(stroke_dasharray="3 3", stroke="rgba(255,255,255,0.04)"),
                             TOOLTIP_PCT_DISC,
+                            rx.recharts.legend(
+                                wrapper_style={"fontSize": "10px", "color": S.TEXT_MUTED, "paddingTop": "8px"},
+                            ),
                             data=GlobalState.dash_disciplinas_chart,
                             height=200, width="100%", bar_size=12,
                         ),
@@ -2258,14 +2261,21 @@ def _tab_dashboard() -> rx.Component:
                         GlobalState.obra_budget_chart,
                         rx.recharts.bar_chart(
                             rx.recharts.bar(
-                                data_key="valor", fill=S.COPPER, fill_opacity=0.75,
-                                radius=4, name="Valor",
-                                label={"position": "top", "fontSize": 10, "fill": S.TEXT_MUTED},
+                                data_key="planejado", fill="#3B82F6", fill_opacity=0.8,
+                                radius=4, name="Orçamento Previsto",
+                            ),
+                            rx.recharts.bar(
+                                data_key="realizado", fill=S.PATINA, fill_opacity=0.85,
+                                radius=4, name="Valor Executado",
                             ),
                             rx.recharts.x_axis(data_key="categoria", tick=_TICK_STYLE),
-                            rx.recharts.y_axis(tick=_TICK_STYLE, width=52),
+                            rx.recharts.y_axis(tick=_TICK_STYLE, width=64,
+                                tick_formatter="(v) => v >= 1000000 ? 'R$' + (v/1000000).toFixed(1) + 'M' : v >= 1000 ? 'R$' + (v/1000).toFixed(0) + 'k' : 'R$' + v"),
                             rx.recharts.cartesian_grid(stroke_dasharray="3 3", stroke="rgba(255,255,255,0.04)"),
                             TOOLTIP_MONEY,
+                            rx.recharts.legend(
+                                wrapper_style={"fontSize": "10px", "color": S.TEXT_MUTED, "paddingTop": "8px"},
+                            ),
                             data=GlobalState.obra_budget_chart,
                             height=200, width="100%", bar_size=40,
                         ),
@@ -2893,8 +2903,8 @@ def _cron_kpi_panel() -> rx.Component:
                 ),
                 # Card 3: Desvio
                 rx.vstack(
-                    rx.hstack(rx.icon(tag="minus-circle", size=12, color=desvio_color), rx.text("DESVIO (pp)", font_size="9px", color=S.TEXT_MUTED, font_family=S.FONT_MONO, letter_spacing="0.06em"), spacing="1", align="center"),
-                    rx.text(kpi["desvio_pp"] + "pp", font_size="20px", color=desvio_color, font_family=S.FONT_TECH, font_weight="700", line_height="1.1"),
+                    rx.hstack(rx.icon(tag="minus-circle", size=12, color=desvio_color), rx.text("DESVIO (%)", font_size="9px", color=S.TEXT_MUTED, font_family=S.FONT_MONO, letter_spacing="0.06em"), spacing="1", align="center"),
+                    rx.text(kpi["desvio_pp"] + "%", font_size="20px", color=desvio_color, font_family=S.FONT_TECH, font_weight="700", line_height="1.1"),
                     rx.text("pontos percentuais", font_size="9px", color=S.TEXT_MUTED),
                     spacing="1", align="start", padding="12px", border_radius=S.R_CONTROL,
                     bg="rgba(255,255,255,0.03)", border=f"1px solid {S.BORDER_SUBTLE}",

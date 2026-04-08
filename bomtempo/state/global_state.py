@@ -575,6 +575,7 @@ class GlobalState(rx.State):
     obra_insight_loading: bool = False
     obra_insight_generated_at: str = ""   # ISO timestamp of last cached insight
     obras_navigating: bool = False   # True while transitioning list→detail or back
+    _insight_target: str = ""  # Contrato alvo do último disparo de insight (cancel guard)
 
     # ── Unified Gestão de Projetos Hub ──────────────────────────
     selected_project: str = ""          # Unified: contract code e.g. "BOM010-24"
@@ -3018,10 +3019,11 @@ class GlobalState(rx.State):
 
     @rx.var
     def project_scurve_chart(self) -> List[Dict[str, Any]]:
-        """Curva S — previsto vs realizado acumulado, construída a partir de hub_atividades.
-        Gera pontos mensais interpolando o progresso planejado (início→término) e usa
-        conclusao_pct atual como realizado para o período até hoje."""
-        from datetime import date as _date, timedelta as _td
+        """Curva S — previsto vs realizado acumulado.
+        Previsto: interpolação linear por data de cada atividade (inicio→término).
+        Realizado: reconstruído a partir do hub_atividade_historico — para cada dia,
+        usa o conclusao_pct mais recente registrado até aquele dia por atividade."""
+        from datetime import date as _date
         code = self.selected_project
         if not code:
             return []
@@ -3032,7 +3034,6 @@ class GlobalState(rx.State):
             df = df[df["contrato"] == code].copy()
         if df.empty:
             return []
-        # Só atividades com datas válidas e peso
         for col in ["inicio_previsto", "termino_previsto", "conclusao_pct", "peso_pct"]:
             if col not in df.columns:
                 return []
@@ -3049,10 +3050,42 @@ class GlobalState(rx.State):
         peso_total = df["peso_pct"].sum()
         if peso_total == 0:
             return []
+
+        # ── Reconstruir histórico de conclusao_pct por atividade por data ──────
+        # Para cada dia d, conclusao_hist[ativ_id][d] = último conclusao_pct_novo <= d
+        hist_df = self._data.get("hub_historico")
+        # Mapeia ativ_id → lista de (date, conclusao_pct_novo) ordenada
+        hist_map: Dict[str, list] = {}
+        if hist_df is not None and not hist_df.empty:
+            hf = hist_df.copy()
+            if "contrato" in hf.columns:
+                hf = hf[hf["contrato"] == code]
+            if not hf.empty and "created_at" in hf.columns and "atividade_id" in hf.columns:
+                hf["created_at"] = pd.to_datetime(hf["created_at"], errors="coerce", utc=True)
+                hf = hf.dropna(subset=["created_at"])
+                hf["hist_date"] = hf["created_at"].dt.tz_localize(None).dt.normalize()
+                hf["conclusao_pct_novo"] = pd.to_numeric(hf.get("conclusao_pct_novo", 0), errors="coerce").fillna(0)
+                for aid, grp in hf.groupby("atividade_id"):
+                    sorted_grp = grp.sort_values("hist_date")
+                    hist_map[str(aid)] = list(zip(
+                        sorted_grp["hist_date"].tolist(),
+                        sorted_grp["conclusao_pct_novo"].tolist(),
+                    ))
+
+        def _hist_pct(ativ_id: str, as_of: pd.Timestamp) -> float:
+            """Retorna o conclusao_pct mais recente para ativ_id até 'as_of'."""
+            records = hist_map.get(str(ativ_id), [])
+            val = 0.0
+            for dt, pct in records:
+                if dt <= as_of:
+                    val = float(pct)
+                else:
+                    break
+            return val
+
         today = pd.Timestamp(_date.today())
         start_date = df["inicio_previsto"].min()
         end_date = df["termino_previsto"].max()
-        # Escolhe granularidade: diária para projetos ≤ 60 dias, semanal até 180d, mensal acima
         duration_days = max(1, (end_date - start_date).days)
         if duration_days <= 60:
             freq = "D"
@@ -3080,7 +3113,7 @@ class GlobalState(rx.State):
                 termino = row["termino_previsto"]
                 peso = float(row["peso_pct"]) / peso_total * 100
                 duracao = max(1, (termino - inicio).days)
-                # Previsto: quanto deveria estar pronto até d_end
+                # Previsto: interpolação linear até d_end
                 if d_end < inicio:
                     frac_prev = 0.0
                 elif d_end >= termino:
@@ -3088,9 +3121,15 @@ class GlobalState(rx.State):
                 else:
                     frac_prev = (d_end - inicio).days / duracao
                 previsto_acc += frac_prev * peso
-                # Realizado: usa conclusao_pct atual para datas já passadas
+                # Realizado: conclusao_pct histórico para este dia
                 if d.date() <= today.date():
-                    realizado_acc += float(row["conclusao_pct"]) / 100.0 * peso
+                    ativ_id = str(row.get("id", ""))
+                    if ativ_id and ativ_id in hist_map:
+                        pct_hist = _hist_pct(ativ_id, d_end.normalize() if freq != "D" else d)
+                    else:
+                        # Sem histórico: usa conclusao_pct atual apenas no último dia
+                        pct_hist = float(row["conclusao_pct"]) if d.date() == today.date() else 0.0
+                    realizado_acc += pct_hist / 100.0 * peso
             point: Dict[str, Any] = {"data": d.strftime(date_fmt), "previsto": round(previsto_acc, 1)}
             if d.date() <= today.date():
                 point["realizado"] = round(realizado_acc, 1)
@@ -3225,16 +3264,34 @@ class GlobalState(rx.State):
 
     @rx.var
     def obra_budget_chart(self) -> List[Dict[str, Any]]:
-        """Budget planejado vs realizado for bar chart visualization."""
-        data = self.obra_enterprise_data
-        bp = float(data.get("budget_planejado", 0) or 0)
-        br = float(data.get("budget_realizado", 0) or 0)
-        if bp == 0 and br == 0:
+        """Orçamento previsto vs executado por categoria de custo."""
+        code = self.selected_project
+        if not code:
             return []
-        return [
-            {"categoria": "Planejado", "valor": bp},
-            {"categoria": "Realizado", "valor": br},
-        ]
+        fin_df = self._data.get("financeiro")
+        if fin_df is None or fin_df.empty:
+            return []
+        if "contrato" in fin_df.columns:
+            fin_df = fin_df[fin_df["contrato"] == code].copy()
+        if fin_df.empty:
+            return []
+        fin_df["valor_previsto"] = pd.to_numeric(fin_df.get("valor_previsto", 0), errors="coerce").fillna(0)
+        fin_df["valor_executado"] = pd.to_numeric(fin_df.get("valor_executado", 0), errors="coerce").fillna(0)
+        col = "categoria_nome" if "categoria_nome" in fin_df.columns else None
+        if col:
+            grp = fin_df.groupby(col).agg(
+                planejado=("valor_previsto", "sum"),
+                realizado=("valor_executado", "sum"),
+            ).reset_index().rename(columns={col: "categoria"})
+        else:
+            data = self.obra_enterprise_data
+            bp = float(data.get("budget_planejado", 0) or 0)
+            br = float(data.get("budget_realizado", 0) or 0)
+            if bp == 0 and br == 0:
+                return []
+            return [{"categoria": "Total", "planejado": bp, "realizado": br}]
+        grp = grp[grp["planejado"] + grp["realizado"] > 0]
+        return grp.to_dict("records")
 
     @rx.var
     def dash_scurve_chart(self) -> List[Dict[str, Any]]:
@@ -3253,42 +3310,61 @@ class GlobalState(rx.State):
 
     @rx.var
     def dash_producao_diaria_chart(self) -> List[Dict[str, Any]]:
-        """Produtividade diária — avanço de conclusao_pct por dia via hub_atividade_historico.
-        Agrega por data: soma de conclusao_pct_novo - conclusao_pct_anterior (ponderado por peso)."""
+        """Produtividade diária — avanço ponderado por peso_pct por dia.
+        realizado = Σ(delta_pct_i * peso_i / peso_total)  → % do projeto avançado no dia
+        meta      = incremento diário previsto da S-curve (previsto[d] - previsto[d-1])"""
         code = self.selected_project
         if not code:
             return []
-        df = self._data.get("hub_historico")
-        if df is None or df.empty:
+        hist_df = self._data.get("hub_historico")
+        if hist_df is None or hist_df.empty:
             return []
-        if "contrato" in df.columns:
-            df = df[df["contrato"] == code].copy()
-        if df.empty:
+        if "contrato" in hist_df.columns:
+            hist_df = hist_df[hist_df["contrato"] == code].copy()
+        if hist_df.empty:
             return []
-        if "created_at" not in df.columns:
+        if "created_at" not in hist_df.columns:
             return []
-        df["created_at"] = pd.to_datetime(df["created_at"], errors="coerce", utc=True)
-        df = df.dropna(subset=["created_at"])
-        df["data"] = df["created_at"].dt.tz_convert("America/Sao_Paulo").dt.strftime("%d/%m")
-        df["delta"] = pd.to_numeric(df.get("conclusao_pct_novo", 0), errors="coerce").fillna(0) - \
-                      pd.to_numeric(df.get("conclusao_pct_anterior", 0), errors="coerce").fillna(0)
-        # Agrupa por data: soma de deltas (progresso acumulado no dia)
-        grp = df.groupby("data")["delta"].sum().reset_index()
-        grp = grp.rename(columns={"delta": "realizado"})
-        grp["realizado"] = grp["realizado"].round(1)
-        # Meta diária: total de peso / dias úteis do projeto (proxy simples)
+
+        # Busca pesos das atividades
         ativ_df = self._data.get("projeto")
-        meta_dia = 0.0
+        peso_map: Dict[str, float] = {}
+        peso_total = 1.0
         if ativ_df is not None and not ativ_df.empty and "contrato" in ativ_df.columns:
             sub = ativ_df[ativ_df["contrato"] == code]
-            if not sub.empty and "inicio_previsto" in sub.columns and "termino_previsto" in sub.columns:
-                ini = pd.to_datetime(sub["inicio_previsto"], errors="coerce").min()
-                fim = pd.to_datetime(sub["termino_previsto"], errors="coerce").max()
-                if pd.notna(ini) and pd.notna(fim):
-                    dur_dias = max(1, (fim - ini).days)
-                    meta_dia = round(100.0 / dur_dias, 2)
-        grp["meta"] = meta_dia
-        # Aplica filtro de período
+            if not sub.empty and "peso_pct" in sub.columns and "id" in sub.columns:
+                sub = sub.copy()
+                sub["peso_pct"] = pd.to_numeric(sub["peso_pct"], errors="coerce").fillna(1)
+                pt = float(sub["peso_pct"].sum())
+                if pt > 0:
+                    peso_total = pt
+                for _, r in sub.iterrows():
+                    peso_map[str(r["id"])] = float(r["peso_pct"])
+
+        hist_df["created_at"] = pd.to_datetime(hist_df["created_at"], errors="coerce", utc=True)
+        hist_df = hist_df.dropna(subset=["created_at"])
+        hist_df["data"] = hist_df["created_at"].dt.tz_convert("America/Sao_Paulo").dt.strftime("%d/%m")
+        hist_df["conclusao_pct_novo"] = pd.to_numeric(hist_df.get("conclusao_pct_novo", 0), errors="coerce").fillna(0)
+        hist_df["conclusao_pct_anterior"] = pd.to_numeric(hist_df.get("conclusao_pct_anterior", 0), errors="coerce").fillna(0)
+        hist_df["delta_raw"] = hist_df["conclusao_pct_novo"] - hist_df["conclusao_pct_anterior"]
+        # Aplica peso: contribuição ao progresso total do projeto
+        hist_df["atividade_id"] = hist_df["atividade_id"].astype(str)
+        hist_df["peso"] = hist_df["atividade_id"].map(lambda aid: peso_map.get(aid, 1.0))
+        hist_df["delta_ponderado"] = hist_df["delta_raw"] * hist_df["peso"] / peso_total
+
+        grp = hist_df.groupby("data")["delta_ponderado"].sum().reset_index()
+        grp = grp.rename(columns={"delta_ponderado": "realizado"})
+        grp["realizado"] = grp["realizado"].clip(lower=0).round(2)
+
+        # Meta diária: derivada da S-curve (incremento previsto por dia)
+        scurve = list(self.project_scurve_chart)
+        meta_map: Dict[str, float] = {}
+        for i, pt in enumerate(scurve):
+            prev_val = float(scurve[i - 1].get("previsto", 0)) if i > 0 else 0.0
+            meta_map[pt["data"]] = round(max(0.0, float(pt.get("previsto", 0)) - prev_val), 2)
+
+        grp["meta"] = grp["data"].map(lambda d: meta_map.get(d, 0.0))
+
         period = self.dash_filter_period
         if period == "7d":
             grp = grp.tail(7)
@@ -4425,6 +4501,7 @@ class GlobalState(rx.State):
             self.obra_insight_text = ""
             self.obra_insight_loading = True
             self.obra_insight_generated_at = ""
+            self._insight_target = code  # cancel guard: só este código é válido
             self.weather_loading = True
             self.weather_data = {}
             self.weather_location_name = ""
@@ -4450,6 +4527,7 @@ class GlobalState(rx.State):
             self.obra_insight_text = ""
             self.obra_insight_loading = False
             self.obra_insight_generated_at = ""
+            self._insight_target = ""  # cancela qualquer insight em background
             self.project_hub_tab = "visao_geral"
             self.project_campo_rdos = []
             self.project_campo_loading = False
@@ -4564,8 +4642,15 @@ class GlobalState(rx.State):
             disciplines = list(self.disciplina_progress_chart)
             selected = self.obras_selected_contract or self.selected_project
             client_id = str(self.current_client_id or "")
+            target_at_start = str(self._insight_target or "")
 
         if not selected:
+            async with self:
+                self.obra_insight_loading = False
+            return
+
+        # ── Cancel guard: aborta se o usuário já navegou para outro projeto ──
+        if target_at_start and target_at_start != selected:
             async with self:
                 self.obra_insight_loading = False
             return
@@ -4727,6 +4812,14 @@ class GlobalState(rx.State):
             },
             {"role": "user", "content": context},
         ]
+
+        # Cancel guard pré-IA: verifica se usuário ainda está no mesmo projeto
+        async with self:
+            _current_target = str(self._insight_target or "")
+        if _current_target and _current_target != selected:
+            async with self:
+                self.obra_insight_loading = False
+            return
 
         import asyncio as _asyncio
 
