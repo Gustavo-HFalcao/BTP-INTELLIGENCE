@@ -10,6 +10,35 @@ AI_TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "search_documents",
+            "strict": True,
+            "description": (
+                "Busca por termos ou cláusulas em documentos anexados à linha do tempo de um contrato. "
+                "Use quando o usuário perguntar sobre cláusulas contratuais, multas, prazos, garantias, "
+                "rescisão, ou qualquer conteúdo de documentos (contratos, atas, notas técnicas). "
+                "Retorna trechos relevantes dos documentos encontrados. "
+                "Se o usuário não especificar o contrato, use o contrato do contexto atual."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Termo ou frase a buscar nos documentos. Ex: 'multa por atraso', 'garantia', 'rescisão', 'prazo de entrega'."
+                    },
+                    "contrato": {
+                        "type": "string",
+                        "description": "Código do contrato a pesquisar. Ex: 'BOM-029'. Use '' para buscar em todos os contratos disponíveis."
+                    }
+                },
+                "required": ["query", "contrato"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "execute_sql",
             "strict": True,
             "description": (
@@ -160,7 +189,93 @@ def execute_tool(name: str, args: dict):
                 "value_prefix": value_prefix,
                 "data": data,
             })
-            
+
+        elif name == "search_documents":
+            query_text = args.get("query", "").strip()
+            contrato = args.get("contrato", "").strip()
+            if not query_text:
+                return json.dumps({"error": "Termo de busca não fornecido."})
+
+            logger.info(f"🛠️ Tool: search_documents → query='{query_text[:60]}' contrato='{contrato}'")
+            try:
+                from bomtempo.core.supabase_client import sb_select
+
+                # Busca documentos na hub_timeline
+                filters: dict = {"is_document": True}
+                if contrato:
+                    filters["contrato"] = contrato
+                doc_rows = sb_select("hub_timeline", filters=filters, limit=20) or []
+
+                if not doc_rows:
+                    return json.dumps({"resultado": "Nenhum documento encontrado para este contrato."})
+
+                # Importa extractor do global_state (evita duplicar lógica)
+                from bomtempo.state.global_state import _extract_document_text
+
+                results = []
+                query_lower = query_text.lower()
+                query_terms = [t.strip() for t in re.split(r"[\s,;|]+", query_lower) if len(t.strip()) > 2]
+
+                for d in doc_rows:
+                    titulo = d.get("titulo", "") or ""
+                    descricao = d.get("descricao", "") or ""
+                    anexo_url = d.get("anexo_url", "") or ""
+                    anexo_nome = d.get("anexo_nome", "") or ""
+                    doc_contrato = d.get("contrato", "") or contrato
+
+                    # Quick check: query em título/descrição
+                    meta_text = f"{titulo} {descricao}".lower()
+                    meta_match = any(term in meta_text for term in query_terms)
+
+                    # Extrai texto do arquivo e busca
+                    file_text = ""
+                    if anexo_url:
+                        file_text = _extract_document_text(anexo_url, anexo_nome, max_chars=15000)
+
+                    file_lower = file_text.lower()
+                    file_match = any(term in file_lower for term in query_terms)
+
+                    if not meta_match and not file_match:
+                        continue
+
+                    # Extrai trechos relevantes (±300 chars em volta do match)
+                    snippets = []
+                    if file_text:
+                        for term in query_terms:
+                            idx = file_lower.find(term)
+                            while idx != -1 and len(snippets) < 3:
+                                start = max(0, idx - 200)
+                                end = min(len(file_text), idx + 300)
+                                snippet = file_text[start:end].strip()
+                                # Evita duplicatas de snippets muito similares
+                                if not any(snippet[:50] in s for s in snippets):
+                                    snippets.append(f"...{snippet}...")
+                                idx = file_lower.find(term, idx + 1)
+                            if len(snippets) >= 3:
+                                break
+
+                    results.append({
+                        "documento": titulo or anexo_nome,
+                        "contrato": doc_contrato,
+                        "arquivo": anexo_nome,
+                        "trechos_relevantes": snippets if snippets else [f"Termo encontrado no título/descrição: {meta_text[:200]}"],
+                    })
+
+                if not results:
+                    return json.dumps({
+                        "resultado": f"Nenhuma referência a '{query_text}' encontrada nos {len(doc_rows)} documento(s) do contrato.",
+                        "documentos_verificados": [d.get("titulo", d.get("anexo_nome", "")) for d in doc_rows],
+                    })
+
+                return json.dumps({
+                    "total_documentos_verificados": len(doc_rows),
+                    "documentos_com_match": len(results),
+                    "resultados": results,
+                })
+            except Exception as e:
+                logger.error(f"search_documents error: {e}")
+                return json.dumps({"error": f"Erro ao buscar documentos: {str(e)}"})
+
         return f"Ferramenta {name} não encontrada."
     except Exception as e:
         logger.error(f"Erro ao executar tool {name}: {e}")

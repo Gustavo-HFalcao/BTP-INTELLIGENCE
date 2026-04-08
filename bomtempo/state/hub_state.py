@@ -324,6 +324,87 @@ def _norm_pct(v: object) -> str:
 # State
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _compute_forecast_rows(cron_rows: list) -> list:
+    """
+    Função pura: enriquece micro-atividades com campos de forecast + day-context.
+    Executada em run_in_executor (thread pool) pelo load_cronograma — nunca no event loop.
+    """
+    from datetime import date, timedelta
+    today = date.today()
+    tol = 10.0
+    result = []
+    for r in cron_rows:
+        if r.get("nivel", "macro") != "micro":
+            continue
+        total_qty_s = r.get("total_qty",  "0") or "0"
+        exec_qty_s  = r.get("exec_qty",   "0") or "0"
+        dias_plan_s = r.get("dias_planejados", "0") or "0"
+        pct_s       = r.get("conclusao_pct", "0") or "0"
+        try:
+            total_qty = float(total_qty_s)
+            exec_qty  = float(exec_qty_s)
+            dias_plan = int(dias_plan_s)
+            pct       = int(pct_s)
+        except (ValueError, TypeError):
+            continue
+        inicio_iso  = r.get("inicio_iso", "")
+        termino_iso = r.get("termino_iso", "")
+        unidade     = r.get("unidade", "")
+        prod_plan = total_qty / dias_plan if total_qty > 0 and dias_plan > 0 else 0.0
+        d_inicio = d_termino = None
+        if inicio_iso and len(inicio_iso) >= 10:
+            try: d_inicio = date.fromisoformat(inicio_iso[:10])
+            except ValueError: pass
+        if termino_iso and len(termino_iso) >= 10:
+            try: d_termino = date.fromisoformat(termino_iso[:10])
+            except ValueError: pass
+        dias_decorridos = max(0, (today - d_inicio).days) if d_inicio and d_inicio <= today else 0
+        dias_uteis = max(1, int(dias_decorridos * 5 / 7))
+        prod_real  = exec_qty / dias_uteis if exec_qty > 0 else 0.0
+        dia_atual  = min(dias_decorridos + 1, dias_plan) if d_inicio and d_inicio <= today else 0
+        pct_esperado = round(min(100.0, dia_atual / dias_plan * 100), 1) if dias_plan > 0 and dia_atual > 0 else 0.0
+        if total_qty > 0 and unidade:
+            exec_label = f"{exec_qty:.1f} de {total_qty:.1f} {unidade}"
+        elif total_qty > 0:
+            exec_label = f"{exec_qty:.1f} de {total_qty:.1f}"
+        else:
+            exec_label = ""
+        desvio_pct = round((prod_real - prod_plan) / prod_plan * 100, 1) if prod_plan > 0 else 0.0
+        if exec_qty == 0 or dias_decorridos < 3:
+            tendencia = "sem_dados"
+        elif pct >= 100:
+            tendencia = "concluida"
+        elif desvio_pct >= tol:
+            tendencia = "acima"
+        elif desvio_pct <= -tol:
+            tendencia = "abaixo"
+        else:
+            tendencia = "dentro"
+        data_fim_prev_str = ""
+        desvio_dias = 0
+        if prod_real > 0 and total_qty > 0 and pct < 100:
+            saldo = max(0.0, total_qty - exec_qty)
+            fim_prev = today + timedelta(days=int(saldo / prod_real * 1.4))
+            data_fim_prev_str = fim_prev.isoformat()
+            if d_termino:
+                desvio_dias = (fim_prev - d_termino).days
+        result.append(dict(
+            r,
+            _prod_planejada=f"{prod_plan:.1f}",
+            _prod_real=f"{prod_real:.1f}",
+            _desvio_pct=f"{desvio_pct:+.1f}",
+            _tendencia=tendencia,
+            _data_fim_prevista=_utc_date_to_br(data_fim_prev_str) if data_fim_prev_str else "—",
+            _desvio_dias=str(desvio_dias),
+            _saldo_qty=f"{max(0.0, total_qty - exec_qty):.1f}",
+            _dia_atual=str(dia_atual),
+            _total_dias=str(dias_plan),
+            _pct_esperado=str(pct_esperado),
+            _exec_label=exec_label,
+        ))
+    return result
+
+
 class HubState(rx.State):
     """Hub de Operações — Cronograma, Auditoria, Timeline state."""
 
@@ -331,6 +412,16 @@ class HubState(rx.State):
     cron_loading: bool = False
     audit_loading: bool = False
     timeline_loading: bool = False
+
+    # ── Forecast cache — computado em background no load_cronograma ──────────
+    # Evita recalcular cron_forecast_rows (O(n) heavy) em toda mudança de state.
+    _cron_forecast_cache: List[Dict[str, str]] = []
+
+    # ── Lazy load sentinels — True após primeiro carregamento para o contrato ──
+    # Evita disparar load_auditoria e load_timeline no select_project:
+    # só carregam quando a tab for clicada pela primeira vez.
+    _audit_loaded_contrato: str = ""
+    _timeline_loaded_contrato: str = ""
 
     # ══════════════════════════════════════════════════════════════════════════
     # CRONOGRAMA
@@ -872,108 +963,11 @@ class HubState(rx.State):
     @rx.var
     def cron_forecast_rows(self) -> List[Dict[str, str]]:
         """
-        Enriches micro activities with forecast + day-context fields.
-        Added fields:
-          _dia_atual, _total_dias, _pct_esperado_hoje  — "dia X de Y, esperado Z%"
-          _prod_planejada, _prod_real, _exec_label      — quantity context
-          _desvio_pct, _tendencia, _data_fim_prevista, _desvio_dias, _saldo_qty
+        Pass-through para o cache pré-computado em background.
+        O cálculo pesado (O(n) com parsing de datas) roda em _compute_forecast_rows()
+        via run_in_executor dentro de load_cronograma — nunca no event loop.
         """
-        from datetime import date, timedelta
-        today = date.today()
-        tol = 10.0  # ±10% deviation tolerance
-        result = []
-        for r in self.cron_rows:
-            if r.get("nivel", "macro") != "micro":
-                continue
-
-            # Parse all numeric fields once
-            total_qty_s  = r.get("total_qty",  "0") or "0"
-            exec_qty_s   = r.get("exec_qty",   "0") or "0"
-            dias_plan_s  = r.get("dias_planejados", "0") or "0"
-            pct_s        = r.get("conclusao_pct", "0") or "0"
-            try:
-                total_qty = float(total_qty_s)
-                exec_qty  = float(exec_qty_s)
-                dias_plan = int(dias_plan_s)
-                pct       = int(pct_s)
-            except (ValueError, TypeError):
-                continue
-
-            inicio_iso  = r.get("inicio_iso", "")
-            termino_iso = r.get("termino_iso", "")
-            unidade     = r.get("unidade", "")
-
-            # Produtividade planejada
-            prod_plan = total_qty / dias_plan if total_qty > 0 and dias_plan > 0 else 0.0
-
-            # Dias decorridos / dia atual dentro do plano
-            d_inicio: date | None = None
-            d_termino: date | None = None
-            if inicio_iso and len(inicio_iso) >= 10:
-                try: d_inicio = date.fromisoformat(inicio_iso[:10])
-                except ValueError: pass
-            if termino_iso and len(termino_iso) >= 10:
-                try: d_termino = date.fromisoformat(termino_iso[:10])
-                except ValueError: pass
-
-            dias_decorridos = max(0, (today - d_inicio).days) if d_inicio and d_inicio <= today else 0
-            # Dias úteis decorridos (5/7 ratio)
-            dias_uteis = max(1, int(dias_decorridos * 5 / 7))
-            prod_real  = exec_qty / dias_uteis if exec_qty > 0 else 0.0
-
-            # Day-context: "dia X de Y"
-            dia_atual = min(dias_decorridos + 1, dias_plan) if d_inicio and d_inicio <= today else 0
-            # Percentage expected at this point in time (linear interpolation)
-            pct_esperado = round(min(100.0, dia_atual / dias_plan * 100), 1) if dias_plan > 0 and dia_atual > 0 else 0.0
-
-            # Execution label: "9.6 de 24.0 un executados"
-            if total_qty > 0 and unidade:
-                exec_label = f"{exec_qty:.1f} de {total_qty:.1f} {unidade}"
-            elif total_qty > 0:
-                exec_label = f"{exec_qty:.1f} de {total_qty:.1f}"
-            else:
-                exec_label = ""
-
-            # Desvio de progresso (realizado vs esperado no tempo)
-            desvio_pct = round((prod_real - prod_plan) / prod_plan * 100, 1) if prod_plan > 0 else 0.0
-
-            # Tendência
-            if exec_qty == 0 or dias_decorridos < 3:
-                tendencia = "sem_dados"
-            elif pct >= 100:
-                tendencia = "concluida"
-            elif desvio_pct >= tol:
-                tendencia = "acima"
-            elif desvio_pct <= -tol:
-                tendencia = "abaixo"
-            else:
-                tendencia = "dentro"
-
-            # EAC — data fim prevista
-            data_fim_prev_str = ""
-            desvio_dias = 0
-            if prod_real > 0 and total_qty > 0 and pct < 100:
-                saldo = max(0.0, total_qty - exec_qty)
-                fim_prev = today + timedelta(days=int(saldo / prod_real * 1.4))
-                data_fim_prev_str = fim_prev.isoformat()
-                if d_termino:
-                    desvio_dias = (fim_prev - d_termino).days
-
-            result.append(dict(
-                r,
-                _prod_planejada=f"{prod_plan:.1f}",
-                _prod_real=f"{prod_real:.1f}",
-                _desvio_pct=f"{desvio_pct:+.1f}",
-                _tendencia=tendencia,
-                _data_fim_prevista=_utc_date_to_br(data_fim_prev_str) if data_fim_prev_str else "—",
-                _desvio_dias=str(desvio_dias),
-                _saldo_qty=f"{max(0.0, total_qty - exec_qty):.1f}",
-                _dia_atual=str(dia_atual),
-                _total_dias=str(dias_plan),
-                _pct_esperado=str(pct_esperado),
-                _exec_label=exec_label,
-            ))
-        return result
+        return self._cron_forecast_cache
 
     @rx.var
     def cron_kpi_dashboard(self) -> Dict[str, str]:
@@ -1271,8 +1265,16 @@ class HubState(rx.State):
             logger.error(f"load_cronograma error: {e}")
             normalized = []
 
+        # ── Pré-computa forecast fora do lock (CPU-bound, evita bloquear state mutex) ──
+        import asyncio as _aio_fc
+        _fc_loop = _aio_fc.get_running_loop()
+        forecast_cache = await _fc_loop.run_in_executor(
+            None, lambda: _compute_forecast_rows(normalized)
+        )
+
         async with self:
             self.cron_rows = normalized
+            self._cron_forecast_cache = forecast_cache
             self.cron_working_days_str = dias_uteis_str
             _prev_contrato = self.cron_contrato
             self.cron_contrato = contrato
@@ -2552,6 +2554,7 @@ Retorne SOMENTE JSON válido, sem texto antes/depois, sem markdown:
         async with self:
             self.audit_images = imgs
             self.audit_loading = False
+            self._audit_loaded_contrato = contrato
 
     def open_audit_category(self, slug: str):
         # Toggle: clicking same category closes it
@@ -2710,6 +2713,7 @@ Retorne SOMENTE JSON válido, sem texto antes/depois, sem markdown:
         async with self:
             self.timeline_entries = entries
             self.timeline_loading = False
+            self._timeline_loaded_contrato = contrato
             if mention_users:
                 self.tl_mention_users = mention_users
 
@@ -2955,20 +2959,65 @@ Retorne SOMENTE JSON válido, sem texto antes/depois, sem markdown:
             async with self:
                 _cron_rows = list(self.cron_rows)
 
-        # Fetch last RDO for this contract
-        def _fetch_rdo():
+        # Fetch last RDO header (for crew/climate context)
+        def _fetch_last_rdo():
             try:
                 rows = sb_select(
-                    "rdo",
+                    "rdo_master",
                     filters={"contrato": _contrato},
                     limit=1,
-                    order="created_at.desc",
+                    order="data.desc",
                 ) or []
                 return rows[0] if rows else {}
             except Exception:
                 return {}
 
-        last_rdo = await loop.run_in_executor(None, _fetch_rdo)
+        # Fetch production history from hub_atividade_historico + rdo_atividades
+        # This gives us quantidade/efetivo/dia per activity — the real productivity triangle
+        def _fetch_production_data():
+            try:
+                from bomtempo.core.supabase_client import sb_rpc
+                # Query: join rdo_atividades with rdo_master to get qty+efetivo+date per activity
+                query = f"""
+                    SELECT
+                        ra.atividade,
+                        ra.quantidade,
+                        ra.unidade,
+                        ra.efetivo,
+                        rm.data,
+                        rm.equipe_alocada,
+                        rm.condicao_climatica
+                    FROM rdo_atividades ra
+                    JOIN rdo_master rm ON rm.id = ra.rdo_id
+                    WHERE rm.contrato = '{_contrato}'
+                      AND ra.quantidade IS NOT NULL
+                      AND ra.efetivo IS NOT NULL
+                      AND ra.efetivo > 0
+                    ORDER BY rm.data DESC
+                    LIMIT 60
+                """
+                result = sb_rpc("execute_safe_query", {"query_string": query.strip()})
+                return result or []
+            except Exception:
+                return []
+
+        def _fetch_hist_data():
+            try:
+                rows = sb_select(
+                    "hub_atividade_historico",
+                    filters={"contrato": _contrato},
+                    limit=50,
+                    order="created_at.desc",
+                ) or []
+                return rows
+            except Exception:
+                return []
+
+        last_rdo, prod_rows, hist_rows = await asyncio.gather(
+            loop.run_in_executor(None, _fetch_last_rdo),
+            loop.run_in_executor(None, _fetch_production_data),
+            loop.run_in_executor(None, _fetch_hist_data),
+        )
 
         # Build context for AI
         today_dt = date.today()
@@ -3005,17 +3054,18 @@ Retorne SOMENTE JSON válido, sem texto antes/depois, sem markdown:
 
         ativ_text = _ativ_summary(micros)
 
-        # Last RDO summary
+        # Last RDO summary — from rdo_master (correct table)
         rdo_text = ""
         if last_rdo:
             rdo_text = (
                 f"Data: {last_rdo.get('data','')}\n"
-                f"Equipe presente: {last_rdo.get('equipe_presente','')}\n"
-                f"Equipe planejada: {last_rdo.get('equipe_planejada','')}\n"
-                f"Atividades do dia: {last_rdo.get('atividades_realizadas','') or last_rdo.get('atividades','')}\n"
+                f"Equipe alocada: {last_rdo.get('equipe_alocada','')}\n"
+                f"Condição climática: {last_rdo.get('condicao_climatica','')}\n"
+                f"Houve chuva: {last_rdo.get('houve_chuva','')}\n"
+                f"Houve interrupção: {last_rdo.get('houve_interrupcao','')}\n"
+                f"Motivo interrupção: {last_rdo.get('motivo_interrupcao','')}\n"
                 f"Observações: {last_rdo.get('observacoes','')}\n"
-                f"Condições climáticas: {last_rdo.get('condicoes_climaticas','')}\n"
-                f"Avanço físico registrado: {last_rdo.get('avanco_fisico','') or last_rdo.get('progresso','')}\n"
+                f"Houve acidente: {last_rdo.get('houve_acidente','')}\n"
             )
 
         # ── Compute derived metrics for richer prompt context ─────────────────
@@ -3071,41 +3121,131 @@ Retorne SOMENTE JSON válido, sem texto antes/depois, sem markdown:
         ahead_summary = "\n".join(ahead_lines[:5]) if ahead_lines else "  Nenhuma."
         not_started_summary = "\n".join(f"  - {n}" for n in not_started_critical[:5]) if not_started_critical else "  Nenhuma."
 
-        # Crew gap analysis from last RDO
+        # ── Crew context from rdo_master (correct fields) ─────────────────────
         crew_context = ""
         if last_rdo:
             try:
-                presente = int(last_rdo.get("equipe_presente") or 0)
-                planejada = int(last_rdo.get("equipe_planejada") or 0)
-                if planejada > 0:
-                    gap = planejada - presente
-                    if gap > 0:
-                        prod_loss = round((gap / planejada) * 100)
-                        crew_context = (
-                            f"ALERTA DE EQUIPE: faltaram {gap} trabalhadores no último RDO "
-                            f"({presente}/{planejada} presentes = {prod_loss}% de perda de produtividade potencial)."
-                        )
-                    elif gap < 0:
-                        crew_context = (
-                            f"Equipe acima do planejado: {presente}/{planejada} — possível hora extra ou reforço."
-                        )
-                    else:
-                        crew_context = f"Equipe completa no último RDO: {presente}/{planejada}."
+                alocada = int(last_rdo.get("equipe_alocada") or 0)
+                clima = last_rdo.get("condicao_climatica", "")
+                chuva = last_rdo.get("houve_chuva", False)
+                interrupcao = last_rdo.get("houve_interrupcao", False)
+                motivo = last_rdo.get("motivo_interrupcao", "")
+                acidente = last_rdo.get("houve_acidente", False)
+                rdo_date = last_rdo.get("data", "")
+
+                parts = [f"Último RDO ({rdo_date}): {alocada} pessoas alocadas, clima: {clima}"]
+                if chuva:
+                    parts.append("⚠️ Houve chuva")
+                if interrupcao:
+                    parts.append(f"⚠️ Houve interrupção: {motivo or 'motivo não informado'}")
+                if acidente:
+                    parts.append("🔴 ACIDENTE REGISTRADO no último RDO")
+                crew_context = " | ".join(parts)
             except (ValueError, TypeError):
-                crew_context = f"Equipe: {last_rdo.get('equipe_presente','?')}/{last_rdo.get('equipe_planejada','?')} (último RDO)."
+                crew_context = f"Equipe do último RDO: {last_rdo.get('equipe_alocada','?')} pessoas."
+
+        # ── Real productivity from rdo_atividades (quantidade + efetivo + data) ─
+        # Fonte: hub_atividade_historico (producao_dia, exec_qty, total_qty, unidade)
+        # + rdo_atividades (quantidade, unidade, efetivo por atividade por dia)
+        productivity_context = ""
+        try:
+            prod_lines = []
+            # Group by atividade → compute taxa = quantidade / efetivo per day
+            from collections import defaultdict
+            activity_rates: dict = defaultdict(list)  # atividade → [(qty, efetivo, data)]
+
+            for row in prod_rows:
+                act_name = (row.get("atividade") or "").strip()
+                qty = row.get("quantidade")
+                efetivo = row.get("efetivo")
+                data = row.get("data", "")
+                unidade = row.get("unidade", "")
+                if not act_name or qty is None or efetivo is None:
+                    continue
+                try:
+                    qty_f = float(qty)
+                    efetivo_i = int(efetivo)
+                    if efetivo_i > 0 and qty_f > 0:
+                        activity_rates[act_name].append({
+                            "qty": qty_f, "efetivo": efetivo_i,
+                            "taxa": round(qty_f / efetivo_i, 2),
+                            "data": data, "unidade": unidade
+                        })
+                except (ValueError, TypeError):
+                    pass
+
+            for act_name, samples in activity_rates.items():
+                if not samples:
+                    continue
+                unidade = samples[0]["unidade"]
+                avg_taxa = round(sum(s["taxa"] for s in samples) / len(samples), 2)
+                avg_efetivo = round(sum(s["efetivo"] for s in samples) / len(samples), 1)
+                avg_qty = round(sum(s["qty"] for s in samples) / len(samples), 1)
+                n = len(samples)
+
+                # Saldo restante da atividade (da tabela hub_atividades via cron_rows)
+                cron_act = next((x for x in micros if x.get("atividade", "").strip() == act_name), None)
+                saldo_str = ""
+                recovery_str = ""
+                if cron_act:
+                    try:
+                        total_q = float(cron_act.get("total_qty") or 0)
+                        exec_q = float(cron_act.get("exec_qty") or 0)
+                        remaining = total_q - exec_q
+                        if remaining > 0 and avg_taxa > 0:
+                            # Opção A: recuperar com equipe histórica média
+                            dias_com_media = round(remaining / (avg_taxa * avg_efetivo), 1)
+                            # Opção B: recuperar em prazo reduzido (2/3 dos dias) → workers necessários
+                            prazo_target = max(1, dias_com_media * 0.67)
+                            workers_needed = round(remaining / (avg_taxa * prazo_target), 1)
+                            saldo_str = f" | saldo: {remaining:.1f} {unidade}"
+                            recovery_str = (
+                                f" | RECOVERY: A) {dias_com_media}d com {avg_efetivo:.0f}p "
+                                f"B) {round(prazo_target)}d com {workers_needed:.0f}p"
+                            )
+                    except (ValueError, TypeError):
+                        pass
+
+                prod_lines.append(
+                    f"  - [{act_name}] taxa histórica: {avg_taxa} {unidade}/pessoa/dia "
+                    f"(média {n} RDOs, {avg_efetivo:.0f}p, {avg_qty:.1f} {unidade}/dia)"
+                    f"{saldo_str}{recovery_str}"
+                )
+
+            # Also enrich with hub_atividade_historico producao_dia for any gaps
+            hist_acts_seen = {s.split("] ")[0].lstrip("  - [") for s in prod_lines}
+            hist_by_act: dict = defaultdict(list)
+            for h in hist_rows:
+                act_id = h.get("atividade_id", "")
+                prod_dia = h.get("producao_dia")
+                unidade_h = h.get("unidade", "")
+                if prod_dia and act_id:
+                    hist_by_act[act_id].append({"prod": float(prod_dia), "unidade": unidade_h})
+
+            if prod_lines:
+                productivity_context = "\n".join(prod_lines)
+            else:
+                productivity_context = "  Sem dados de quantidade+efetivo nos RDOs para calcular taxa."
+        except Exception as _e:
+            logger.warning(f"Agente productivity calc error: {_e}")
+            productivity_context = "  Erro ao calcular dados de produtividade."
 
         today_str: str = today  # already defined as date.today().isoformat()
 
-        prompt = f"""Você é o Agente de Atividades da plataforma Bomtempo — especialista sênior em engenharia civil, gestão de obras e análise de cronograma.
+        prompt = f"""Você é o Agente de Atividades da plataforma Bomtempo — especialista sênior em engenharia civil, gestão de obras e análise de cronograma. Sua audiência é o gestor de obra: ele lê seu insight e em 30 segundos sabe exatamente o que fazer.
 
-MISSÃO: gerar entre 4 e 6 insights CIRÚRGICOS, com números reais do projeto, que ajudem o engenheiro a tomar decisões hoje.
+MISSÃO: gerar entre 4 e 6 insights CIRÚRGICOS e ACIONÁVEIS. O gestor deve ler e já ter a decisão na mão.
 
 ═══ REGRAS OBRIGATÓRIAS (violá-las invalida o insight) ═══
-1. Cada insight DEVE citar ao menos 1 número real do projeto (dias de atraso, %, quantidade, nº de trabalhadores, dias de folga, etc.)
-2. Cada insight DEVE conter uma recomendação acionável com especificidade (ex: "realocar 3 soldadores de X para Y nos próximos 5 dias úteis")
-3. Atividades com critico=1 atrasadas → type="delay" ou "alert" com priority="high" OBRIGATORIAMENTE
-4. Não invente dados. Se não souber um número, estime com base nos dados fornecidos e sinalize com "(estimado)"
-5. O campo "atividade" deve ser o nome EXATO da atividade do cronograma (copie literalmente), ou '' se o insight for geral
+1. Cada insight DEVE citar ao menos 1 número real (dias, %, unidades, trabalhadores, R$)
+2. Para atrasos com dados de produtividade disponíveis: CALCULE a equipe necessária para recuperação.
+   Fórmula de workforce recovery: meta_recuperação ÷ taxa_produção_pessoa_dia = workers_necessários
+   Apresente 2 opções: (A) recuperar em N dias com X pessoas, (B) alongar prazo e novo término
+3. Para atividades ADIANTADAS: calcule o ganho real e sugira realocação com nome e quantidade
+4. Atividades com critico=1 atrasadas → type="delay" ou "alert" com priority="high" OBRIGATORIAMENTE
+5. Não invente dados. Se estimar, sinalize com "(estimado)". Se os dados são insuficientes para o cálculo, diga qual informação falta
+6. O campo "atividade" deve ser o nome EXATO da atividade do cronograma (copie literalmente), ou '' se o insight for geral
+7. Insights POSITIVOS são tão importantes quanto negativos — reconheça e capitalize sobre o que está indo bem
 
 ═══ CONTEXTO DO PROJETO ═══
 Contrato: {_contrato}
@@ -3123,6 +3263,10 @@ Data de hoje: {today_str}
 
 ═══ SITUAÇÃO DE EQUIPE (último RDO) ═══
 {crew_context or "Sem dados de equipe no RDO."}
+
+═══ PRODUTIVIDADE HISTÓRICA POR ATIVIDADE (fonte: rdo_atividades + hub_atividade_historico — use para calcular equipe necessária) ═══
+{productivity_context or "  Sem histórico de produtividade disponível."}
+INSTRUÇÃO: use os dados de produtividade acima para calcular precisamente quantos trabalhadores e por quantos dias são necessários para recuperar atrasos. Formato esperado: "Meta: X unid em Y dias úteis → Z unid/dia → W pessoas (taxa histórica: V unid/pessoa/dia)"
 
 ═══ CRONOGRAMA COMPLETO (formato: [fase.subfase] nome | %concluído | início→término | responsável | status | crítico | peso% | qty exec/total unidade) ═══
 {ativ_text or "Nenhuma atividade cadastrada."}
@@ -3143,14 +3287,16 @@ Responda APENAS com um array JSON válido (sem markdown, sem ```json, sem explic
 ]
 
 Exemplos de body de ALTA QUALIDADE:
-- "Fundações Bloco A está 18 dias atrasada no caminho crítico. Com equipe atual de 6 vs 10 planejados, acumula ~1,5 dia de atraso/semana. Contratar 4 serventes adicionais e trabalhar sábados por 3 semanas elimina o deficit."
-- "Estrutura Metálica concluiu 78% vs meta de 65% — 13pp adiantada, com 12 dias de folga. Realocar 2 dos 8 soldadores para Instalações Elétricas (42% vs meta 55%) normaliza o portfólio sem risco."
-- "Equipe 40% abaixo do planejado no último RDO (6/10). Se padrão continuar, a atividade 'Concretagem Pilares' perderá 4,2pp de avanço físico esta semana e entrará em zona crítica em 9 dias."
+EXEMPLOS DE BODY — ALTA QUALIDADE (padrão enterprise):
+- "Fundações Bloco A: 18d atrasada, saldo de 240m² (60% do total). Taxa histórica: 5 pessoas → 20m²/dia. Opção A: manter prazo — precisa de 9 pessoas por 3 semanas (240m² ÷ 20m²/dia = 12 dias, 9p = 26m²/dia cobrindo folga). Opção B: realocar equipe atual e estender término em 18 dias úteis."
+- "Estrutura Metálica: 78% concluído vs meta 65% — 13pp adiantada, 12 dias de folga. Realocar 2 dos 8 soldadores para Instalações Elétricas (42% vs meta 55%) normaliza portfólio sem comprometer prazo."
+- "Equipe 40% abaixo do planejado nos últimos 3 RDOs (6/10 presentes em média). Perda acumulada estimada: 4,2pp de avanço/semana. Se persistir, 'Concretagem Pilares' entra em zona crítica em 9 dias. Ação: contratar 2 serventes temporários ou acionar banco de horas."
+- "POSITIVO: 'Instalação Hidráulica' concluiu 95% com 3 dias de antecedência. Equipe de 4 encanadores está disponível a partir de amanhã — alocar imediatamente para 'Instalação Elétrica Térreo' (apenas 30% concluída, prazo em 15 dias)."
 
 Tipos:
-- delay: atividade atrasada ou em risco iminente de atraso
-- ahead: atividade adiantada — oportunidade de realocar recursos
-- crew: dimensionamento de equipe — gap ou excesso detectado
+- delay: atividade atrasada ou em risco iminente de atraso (SEMPRE com cálculo de recovery se possível)
+- ahead: atividade adiantada — oportunidade de realocar recursos (SEMPRE com quem realocar e para onde)
+- crew: dimensionamento de equipe — gap ou excesso (SEMPRE com número exato de pessoas faltantes/extras)
 - weather: impacto climático registrado no RDO ou risco meteorológico
 - optimize: oportunidade de paralelismo, sequenciamento ou compressão de prazo
 - alert: alerta crítico geral sem atividade específica

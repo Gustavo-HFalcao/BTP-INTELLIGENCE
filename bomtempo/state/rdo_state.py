@@ -466,6 +466,7 @@ class RDOState(rx.State):
 
     def discard_draft_offer(self):
         self.has_draft_to_resume = False
+        self.pending_draft_id = ""
 
     def reset_for_new(self):
         """Limpa todo o state do formulário para criar um RDO novo do zero.

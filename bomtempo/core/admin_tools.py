@@ -103,6 +103,35 @@ ADMIN_AI_TOOLS = [
             },
         },
     },
+    # ── Document search tool ─────────────────────────────────────────────────
+    {
+        "type": "function",
+        "function": {
+            "name": "search_documents",
+            "strict": True,
+            "description": (
+                "Busca por termos ou cláusulas em documentos anexados à linha do tempo de um contrato. "
+                "Use quando o usuário perguntar sobre cláusulas contratuais, multas, prazos, garantias, "
+                "rescisão, ou qualquer conteúdo de documentos (contratos, atas, notas técnicas). "
+                "Retorna trechos relevantes dos documentos encontrados."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Termo ou frase a buscar. Ex: 'multa por atraso', 'garantia', 'rescisão'."
+                    },
+                    "contrato": {
+                        "type": "string",
+                        "description": "Código do contrato. Use '' para buscar em todos."
+                    }
+                },
+                "required": ["query", "contrato"],
+                "additionalProperties": False,
+            },
+        },
+    },
     # ── Navigation tool (immediate, no confirmation needed) ───────────────────
     {
         "type": "function",
@@ -197,6 +226,8 @@ ADMIN_AI_TOOLS = [
             "description": (
                 "Propõe alterar a senha do usuário ATUALMENTE LOGADO. "
                 "Use SEMPRE que o usuário disser 'troca minha senha', 'muda minha senha', 'alterar senha', etc. "
+                "FLUXO OBRIGATÓRIO: se o usuário NÃO forneceu a nova senha na mensagem, PERGUNTE 'Qual será a nova senha?' "
+                "antes de chamar esta tool. Só chame quando tiver a nova senha confirmada. "
                 "O campo logged_user DEVE ser preenchido com o username do usuário logado (fornecido no contexto). "
                 "NÃO use propose_update_record para senhas — use ESTE tool."
             ),
@@ -204,7 +235,7 @@ ADMIN_AI_TOOLS = [
                 "type": "object",
                 "properties": {
                     "logged_user": {"type": "string", "description": "Username do usuário logado (do contexto do sistema)."},
-                    "new_password": {"type": "string", "description": "Nova senha desejada."},
+                    "new_password": {"type": "string", "description": "Nova senha desejada — NUNCA chame com string vazia. Peça ao usuário se não souber."},
                     "summary": {"type": "string", "description": "Resumo da ação para o admin confirmar."},
                 },
                 "required": ["logged_user", "new_password", "summary"],
@@ -473,7 +504,7 @@ def execute_admin_tool(name: str, args: dict) -> tuple[str, dict | None]:
         If hitl_proposal is not None, execution is paused pending user confirmation.
     """
     try:
-        if name in ("execute_sql", "get_schema_info", "generate_chart_data"):
+        if name in ("execute_sql", "get_schema_info", "generate_chart_data", "search_documents"):
             from bomtempo.core.ai_tools import execute_tool as _exec
             return _exec(name, args), None
 
@@ -518,6 +549,9 @@ def execute_admin_tool(name: str, args: dict) -> tuple[str, dict | None]:
         elif name == "propose_change_own_password":
             logged_user = args.get("logged_user", "")
             new_password = args.get("new_password", "")
+            if not new_password:
+                return json.dumps({"error": "Nova senha não fornecida. Peça ao usuário a nova senha antes de chamar esta ferramenta."}), None
+            masked = "*" * min(len(new_password), 8)
             proposal = {
                 "__hitl__": True,
                 "action": "change_own_password",
@@ -527,8 +561,9 @@ def execute_admin_tool(name: str, args: dict) -> tuple[str, dict | None]:
                     "new_password": new_password,
                 },
                 "preview_lines": [
-                    f"👤 Usuário: **{logged_user}**",
-                    f"🔑 Nova senha: `{new_password}`",
+                    f"Usuário: {logged_user}",
+                    f"Nova senha: {masked} ({len(new_password)} caracteres)",
+                    "Confirme para aplicar a alteração no banco.",
                 ],
             }
             return json.dumps(proposal), proposal

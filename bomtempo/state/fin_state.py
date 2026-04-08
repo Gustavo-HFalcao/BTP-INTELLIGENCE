@@ -359,23 +359,19 @@ class FinState(rx.State):
         prev_val = _pf(prev_str)
         exec_val = _pf(exec_str)
 
-        # Get username + client_id — use cached value first, fall back to cross-state read
+        # Get username + client_id — uma única cross-state read, atualiza cache se necessário
         client_id = ""
         username = ""
         try:
             async with self:
                 client_id = self._fin_client_id
+            from bomtempo.state.global_state import GlobalState
+            gs = await self.get_state(GlobalState)
+            username = str(gs.current_user_name or "")
             if not client_id:
-                from bomtempo.state.global_state import GlobalState
-                gs = await self.get_state(GlobalState)
-                username = str(gs.username or "")
                 client_id = str(gs.current_client_id or "")
                 async with self:
                     self._fin_client_id = client_id
-            else:
-                from bomtempo.state.global_state import GlobalState
-                gs = await self.get_state(GlobalState)
-                username = str(gs.username or "")
         except Exception:
             pass
 

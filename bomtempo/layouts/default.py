@@ -32,7 +32,11 @@ def _fab_ai_insight() -> rx.Component:
                 ),
                 rx.icon(tag="sparkles", size=18, color="inherit"),
                 rx.text(
-                    "Gerar Insights com IA",
+                    rx.cond(
+                        GlobalState.router.page.path == "/",
+                        "Briefing Executivo",
+                        "Análise Inteligente",
+                    ),
                     font_family=S.FONT_TECH,
                     font_weight="700",
                     font_size="13px",
@@ -1040,6 +1044,29 @@ def default_layout(content: rx.Component) -> rx.Component:
   }
 })();
 """),
+        # ── Banner de reconexão WebSocket — visível apenas quando desconectado ──
+        rx.cond(
+            ~rx.State.is_hydrated,
+            rx.box(
+                rx.hstack(
+                    rx.spinner(size="1"),
+                    rx.text("Reconectando...", size="1", weight="medium"),
+                    spacing="2",
+                    align="center",
+                ),
+                background="var(--amber-3)",
+                color="var(--amber-11)",
+                border_bottom="1px solid var(--amber-6)",
+                padding="6px 16px",
+                width="100%",
+                text_align="center",
+                position="fixed",
+                top="0",
+                left="0",
+                z_index="10000",
+            ),
+            rx.fragment(),
+        ),
         # ── Top progress bar — sempre no DOM; classe controla visibilidade ──
         rx.box(
             class_name=rx.cond(

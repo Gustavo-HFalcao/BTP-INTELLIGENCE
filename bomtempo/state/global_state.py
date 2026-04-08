@@ -248,21 +248,32 @@ class GlobalState(rx.State):
 
     async def load_chat_history(self):
         """Abre o chat sempre com sessão limpa. O banco existe só para contexto da IA."""
+        import asyncio as _asyncio
         username = self.current_user_name or "anonymous"
-        # Sempre cria nova sessão ao entrar na página
-        new_sess = sb_insert("chat_sessions", {"title": "Conversa", "username": username, "client_id": self.current_client_id or None})
+        client_id = self.current_client_id or None
+        loop = _asyncio.get_running_loop()
+        new_sess = await loop.run_in_executor(
+            None,
+            lambda: sb_insert("chat_sessions", {"title": "Conversa", "username": username, "client_id": client_id})
+        )
         if new_sess:
-            self.chat_session_id = new_sess["id"]
+            self.chat_session_id = new_sess["id"] if isinstance(new_sess, dict) else new_sess[0]["id"]
         self.chat_history = [_msg("assistant", "👋 Olá! Sou o Bomtempo Intelligence. Como posso ajudar com seus dados hoje?")]
         self.is_processing_chat = False
         yield rx.call_script("setTimeout(function(){ window.scrollToBottom('chat-container'); }, 150);")
 
     async def new_conversation(self):
         """Inicia uma nova conversa — cria nova sessão no banco e limpa o histórico local."""
+        import asyncio as _asyncio
         username = self.current_user_name or "anonymous"
-        new_sess = sb_insert("chat_sessions", {"title": "Conversa", "username": username, "client_id": self.current_client_id or None})
+        client_id = self.current_client_id or None
+        loop = _asyncio.get_running_loop()
+        new_sess = await loop.run_in_executor(
+            None,
+            lambda: sb_insert("chat_sessions", {"title": "Conversa", "username": username, "client_id": client_id})
+        )
         if new_sess:
-            self.chat_session_id = new_sess["id"]
+            self.chat_session_id = new_sess["id"] if isinstance(new_sess, dict) else new_sess[0]["id"]
         self.chat_history = [_msg("assistant", "👋 Conversa reiniciada! Como posso ajudar?")]
         self.is_processing_chat = False
         yield rx.call_script("window.scrollToBottom('chat-container')")
@@ -282,8 +293,10 @@ class GlobalState(rx.State):
             "tool_call_id": tool_call_id,
         }
         try:
-            sb_insert("chat_messages", data)
-            sb_rpc("update_session_timestamp", {"sess_id": session_id})
+            import asyncio as _aio_msg
+            _msg_loop = _aio_msg.get_running_loop()
+            await _msg_loop.run_in_executor(None, lambda: sb_insert("chat_messages", data))
+            await _msg_loop.run_in_executor(None, lambda: sb_rpc("update_session_timestamp", {"sess_id": session_id}))
         except Exception as e:
             logger.warning(f"save_chat_msg falhou (não crítico): {e}")
 
@@ -292,22 +305,28 @@ class GlobalState(rx.State):
         """Loop Agêntico com suporte a Tools e persistência."""
         import time
 
+        # ── Bloco único: lê todo o state necessário de uma vez, sem I/O dentro do lock ──
         async with self:
-            # A última mensagem do usuário é agora a última do histórico (sem placeholder)
             question = self.chat_history[-1]["content"] if self.chat_history and self.chat_history[-1]["role"] == "user" else ""
             is_mobile = self.current_user_role == "Gestão-Mobile"
             tenant_name = self.current_client_name
             _stream_client_id = str(self.current_client_id or "")
+            _selected_contrato = self.selected_contrato or self.obras_selected_contract or ""
+            _needs_data_load = self._contratos_df.empty and self._projetos_df.empty
+            _client_id_for_loader = self.current_client_id
             self.save_chat_msg("user", question)
 
-        system_prompt = AIContext.get_system_prompt(is_mobile=is_mobile, tenant_name=tenant_name)
+        system_prompt = AIContext.get_system_prompt(is_mobile=is_mobile, tenant_name=tenant_name, client_id=_stream_client_id)
 
         # Injeta dados reais do painel (contexto do dashboard) + schema para o agente
-        # Os dados do painel dão awareness imediata; o schema permite queries precisas
-        async with self:
-            if self._contratos_df.empty and self._projetos_df.empty:
-                loader = DataLoader(client_id=self.current_client_id)
-                raw = loader.load_all()
+        # DataLoader.load_all() roda FORA do lock para não bloquear o state mutex
+        if _needs_data_load:
+            import asyncio as _aio_load
+            _load_loop = _aio_load.get_running_loop()
+            raw = await _load_loop.run_in_executor(
+                None, lambda: DataLoader(client_id=_client_id_for_loader).load_all()
+            )
+            async with self:
                 self._contratos_df    = raw.get("contratos",      pd.DataFrame())
                 self._projetos_df     = raw.get("projeto",        pd.DataFrame())
                 self._obras_df        = raw.get("obras",          pd.DataFrame())
@@ -315,7 +334,9 @@ class GlobalState(rx.State):
                 self._om_df           = raw.get("om",             pd.DataFrame())
                 self._hub_historico_df = raw.get("hub_historico", pd.DataFrame())
                 self.data_version += 1
-            data_snapshot = self._as_data_dict()  # lê dentro do lock
+
+        async with self:
+            data_snapshot = self._as_data_dict()
 
         dashboard_context = AIContext.get_dashboard_context(data_snapshot)
         schema_context = _get_schema_context()
@@ -323,13 +344,16 @@ class GlobalState(rx.State):
         # Inject doc awareness from hub_timeline — inclui conteúdo real dos arquivos
         doc_context_str = ""
         try:
-            async with self:
-                _selected_contrato = self.selected_contrato or self.obras_selected_contract or ""
+            # _selected_contrato já lido no bloco inicial acima
             if _selected_contrato:
                 _tl_filters: dict = {"contrato": _selected_contrato, "is_document": True}
                 if _stream_client_id:
                     _tl_filters["client_id"] = _stream_client_id
-                doc_rows = sb_select("hub_timeline", filters=_tl_filters)
+                import asyncio as _aio_doc
+                _doc_loop = _aio_doc.get_running_loop()
+                doc_rows = await _doc_loop.run_in_executor(
+                    None, lambda: sb_select("hub_timeline", filters=_tl_filters)
+                )
                 if doc_rows:
                     doc_sections = []
                     for d in doc_rows:
@@ -356,12 +380,17 @@ class GlobalState(rx.State):
         except Exception:
             pass
 
+        tenant_sql_hint = (
+            f"\n\n⚠️ ISOLAMENTO DE TENANT: SEMPRE inclua `WHERE client_id = '{_stream_client_id}'`"
+            f" em TODAS as queries SQL quando o client_id for conhecido."
+        ) if _stream_client_id else ""
+
         messages = [{
             "role": "system",
             "content": (
                 system_prompt
                 + dashboard_context
-                + f"\n\n## SCHEMA DO BANCO (para queries SQL)\n{schema_context}"
+                + f"\n\n## SCHEMA DO BANCO (para queries SQL)\n{schema_context}{tenant_sql_hint}"
                 + doc_context_str
             ),
         }]
@@ -817,13 +846,28 @@ class GlobalState(rx.State):
         async with self:
             path = self.router.url.strip("/") or "index"
             if path in ["index", "visão geral", ""]:
-                page_name = "Dashboard Estratégico"
+                page_name = "Briefing Executivo — Visão Geral"
+                # Cross-module context: financeiro + físico + cronograma para briefing real
+                acts = list(self.filtered_projetos) if self.filtered_projetos else []
+                criticos_pend = [p for p in acts if str(p.get("critico", "")).lower() == "sim" and float(p.get("conclusao_pct", 0) or 0) < 100]
+                criticos_atrasados = []
+                from datetime import date as _dtoday
+                _hoje = _dtoday.today().isoformat()
+                for p in criticos_pend:
+                    term = str(p.get("termino_previsto", ""))[:10]
+                    if term and term < _hoje:
+                        criticos_atrasados.append(f"{p.get('atividade','')} ({p.get('contrato','')}): {p.get('conclusao_pct',0)}%")
                 data = {
-                    "Total Contratos": self.total_contratos,
+                    "__briefing_mode__": "cross_module",
+                    "Total Contratos Ativos": self.total_contratos,
                     "Valor em Carteira": self.valor_carteira_formatado,
+                    "Volume Financeiro Realizado": self.financeiro_realizado_fmt,
+                    "Margem Operacional Global": self.margem_pct_fmt,
                     "Avanço Físico Global": self.avanco_fisico_geral_fmt,
                     "Obras em Atraso": self.obras_atrasadas_count,
-                    "Margem Operacional Global": self.margem_pct_fmt,
+                    "Atividades Críticas Pendentes": len(criticos_pend),
+                    "Caminho Crítico em Atraso": "; ".join(criticos_atrasados[:3]) if criticos_atrasados else "Nenhum detectado",
+                    "Exec. Financeira vs Físico": f"{self.margem_pct_fmt} margem | {self.avanco_fisico_geral_fmt} avanço — detectar descasamento",
                 }
             elif "obras" in path:
                 page_name = "Operações de Campo"
@@ -945,7 +989,11 @@ class GlobalState(rx.State):
                 self.is_analyzing = False
             return
 
-        messages = AnalysisService.get_kpi_analysis_messages(page_name, kpis)
+        is_briefing = kpis.pop("__briefing_mode__", "") == "cross_module"
+        if is_briefing:
+            messages = AnalysisService.get_briefing_messages(page_name, kpis)
+        else:
+            messages = AnalysisService.get_kpi_analysis_messages(page_name, kpis)
         if not messages:
             async with self:
                 self.analysis_result = "Não há dados suficientes para análise."
@@ -4591,8 +4639,24 @@ class GlobalState(rx.State):
             self.np_efetivo_planejado = ""
         self.show_novo_projeto = True
 
-    def set_project_hub_tab(self, tab: str):
-        self.project_hub_tab = tab
+    @rx.event(background=True)
+    async def set_project_hub_tab(self, tab: str):
+        """Troca a tab ativa e dispara lazy load de auditoria/timeline na 1ª visita."""
+        from bomtempo.state.hub_state import HubState
+        contrato = ""
+        async with self:
+            self.project_hub_tab = tab
+            contrato = self.selected_project
+
+        if not contrato:
+            return
+
+        hub = await self.get_state(HubState)
+
+        if tab == "auditoria" and hub._audit_loaded_contrato != contrato:
+            yield HubState.load_auditoria(contrato)
+        elif tab == "timeline" and hub._timeline_loaded_contrato != contrato:
+            yield HubState.load_timeline(contrato)
 
     def set_windy_layer(self, layer: str):
         """Switch the active Windy map overlay layer."""
@@ -4627,11 +4691,10 @@ class GlobalState(rx.State):
             self.project_campo_loading = False
 
         # ── 2. Fire heavy loaders OUTSIDE the lock — each runs independently ─
+        # Auditoria e Timeline carregam lazy (só quando a tab for aberta pela 1ª vez)
         yield GlobalState.load_weather_data
         yield GlobalState.generate_obra_insight_bg
         yield HubState.load_cronograma(code)
-        yield HubState.load_auditoria(code)
-        yield HubState.load_timeline(code)
         yield FinState.load_financeiro(code)
 
     @rx.event(background=True)
@@ -4655,14 +4718,29 @@ class GlobalState(rx.State):
         self.hub_tab = "visao_geral"
         self.project_hub_tab = "visao_geral"
 
-    def set_hub_tab(self, tab: str):
+    @rx.event(background=True)
+    async def set_hub_tab(self, tab: str):
         """Set hub sub-page tab — mirrors project_hub_tab.
-        When switching to Dashboard, auto-trigger Agente de Atividades."""
-        self.hub_tab = tab
-        self.project_hub_tab = tab
-        if tab == "dashboard" and self.selected_project:
-            from bomtempo.state.hub_state import HubState
-            return HubState.run_agente_atividades(self.selected_project)
+        When switching to Dashboard, auto-trigger Agente de Atividades.
+        Lazy loads Auditoria and Timeline on first visit."""
+        from bomtempo.state.hub_state import HubState
+        contrato = ""
+        async with self:
+            self.hub_tab = tab
+            self.project_hub_tab = tab
+            contrato = self.selected_project
+
+        if not contrato:
+            return
+
+        hub = await self.get_state(HubState)
+
+        if tab == "dashboard":
+            yield HubState.run_agente_atividades(contrato)
+        elif tab == "auditoria" and hub._audit_loaded_contrato != contrato:
+            yield HubState.load_auditoria(contrato)
+        elif tab == "timeline" and hub._timeline_loaded_contrato != contrato:
+            yield HubState.load_timeline(contrato)
 
     @rx.event(background=True)
     async def sync_financeiro_list(self):
