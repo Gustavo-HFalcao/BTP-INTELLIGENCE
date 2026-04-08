@@ -38,7 +38,20 @@
       "Bash(py seed_demo.py)",
       "Bash(where reflex:*)",
       "Bash(where pip:*)",
-      "Bash(pip list:*)"
+      "Bash(pip list:*)",
+      "Read(//c/Users/Samsung/bomtempo-dashboard/**)",
+      "Bash(py -3 -c \"import reflex; print\\(reflex.__version__\\)\")",
+      "Bash(py -3 -c \"import reflex._version as v; print\\(v.VERSION\\)\")",
+      "Bash(py -3 -m pip show reflex)",
+      "Bash(py -3 -c \"import reflex as rx; print\\(hasattr\\(rx, 'cached_var'\\)\\)\")",
+      "Bash(py -3 -c \"from reflex.state import cached_var; print\\('ok'\\)\")",
+      "Bash(py -3 -c \"from reflex.vars import cached_var; print\\('ok'\\)\")",
+      "Bash(py -3 -c \"import reflex as rx; print\\([x for x in dir\\(rx\\) if 'var' in x.lower\\(\\) or 'cache' in x.lower\\(\\)]\\)\")",
+      "Bash(py -3 -c \"import reflex as rx; help\\(rx.var\\)\")",
+      "Bash(py -3 -c ':*)",
+      "Bash(py -3)",
+      "Bash(py -3 -c \"import reflex as rx; print\\(hasattr\\(rx, 'client_storage'\\)\\); print\\(hasattr\\(rx, 'ClientStorageVar'\\)\\); print\\([x for x in dir\\(rx\\) if 'storage' in x.lower\\(\\) or 'cookie' in x.lower\\(\\)]\\)\")",
+      "Bash(py -3 -c \"import reflex as rx; help\\(rx.LocalStorage\\)\")"
     ]
   },
   "mcpServers": {

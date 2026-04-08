@@ -169,6 +169,7 @@ class GlobalState(rx.State):
         if not self._data:
             loader = DataLoader(client_id=self.current_client_id)
             self._data = loader.load_all()
+            self.data_version += 1
 
 
     async def send_message(self):
@@ -245,6 +246,7 @@ class GlobalState(rx.State):
             if not self._data:
                 loader = DataLoader(client_id=self.current_client_id)
                 self._data = loader.load_all()
+                self.data_version += 1
             data_snapshot = self._data  # lê dentro do lock
 
         dashboard_context = AIContext.get_dashboard_context(data_snapshot)
@@ -486,6 +488,10 @@ class GlobalState(rx.State):
     # Dados brutos
     _data: Dict[str, pd.DataFrame] = {}
 
+    # Versão dos dados — incrementa a cada recarga. Lida por @rx.cached_var
+    # para garantir invalidação do cache quando _data muda (var privada).
+    data_version: int = 0
+
     # Flags de carregamento
     is_loading: bool = False
     is_navigating: bool = False       # Feedback imediato no clique de navegação (antes do round-trip)
@@ -560,9 +566,6 @@ class GlobalState(rx.State):
     total_contratos: int = 0
     valor_tcv: float = 0.0
     contratos_ativos: int = 0
-
-    # Preferências de UI
-    sidebar_open: bool = True
 
     # Projetos page state
     selected_contrato: str = ""
@@ -715,21 +718,6 @@ class GlobalState(rx.State):
 
     # KPI Detail Popup State
     show_kpi_detail: str = ""  # "" | "total_contratado" | "total_medido" | "saldo_medir" | "contratos_ativos" | "receita_total"
-
-    # Nota de Risco breakdown popup
-    show_risk_breakdown: bool = False
-
-    def open_risk_breakdown(self):
-        self.show_risk_breakdown = True
-
-    def close_risk_breakdown(self):
-        self.show_risk_breakdown = False
-
-    # Alertas IA dialog
-    show_alertas_ia_dialog: bool = False
-
-    def set_show_alertas_ia_dialog(self, v: bool):
-        self.show_alertas_ia_dialog = v
 
     def set_analysis_dialog_open(self, value: bool):
         self.show_analysis_dialog = value
@@ -1606,6 +1594,7 @@ class GlobalState(rx.State):
             loader = DataLoader(client_id=self.current_client_id)
             _loop = _asyncio.get_running_loop()
             self._data = await _loop.run_in_executor(None, loader.load_all)
+            self.data_version += 1
 
             # Helper to safely get DF
             def get_df(key: str) -> pd.DataFrame:
@@ -1754,6 +1743,7 @@ class GlobalState(rx.State):
 
             async with self:
                 self._data = new_data
+                self.data_version += 1
                 for attr_name, records in new_lists.items():
                     setattr(self, attr_name, records)
                 self.total_contratos = total_contratos
@@ -1765,9 +1755,6 @@ class GlobalState(rx.State):
             async with self:
                 self.is_loading = False
             logger.error(f"❌ force_refresh_data falhou: {e}")
-
-    def toggle_sidebar(self):
-        self.sidebar_open = not self.sidebar_open
 
     def set_navigating(self):
         """Seta is_navigating=True para exibir top-bar imediatamente ao clicar na sidebar.

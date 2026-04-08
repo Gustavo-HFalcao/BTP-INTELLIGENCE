@@ -21,6 +21,7 @@ from bomtempo.components.tooltips import (
 )
 from bomtempo.core import styles as S
 from bomtempo.state.global_state import GlobalState
+from bomtempo.state.ui_state import UIState
 from bomtempo.state.hub_state import HubState, AUDIT_CATEGORIES, ENTRY_TYPES
 from bomtempo.state.fin_state import FinState, FIN_STATUS_LABELS, FIN_STATUS_OPTIONS
 
@@ -1314,7 +1315,7 @@ def _risk_breakdown_dialog() -> rx.Component:
                         spacing="1", align="center",
                     ),
                     rx.dialog.close(
-                        rx.icon_button(rx.icon(tag="x", size=18), variant="ghost", color_scheme="amber", on_click=GlobalState.close_risk_breakdown),
+                        rx.icon_button(rx.icon(tag="x", size=18), variant="ghost", color_scheme="amber", on_click=UIState.close_risk_breakdown),
                     ),
                     width="100%", align="center", spacing="4", margin_bottom="24px",
                 ),
@@ -1355,8 +1356,8 @@ def _risk_breakdown_dialog() -> rx.Component:
             padding="28px",
             box_shadow="0 32px 72px -12px rgba(0,0,0,0.75)",
         ),
-        open=GlobalState.show_risk_breakdown,
-        on_open_change=GlobalState.close_risk_breakdown,
+        open=UIState.show_risk_breakdown,
+        on_open_change=UIState.close_risk_breakdown,
     )
 
 
@@ -1448,8 +1449,8 @@ def _alertas_ia_dialog() -> rx.Component:
             border_radius=S.R_CARD, padding="28px",
             box_shadow="0 32px 72px -12px rgba(0,0,0,0.75)",
         ),
-        open=GlobalState.show_alertas_ia_dialog,
-        on_open_change=GlobalState.set_show_alertas_ia_dialog,
+        open=UIState.show_alertas_ia_dialog,
+        on_open_change=UIState.set_show_alertas_ia_dialog,
     )
 
 
@@ -1494,7 +1495,7 @@ def _vg_risk_kpi_card() -> rx.Component:
             ),
             spacing="1", align="start",
         ),
-        on_click=GlobalState.open_risk_breakdown,
+        on_click=UIState.open_risk_breakdown,
         cursor="pointer",
         **{**_GLASS_COMPACT, "transition": "all 0.15s ease", "border_radius": "8px",
            "_hover": {"border_color": color, "background": "rgba(255,255,255,0.06)"}},
@@ -1548,7 +1549,7 @@ def _vg_alertas_kpi_card() -> rx.Component:
             ),
             spacing="1", align="start",
         ),
-        on_click=GlobalState.set_show_alertas_ia_dialog(True),
+        on_click=UIState.set_show_alertas_ia_dialog(True),
         cursor="pointer",
         **{**_GLASS_COMPACT, "transition": "all 0.15s ease", "border_radius": "8px",
            "_hover": {"border_color": card_color}},

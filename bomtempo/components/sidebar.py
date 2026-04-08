@@ -2,6 +2,7 @@ import reflex as rx
 
 from bomtempo.core import styles as S
 from bomtempo.state.global_state import GlobalState
+from bomtempo.state.ui_state import UIState
 
 
 class Typewriter(rx.Component):
@@ -21,7 +22,7 @@ typewriter = Typewriter.create
 def _section_label(label: str) -> rx.Component:
     """Micro-section label — visible when expanded, thin divider when collapsed."""
     return rx.cond(
-        GlobalState.sidebar_open,
+        UIState.sidebar_open,
         rx.text(
             label,
             font_size="9px",
@@ -64,7 +65,7 @@ def sidebar_item(text: str, icon: str, url: str) -> rx.Component:
                 color=rx.cond(is_active, S.COPPER, S.TEXT_MUTED),
             ),
             rx.cond(
-                GlobalState.sidebar_open,
+                UIState.sidebar_open,
                 rx.text(
                     text,
                     font_family=S.FONT_TECH,
@@ -73,7 +74,7 @@ def sidebar_item(text: str, icon: str, url: str) -> rx.Component:
                     color=rx.cond(is_active, "white", S.TEXT_MUTED),
                     letter_spacing="0.04em",
                     white_space="nowrap",
-                    opacity=rx.cond(GlobalState.sidebar_open, "1", "0"),
+                    opacity=rx.cond(UIState.sidebar_open, "1", "0"),
                     transition="opacity 0.2s ease",
                     class_name="font-tech",
                 ),
@@ -82,8 +83,8 @@ def sidebar_item(text: str, icon: str, url: str) -> rx.Component:
             align="center",
             width="100%",
             padding_y="9px",
-            padding_x=rx.cond(GlobalState.sidebar_open, "14px", "0"),
-            justify=rx.cond(GlobalState.sidebar_open, "start", "center"),
+            padding_x=rx.cond(UIState.sidebar_open, "14px", "0"),
+            justify=rx.cond(UIState.sidebar_open, "start", "center"),
             border_radius=S.R_CONTROL,
             transition="all 0.15s ease",
             bg=rx.cond(is_active, "rgba(201, 139, 42, 0.08)", "transparent"),
@@ -111,7 +112,7 @@ def sidebar_content() -> rx.Component:
         # ── Header / Logo ──────────────────────────────────────────────
         rx.box(
             rx.cond(
-                GlobalState.sidebar_open,
+                UIState.sidebar_open,
                 rx.image(
                     src="/banner.png",
                     width="100%",
@@ -136,7 +137,7 @@ def sidebar_content() -> rx.Component:
             height="64px",
             display="flex",
             align_items="center",
-            padding_x=rx.cond(GlobalState.sidebar_open, "16px", "0"),
+            padding_x=rx.cond(UIState.sidebar_open, "16px", "0"),
             border_bottom=f"1px solid {S.BORDER_SUBTLE}",
             flex_shrink="0",
         ),
@@ -268,11 +269,11 @@ def sidebar() -> rx.Component:
         # Toggle button
         rx.box(
             rx.icon(
-                tag=rx.cond(GlobalState.sidebar_open, "chevron-left", "chevron-right"),
+                tag=rx.cond(UIState.sidebar_open, "chevron-left", "chevron-right"),
                 size=13,
                 color=S.COPPER,
             ),
-            on_click=GlobalState.toggle_sidebar,
+            on_click=UIState.toggle_sidebar,
             position="absolute",
             right="-11px",
             top="52px",
@@ -286,7 +287,7 @@ def sidebar() -> rx.Component:
             _hover={"border_color": S.COPPER, "bg": "rgba(201,139,42,0.08)"},
         ),
         # Fixed position — always visible, never affected by parent overflow
-        width=rx.cond(GlobalState.sidebar_open, "236px", "64px"),
+        width=rx.cond(UIState.sidebar_open, "236px", "64px"),
         height="100vh",
         position="fixed",
         top="0",
@@ -300,8 +301,8 @@ def sidebar() -> rx.Component:
     )
     # Spacer: sits in the flex flow to push main content to the right
     spacer = rx.box(
-        width=rx.cond(GlobalState.sidebar_open, "236px", "64px"),
-        min_width=rx.cond(GlobalState.sidebar_open, "236px", "64px"),
+        width=rx.cond(UIState.sidebar_open, "236px", "64px"),
+        min_width=rx.cond(UIState.sidebar_open, "236px", "64px"),
         height="100vh",
         flex_shrink="0",
         display=["none", "none", "block"],

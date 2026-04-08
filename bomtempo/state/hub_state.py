@@ -1643,13 +1643,15 @@ class HubState(rx.State):
         row_id = ""
         name = ""
         contrato = ""
+        backup_rows: list = []
         async with self:
             row_id = str(self.cron_delete_id)
             name = str(self.cron_delete_name)
             contrato = self.cron_rows[0].get("contrato", "") if self.cron_rows else ""
             self.cron_show_delete = False
             self.cron_delete_id = ""
-            # Optimistic UI: remove imediatamente da lista local antes do DB call
+            # Optimistic UI: backup + remove imediatamente antes do DB call
+            backup_rows = list(self.cron_rows)
             self.cron_rows = [r for r in self.cron_rows if r.get("id") != row_id]
 
         if not row_id:
@@ -1710,9 +1712,13 @@ class HubState(rx.State):
                 )
             else:
                 logger.error(f"confirm_cron_delete: sb_delete retornou False para id={row_id}")
+                async with self:
+                    self.cron_rows = backup_rows  # rollback optimistic remove
                 yield rx.toast.error("Erro ao excluir atividade no banco de dados.", duration=4000)
         except Exception as e:
             logger.error(f"confirm_cron_delete error: {e}")
+            async with self:
+                self.cron_rows = backup_rows  # rollback optimistic remove
             yield rx.toast.error(f"Erro ao excluir: {str(e)[:100]}", duration=4000)
 
         if contrato:

@@ -11,6 +11,7 @@ import reflex as rx
 
 from bomtempo.core import styles as S
 from bomtempo.state.global_state import GlobalState
+from bomtempo.state.ui_state import UIState
 
 
 # ─────────────────────────────────────────────────────────────
@@ -589,7 +590,7 @@ def top_bar() -> rx.Component:
         # Fixed positioning — dynamically offset by sidebar width
         position="fixed",
         top="0",
-        left=rx.cond(GlobalState.sidebar_open, "237px", "65px"),
+        left=rx.cond(UIState.sidebar_open, "237px", "65px"),
         right="0",
         height="56px",
         background="rgba(14,26,23,0.92)",
