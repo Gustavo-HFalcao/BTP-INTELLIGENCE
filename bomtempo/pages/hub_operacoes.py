@@ -1029,7 +1029,7 @@ def _vg_site_telemetry() -> rx.Component:
     """Left column — compact site info panel."""
     data = GlobalState.obra_enterprise_data
     fmt = GlobalState.obra_kpi_fmt
-    progress_pct = data.get("progress", "0").to(float).to(int).to_string() + "%"
+    progress_pct = data.get("avanco_pct", "0").to(float).to(int).to_string() + "%"
 
     return rx.box(
         rx.vstack(
@@ -1569,7 +1569,7 @@ def _tab_visao_geral() -> rx.Component:
     """
     fmt = GlobalState.obra_kpi_fmt
     data = GlobalState.obra_enterprise_data
-    progress_val = data.get("progress", "0").to(float).to(int).to_string() + "%"
+    progress_val = data.get("avanco_pct", "0").to(float).to(int).to_string() + "%"
 
     # Desvio prazo/custo combinado card
     desvio_prazo = GlobalState.risk_score_data.get("desvio_pp", "—")

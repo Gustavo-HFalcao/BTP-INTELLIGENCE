@@ -2648,6 +2648,26 @@ Retorne SOMENTE JSON válido, sem texto antes/depois, sem markdown:
                 entity_type="hub_timeline",
                 entity_id=contrato,
             )
+            # Integração financeira: custo na timeline → fin_custos (gasto não previsto)
+            if entry_is_cost and entry_custo_valor:
+                try:
+                    from datetime import date as _tl_date
+                    _custo_float = float(entry_custo_valor.replace(",", "."))
+                    sb_insert("fin_custos", {
+                        "contrato":       contrato,
+                        "categoria_nome": entry_custo_categoria or "Outros",
+                        "descricao":      f"[Timeline] {entry_titulo}",
+                        "valor_previsto": 0.0,
+                        "valor_executado": _custo_float,
+                        "status":         "extrabudget",
+                        "data":           _tl_date.today().isoformat(),
+                        "criado_por":     autor,
+                        "client_id":      str(gs.current_client_id or ""),
+                    })
+                    logger.info(f"💰 Custo timeline → fin_custos: R$ {_custo_float} [{entry_custo_categoria}] — {contrato}")
+                except Exception as _fc_err:
+                    logger.warning(f"⚠️ Falha ao propagar custo timeline para fin_custos: {_fc_err}")
+
             # Create notifications for @mentioned users
             if entry_mencoes:
                 _notif_msg = f"@{autor} mencionou você: [{entry_tipo}] {entry_titulo[:80]}"

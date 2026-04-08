@@ -3052,15 +3052,27 @@ class GlobalState(rx.State):
         today = pd.Timestamp(_date.today())
         start_date = df["inicio_previsto"].min()
         end_date = df["termino_previsto"].max()
-        # Gerar pontos mensais de start_date até end_date (ou hoje + 2 meses)
-        plot_end = max(end_date, today + pd.DateOffset(months=1))
-        months = pd.date_range(start=start_date.to_period("M").to_timestamp(),
-                               end=plot_end.to_period("M").to_timestamp(),
-                               freq="MS")
+        # Escolhe granularidade: diária para projetos ≤ 60 dias, semanal até 180d, mensal acima
+        duration_days = max(1, (end_date - start_date).days)
+        if duration_days <= 60:
+            freq = "D"
+            date_fmt = "%d/%m"
+        elif duration_days <= 180:
+            freq = "W-MON"
+            date_fmt = "%d/%m"
+        else:
+            freq = "MS"
+            date_fmt = "%m/%y"
+        plot_end = max(end_date, today + pd.Timedelta(days=1))
+        dates = pd.date_range(start=start_date, end=plot_end, freq=freq)
         result = []
-        for m in months:
-            m_end = (m + pd.DateOffset(months=1)) - pd.Timedelta(days=1)
-            # Previsto: fração da atividade concluída até fim do mês (interpolação linear)
+        for d in dates:
+            if freq == "MS":
+                d_end = (d + pd.DateOffset(months=1)) - pd.Timedelta(days=1)
+            elif freq == "W-MON":
+                d_end = d + pd.Timedelta(days=6)
+            else:
+                d_end = d
             previsto_acc = 0.0
             realizado_acc = 0.0
             for _, row in df.iterrows():
@@ -3068,19 +3080,19 @@ class GlobalState(rx.State):
                 termino = row["termino_previsto"]
                 peso = float(row["peso_pct"]) / peso_total * 100
                 duracao = max(1, (termino - inicio).days)
-                # Previsto: quanto deveria estar pronto até m_end
-                if m_end < inicio:
+                # Previsto: quanto deveria estar pronto até d_end
+                if d_end < inicio:
                     frac_prev = 0.0
-                elif m_end >= termino:
+                elif d_end >= termino:
                     frac_prev = 1.0
                 else:
-                    frac_prev = (m_end - inicio).days / duracao
+                    frac_prev = (d_end - inicio).days / duracao
                 previsto_acc += frac_prev * peso
-                # Realizado: usa conclusao_pct atual para meses já iniciados
-                if m_end <= today or m.date() <= today.date():
+                # Realizado: usa conclusao_pct atual para datas já passadas
+                if d.date() <= today.date():
                     realizado_acc += float(row["conclusao_pct"]) / 100.0 * peso
-            point: Dict[str, Any] = {"data": m.strftime("%m/%y"), "previsto": round(previsto_acc, 1)}
-            if m.date() <= today.date():
+            point: Dict[str, Any] = {"data": d.strftime(date_fmt), "previsto": round(previsto_acc, 1)}
+            if d.date() <= today.date():
                 point["realizado"] = round(realizado_acc, 1)
             result.append(point)
         return result
@@ -3469,11 +3481,13 @@ class GlobalState(rx.State):
             if float(d.get("realizado_pct", 0)) < float(d.get("previsto_pct", 0)) - 5
         )
 
-        # Curva S — último ponto para desvio real vs previsto
+        # Curva S — último ponto COM realizado para desvio real vs previsto
         scurve = self.project_scurve_chart
         desvio_pp = 0.0
         if scurve:
-            last = scurve[-1]
+            # Usa o último ponto que contém "realizado" (ignora pontos futuros)
+            realized_points = [pt for pt in scurve if "realizado" in pt]
+            last = realized_points[-1] if realized_points else scurve[-1]
             r_last = float(last.get("realizado", 0) or 0)
             p_last = float(last.get("previsto", 0) or 0)
             if p_last > 0:
@@ -3651,9 +3665,10 @@ class GlobalState(rx.State):
         efetivo = int(data.get("efetivo_planejado", 0) or 0)
         chuva = float(data.get("chuva_acumulada_mm", 0) or 0)
 
-        # Desvio físico global
+        # Desvio físico global — usa último ponto COM realizado
         if scurve:
-            last = scurve[-1]
+            realized_pts = [pt for pt in scurve if "realizado" in pt]
+            last = realized_pts[-1] if realized_pts else scurve[-1]
             r_last = float(last.get("realizado", 0) or 0)
             p_last = float(last.get("previsto", 0) or 0)
             if p_last > 0:
