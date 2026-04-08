@@ -353,6 +353,12 @@ class HubState(rx.State):
     cron_search_input: str = ""  # UI-only: updated on_change, committed on_blur/Enter
     cron_show_only_critical: bool = False
 
+    # KPI detail popup (programado hoje / atrasadas / em risco / adiantadas)
+    cron_kpi_popup: str = ""   # "" | "programado" | "atrasadas" | "em_risco" | "adiantadas" | "realizado"
+
+    def set_cron_kpi_popup(self, v: str):
+        self.cron_kpi_popup = v
+
     # Inline edit dialog
     cron_show_dialog: bool = False
     cron_edit_id: str = ""          # empty = new
@@ -649,6 +655,10 @@ class HubState(rx.State):
                     gantt_forecast_left  = str(eac_left)
                     gantt_forecast_width = str(max(eac_w, 0.5))
 
+            # Today line position (percentage across the timeline)
+            today_left = round((today - global_start).days / total_days * 100, 2)
+            today_left = max(0.0, min(100.0, today_left))
+
             result.append(dict(
                 r,
                 gantt_left_pct=str(left_pct),
@@ -656,7 +666,11 @@ class HubState(rx.State):
                 gantt_overdue=overdue,
                 gantt_forecast_left=gantt_forecast_left,
                 gantt_forecast_width=gantt_forecast_width,
+                gantt_today_pct=str(today_left),
             ))
+
+        # Sort by inicio_iso chronologically (macros group with their children)
+        result.sort(key=lambda x: (x.get("inicio_iso", ""), x.get("nivel", ""), x.get("atividade", "")))
         return result
 
     @rx.var
@@ -858,10 +872,11 @@ class HubState(rx.State):
     @rx.var
     def cron_forecast_rows(self) -> List[Dict[str, str]]:
         """
-        Enriches micro activities with forecast fields:
-          prod_planejada_dia, prod_real_media, desvio_pct, data_fim_prevista,
-          desvio_dias, tendencia ('acima'|'dentro'|'abaixo'|'sem_dados')
-        Only micros with total_qty > 0 AND exec_qty > 0 get a meaningful forecast.
+        Enriches micro activities with forecast + day-context fields.
+        Added fields:
+          _dia_atual, _total_dias, _pct_esperado_hoje  — "dia X de Y, esperado Z%"
+          _prod_planejada, _prod_real, _exec_label      — quantity context
+          _desvio_pct, _tendencia, _data_fim_prevista, _desvio_dias, _saldo_qty
         """
         from datetime import date, timedelta
         today = date.today()
@@ -871,7 +886,7 @@ class HubState(rx.State):
             if r.get("nivel", "macro") != "micro":
                 continue
 
-            # Parse all numeric fields once, skip row on error
+            # Parse all numeric fields once
             total_qty_s  = r.get("total_qty",  "0") or "0"
             exec_qty_s   = r.get("exec_qty",   "0") or "0"
             dias_plan_s  = r.get("dias_planejados", "0") or "0"
@@ -886,21 +901,40 @@ class HubState(rx.State):
 
             inicio_iso  = r.get("inicio_iso", "")
             termino_iso = r.get("termino_iso", "")
+            unidade     = r.get("unidade", "")
 
             # Produtividade planejada
             prod_plan = total_qty / dias_plan if total_qty > 0 and dias_plan > 0 else 0.0
 
-            # Dias decorridos — parse date once
+            # Dias decorridos / dia atual dentro do plano
             d_inicio: date | None = None
+            d_termino: date | None = None
             if inicio_iso and len(inicio_iso) >= 10:
                 try: d_inicio = date.fromisoformat(inicio_iso[:10])
                 except ValueError: pass
+            if termino_iso and len(termino_iso) >= 10:
+                try: d_termino = date.fromisoformat(termino_iso[:10])
+                except ValueError: pass
 
             dias_decorridos = max(0, (today - d_inicio).days) if d_inicio and d_inicio <= today else 0
+            # Dias úteis decorridos (5/7 ratio)
             dias_uteis = max(1, int(dias_decorridos * 5 / 7))
             prod_real  = exec_qty / dias_uteis if exec_qty > 0 else 0.0
 
-            # Desvio
+            # Day-context: "dia X de Y"
+            dia_atual = min(dias_decorridos + 1, dias_plan) if d_inicio and d_inicio <= today else 0
+            # Percentage expected at this point in time (linear interpolation)
+            pct_esperado = round(min(100.0, dia_atual / dias_plan * 100), 1) if dias_plan > 0 and dia_atual > 0 else 0.0
+
+            # Execution label: "9.6 de 24.0 un executados"
+            if total_qty > 0 and unidade:
+                exec_label = f"{exec_qty:.1f} de {total_qty:.1f} {unidade}"
+            elif total_qty > 0:
+                exec_label = f"{exec_qty:.1f} de {total_qty:.1f}"
+            else:
+                exec_label = ""
+
+            # Desvio de progresso (realizado vs esperado no tempo)
             desvio_pct = round((prod_real - prod_plan) / prod_plan * 100, 1) if prod_plan > 0 else 0.0
 
             # Tendência
@@ -922,11 +956,8 @@ class HubState(rx.State):
                 saldo = max(0.0, total_qty - exec_qty)
                 fim_prev = today + timedelta(days=int(saldo / prod_real * 1.4))
                 data_fim_prev_str = fim_prev.isoformat()
-                if termino_iso and len(termino_iso) >= 10:
-                    try:
-                        desvio_dias = (fim_prev - date.fromisoformat(termino_iso[:10])).days
-                    except ValueError:
-                        pass
+                if d_termino:
+                    desvio_dias = (fim_prev - d_termino).days
 
             result.append(dict(
                 r,
@@ -937,6 +968,10 @@ class HubState(rx.State):
                 _data_fim_prevista=_utc_date_to_br(data_fim_prev_str) if data_fim_prev_str else "—",
                 _desvio_dias=str(desvio_dias),
                 _saldo_qty=f"{max(0.0, total_qty - exec_qty):.1f}",
+                _dia_atual=str(dia_atual),
+                _total_dias=str(dias_plan),
+                _pct_esperado=str(pct_esperado),
+                _exec_label=exec_label,
             ))
         return result
 
@@ -1034,6 +1069,130 @@ class HubState(rx.State):
             "total_micros": str(n),
         }
 
+    @rx.var
+    def cron_kpi_popup_rows(self) -> List[Dict[str, str]]:
+        """
+        Linhas detalhadas para o popup de KPI clicável.
+        Filtra micro-atividades de acordo com cron_kpi_popup:
+          'programado' → término <= hoje (deveriam estar concluídas ou em execução hoje)
+          'atrasadas'  → término < hoje e pct < 100
+          'em_risco'   → tendência de produção ≤ -10%
+          'adiantadas' → tendência de produção ≥ +10%
+          'realizado'  → todas com pct > 0 (concluídas ou em andamento)
+        """
+        from datetime import date
+        mode = self.cron_kpi_popup
+        if not mode:
+            return []
+
+        today = date.today()
+        tol = 10.0
+        micros = [r for r in self.cron_rows if r.get("nivel", "") == "micro"]
+        result = []
+
+        for r in micros:
+            pct   = int(r.get("conclusao_pct", "0") or "0")
+            t_iso = r.get("termino_iso", "")
+            s_iso = r.get("inicio_iso", "")
+            tqty  = float(r.get("total_qty", "0") or "0")
+            eqty  = float(r.get("exec_qty", "0") or "0")
+            dias  = int(r.get("dias_planejados", "0") or "0")
+            ativ  = r.get("atividade", "")
+            fase  = r.get("fase_macro", "")
+            resp  = r.get("responsavel", "")
+            unid  = r.get("unidade", "")
+
+            include = False
+            desvio_str = ""
+            saldo_str = ""
+
+            if mode == "programado":
+                # Programadas para hoje: início <= hoje <= término
+                if t_iso and s_iso and len(t_iso) >= 10 and len(s_iso) >= 10:
+                    try:
+                        s_d = date.fromisoformat(s_iso[:10])
+                        t_d = date.fromisoformat(t_iso[:10])
+                        if s_d <= today <= t_d and pct < 100:
+                            include = True
+                            saldo_str = f"{max(0.0, tqty - eqty):.1f} {unid}".strip() if tqty > 0 else ""
+                    except ValueError:
+                        pass
+                # Também inclui atrasadas (termino < hoje, pct < 100) — atraso acumulado
+                if not include and t_iso and len(t_iso) >= 10:
+                    try:
+                        t_d = date.fromisoformat(t_iso[:10])
+                        if t_d < today and pct < 100:
+                            include = True
+                            dias_atraso = (today - t_d).days
+                            saldo_str = f"{max(0.0, tqty - eqty):.1f} {unid} · {dias_atraso}d atraso".strip() if tqty > 0 else f"{dias_atraso}d atraso"
+                    except ValueError:
+                        pass
+
+            elif mode == "atrasadas":
+                if t_iso and len(t_iso) >= 10:
+                    try:
+                        t_d = date.fromisoformat(t_iso[:10])
+                        if t_d < today and pct < 100:
+                            include = True
+                            dias_atraso = (today - t_d).days
+                            saldo_str = f"{dias_atraso}d vencida"
+                    except ValueError:
+                        pass
+
+            elif mode == "em_risco":
+                if eqty > 0 and tqty > 0 and dias > 0 and s_iso and len(s_iso) >= 10:
+                    try:
+                        d_inicio = date.fromisoformat(s_iso[:10])
+                        dias_dec = max(0, (today - d_inicio).days) if d_inicio <= today else 0
+                        if dias_dec >= 3:
+                            prod_plan = tqty / dias
+                            prod_r    = eqty / max(1, int(dias_dec * 5 / 7))
+                            desvio    = (prod_r - prod_plan) / prod_plan * 100 if prod_plan > 0 else 0.0
+                            if desvio <= -tol and pct < 100:
+                                include = True
+                                desvio_str = f"{desvio:+.1f}%"
+                                saldo_str = f"{max(0.0, tqty - eqty):.1f} {unid} restantes".strip()
+                    except ValueError:
+                        pass
+
+            elif mode == "adiantadas":
+                if eqty > 0 and tqty > 0 and dias > 0 and s_iso and len(s_iso) >= 10:
+                    try:
+                        d_inicio = date.fromisoformat(s_iso[:10])
+                        dias_dec = max(0, (today - d_inicio).days) if d_inicio <= today else 0
+                        if dias_dec >= 3:
+                            prod_plan = tqty / dias
+                            prod_r    = eqty / max(1, int(dias_dec * 5 / 7))
+                            desvio    = (prod_r - prod_plan) / prod_plan * 100 if prod_plan > 0 else 0.0
+                            if desvio >= tol:
+                                include = True
+                                desvio_str = f"+{desvio:.1f}%"
+                    except ValueError:
+                        pass
+
+            elif mode == "realizado":
+                if pct > 0:
+                    include = True
+                    saldo_str = f"{eqty:.1f}/{tqty:.1f} {unid}".strip() if tqty > 0 else ""
+
+            if include:
+                dep = r.get("dependencia", "") or ""
+                result.append({
+                    "atividade":  ativ,
+                    "fase_macro": fase,
+                    "responsavel": resp,
+                    "conclusao_pct": str(pct),
+                    "desvio": desvio_str,
+                    "saldo": saldo_str,
+                    "unidade": unid,
+                    "termino_iso": t_iso,
+                    "dependencia": dep,
+                })
+
+        # Sort: atrasadas primeiro, depois por término
+        result.sort(key=lambda x: x.get("termino_iso", ""))
+        return result
+
     # ══════════════════════════════════════════════════════════════════════════
     # CRONOGRAMA — Load & CRUD
     # ══════════════════════════════════════════════════════════════════════════
@@ -1118,6 +1277,17 @@ class HubState(rx.State):
             _prev_contrato = self.cron_contrato
             self.cron_contrato = contrato
             self.cron_loading = False
+
+        # ── Update projetos_list (reactive var) with fresh progress from Supabase ──
+        # projetos_list é uma var Reflex reativa → atualizar ela dispara filtered_contratos
+        # → Progress Pulse no card reflete os mesmos dados do cronograma KPI.
+        if normalized and contrato:
+            progress_map = {
+                r["id"]: {"conclusao_pct": r.get("conclusao_pct", "0"), "peso_pct": r.get("peso_pct", "100")}
+                for r in normalized if r.get("id")
+            }
+            from bomtempo.state.global_state import GlobalState as _GS
+            yield _GS.update_projetos_list_progress(contrato, progress_map)
 
         # If switching contracts, load persisted insights from Supabase for the new one
         if contrato and contrato != _prev_contrato:

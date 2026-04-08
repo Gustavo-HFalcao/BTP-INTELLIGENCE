@@ -63,6 +63,8 @@ class RDOViewState(rx.State):
     # Listas
     evidencias: List[Dict[str, str]] = []
     atividades: List[Dict[str, str]] = []
+    # Cronograma activities enriched with desvio/EAC context
+    cronograma_entries: List[Dict[str, str]] = []
     # Lightbox
     lightbox_url: str = ""
     lightbox_label: str = ""
@@ -107,16 +109,101 @@ class RDOViewState(rx.State):
             if url:
                 ev_list.append({"url": url, "legenda": legenda})
 
-        # Atividades
+        # Atividades (legacy manual list — kept for display)
         atividades_raw = data.get("atividades") or []
         at_list = []
+        at_names = set()
         for a in atividades_raw:
+            desc = str(a.get("atividade") or a.get("descricao") or a.get("description") or "")
             pct = str(a.get("progresso_percentual") or a.get("percentual_conclusao") or a.get("pct") or "")
             at_list.append({
-                "descricao": str(a.get("atividade") or a.get("descricao") or a.get("description") or ""),
+                "descricao": desc,
                 "status": str(a.get("status") or ""),
                 "percentual": pct,
             })
+            if desc:
+                at_names.add(desc.lower().strip())
+
+        # Load cronograma context from hub_atividades for the contract
+        contrato_for_cron = str(data.get("contrato", "") or "")
+        cron_list: list = []
+        if contrato_for_cron:
+            try:
+                from bomtempo.core.supabase_client import sb_select as _sb_sel
+                from datetime import date as _date
+                hub_rows = await loop.run_in_executor(
+                    None,
+                    lambda: _sb_sel(
+                        "hub_atividades",
+                        filters={"contrato": contrato_for_cron},
+                        order="fase_macro.asc,atividade.asc",
+                        limit=200,
+                    ),
+                )
+                today = _date.today()
+                for r in (hub_rows or []):
+                    nivel = str(r.get("nivel", "macro") or "macro")
+                    pct_val = int(r.get("conclusao_pct", 0) or 0)
+                    total_qty = float(r.get("total_qty", 0) or 0)
+                    exec_qty = float(r.get("exec_qty", 0) or 0)
+                    dias_plan = int(r.get("dias_planejados", 0) or 0)
+                    t_iso = str(r.get("termino_previsto", "") or "")[:10]
+                    s_iso = str(r.get("inicio_previsto", "") or "")[:10]
+                    unidade = str(r.get("unidade", "") or "")
+                    # EAC calculation
+                    eac_str = ""
+                    desvio_str = ""
+                    tendencia = ""
+                    if exec_qty > 0 and total_qty > 0 and dias_plan > 0 and s_iso:
+                        try:
+                            d_inicio = _date.fromisoformat(s_iso)
+                            dias_dec = max(0, (today - d_inicio).days) if d_inicio <= today else 0
+                            if dias_dec >= 1:
+                                prod_plan = total_qty / dias_plan
+                                prod_real = exec_qty / max(1, dias_dec)
+                                desvio_raw = (prod_real - prod_plan) / prod_plan * 100 if prod_plan > 0 else 0.0
+                                desvio_str = f"{desvio_raw:+.1f}%"
+                                if desvio_raw >= 5:
+                                    tendencia = "acima"
+                                elif desvio_raw <= -10:
+                                    tendencia = "abaixo"
+                                else:
+                                    tendencia = "no_ritmo"
+                                saldo_qty = max(0.0, total_qty - exec_qty)
+                                if prod_real > 0 and saldo_qty > 0:
+                                    dias_restantes = int(saldo_qty / prod_real * 1.4)
+                                    eac_date = today
+                                    from datetime import timedelta
+                                    eac_date = today + timedelta(days=int(dias_restantes * 7 / 5))
+                                    eac_str = eac_date.strftime("%d/%m/%Y")
+                                elif pct_val >= 100:
+                                    tendencia = "concluida"
+                                    eac_str = _fmt_date_inner(t_iso) if t_iso else ""
+                        except Exception:
+                            pass
+                    cron_list.append({
+                        "atividade": str(r.get("atividade", "") or ""),
+                        "fase_macro": str(r.get("fase_macro", "") or ""),
+                        "responsavel": str(r.get("responsavel", "") or ""),
+                        "nivel": nivel,
+                        "conclusao_pct": str(pct_val),
+                        "desvio": desvio_str,
+                        "tendencia": tendencia,
+                        "eac": eac_str,
+                        "termino_previsto": _fmt_date_inner(t_iso) if t_iso else "",
+                        "exec_label": f"{exec_qty:.1f}/{total_qty:.1f} {unidade}".strip() if total_qty > 0 else "",
+                    })
+            except Exception:
+                pass
+
+        def _fmt_date_inner(v: str) -> str:
+            if len(v) == 10 and v[4] == "-":
+                try:
+                    p = v.split("-")
+                    return f"{p[2]}/{p[1]}/{p[0]}"
+                except Exception:
+                    pass
+            return v
 
         def _fmt_date(val: str) -> str:
             v = str(val or "")[:10]
@@ -153,6 +240,7 @@ class RDOViewState(rx.State):
             self.ai_summary            = str(data.get("ai_summary") or "")
             self.evidencias            = ev_list
             self.atividades            = at_list
+            self.cronograma_entries    = cron_list
             self.is_loading            = False
 
 
@@ -348,6 +436,142 @@ def _at_row(at: Dict[str, str]) -> rx.Component:
         width="100%",
     )
 
+
+
+def _cron_entry_row(r: Dict[str, str]) -> rx.Component:
+    """Cronograma activity row with desvio/EAC/tendencia context."""
+    pct_int = r["conclusao_pct"].to(int)
+    tendencia = r["tendencia"]
+    tend_color = rx.cond(
+        tendencia == "concluida", _PATINA,
+        rx.cond(tendencia == "acima", _PATINA,
+        rx.cond(tendencia == "no_ritmo", _COPPER, "#F97316")),
+    )
+    tend_icon = rx.cond(
+        tendencia == "concluida", "check-circle",
+        rx.cond(tendencia == "acima", "trending-up",
+        rx.cond(tendencia == "no_ritmo", "minus", "trending-down")),
+    )
+    tend_label = rx.cond(
+        tendencia == "concluida", "Concluída",
+        rx.cond(tendencia == "acima", "Acima do ritmo",
+        rx.cond(tendencia == "no_ritmo", "No ritmo", "Abaixo do ritmo")),
+    )
+    nivel_tag = rx.cond(
+        r["nivel"] == "micro",
+        rx.text("MICRO", font_size="8px", color="#8B5CF6", font_family="'JetBrains Mono', monospace",
+                letter_spacing="0.06em", font_weight="700"),
+        rx.cond(
+            r["nivel"] == "sub",
+            rx.text("SUB", font_size="8px", color="#6366F1", font_family="'JetBrains Mono', monospace",
+                    letter_spacing="0.06em", font_weight="700"),
+            rx.fragment(),
+        ),
+    )
+    bar_color = rx.cond(
+        pct_int >= 100, _PATINA,
+        rx.cond(tendencia == "abaixo", "#F97316", _COPPER),
+    )
+    return rx.box(
+        rx.vstack(
+            # Row 1: fase + tendencia badge + %
+            rx.hstack(
+                rx.hstack(
+                    rx.box(width="5px", height="5px", border_radius="50%", background=_COPPER, flex_shrink="0"),
+                    rx.text(r["fase_macro"], size="1", color=_COPPER, weight="bold",
+                            text_transform="uppercase", letter_spacing="0.06em"),
+                    nivel_tag,
+                    spacing="1", align="center",
+                ),
+                rx.spacer(),
+                rx.cond(
+                    tendencia != "",
+                    rx.hstack(
+                        rx.icon(tag=tend_icon, size=11, color=tend_color),
+                        rx.text(tend_label, size="1", color=tend_color, font_weight="600"),
+                        spacing="1", align="center",
+                        padding="2px 7px",
+                        border_radius="4px",
+                        bg=rx.cond(
+                            tendencia == "abaixo", "rgba(249,115,22,0.1)",
+                            rx.cond(tendencia == "concluida", "rgba(42,157,143,0.1)", "rgba(201,139,42,0.1)"),
+                        ),
+                    ),
+                ),
+                rx.text(r["conclusao_pct"] + "%", size="2", color=bar_color,
+                        font_family="'JetBrains Mono', monospace", weight="bold"),
+                spacing="2", align="center", width="100%",
+            ),
+            # Row 2: activity name
+            rx.text(r["atividade"], size="2", color=_TEXT, weight="medium",
+                    white_space="normal", word_break="break-word", line_height="1.3"),
+            # Row 3: progress bar
+            rx.box(
+                rx.box(
+                    width=r["conclusao_pct"] + "%",
+                    height="100%",
+                    background=bar_color,
+                    border_radius="2px",
+                    transition="width 0.3s ease",
+                ),
+                width="100%", height="4px",
+                background="rgba(255,255,255,0.07)",
+                border_radius="2px",
+                overflow="hidden",
+            ),
+            # Row 4: responsável + exec label + desvio + EAC
+            rx.hstack(
+                rx.cond(
+                    r["responsavel"] != "",
+                    rx.hstack(
+                        rx.icon("user", size=10, color=_MUTED),
+                        rx.text(r["responsavel"], size="1", color=_MUTED),
+                        spacing="1", align="center",
+                    ),
+                    rx.fragment(),
+                ),
+                rx.spacer(),
+                rx.cond(
+                    r["exec_label"] != "",
+                    rx.text(r["exec_label"], size="1", color=_MUTED,
+                            font_family="'JetBrains Mono', monospace"),
+                ),
+                rx.cond(
+                    r["desvio"] != "",
+                    rx.box(
+                        rx.text(r["desvio"], size="1", color=tend_color,
+                                font_family="'JetBrains Mono', monospace", weight="bold"),
+                        padding="1px 6px",
+                        border_radius="4px",
+                        bg=rx.cond(
+                            tendencia == "abaixo", "rgba(249,115,22,0.1)",
+                            "rgba(42,157,143,0.1)",
+                        ),
+                    ),
+                ),
+                rx.cond(
+                    r["eac"] != "",
+                    rx.hstack(
+                        rx.icon("calendar-check", size=10, color=_MUTED),
+                        rx.text("EAC: " + r["eac"], size="1", color=_MUTED,
+                                font_family="'JetBrains Mono', monospace"),
+                        spacing="1", align="center",
+                    ),
+                ),
+                spacing="2", align="center", width="100%", flex_wrap="wrap",
+            ),
+            spacing="2", width="100%",
+        ),
+        padding="12px 14px",
+        background="rgba(255,255,255,0.02)",
+        border=f"1px solid {_BORDER}",
+        border_left=rx.cond(
+            pct_int >= 100, f"3px solid {_PATINA}",
+            rx.cond(tendencia == "abaixo", "3px solid #F97316", f"3px solid {_COPPER}"),
+        ),
+        border_radius="8px",
+        width="100%",
+    )
 
 
 # ── Lightbox ─────────────────────────────────────────────────────────────────
@@ -640,17 +864,27 @@ def rdo_view_page() -> rx.Component:
                         rx.fragment(),
                     ),
 
-                    # ── 3. Atividades do dia ──────────────────────────────
+                    # ── 3. Atividades Executadas (cronograma + fallback manual) ──
                     rx.cond(
-                        RDOViewState.atividades.length() > 0,
+                        RDOViewState.cronograma_entries.length() > 0,
                         _card(
-                            _section_header("Serviços Executados", "clipboard-check"),
+                            _section_header("Atividades Executadas", "git-branch"),
                             rx.vstack(
-                                rx.foreach(RDOViewState.atividades, _at_row),
+                                rx.foreach(RDOViewState.cronograma_entries, _cron_entry_row),
                                 spacing="2", width="100%",
                             ),
                         ),
-                        rx.fragment(),
+                        rx.cond(
+                            RDOViewState.atividades.length() > 0,
+                            _card(
+                                _section_header("Atividades Executadas", "clipboard-check"),
+                                rx.vstack(
+                                    rx.foreach(RDOViewState.atividades, _at_row),
+                                    spacing="2", width="100%",
+                                ),
+                            ),
+                            rx.fragment(),
+                        ),
                     ),
 
                     # ── 4. EPI + Ferramentas ──────────────────────────────

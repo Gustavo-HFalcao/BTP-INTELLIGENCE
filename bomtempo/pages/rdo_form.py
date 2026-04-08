@@ -1607,7 +1607,7 @@ def _section_cronograma() -> rx.Component:
             ),
             spacing="3", width="100%",
         ),
-        title="ATUALIZAR CRONOGRAMA",
+        title="ATIVIDADES EXECUTADAS",
         icon="git-branch",
     )
 
@@ -2041,10 +2041,7 @@ def rdo_form_page() -> rx.Component:
             # 3. Foto EPIs
             _section_epi(),
             rx.box(height="16px"),
-            # 4. Serviços Executados (atividades)
-            _section_atividades(),
-            rx.box(height="16px"),
-            # 4b. Atualizar Cronograma
+            # 4. Atividades Executadas (cronograma integration)
             _section_cronograma(),
             rx.box(height="16px"),
             # 5. Fotos do Dia (evidências)

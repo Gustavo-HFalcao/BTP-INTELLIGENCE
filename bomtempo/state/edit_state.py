@@ -799,47 +799,49 @@ class EditState(rx.State):
             # 2. Aplica dados frescos no GlobalState (NO MESMO LOCK PROXY)
             if fresh_data is not None:
                 try:
+                    import pandas as _pd
                     from bomtempo.state.global_state import GlobalState
                     gs = await self.get_state(GlobalState)
-                    gs._data = fresh_data
-                    gs.contratos_list = []
-                    gs.projetos_list = []
-                    gs.obras_list = []
-                    gs.financeiro_list = []
-                    gs.om_list = []
-                    for table_key, attr_name in [
-                        ("contratos", "contratos_list"),
-                        ("projeto", "projetos_list"),
-                        ("obras", "obras_list"),   # derived in-memory, no direct DB table
-                        ("financeiro", "financeiro_list"),
-                        ("om", "om_list"),
-                    ]:
-                        if table_key in fresh_data:
-                            df = fresh_data[table_key]
-                            if hasattr(df, 'empty') and not df.empty:
-                                import pandas as _pd
-                                for col in df.columns:
-                                    if _pd.api.types.is_datetime64_any_dtype(df[col]):
-                                        df[col] = df[col].astype(str)
-                                for col in df.columns:
-                                    if _pd.api.types.is_numeric_dtype(df[col]):
-                                        df[col] = df[col].fillna(0)
-                                    else:
-                                        df[col] = df[col].fillna("")
-                                setattr(gs, attr_name, df.to_dict("records"))
 
-                    if "contratos" in fresh_data:
-                        df = fresh_data["contratos"]
-                        if hasattr(df, 'empty') and not df.empty:
-                            gs.total_contratos = len(df)
-                            gs.valor_tcv = (
-                                float(df["valor_contratado"].sum())
-                                if "valor_contratado" in df.columns
-                                else 0.0
-                            )
-                            gs.contratos_ativos = (
-                                len(df[df["status"] == "Em Execução"]) if "status" in df.columns else 0
-                            )
+                    def _norm(df: "_pd.DataFrame") -> "_pd.DataFrame":
+                        for col in df.columns:
+                            if _pd.api.types.is_datetime64_any_dtype(df[col]):
+                                df[col] = df[col].astype(str)
+                            elif _pd.api.types.is_numeric_dtype(df[col]):
+                                df[col] = df[col].fillna(0)
+                            else:
+                                df[col] = df[col].fillna("")
+                        return df
+
+                    c_df  = _norm(fresh_data.get("contratos",      _pd.DataFrame()))
+                    p_df  = _norm(fresh_data.get("projeto",        _pd.DataFrame()))
+                    o_df  = _norm(fresh_data.get("obras",          _pd.DataFrame()))
+                    f_df  = _norm(fresh_data.get("financeiro",     _pd.DataFrame()))
+                    om_df = _norm(fresh_data.get("om",             _pd.DataFrame()))
+                    hh_df = _norm(fresh_data.get("hub_historico",  _pd.DataFrame()))
+
+                    gs._contratos_df    = c_df
+                    gs._projetos_df     = p_df
+                    gs._obras_df        = o_df
+                    gs._financeiro_df   = f_df
+                    gs._om_df           = om_df
+                    gs._hub_historico_df = hh_df
+                    gs.contratos_list   = c_df.to_dict("records")  if not c_df.empty  else []
+                    gs.projetos_list    = p_df.to_dict("records")  if not p_df.empty  else []
+                    gs.obras_list       = o_df.to_dict("records")  if not o_df.empty  else []
+                    gs.financeiro_list  = f_df.to_dict("records")  if not f_df.empty  else []
+                    gs.om_list          = om_df.to_dict("records") if not om_df.empty else []
+
+                    if not c_df.empty:
+                        gs.total_contratos = len(c_df)
+                        gs.valor_tcv = (
+                            float(c_df["valor_contratado"].sum())
+                            if "valor_contratado" in c_df.columns
+                            else 0.0
+                        )
+                        gs.contratos_ativos = (
+                            len(c_df[c_df["status"] == "Em Execução"]) if "status" in c_df.columns else 0
+                        )
 
                     gs.is_loading = False
                     logger.info("✅ GlobalState re-sincronizado após commit no editor")

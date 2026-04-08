@@ -326,11 +326,17 @@ class RDOState(rx.State):
         self.can_choose_contrato = role in _free_roles or _free_by_project
 
         # Carregar feature flags direto do banco (sempre fresco, nunca stale do login)
+        # Usa run_in_executor para não bloquear o event loop (chamada síncrona ao Supabase)
         try:
+            import asyncio as _asyncio
             from bomtempo.core.feature_flags import FeatureFlagsService
-            _contrato = contrato or str(gs.current_user_contrato or "")
-            if _contrato and _contrato not in ("nan", "None", ""):
-                self.rdo_active_features = FeatureFlagsService.get_features_for_contract(_contrato)
+            _contrato_val = contrato or str(gs.current_user_contrato or "")
+            if _contrato_val and _contrato_val not in ("nan", "None", ""):
+                _loop = _asyncio.get_running_loop()
+                self.rdo_active_features = await _loop.run_in_executor(
+                    None,
+                    lambda: FeatureFlagsService.get_features_for_contract(_contrato_val),
+                )
             else:
                 self.rdo_active_features = list(gs.active_features or [])
         except Exception:
@@ -452,6 +458,10 @@ class RDOState(rx.State):
             self.has_draft_to_resume  = False
             self.draft_resumed        = True
             self.draft_saved_at       = datetime.now().strftime("%H:%M")
+            loaded_contrato           = data.get("contrato") or ""
+        # Load activities for the restored contract (so dropdowns work without re-selecting)
+        if loaded_contrato:
+            yield RDOState.load_hub_atividades(loaded_contrato)
         yield rx.toast("📂 Rascunho retomado!", position="top-center")
 
     def discard_draft_offer(self):
@@ -788,7 +798,11 @@ class RDOState(rx.State):
                 if result.get("foto_url"):
                     new_items.append(result)
             except Exception as e:
-                logger.error(f"upload_evidence_files: {e}")
+                logger.error(f"upload_evidence_files: {e}", exc_info=True)
+                self.evidencias_items     = self.evidencias_items
+                self.is_uploading_evidence = False
+                yield rx.toast(f"❌ Erro no upload: {e}", position="top-center", duration=8000)
+                return
 
         self.evidencias_items     = [*self.evidencias_items, *new_items]
         self.ev_legenda           = ""
@@ -910,7 +924,10 @@ class RDOState(rx.State):
                 if result.get("foto_url"):
                     new_items.append(result)
             except Exception as e:
-                logger.error(f"upload_epi_files: {e}")
+                logger.error(f"upload_epi_files: {e}", exc_info=True)
+                self.is_uploading_epi = False
+                yield rx.toast(f"❌ Erro no upload EPI: {e}", position="top-center", duration=8000)
+                return
 
         if new_items:
             self.epi_foto_items = new_items
@@ -980,7 +997,10 @@ class RDOState(rx.State):
                 if result.get("foto_url"):
                     new_items.append(result)
             except Exception as e:
-                logger.error(f"upload_ferramentas_files: {e}")
+                logger.error(f"upload_ferramentas_files: {e}", exc_info=True)
+                self.is_uploading_ferramentas = False
+                yield rx.toast(f"❌ Erro no upload ferramentas: {e}", position="top-center", duration=8000)
+                return
 
         if new_items:
             self.ferramentas_foto_items = new_items
@@ -1082,7 +1102,7 @@ class RDOState(rx.State):
             self.rdo_ativ_parent_id = ""
 
     def set_rdo_progresso_atividade(self, v): self.rdo_progresso_atividade = str(v)
-    def set_rdo_producao_dia(self, v: str): self.rdo_producao_dia = v
+    def set_rdo_producao_dia(self, v): self.rdo_producao_dia = str(v) if v is not None else ""
     def toggle_rdo_nova_atividade(self): self.rdo_nova_atividade = not self.rdo_nova_atividade
     def set_rdo_nova_atividade_nome(self, v: str): self.rdo_nova_atividade_nome = v
     def set_rdo_nova_atividade_fase(self, v: str): self.rdo_nova_atividade_fase = v
@@ -1296,7 +1316,9 @@ class RDOState(rx.State):
             return
         self.is_submitting = True
         self.show_confirm_dialog = False
-        # Libera o usuário imediatamente — processamento continua 100% em background
+        # Libera a tela imediatamente — limpa o overlay antes do redirect
+        self.submit_status = ""
+        self.is_submitting = False
         yield rx.toast(
             "⏳ RDO enviado! Processando PDF e análise IA em background. Você receberá o email em breve.",
             position="top-center",
@@ -1309,7 +1331,7 @@ class RDOState(rx.State):
     async def execute_submit(self):
         import threading
         from bomtempo.core.audit_logger import audit_log, AuditCategory
-        from bomtempo.core.executors import get_ai_executor, get_heavy_executor
+        from bomtempo.core.executors import get_ai_executor, get_heavy_executor, get_db_executor
         from bomtempo.core.circuit_breaker import ia_breaker
 
         loop = asyncio.get_running_loop()
@@ -1818,8 +1840,17 @@ class RDOState(rx.State):
             # Photos
             "epi_foto_url":         self.epi_foto_items[0].get("foto_url", "") if self.epi_foto_items else "",
             "ferramentas_foto_url": self.ferramentas_foto_items[0].get("foto_url", "") if self.ferramentas_foto_items else "",
-            # Lists
-            "atividades":   list(self.atividades_items),
+            # Lists — include selected cronograma activity + extra activities if set
+            "atividades":   (
+                [{"atividade": self.rdo_atividade_nome, "progresso_percentual": str(self.rdo_progresso_atividade), "status": "Em andamento"}]
+                if self.rdo_atividade_id and self.rdo_atividade_nome else []
+            ) + list(self.atividades_items) + [
+                {"atividade": r.get("nome", "").strip(), "progresso_percentual": str(r.get("progresso", "0")), "status": "Em andamento"}
+                for r in self.rdo_novas_atividades if r.get("nome", "").strip()
+            ] + [
+                {"atividade": r.get("nome", ""), "progresso_percentual": str(r.get("progresso", "0")), "status": "Em andamento"}
+                for r in self.rdo_extra_atividades if r.get("id", "") and r.get("nome", "")
+            ],
             "evidencias":   list(self.evidencias_items),
             # Tenant isolation
             "client_id":    self._rdo_client_id or None,

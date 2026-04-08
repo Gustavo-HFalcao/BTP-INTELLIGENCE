@@ -389,7 +389,7 @@ def tooltip_pct_scurve() -> rx.Component:
       var deltaColor  = delta >= 0 ? "#4ADE80" : "#F87171";
       var deltaSign   = delta >= 0 ? "+" : "";
       var deltaLabel  = delta >= 0 ? " \u25b2 Adiantado" : " \u25bc Atrasado";
-      var deltaFmt    = deltaSign + delta.toFixed(1) + "pp" + deltaLabel;
+      var deltaFmt    = deltaSign + delta.toFixed(1) + "%" + deltaLabel;
       var deltaBadgeBg = delta >= 0 ? "rgba(74,222,128,0.12)" : "rgba(248,113,113,0.12)";
       deltaEl = React.createElement("div", {style:""" + _JS_ZONE_FOOTER + """},
         React.createElement("div", {style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
@@ -450,7 +450,7 @@ def tooltip_pct_daily() -> rx.Component:
       var p    = payload[i];
       var name = LABELS[p.dataKey] || LABELS[p.name] || p.name;
       var v    = parseFloat(p.value);
-      var fmt  = isNaN(v) ? String(p.value) : v.toFixed(2) + "pp";
+      var fmt  = isNaN(v) ? String(p.value) : v.toFixed(2) + "%";
       if (p.dataKey === "meta")      metaVal = v;
       if (p.dataKey === "realizado") realVal = v;
       var rowStyle = i === 0 ? """ + _JS_ROW_FIRST_STYLE + """ : """ + _JS_ROW_STYLE + """;
@@ -544,7 +544,7 @@ def tooltip_pct_disc() -> rx.Component:
       var realW = Math.min((realVal / maxV) * 100, 100).toFixed(0) + "%";
       var delta = realVal - prevVal;
       var deltaColor = delta >= 0 ? "#4ADE80" : "#F87171";
-      var deltaStr = (delta >= 0 ? "+" : "") + delta.toFixed(1) + "pp";
+      var deltaStr = (delta >= 0 ? "+" : "") + delta.toFixed(1) + "%";
       var deltaBadgeBg = delta >= 0 ? "rgba(74,222,128,0.12)" : "rgba(248,113,113,0.12)";
 
       barEl = React.createElement("div", {style:""" + _JS_ZONE_BODY + """},
@@ -575,7 +575,7 @@ def tooltip_pct_disc() -> rx.Component:
     if (prevVal !== null && realVal !== null && !isNaN(prevVal) && !isNaN(realVal)) {
       var delta2 = realVal - prevVal;
       var deltaColor2 = delta2 >= 0 ? "#4ADE80" : "#F87171";
-      var deltaStr2 = (delta2 >= 0 ? "+" : "") + delta2.toFixed(1) + "pp";
+      var deltaStr2 = (delta2 >= 0 ? "+" : "") + delta2.toFixed(1) + "%";
       var deltaBadgeBg2 = delta2 >= 0 ? "rgba(74,222,128,0.12)" : "rgba(248,113,113,0.12)";
       deltaFooter = React.createElement("div", {style:""" + _JS_ZONE_FOOTER + """},
         React.createElement("div", {style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
@@ -957,10 +957,9 @@ def gantt_hover_content(item: dict) -> rx.Component:
                             font_size="13px",
                             font_weight="600",
                             color=_TEXT,
-                            white_space="nowrap",
+                            white_space="normal",
                             overflow="hidden",
-                            text_overflow="ellipsis",
-                            max_width="180px",
+                            max_width="260px",
                             letter_spacing="-0.01em",
                         ),
                         rx.box(
@@ -1121,8 +1120,8 @@ def gantt_hover_content(item: dict) -> rx.Component:
             align_items="flex-start",
             width="100%",
         ),
-        style=_HOVER_CARD_STYLE,
-        side="right",
+        style={**_HOVER_CARD_STYLE, "minWidth": "320px", "maxWidth": "420px"},
+        side="bottom",
         side_offset=8,
         avoid_collisions=True,
     )

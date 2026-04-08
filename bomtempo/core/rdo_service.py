@@ -405,8 +405,14 @@ def _apply_watermark(img_bytes: bytes, meta: Dict[str, Any], content_type: str =
 # ── ID Generation ───────────────────────────────────────────────────────────
 
 def _gen_id(contrato: str) -> str:
+    import re as _re
+    import unicodedata as _ud
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    safe = (contrato or "RDO").replace("/", "-").replace(" ", "")[:20]
+    # Normaliza unicode (remove acentos, °, etc.) depois mantém só [A-Za-z0-9._-]
+    nfkd = _ud.normalize("NFKD", contrato or "RDO")
+    ascii_str = nfkd.encode("ascii", "ignore").decode("ascii")
+    safe = _re.sub(r"[^A-Za-z0-9._-]", "-", ascii_str)
+    safe = _re.sub(r"-{2,}", "-", safe).strip("-")[:20]
     return f"RDO2-{safe}-{ts}"
 
 
@@ -1267,18 +1273,30 @@ class RDOService:
         try:
             with open(pdf_path, "rb") as f:
                 data = f.read()
-            url = sb_storage_upload("rdo-pdfs", f"{id_rdo}.pdf", data, "application/pdf")
+            safe_id = RDOService._safe_storage_key(id_rdo)
+            url = sb_storage_upload("rdo-pdfs", f"{safe_id}.pdf", data, "application/pdf")
             return url or ""
         except Exception as e:
             logger.error(f"❌ upload_pdf: {e}")
             return ""
 
     @staticmethod
+    def _safe_storage_key(s: str) -> str:
+        """Sanitiza string para uso seguro como path no Supabase Storage."""
+        import re as _re
+        import unicodedata as _ud
+        nfkd = _ud.normalize("NFKD", s or "")
+        ascii_str = nfkd.encode("ascii", "ignore").decode("ascii")
+        return _re.sub(r"[^A-Za-z0-9._/-]", "-", ascii_str)
+
+    @staticmethod
     def upload_evidence(id_rdo: str, file_bytes: bytes, content_type: str, filename: str) -> str:
         """Upload foto para bucket rdo-evidencias (auto-criado se não existir). Retorna URL pública."""
         try:
             sb_storage_ensure_bucket("rdo-evidencias", public=True)
-            path = f"{id_rdo}/{filename}"
+            safe_id = RDOService._safe_storage_key(id_rdo)
+            safe_filename = RDOService._safe_storage_key(filename)
+            path = f"{safe_id}/{safe_filename}"
             url = sb_storage_upload("rdo-evidencias", path, file_bytes, content_type)
             return url or ""
         except Exception as e:

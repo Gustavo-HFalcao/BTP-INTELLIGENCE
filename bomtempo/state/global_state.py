@@ -164,11 +164,73 @@ class GlobalState(rx.State):
     latest_audio_src: str = ""
     last_spoken_response: str = ""  # Subtitles/Legenda
 
+    def _as_data_dict(self) -> dict:
+        """Reconstrói o dict de DataFrames a partir das vars por domínio.
+        Usado pelos módulos de IA que precisam do dict completo como contexto."""
+        return {
+            "contratos":    self._contratos_df,
+            "projeto":      self._projetos_df,
+            "obras":        self._obras_df,
+            "financeiro":   self._financeiro_df,
+            "om":           self._om_df,
+            "hub_historico": self._hub_historico_df,
+        }
+
+    def update_projetos_list_progress(self, contrato: str, progress_map: dict):
+        """Update conclusao_pct and peso_pct in projetos_list for a given contract.
+        projetos_list is a reactive Reflex var — updating it triggers filtered_contratos recompute.
+        progress_map: {row_id: {"conclusao_pct": float, "peso_pct": float}}
+        """
+        if not contrato or not progress_map:
+            return
+        updated = []
+        for row in self.projetos_list:
+            if str(row.get("contrato", "")) == contrato:
+                row_id = str(row.get("id", ""))
+                if row_id in progress_map:
+                    row = dict(row)
+                    vals = progress_map[row_id]
+                    row["conclusao_pct"] = float(vals.get("conclusao_pct", row.get("conclusao_pct", 0)))
+                    row["peso_pct"] = float(vals.get("peso_pct", row.get("peso_pct", 1)))
+            updated.append(row)
+        self.projetos_list = updated
+
+    def patch_projetos_progress(self, contrato: str, progress_map: dict):
+        """Patch ONLY conclusao_pct and peso_pct in _projetos_df for rows matching this contract.
+        Uses id-keyed map so existing rows are updated in-place — all other columns preserved.
+        Called by HubState.load_cronograma after a fresh Supabase fetch.
+        progress_map: {row_id: {"conclusao_pct": float, "peso_pct": float}}
+        """
+        if not contrato or not progress_map or self._projetos_df is None or self._projetos_df.empty:
+            return
+        df = self._projetos_df
+        if "contrato" not in df.columns or "id" not in df.columns:
+            return
+        try:
+            mask = df["contrato"] == contrato
+            for idx in df[mask].index:
+                row_id = str(df.at[idx, "id"])
+                if row_id in progress_map:
+                    vals = progress_map[row_id]
+                    if "conclusao_pct" in vals:
+                        df.at[idx, "conclusao_pct"] = float(vals["conclusao_pct"])
+                    if "peso_pct" in vals:
+                        df.at[idx, "peso_pct"] = float(vals["peso_pct"])
+            self._projetos_df = df
+        except Exception:
+            pass  # Non-critical
+
     async def ensure_data_loaded(self):
         """Lazy load data if not present"""
-        if not self._data:
+        if self._contratos_df.empty and self._projetos_df.empty:
             loader = DataLoader(client_id=self.current_client_id)
-            self._data = loader.load_all()
+            raw = loader.load_all()
+            self._contratos_df    = raw.get("contratos",      pd.DataFrame())
+            self._projetos_df     = raw.get("projeto",        pd.DataFrame())
+            self._obras_df        = raw.get("obras",          pd.DataFrame())
+            self._financeiro_df   = raw.get("financeiro",     pd.DataFrame())
+            self._om_df           = raw.get("om",             pd.DataFrame())
+            self._hub_historico_df = raw.get("hub_historico", pd.DataFrame())
             self.data_version += 1
 
 
@@ -243,11 +305,17 @@ class GlobalState(rx.State):
         # Injeta dados reais do painel (contexto do dashboard) + schema para o agente
         # Os dados do painel dão awareness imediata; o schema permite queries precisas
         async with self:
-            if not self._data:
+            if self._contratos_df.empty and self._projetos_df.empty:
                 loader = DataLoader(client_id=self.current_client_id)
-                self._data = loader.load_all()
+                raw = loader.load_all()
+                self._contratos_df    = raw.get("contratos",      pd.DataFrame())
+                self._projetos_df     = raw.get("projeto",        pd.DataFrame())
+                self._obras_df        = raw.get("obras",          pd.DataFrame())
+                self._financeiro_df   = raw.get("financeiro",     pd.DataFrame())
+                self._om_df           = raw.get("om",             pd.DataFrame())
+                self._hub_historico_df = raw.get("hub_historico", pd.DataFrame())
                 self.data_version += 1
-            data_snapshot = self._data  # lê dentro do lock
+            data_snapshot = self._as_data_dict()  # lê dentro do lock
 
         dashboard_context = AIContext.get_dashboard_context(data_snapshot)
         schema_context = _get_schema_context()
@@ -485,11 +553,18 @@ class GlobalState(rx.State):
         except Exception as e:
             print(f"Error injecting conversation: {e}")
 
-    # Dados brutos
-    _data: Dict[str, pd.DataFrame] = {}
+    # Dados brutos — vars separadas por domínio para que o Reflex rastreie
+    # dependências granulares. Quando só _contratos_df muda, apenas as @rx.var
+    # que dependem dela são invalidadas (em vez de todos os 40+ vars de _data).
+    _contratos_df: pd.DataFrame = pd.DataFrame()
+    _projetos_df: pd.DataFrame = pd.DataFrame()
+    _obras_df: pd.DataFrame = pd.DataFrame()
+    _financeiro_df: pd.DataFrame = pd.DataFrame()
+    _om_df: pd.DataFrame = pd.DataFrame()
+    _hub_historico_df: pd.DataFrame = pd.DataFrame()
 
     # Versão dos dados — incrementa a cada recarga. Lida por @rx.cached_var
-    # para garantir invalidação do cache quando _data muda (var privada).
+    # para garantir invalidação do cache quando os dados mudam (var privada).
     data_version: int = 0
 
     # Flags de carregamento
@@ -1201,7 +1276,12 @@ class GlobalState(rx.State):
         self.projetos_list = []
         self.obras_list = []
         self.financeiro_list = []
-        self._data = {}
+        self._contratos_df    = pd.DataFrame()
+        self._projetos_df     = pd.DataFrame()
+        self._obras_df        = pd.DataFrame()
+        self._financeiro_df   = pd.DataFrame()
+        self._om_df           = pd.DataFrame()
+        self._hub_historico_df = pd.DataFrame()
         # Limpa sessão de chat para não vazar histórico entre usuários
         self.chat_session_id = ""
         self.chat_history = []
@@ -1593,17 +1673,10 @@ class GlobalState(rx.State):
         try:
             loader = DataLoader(client_id=self.current_client_id)
             _loop = _asyncio.get_running_loop()
-            self._data = await _loop.run_in_executor(None, loader.load_all)
+            raw = await _loop.run_in_executor(None, loader.load_all)
             self.data_version += 1
 
-            # Helper to safely get DF
-            def get_df(key: str) -> pd.DataFrame:
-                d = self._data.get(key)
-                if d is None:
-                    return pd.DataFrame()
-                return d
-
-            def _norm_df(df):
+            def _norm_df(df: pd.DataFrame) -> pd.DataFrame:
                 """Single-pass: convert datetime cols to str + fillna by dtype."""
                 for col in df.columns:
                     if pd.api.types.is_datetime64_any_dtype(df[col]):
@@ -1614,44 +1687,40 @@ class GlobalState(rx.State):
                         df[col] = df[col].fillna("")
                 return df
 
-            if "contratos" in self._data:
-                df = get_df("contratos")
-                if not df.empty:
-                    df = _norm_df(df)
-                    self.contratos_list = df.to_dict("records")
-                    self.total_contratos = len(df)
-                    self.valor_tcv = (
-                        float(df["valor_contratado"].sum())
-                        if "valor_contratado" in df.columns
-                        else 0.0
-                    )
-                    self.contratos_ativos = (
-                        len(df[df["status"] == "Em Execução"]) if "status" in df.columns else 0
-                    )
+            # Armazena DFs por domínio — Reflex rastreia dependência por var,
+            # então alterar _contratos_df não invalida @rx.var que leem _projetos_df.
+            self._contratos_df    = _norm_df(raw.get("contratos",      pd.DataFrame()))
+            self._projetos_df     = _norm_df(raw.get("projeto",        pd.DataFrame()))
+            self._obras_df        = _norm_df(raw.get("obras",          pd.DataFrame()))
+            self._financeiro_df   = _norm_df(raw.get("financeiro",     pd.DataFrame()))
+            self._om_df           = _norm_df(raw.get("om",             pd.DataFrame()))
+            self._hub_historico_df = _norm_df(raw.get("hub_historico", pd.DataFrame()))
 
-            if "projeto" in self._data:
-                df = get_df("projeto")
-                if not df.empty:
-                    self.projetos_list = _norm_df(df).to_dict("records")
+            # Serializa listas para o browser
+            if not self._contratos_df.empty:
+                df = self._contratos_df
+                self.contratos_list = df.to_dict("records")
+                self.total_contratos = len(df)
+                self.valor_tcv = (
+                    float(df["valor_contratado"].sum())
+                    if "valor_contratado" in df.columns
+                    else 0.0
+                )
+                self.contratos_ativos = (
+                    len(df[df["status"] == "Em Execução"]) if "status" in df.columns else 0
+                )
 
-            if "obras" in self._data:
-                df = get_df("obras")
-                if not df.empty:
-                    self.obras_list = _norm_df(df).to_dict("records")
+            if not self._projetos_df.empty:
+                self.projetos_list = self._projetos_df.to_dict("records")
 
-            if "financeiro" in self._data:
-                df = get_df("financeiro")
-                if not df.empty:
-                    self.financeiro_list = _norm_df(df).to_dict("records")
+            if not self._obras_df.empty:
+                self.obras_list = self._obras_df.to_dict("records")
 
-            if "om" in self._data:
-                df = get_df("om")
-                if not df.empty:
-                    self.om_list = _norm_df(df).to_dict("records")
+            if not self._financeiro_df.empty:
+                self.financeiro_list = self._financeiro_df.to_dict("records")
 
-            # --- Update current page KPIs immediately on data load ---
-            # Ideally this happens on page load, but we can pre-populate if data is ready.
-            # However, simpler to let pages push their context on_mount.
+            if not self._om_df.empty:
+                self.om_list = self._om_df.to_dict("records")
 
             # Login agora vem do Supabase — users_list não é mais populado a partir de sheets
             # (check_login usa Supabase diretamente como primário + hardcoded fallback)
@@ -1663,8 +1732,6 @@ class GlobalState(rx.State):
             self._recompute_popup_rows()
 
             # ── #12: Guard de tamanho — aviso se listas excederem threshold ──
-            # financeiro_list é serializada ao browser; mais de 500 linhas é sinal
-            # de que a tabela cresceu além do esperado (dados históricos acumulados)
             _FIN_WARN = 500
             if len(self.financeiro_list) > _FIN_WARN:
                 logger.warning(
@@ -1698,58 +1765,57 @@ class GlobalState(rx.State):
             self.obras_list = []
             self.financeiro_list = []
             self.om_list = []
-            self._data = {}
+            self._contratos_df    = pd.DataFrame()
+            self._projetos_df     = pd.DataFrame()
+            self._obras_df        = pd.DataFrame()
+            self._financeiro_df   = pd.DataFrame()
+            self._om_df           = pd.DataFrame()
+            self._hub_historico_df = pd.DataFrame()
 
         logger.info("🔄 force_refresh_data: recarregando dados do Supabase...")
         try:
             loop = _asyncio.get_running_loop()
-            loader = DataLoader()
-            new_data = await loop.run_in_executor(None, loader.load_all)
+            loader = DataLoader(_client_id)
+            raw = await loop.run_in_executor(None, loader.load_all)
 
-            def get_df(key: str) -> pd.DataFrame:
-                d = new_data.get(key)
-                return d if d is not None else pd.DataFrame()
+            def _norm_df(df: pd.DataFrame) -> pd.DataFrame:
+                for col in df.columns:
+                    if pd.api.types.is_datetime64_any_dtype(df[col]):
+                        df[col] = df[col].astype(str)
+                    elif pd.api.types.is_numeric_dtype(df[col]):
+                        df[col] = df[col].fillna(0)
+                    else:
+                        df[col] = df[col].fillna("")
+                return df
 
-            new_lists = {}
-            for table_key, attr_name in [
-                ("contratos", "contratos_list"),
-                ("projeto", "projetos_list"),
-                ("obras", "obras_list"),
-                ("financeiro", "financeiro_list"),
-                ("om", "om_list"),
-            ]:
-                if table_key in new_data:
-                    df = get_df(table_key)
-                    if not df.empty:
-                        for col in df.columns:
-                            if pd.api.types.is_datetime64_any_dtype(df[col]):
-                                df[col] = df[col].astype(str)
-                        for col in df.columns:
-                            if pd.api.types.is_numeric_dtype(df[col]):
-                                df[col] = df[col].fillna(0)
-                            else:
-                                df[col] = df[col].fillna("")
-                        new_lists[attr_name] = df.to_dict("records")
+            c_df  = _norm_df(raw.get("contratos",      pd.DataFrame()))
+            p_df  = _norm_df(raw.get("projeto",        pd.DataFrame()))
+            o_df  = _norm_df(raw.get("obras",          pd.DataFrame()))
+            f_df  = _norm_df(raw.get("financeiro",     pd.DataFrame()))
+            om_df = _norm_df(raw.get("om",             pd.DataFrame()))
+            hh_df = _norm_df(raw.get("hub_historico",  pd.DataFrame()))
 
-            total_contratos = 0
-            valor_tcv = 0.0
-            contratos_ativos = 0
-            if "contratos" in new_data:
-                df = get_df("contratos")
-                if not df.empty:
-                    total_contratos = len(df)
-                    valor_tcv = float(df["valor_contratado"].sum()) if "valor_contratado" in df.columns else 0.0
-                    contratos_ativos = len(df[df["status"] == "Em Execução"]) if "status" in df.columns else 0
+            total_contratos = len(c_df) if not c_df.empty else 0
+            valor_tcv = float(c_df["valor_contratado"].sum()) if not c_df.empty and "valor_contratado" in c_df.columns else 0.0
+            contratos_ativos = len(c_df[c_df["status"] == "Em Execução"]) if not c_df.empty and "status" in c_df.columns else 0
 
             async with self:
-                self._data = new_data
-                self.data_version += 1
-                for attr_name, records in new_lists.items():
-                    setattr(self, attr_name, records)
-                self.total_contratos = total_contratos
-                self.valor_tcv = valor_tcv
+                self._contratos_df    = c_df
+                self._projetos_df     = p_df
+                self._obras_df        = o_df
+                self._financeiro_df   = f_df
+                self._om_df           = om_df
+                self._hub_historico_df = hh_df
+                self.contratos_list   = c_df.to_dict("records")  if not c_df.empty  else []
+                self.projetos_list    = p_df.to_dict("records")  if not p_df.empty  else []
+                self.obras_list       = o_df.to_dict("records")  if not o_df.empty  else []
+                self.financeiro_list  = f_df.to_dict("records")  if not f_df.empty  else []
+                self.om_list          = om_df.to_dict("records") if not om_df.empty else []
+                self.total_contratos  = total_contratos
+                self.valor_tcv        = valor_tcv
                 self.contratos_ativos = contratos_ativos
-                self.is_loading = False
+                self.data_version    += 1
+                self.is_loading       = False
             logger.info("✅ force_refresh_data: estado global re-sincronizado")
         except Exception as e:
             async with self:
@@ -2151,8 +2217,8 @@ class GlobalState(rx.State):
 
     @rx.var
     def filtered_contratos(self) -> List[Dict[str, Any]]:
-        # Optimization: Use self._data["projeto"] instead of recreating DF
-        # But for 'result', we are filtering the list.
+        # Calcula progresso direto de projetos_list (var Reflex reativa).
+        # Isso garante que ao atualizar projetos_list o Progress Pulse recalcula imediatamente.
         result = self.contratos_list
         if self.projetos_search:
             term = self.projetos_search.lower()
@@ -2173,42 +2239,51 @@ class GlobalState(rx.State):
         if not self.projetos_list:
             return [dict(c, progress=0, data_inicio="—", prazo_contratual="—") for c in result]
 
-        # OPTIMIZATION: Use stored DataFrame
-        df = self._data.get("projeto")
-        if df is None or df.empty:
-            return [dict(c, progress=0, data_inicio="—", prazo_contratual="—") for c in result]
+        # Build progress_map from projetos_list (reactive var — always fresh)
+        progress_map: dict = {}
+        dates_map: dict = {}
 
-        progress_map = {}
-        dates_map = {}
+        # Group by contract for weighted progress calculation
+        from collections import defaultdict
+        _by_contract: dict = defaultdict(list)
+        for p in self.projetos_list:
+            cod = str(p.get("contrato", "") or "")
+            if cod:
+                _by_contract[cod].append(p)
 
-        if "contrato" in df.columns:
-            # Progress
-            if "conclusao_pct" in df.columns:
-                # df["conclusao_pct"] is already numeric from loader
-                progress_map = df.groupby("contrato")["conclusao_pct"].mean().to_dict()
+        for cod, rows in _by_contract.items():
+            # Filter to micro level first, fall back to macro
+            micros = [r for r in rows if str(r.get("nivel", "")) == "micro"]
+            macros = [r for r in rows if str(r.get("nivel", "")) == "macro"]
+            working = micros if micros else (macros if macros else rows)
+
+            total_peso = 0.0
+            weighted_sum = 0.0
+            for r in working:
+                pct = float(r.get("conclusao_pct", 0) or 0)
+                peso = float(r.get("peso_pct", 1) or 1) or 1.0
+                total_peso += peso
+                weighted_sum += pct * peso
+            progress_map[cod] = (weighted_sum / total_peso) if total_peso > 0 else 0.0
+
+            # Dates from all rows
+            starts = [r.get("inicio_previsto") for r in rows if r.get("inicio_previsto")]
+            ends = [r.get("termino_previsto") for r in rows if r.get("termino_previsto")]
+            if starts and ends:
+                try:
+                    s = min(str(x) for x in starts)
+                    e = max(str(x) for x in ends)
+                    def _iso_to_br(v: str) -> str:
+                        v = str(v or "")[:10]
+                        if len(v) == 10 and v[4] == "-":
+                            p = v.split("-")
+                            return f"{p[2]}/{p[1]}/{p[0]}"
+                        return v
+                    dates_map[cod] = {"start": _iso_to_br(s), "end": _iso_to_br(e)}
+                except Exception:
+                    pass
 
             # Dates
-            if "inicio_previsto" in df.columns and "termino_previsto" in df.columns:
-                # Group by contract
-                grp = df.groupby("contrato")
-                starts = grp["inicio_previsto"].min()
-                ends = grp["termino_previsto"].max()
-
-                for contract, start_date in starts.items():
-                    end_date = ends.get(contract)
-                    # Check if datetime before calling strftime
-                    start_str = (
-                        start_date.strftime("%d/%m/%Y")
-                        if pd.notnull(start_date) and hasattr(start_date, "strftime")
-                        else ("—" if pd.isnull(start_date) else str(start_date))
-                    )
-                    end_str = (
-                        end_date.strftime("%d/%m/%Y")
-                        if pd.notnull(end_date) and hasattr(end_date, "strftime")
-                        else ("—" if pd.isnull(end_date) else str(end_date))
-                    )
-                    dates_map[contract] = {"start": start_str, "end": end_str}
-
         enriched_result = []
         for c in result:
             contract_code = c.get("contrato")
@@ -2244,7 +2319,7 @@ class GlobalState(rx.State):
             contract["termino_estimado"] = "—"
 
         # Optimization: Use stored DataFrame
-        df = self._data.get("projeto")
+        df = self._projetos_df
         if df is not None and not df.empty and "contrato" in df.columns:
             # Filter for this contract using optimized pandas indexing
             mask = df["contrato"] == self.selected_contrato
@@ -2392,7 +2467,7 @@ class GlobalState(rx.State):
 
     @rx.var
     def atividades_por_fase_chart(self) -> List[Dict[str, Any]]:
-        df = self._data.get("projeto")
+        df = self._projetos_df
         if df is None or df.empty or "fase" not in df.columns:
             return []
 
@@ -2404,7 +2479,7 @@ class GlobalState(rx.State):
     @rx.var
     def projetos_em_andamento(self) -> List[Dict[str, Any]]:
         """Projects in progress for overview cards"""
-        df = self._data.get("projeto")
+        df = self._projetos_df
         if (
             df is None
             or df.empty
@@ -2446,7 +2521,7 @@ class GlobalState(rx.State):
 
     @rx.var
     def faturamento_por_cliente(self) -> List[Dict[str, Any]]:
-        df = self._data.get("contratos")
+        df = self._contratos_df
         if (
             df is None
             or df.empty
@@ -2475,7 +2550,7 @@ class GlobalState(rx.State):
 
     @rx.var
     def status_contratos_dist(self) -> List[Dict[str, Any]]:
-        df = self._data.get("contratos")
+        df = self._contratos_df
         if df is None or df.empty or "status" not in df.columns:
             return []
 
@@ -2626,7 +2701,7 @@ class GlobalState(rx.State):
     def avanco_fisico_geral(self) -> float:
         # Utilize 'projeto' or 'obras'? Usually average completion of active projects.
         # Previous code used 'projetos_list' (activities).
-        df = self._data.get("projeto")
+        df = self._projetos_df
         if df is None or df.empty:
             return 0.0
 
@@ -2650,14 +2725,14 @@ class GlobalState(rx.State):
 
     @rx.var
     def total_obras_andamento(self) -> int:
-        df = self._data.get("obras")
+        df = self._obras_df
         if df is None or df.empty or "contrato" not in df.columns:
             return 0
         return int(df["contrato"].nunique())
 
     @rx.var
     def obras_atrasadas_count(self) -> int:
-        df = self._data.get("obras")
+        df = self._obras_df
         if df is None or df.empty:
             return 0
 
@@ -2677,7 +2752,7 @@ class GlobalState(rx.State):
     def disciplina_progress_chart(self) -> List[Dict[str, Any]]:
         """Progresso por fase_macro (disciplina) — construído a partir de hub_atividades.
         Usa selected_project (hub) como fonte primária, fallback obras_selected_contract."""
-        df = self._data.get("projeto")
+        df = self._projetos_df
         if df is None or df.empty:
             return []
 
@@ -2749,7 +2824,7 @@ class GlobalState(rx.State):
 
     @rx.var
     def status_por_obra_chart(self) -> List[Dict[str, Any]]:
-        df = self._data.get("obras")
+        df = self._obras_df
         if df is None or df.empty:
             return []
 
@@ -2772,7 +2847,7 @@ class GlobalState(rx.State):
 
     @rx.var
     def evolucao_obras_chart(self) -> List[Dict[str, Any]]:
-        df = self._data.get("obras")
+        df = self._obras_df
         if df is None or df.empty:
             return []
 
@@ -2817,7 +2892,7 @@ class GlobalState(rx.State):
 
         # Merge with obras data for construction-specific fields
         if target_code:
-            df = self._data.get("obras")
+            df = self._obras_df
             if df is not None and not df.empty and "contrato" in df.columns:
                 # Optimized filter
                 obras_for_contract = df[df["contrato"] == target_code]
@@ -2854,8 +2929,8 @@ class GlobalState(rx.State):
         import math
         from datetime import datetime
 
-        df_obras = self._data.get("obras")
-        df_proj = self._data.get("projeto")
+        df_obras = self._obras_df
+        df_proj = self._projetos_df
         today = datetime.now()
 
         search = self.project_search.lower()
@@ -2893,11 +2968,26 @@ class GlobalState(rx.State):
             budget_r = 0.0
             localizacao = str(c.get("localizacao", "—"))
 
+            # avanco from hub_atividades micro weighted avg (matches cronograma KPI + Progress Pulse)
+            if df_proj is not None and not df_proj.empty and "contrato" in df_proj.columns:
+                _sp = df_proj[df_proj["contrato"] == code].copy()
+                if not _sp.empty and "conclusao_pct" in _sp.columns:
+                    _sp["conclusao_pct"] = pd.to_numeric(_sp["conclusao_pct"], errors="coerce").fillna(0)
+                    _sp["peso_pct"] = pd.to_numeric(_sp.get("peso_pct", 1), errors="coerce").fillna(1).replace(0, 1)
+                    if "nivel" in _sp.columns:
+                        _mi = _sp[_sp["nivel"] == "micro"]
+                        if not _mi.empty:
+                            _sp = _mi
+                        else:
+                            _ma = _sp[_sp["nivel"] == "macro"]
+                            if not _ma.empty:
+                                _sp = _ma
+                    _tp = _sp["peso_pct"].sum()
+                    avanco = round(float((_sp["conclusao_pct"] * _sp["peso_pct"]).sum() / _tp) if _tp > 0 else float(_sp["conclusao_pct"].mean()), 1)
+
             if df_obras is not None and not df_obras.empty and "contrato" in df_obras.columns:
                 sub = df_obras[df_obras["contrato"] == code]
                 if not sub.empty:
-                    if "realizado_pct" in sub.columns:
-                        avanco = round(float(sub["realizado_pct"].mean()), 1)
                     if "risco_geral_score" in sub.columns:
                         risco = int(sub["risco_geral_score"].max())
                     if "equipe_presente_hoje" in sub.columns:
@@ -3014,7 +3104,7 @@ class GlobalState(rx.State):
         code = self.selected_project
         if not code:
             return []
-        df = self._data.get("projeto")
+        df = self._projetos_df
         if df is None or df.empty:
             return []
         if "contrato" in df.columns:
@@ -3040,7 +3130,7 @@ class GlobalState(rx.State):
 
         # ── Reconstruir histórico de conclusao_pct por atividade por data ──────
         # Para cada dia d, conclusao_hist[ativ_id][d] = último conclusao_pct_novo <= d
-        hist_df = self._data.get("hub_historico")
+        hist_df = self._hub_historico_df
         # Mapeia ativ_id → lista de (date, conclusao_pct_novo) ordenada
         hist_map: Dict[str, list] = {}
         if hist_df is not None and not hist_df.empty:
@@ -3146,7 +3236,7 @@ class GlobalState(rx.State):
         if not self.contratos_list:
             return []
 
-        df_obras = self._data.get("obras")
+        df_obras = self._obras_df
         cards = []
 
         for c in self.contratos_list:
@@ -3214,13 +3304,34 @@ class GlobalState(rx.State):
             return base
 
         code = target.split(" - ")[0].strip() if " - " in target else target
-        df = self._data.get("obras")
+        df = self._obras_df
+
+        # avanco_pct: use hub_atividades micro-level weighted avg (same as Progress Pulse + cronograma KPI)
+        df_proj = self._projetos_df
+        if df_proj is not None and not df_proj.empty and "contrato" in df_proj.columns:
+            sub_proj = df_proj[df_proj["contrato"] == code].copy()
+            if not sub_proj.empty and "conclusao_pct" in sub_proj.columns:
+                sub_proj["conclusao_pct"] = pd.to_numeric(sub_proj["conclusao_pct"], errors="coerce").fillna(0)
+                sub_proj["peso_pct"] = pd.to_numeric(sub_proj.get("peso_pct", 1), errors="coerce").fillna(1).replace(0, 1)
+                if "nivel" in sub_proj.columns:
+                    _micro = sub_proj[sub_proj["nivel"] == "micro"]
+                    if not _micro.empty:
+                        sub_proj = _micro
+                    else:
+                        _macro = sub_proj[sub_proj["nivel"] == "macro"]
+                        if not _macro.empty:
+                            sub_proj = _macro
+                total_peso = sub_proj["peso_pct"].sum()
+                if total_peso > 0:
+                    avanco_calc = (sub_proj["conclusao_pct"] * sub_proj["peso_pct"]).sum() / total_peso
+                else:
+                    avanco_calc = sub_proj["conclusao_pct"].mean()
+                base["avanco_pct"] = round(float(avanco_calc), 1)
 
         if df is not None and not df.empty and "contrato" in df.columns:
             sub = df[df["contrato"] == code]
             if not sub.empty:
-                if "realizado_pct" in sub.columns:
-                    base["avanco_pct"] = round(float(sub["realizado_pct"].mean()), 1)
+                pass  # avanco_pct now comes from hub_atividades above
 
                 first = sub.iloc[0]
                 for col, default in [
@@ -3255,7 +3366,7 @@ class GlobalState(rx.State):
         code = self.selected_project
         if not code:
             return []
-        fin_df = self._data.get("financeiro")
+        fin_df = self._financeiro_df
         if fin_df is None or fin_df.empty:
             return []
         if "contrato" in fin_df.columns:
@@ -3280,6 +3391,12 @@ class GlobalState(rx.State):
         grp = grp[grp["planejado"] + grp["realizado"] > 0]
         return grp.to_dict("records")
 
+    @rx.var(cache=False)
+    def dash_today_str(self) -> str:
+        """Today's date in dd/mm format for Curva S reference line."""
+        from datetime import date as _dt_date
+        return _dt_date.today().strftime("%d/%m")
+
     @rx.var
     def dash_scurve_chart(self) -> List[Dict[str, Any]]:
         """S-Curve para Dashboard — igual ao project_scurve_chart mas filtrável por período."""
@@ -3303,7 +3420,7 @@ class GlobalState(rx.State):
         code = self.selected_project
         if not code:
             return []
-        hist_df = self._data.get("hub_historico")
+        hist_df = self._hub_historico_df
         if hist_df is None or hist_df.empty:
             return []
         if "contrato" in hist_df.columns:
@@ -3314,7 +3431,7 @@ class GlobalState(rx.State):
             return []
 
         # Busca pesos das atividades
-        ativ_df = self._data.get("projeto")
+        ativ_df = self._projetos_df
         peso_map: Dict[str, float] = {}
         peso_total = 1.0
         if ativ_df is not None and not ativ_df.empty and "contrato" in ativ_df.columns:
@@ -3574,7 +3691,7 @@ class GlobalState(rx.State):
         disc_atrasadas_pct = (disc_atrasadas / disc_total * 100) if disc_total > 0 else 0
         f1_score = min(10.0, f1_score + disc_atrasadas_pct * 0.06)
 
-        f1_desc = f"Desvio PP: {desvio_pp:+.1f}pp | {disc_atrasadas}/{disc_total} disciplinas atrasadas"
+        f1_desc = f"Desvio: {desvio_pp:+.1f}% | {disc_atrasadas}/{disc_total} disciplinas atrasadas"
 
         # ── FATOR 2 — Criticidade (peso 20%) ──────────────────────────────────
         disc_criticas = sum(
@@ -3741,7 +3858,7 @@ class GlobalState(rx.State):
                         "severity": "critical",
                         "icon": "calendar-x",
                         "title": "Atraso crítico no cronograma",
-                        "desc": f"Físico realizado {abs(desvio):.1f}pp abaixo do previsto. Risco de perda de prazo contratual.",
+                        "desc": f"Físico realizado {abs(desvio):.1f}% abaixo do previsto. Risco de perda de prazo contratual.",
                         "modulo": "cronograma",
                     })
                 elif desvio <= -10:
@@ -3749,7 +3866,7 @@ class GlobalState(rx.State):
                         "severity": "high",
                         "icon": "clock",
                         "title": "Desvio de prazo relevante",
-                        "desc": f"Cronograma {abs(desvio):.1f}pp abaixo do planejado. Monitorar tendência.",
+                        "desc": f"Cronograma {abs(desvio):.1f}% abaixo do planejado. Monitorar tendência.",
                         "modulo": "cronograma",
                     })
 
@@ -4122,7 +4239,16 @@ class GlobalState(rx.State):
         self.show_novo_projeto = v
 
     def set_np_contrato(self, v: str):
-        self.np_contrato = v  # CSS text-transform:uppercase cuida do display; save handler faz .upper()
+        import re as _re, unicodedata as _ud
+        # Permite apenas A-Z, 0-9, hífen e ponto — bloqueia caracteres inválidos para storage paths
+        nfkd = _ud.normalize("NFKD", v or "")
+        ascii_str = nfkd.encode("ascii", "ignore").decode("ascii")
+        sanitized = _re.sub(r"[^A-Za-z0-9.\-]", "-", ascii_str).upper()
+        self.np_contrato = sanitized
+        if sanitized != (v or "").upper():
+            self.np_error = "Código do contrato: use apenas letras, números e hífen (ex: BOM306-2026)."
+        else:
+            self.np_error = ""
 
     def set_np_projeto(self, v: str):
         self.np_projeto = v
@@ -4309,6 +4435,10 @@ class GlobalState(rx.State):
             cliente = self.np_cliente.strip()
             if not contrato or not projeto or not cliente:
                 self.np_error = "Contrato, projeto e cliente são obrigatórios."
+                return
+            import re as _re2
+            if not _re2.match(r'^[A-Z0-9.\-]+$', contrato):
+                self.np_error = "Código do contrato: use apenas letras, números e hífen (ex: BOM306-2026)."
                 return
             self.np_saving = True
             self.np_error = ""
@@ -4900,12 +5030,11 @@ class GlobalState(rx.State):
         # ── Step 1: read needed state under the lock (no I/O here) ──────────
         async with self:
             contract_to_use = self.obras_selected_contract
-            df_obras_ref = self._data.get("obras")
-            df_contratos_ref = self._data.get("contratos")
+            df_obras_ref = self._obras_df
+            df_contratos_ref = self._contratos_df
             # Auto-detect first available contract when none is selected
             if not contract_to_use or contract_to_use == "Todos":
-                for df_key in ("obras", "contratos"):
-                    df_auto = self._data.get(df_key)
+                for df_auto in (self._obras_df, self._contratos_df):
                     if (
                         df_auto is not None
                         and not df_auto.empty
@@ -5016,8 +5145,8 @@ class GlobalState(rx.State):
             lines = []
 
             # Active obras — latest physical progress per project
-            if "obras" in self._data and not self._data["obras"].empty:
-                df = self._data["obras"].copy()
+            if not self._obras_df.empty:
+                df = self._obras_df.copy()
                 if "projeto" in df.columns:
                     if "data" in df.columns:
                         df["data"] = pd.to_datetime(df["data"], errors="coerce")
@@ -5058,8 +5187,8 @@ class GlobalState(rx.State):
                             )
 
             # Upcoming activities in project schedule (next 10 days)
-            if "projeto" in self._data and not self._data["projeto"].empty:
-                df = self._data["projeto"].copy()
+            if not self._projetos_df.empty:
+                df = self._projetos_df.copy()
                 if "termino_previsto" in df.columns and "conclusao_pct" in df.columns:
                     today = pd.Timestamp.now()
                     df["termino_previsto"] = pd.to_datetime(

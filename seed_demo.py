@@ -1,7 +1,7 @@
 """
 seed_demo.py — Operação Seed State-of-the-Art
 Usina Solar 120 kWp — Galpão Industrial Ferreira & Cia
-Contrato: CONTRATO N° 306/2026
+Contrato: BOM306-2026
 client_id: 11111111-1111-1111-1111-111111111111
 
 Executa:
@@ -45,7 +45,7 @@ sb = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 CLIENT_ID   = "11111111-1111-1111-1111-111111111111"
-CONTRATO    = "CONTRATO N° 306/2026"
+CONTRATO    = "BOM306-2026"
 PROJETO     = "Usina Solar 120 kWp — Galpão Industrial Ferreira & Cia"
 CLIENTE     = "Ferreira & Cia Ind. e Com. Ltda"
 LOC         = "Av. das Indústrias, 1420, Distrito Industrial, Fortaleza / CE"

@@ -247,7 +247,7 @@ class ActionAIState(rx.State):
                     tenant_name = gs.current_client_name or ""
                     client_id = str(gs.current_client_id or "")
                     is_mobile = user_role == "Gestão-Mobile"
-                    data = gs._data
+                    data = gs._as_data_dict()
                 except Exception as _e:
                     logger.warning(f"ActionAI: falha ao ler GlobalState: {_e}")
 
