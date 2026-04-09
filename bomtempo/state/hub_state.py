@@ -3050,7 +3050,7 @@ Retorne SOMENTE JSON válido, sem texto antes/depois, sem markdown:
                 contrato = str(gs.selected_contrato or gs.selected_project or "")
 
         try:
-            sb_insert("hub_timeline", {
+            tl_result = sb_insert("hub_timeline", {
                 "contrato":        contrato,
                 "tipo":            entry_tipo,
                 "titulo":          entry_titulo,
@@ -3072,6 +3072,22 @@ Retorne SOMENTE JSON válido, sem texto antes/depois, sem markdown:
                 entity_type="hub_timeline",
                 entity_id=contrato,
             )
+            # ── Document Intelligence: analisa documentos em background ──────
+            if entry_is_document and entry_anexo_url:
+                try:
+                    from bomtempo.core.document_intel_service import DocumentIntelService
+                    tl_id = (tl_result or {}).get("id", "") if tl_result else ""
+                    DocumentIntelService.trigger_analysis(
+                        timeline_id=tl_id,
+                        contrato=contrato,
+                        client_id=str(gs.current_client_id or ""),
+                        titulo=entry_titulo,
+                        descricao=entry_descricao,
+                        anexo_url=entry_anexo_url,
+                        anexo_nome=entry_anexo_nome,
+                    )
+                except Exception as _di_err:
+                    logger.warning(f"[DocIntel] trigger_analysis falhou (não crítico): {_di_err}")
             # Integração financeira: custo na timeline → fin_custos (gasto não previsto)
             if entry_is_cost and entry_custo_valor:
                 try:

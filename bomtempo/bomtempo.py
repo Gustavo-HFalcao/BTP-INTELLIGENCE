@@ -292,7 +292,7 @@ app.add_page(
     alertas,
     route="/alertas",
     title="BOMTEMPO | Alertas Proativos",
-    on_load=[GlobalState.load_data, AlertasState.load_page],
+    on_load=[GlobalState.load_data, AlertasState.load_page, AlertasState.load_alert_rules],
 )
 
 app.add_page(

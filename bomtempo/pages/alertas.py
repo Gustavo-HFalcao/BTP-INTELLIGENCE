@@ -1,7 +1,6 @@
 """
-Alertas Proativos — Bomtempo Intelligence
-Split-screen: Cronológicos (left) | Reativos (right)
-Cards are purely informational. Registration form is the action core.
+Alertas — Bomtempo Intelligence (Enterprise Revamp)
+Three tabs: Minhas Regras | Criar Alerta (wizard) | Histórico
 """
 from __future__ import annotations
 
@@ -9,20 +8,10 @@ import reflex as rx
 
 from bomtempo.components.skeletons import page_centered_loader
 from bomtempo.core import styles as S
-from bomtempo.core.alert_service import ALERT_TYPES
 from bomtempo.state.alertas_state import AlertasState
 from bomtempo.state.global_state import GlobalState
 
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-def _hex_to_rgb(h: str) -> str:
-    h = h.lstrip("#")
-    if len(h) == 6:
-        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
-        return f"{r},{g},{b}"
-    return "201,139,42"
-
+# ── Shared helpers ─────────────────────────────────────────────────────────────
 
 def _section_label(text: str) -> rx.Component:
     return rx.text(
@@ -33,900 +22,1212 @@ def _section_label(text: str) -> rx.Component:
         color=S.TEXT_MUTED,
         letter_spacing="0.18em",
         text_transform="uppercase",
-        margin_bottom="8px",
     )
 
 
-# ── Alert info card (purely explanatory) ──────────────────────────────────────
-
-def _alert_card(alert_type: str) -> rx.Component:
-    meta = ALERT_TYPES[alert_type]
-    color = meta["color"]
-    label = meta["label"]
-    desc = meta["description"]
-    schedule = meta["schedule"]
-    icon = meta["icon"]
-    count = AlertasState.subscription_counts.get(alert_type, 0)
-    is_running = AlertasState.sweep_running_type == alert_type
-
+def _tab_btn(label: str, icon: str, value: str, current: str) -> rx.Component:
+    is_active = current == value
     return rx.box(
-        # Left color stripe — strong visual anchor
-        rx.box(
-            position="absolute",
-            left="0", top="0", bottom="0",
-            width="3px",
-            bg=color,
-            border_radius=f"{S.R_CARD} 0 0 {S.R_CARD}",
-        ),
-        rx.vstack(
-            # ── Header ─────────────────────────────────────────
-            rx.hstack(
-                rx.center(
-                    rx.icon(tag=icon, size=14, color=color),
-                    width="28px", height="28px",
-                    border_radius=S.R_CONTROL,
-                    bg=f"rgba(0,0,0,0.2)",
-                    border=f"1px solid {color}30",
-                    flex_shrink="0",
-                ),
-                rx.text(
-                    label,
-                    font_family=S.FONT_TECH,
-                    font_weight="700",
-                    font_size="0.9rem",
-                    color="white",
-                    letter_spacing="0.04em",
-                    flex="1",
-                ),
-                # Manual trigger button — prominent but subtle
-                rx.cond(
-                    is_running,
-                    rx.center(
-                        rx.spinner(size="1", color=color),
-                        width="28px", height="28px",
-                        border_radius=S.R_CONTROL,
-                        bg=f"{color}15",
-                    ),
-                    rx.tooltip(
-                        rx.center(
-                            rx.icon(tag="zap", size=13, color=color),
-                            width="28px", height="28px",
-                            border_radius=S.R_CONTROL,
-                            bg=f"{color}10",
-                            border=f"1px solid {color}25",
-                            cursor="pointer",
-                            on_click=AlertasState.open_confirm_sweep(alert_type),
-                            transition="all 0.15s ease",
-                            _hover={"bg": f"{color}25", "border_color": f"{color}60"},
-                        ),
-                        content="Disparar manualmente — envia e-mails agora",
-                    ),
-                ),
-                align="center",
-                spacing="2",
-                width="100%",
-            ),
-            # ── Description ─────────────────────────────────────
-            rx.text(
-                desc,
-                font_size="0.72rem",
-                color=S.TEXT_MUTED,
-                line_height="1.55",
-                flex="1",
-            ),
-            # ── Footer strip ─────────────────────────────────────
-            rx.hstack(
-                rx.hstack(
-                    rx.icon(tag="clock", size=10, color=S.TEXT_MUTED),
-                    rx.text(schedule, font_size="0.65rem", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
-                    spacing="1", align="center",
-                ),
-                rx.spacer(),
-                rx.cond(
-                    count,
-                    rx.hstack(
-                        rx.icon(tag="mail", size=10, color=color),
-                        rx.text(
-                            rx.cond(count == 1, "1 dest.", count.to_string() + " dest."),
-                            font_size="0.65rem", color=color, font_weight="700",
-                            font_family=S.FONT_MONO,
-                        ),
-                        spacing="1", align="center",
-                        bg=f"{color}12",
-                        border=f"1px solid {color}30",
-                        border_radius=S.R_CONTROL,
-                        padding="2px 7px",
-                    ),
-                    rx.text("Sem dest.", font_size="0.65rem", color="rgba(136,153,153,0.5)", font_family=S.FONT_MONO),
-                ),
-                align="center",
-                width="100%",
-                padding_top="8px",
-                border_top=f"1px solid rgba(255,255,255,0.05)",
-            ),
-            # ── Sweep result inline ──────────────────────────────
-            rx.cond(
-                AlertasState.sweep_results.get(alert_type, "") != "",
-                rx.hstack(
-                    rx.icon(tag="check-circle", size=11, color=S.PATINA),
-                    rx.text(
-                        AlertasState.sweep_results.get(alert_type, ""),
-                        font_size="0.67rem", color=S.PATINA, flex="1",
-                        font_family=S.FONT_MONO,
-                    ),
-                    rx.icon(
-                        tag="x", size=10, color=S.TEXT_MUTED, cursor="pointer",
-                        on_click=AlertasState.clear_type_sweep_result(alert_type),
-                        _hover={"color": S.TEXT_PRIMARY},
-                    ),
-                    spacing="2", align="center",
-                    bg="rgba(42,157,143,0.07)",
-                    border=f"1px solid {S.PATINA}25",
-                    border_radius=S.R_CONTROL,
-                    padding="4px 9px",
-                    width="100%",
-                ),
-            ),
-            spacing="2",
-            width="100%",
-            height="100%",
-        ),
-        bg="rgba(8,18,16,0.6)",
-        border=f"1px solid {color}20",
-        border_left="none",
-        border_radius=S.R_CARD,
-        padding="12px 14px 12px 17px",
-        position="relative",
-        overflow="hidden",
-        transition="border-color 0.18s ease, background 0.18s ease",
-        _hover={"border_color": f"{color}45", "bg": "rgba(14,26,23,0.8)"},
-        display="flex",
-        flex_direction="column",
-    )
-
-
-# ── Left panel — Cronológicos ─────────────────────────────────────────────────
-
-def _panel_section_header(icon_tag: str, title: str, subtitle: str, color: str) -> rx.Component:
-    """Reusable enterprise section header for alert panels."""
-    return rx.vstack(
         rx.hstack(
-            rx.center(
-                rx.icon(tag=icon_tag, size=14, color=color),
-                width="30px", height="30px",
-                border_radius=S.R_CONTROL,
-                bg=f"rgba(0,0,0,0.25)",
-                border=f"1px solid {color}30",
-                flex_shrink="0",
-            ),
-            rx.vstack(
-                rx.text(
-                    title,
-                    font_family=S.FONT_TECH,
-                    font_weight="700",
-                    font_size="0.82rem",
-                    color="white",
-                    text_transform="uppercase",
-                    letter_spacing="0.12em",
-                ),
-                rx.text(subtitle, font_size="0.68rem", color=S.TEXT_MUTED, line_height="1.4"),
-                spacing="0",
-                align="start",
+            rx.icon(tag=icon, size=14, color=rx.cond(is_active, S.COPPER, S.TEXT_MUTED)),
+            rx.text(
+                label,
+                font_family=S.FONT_TECH,
+                font_size="0.8rem",
+                font_weight="700",
+                letter_spacing="0.08em",
+                color=rx.cond(is_active, "white", S.TEXT_MUTED),
             ),
             spacing="2",
             align="center",
         ),
-        rx.box(height="1px", width="100%", bg=f"linear-gradient(90deg, {color}40, transparent)"),
-        spacing="2",
-        width="100%",
-        margin_bottom="4px",
-    )
-
-
-def _panel_cronologico() -> rx.Component:
-    return rx.box(
-        rx.vstack(
-            _panel_section_header(
-                "calendar-clock", "Cronológicos",
-                "Disparos agendados em horário fixo, independente de gatilho.",
-                S.PATINA,
-            ),
-            *[_alert_card(at) for at in ("daily", "weekly", "monthly")],
-            spacing="2",
-            width="100%",
-        ),
-        **{**S.GLASS_CARD_NO_HOVER, "padding": "18px"},
-        flex="1",
-    )
-
-
-# ── Right panel — Reativos ────────────────────────────────────────────────────
-
-def _panel_reativo() -> rx.Component:
-    return rx.box(
-        rx.vstack(
-            _panel_section_header(
-                "radar", "Reativos",
-                "Disparo automático ao detectar condição crítica na obra.",
-                S.COPPER,
-            ),
-            *[_alert_card(at) for at in ("risk_high", "budget_overage", "rdo_pending")],
-            spacing="2",
-            width="100%",
-        ),
-        **{**S.GLASS_CARD_NO_HOVER, "padding": "18px"},
-        flex="1",
-    )
-
-
-# ── Confirmation dialog ────────────────────────────────────────────────────────
-
-def _confirm_dialog() -> rx.Component:
-    return rx.alert_dialog.root(
-        rx.alert_dialog.content(
-            rx.alert_dialog.title(
-                rx.hstack(
-                    rx.icon(tag="zap", size=18, color=S.COPPER),
-                    rx.text("Confirmar Disparo Manual", font_family=S.FONT_TECH,
-                            font_weight="700", color=S.TEXT_PRIMARY),
-                    spacing="2", align="center",
-                ),
-            ),
-            rx.alert_dialog.description(
-                rx.vstack(
-                    rx.text(
-                        "Isso irá enviar emails reais para todos os destinatários cadastrados. "
-                        "Tem certeza?",
-                        font_size="0.85rem", color=S.TEXT_MUTED, line_height="1.6",
-                    ),
-                    # PT-BR label from state
-                    rx.box(
-                        rx.hstack(
-                            rx.icon(tag="zap", size=13, color=S.COPPER),
-                            rx.text(AlertasState.confirm_sweep_label, font_size="0.82rem",
-                                    color=S.COPPER, font_weight="700", font_family=S.FONT_TECH),
-                            spacing="2", align="center",
-                        ),
-                        bg=S.COPPER_GLOW,
-                        border=f"1px solid {S.COPPER}40",
-                        border_radius=S.R_CONTROL,
-                        padding="8px 16px",
-                        display="inline-block",
-                    ),
-                    spacing="3",
-                    align="start",
-                ),
-            ),
-            rx.flex(
-                rx.alert_dialog.cancel(
-                    rx.button(
-                        "Cancelar",
-                        on_click=AlertasState.cancel_confirm_sweep,
-                        variant="outline",
-                        color=S.TEXT_PRIMARY,
-                        border=f"1px solid {S.BORDER_SUBTLE}",
-                        cursor="pointer",
-                        _hover={"bg": "rgba(255,255,255,0.06)", "border_color": S.TEXT_MUTED},
-                    ),
-                ),
-                rx.alert_dialog.action(
-                    rx.button(
-                        rx.hstack(
-                            rx.icon(tag="zap", size=14),
-                            rx.text("Disparar Agora", font_weight="700", letter_spacing="0.05em"),
-                            spacing="2", align="center",
-                        ),
-                        on_click=AlertasState.confirm_and_sweep,
-                        bg=S.COPPER,
-                        color="#000",
-                        cursor="pointer",
-                        font_family=S.FONT_TECH,
-                        _hover={"bg": S.COPPER_LIGHT},
-                    ),
-                ),
-                gap="12px",
-                justify="end",
-                margin_top="20px",
-            ),
-            bg=S.BG_ELEVATED,
-            border=f"1px solid {S.BORDER_SUBTLE}",
-            border_radius=S.R_CARD,
-            padding="28px",
-            max_width="440px",
-        ),
-        open=AlertasState.confirm_sweep_type != "",
-    )
-
-
-# ── Form message ──────────────────────────────────────────────────────────────
-
-def _form_message() -> rx.Component:
-    return rx.cond(
-        AlertasState.form_message != "",
-        rx.box(
-            rx.hstack(
-                rx.icon(
-                    tag=rx.cond(AlertasState.form_is_error, "alert-circle", "check-circle"),
-                    size=15,
-                    color=rx.cond(AlertasState.form_is_error, S.DANGER, S.SUCCESS),
-                ),
-                rx.text(
-                    AlertasState.form_message,
-                    font_size="0.8rem",
-                    color=rx.cond(AlertasState.form_is_error, S.DANGER, S.SUCCESS),
-                ),
-                spacing="2", align="center",
-            ),
-            bg=rx.cond(AlertasState.form_is_error, "rgba(239,68,68,0.08)", "rgba(42,157,143,0.08)"),
-            border=rx.cond(
-                AlertasState.form_is_error,
-                "1px solid rgba(239,68,68,0.3)",
-                "1px solid rgba(42,157,143,0.3)",
-            ),
-            border_radius=S.R_CONTROL,
-            padding="10px 14px",
-            width="100%",
-        ),
-    )
-
-
-# ── Registration form ─────────────────────────────────────────────────────────
-
-def _alert_type_option(at: str) -> rx.Component:
-    meta = ALERT_TYPES[at]
-    return rx.select.item(meta["label"], value=at)
-
-
-def _registration_form() -> rx.Component:
-    input_style = {
-        "bg": S.BG_INPUT,
-        "border": f"1px solid {S.BORDER_SUBTLE}",
-        "border_radius": S.R_CONTROL,
-        "color": S.TEXT_PRIMARY,
-        "font_family": S.FONT_BODY,
-        "font_size": "0.85rem",
-        "_focus": {"border_color": S.COPPER, "box_shadow": f"0 0 0 2px {S.COPPER_GLOW}"},
-        "_placeholder": {"color": S.TEXT_MUTED},
-    }
-
-    return rx.box(
-        rx.vstack(
-            # Header
-            rx.hstack(
-                rx.icon(tag="user-plus", size=18, color=S.COPPER),
-                rx.vstack(
-                    rx.text("Cadastro de Destinatários", font_family=S.FONT_TECH,
-                            font_weight="700", font_size="1rem", color=S.TEXT_PRIMARY,
-                            text_transform="uppercase", letter_spacing="0.06em"),
-                    rx.text(
-                        "Defina quais e-mails recebem cada tipo de alerta por contrato.",
-                        font_size="0.75rem", color=S.TEXT_MUTED,
-                    ),
-                    spacing="0", align="start",
-                ),
-                spacing="3", align="center",
-            ),
-            # Form row
-            rx.flex(
-                # Alert type select
-                rx.box(
-                    _section_label("Tipo de Alerta"),
-                    rx.select.root(
-                        rx.select.trigger(
-                            placeholder="Selecione...",
-                            width="100%",
-                            **input_style,
-                        ),
-                        rx.select.content(
-                            *[_alert_type_option(at) for at in ALERT_TYPES],
-                            bg=S.BG_ELEVATED,
-                        ),
-                        value=AlertasState.new_alert_type,
-                        on_change=AlertasState.set_new_alert_type,
-                    ),
-                    flex="1.2",
-                ),
-                # Contract select
-                rx.box(
-                    _section_label("Contrato"),
-                    rx.select.root(
-                        rx.select.trigger(
-                            placeholder="Selecione...",
-                            width="100%",
-                            **input_style,
-                        ),
-                        rx.select.content(
-                            rx.foreach(
-                                GlobalState.project_filter_options,
-                                lambda opt: rx.select.item(opt, value=opt),
-                            ),
-                            bg=S.BG_ELEVATED,
-                        ),
-                        value=AlertasState.new_contract,
-                        on_change=AlertasState.set_new_contract,
-                    ),
-                    flex="1.2",
-                ),
-                # Email input
-                rx.box(
-                    _section_label("E-mail do Destinatário"),
-                    rx.input(
-                        placeholder="nome@empresa.com.br",
-                        value=AlertasState.new_email,
-                        on_change=AlertasState.set_new_email,
-                        type="email",
-                        **input_style,
-                        width="100%",
-                    ),
-                    flex="2",
-                ),
-                # Add button
-                rx.box(
-                    _section_label("\u00a0"),
-                    rx.button(
-                        rx.cond(
-                            AlertasState.is_adding,
-                            rx.hstack(
-                                rx.spinner(size="1"),
-                                rx.text("Adicionando...", font_weight="700"),
-                                spacing="2", align="center",
-                            ),
-                            rx.hstack(
-                                rx.icon(tag="plus", size=15),
-                                rx.text("Adicionar", font_weight="700", letter_spacing="0.05em"),
-                                spacing="1", align="center",
-                            ),
-                        ),
-                        on_click=AlertasState.add_subscription,
-                        disabled=AlertasState.is_adding,
-                        bg=S.COPPER,
-                        color="#000",
-                        border_radius=S.R_CONTROL,
-                        padding_x="20px",
-                        height="38px",
-                        cursor="pointer",
-                        font_family=S.FONT_TECH,
-                        _hover={"bg": S.COPPER_LIGHT, "transform": "translateY(-1px)"},
-                        transition="all 0.2s ease",
-                    ),
-                    flex="0",
-                ),
-                gap="12px",
-                flex_wrap="wrap",
-                align="end",
-                width="100%",
-            ),
-            _form_message(),
-            spacing="4",
-            width="100%",
-        ),
-        **{**S.GLASS_CARD_NO_HOVER, "padding": "24px"},
-        width="100%",
-    )
-
-
-# ── Email chip ────────────────────────────────────────────────────────────────
-
-def _email_chip(chip) -> rx.Component:
-    return rx.hstack(
-        rx.text(chip.email, font_size="0.74rem", color=S.TEXT_PRIMARY,
-                font_family=S.FONT_MONO),
-        rx.icon(
-            tag="x", size=11, color=S.TEXT_MUTED, cursor="pointer",
-            on_click=AlertasState.delete_email_chip(chip.id),
-            _hover={"color": S.DANGER},
-        ),
-        spacing="1", align="center",
-        bg="rgba(255,255,255,0.05)",
-        border="1px solid rgba(255,255,255,0.09)",
-        border_radius="20px",
-        padding="3px 10px",
-        _hover={"border_color": "rgba(239,68,68,0.35)"},
+        padding="10px 20px",
+        border_radius="10px",
+        bg=rx.cond(is_active, S.COPPER_GLOW, "transparent"),
+        border=rx.cond(is_active, f"1px solid {S.BORDER_ACCENT}", "1px solid transparent"),
+        cursor="pointer",
         transition="all 0.15s ease",
-    )
-
-
-# ── Subscription row ──────────────────────────────────────────────────────────
-
-def _subscription_row(sub) -> rx.Component:
-    return rx.box(
-        rx.flex(
-            # Alert type badge
-            rx.box(
-                rx.hstack(
-                    rx.box(width="7px", height="7px", border_radius="50%", bg=sub.alert_color,
-                           flex_shrink="0"),
-                    rx.text(sub.alert_label, font_family=S.FONT_TECH, font_weight="700",
-                            font_size="0.8rem", color=S.TEXT_PRIMARY),
-                    spacing="2", align="center",
-                ),
-                min_width="160px",
-            ),
-            # Contract
-            rx.box(
-                rx.text(sub.contract, font_family=S.FONT_MONO,
-                        font_size="0.77rem", color=S.COPPER, font_weight="600"),
-                min_width="110px",
-            ),
-            # Email chips
-            rx.flex(
-                rx.foreach(sub.email_chips, _email_chip),
-                gap="5px",
-                flex_wrap="wrap",
-                flex="1",
-                align="center",
-            ),
-            # Count
-            rx.box(
-                rx.text(
-                    rx.cond(sub.count == "1", "1 email", rx.text.span(sub.count, " emails")),
-                    font_size="0.68rem", color=S.TEXT_MUTED,
-                ),
-                min_width="55px",
-                text_align="right",
-            ),
-            gap="14px",
-            align="center",
-            width="100%",
-            flex_wrap="wrap",
-        ),
-        bg="rgba(14,26,23,0.45)",
-        border="1px solid rgba(255,255,255,0.055)",
-        border_radius=S.R_CONTROL,
-        padding="10px 14px",
-        width="100%",
-        _hover={"bg": "rgba(14,26,23,0.75)"},
-        transition="background 0.15s ease",
-    )
-
-
-# ── Subscriptions panel ───────────────────────────────────────────────────────
-
-def _subscriptions_panel() -> rx.Component:
-    return rx.box(
-        rx.vstack(
-            rx.hstack(
-                rx.hstack(
-                    rx.icon(tag="bell-ring", size=17, color=S.COPPER),
-                    rx.text("Alertas Ativos", font_family=S.FONT_TECH, font_weight="700",
-                            font_size="0.95rem", color=S.TEXT_PRIMARY, text_transform="uppercase",
-                            letter_spacing="0.06em"),
-                    spacing="2", align="center",
-                ),
-                rx.spacer(),
-                rx.cond(
-                    AlertasState.subscriptions,
-                    rx.box(
-                        rx.text(
-                            rx.cond(
-                                AlertasState.subscriptions.length() == 1,
-                                "1 grupo",
-                                AlertasState.subscriptions.length().to_string() + " grupos",
-                            ),
-                            font_size="0.7rem", color=S.PATINA, font_weight="700",
-                        ),
-                        bg="rgba(42,157,143,0.1)",
-                        border=f"1px solid {S.PATINA}40",
-                        border_radius="6px",
-                        padding="3px 10px",
-                    ),
-                ),
-                align="center",
-                width="100%",
-            ),
-            # Column headers + rows (scrollable on mobile)
-            rx.box(
-                rx.vstack(
-                    rx.box(
-                        rx.flex(
-                            rx.text("TIPO", font_size="0.62rem", font_weight="700",
-                                    color=S.TEXT_MUTED, letter_spacing="0.15em", min_width="160px"),
-                            rx.text("CONTRATO", font_size="0.62rem", font_weight="700",
-                                    color=S.TEXT_MUTED, letter_spacing="0.15em", min_width="110px"),
-                            rx.text("DESTINATÁRIOS", font_size="0.62rem", font_weight="700",
-                                    color=S.TEXT_MUTED, letter_spacing="0.15em", flex="1"),
-                            gap="14px",
-                            width="100%",
-                            min_width="380px",
-                        ),
-                        padding_x="14px",
-                        padding_y="8px",
-                        border_bottom=f"1px solid {S.BORDER_SUBTLE}",
-                    ),
-                    rx.cond(
-                        AlertasState.subscriptions,
-                        rx.vstack(
-                            rx.foreach(AlertasState.subscriptions, _subscription_row),
-                            spacing="2",
-                            width="100%",
-                            min_width="380px",
-                        ),
-                        rx.box(
-                            rx.vstack(
-                                rx.icon(tag="bell-off", size=28, color=S.TEXT_MUTED),
-                                rx.text("Nenhum destinatário cadastrado ainda.",
-                                        font_size="0.82rem", color=S.TEXT_MUTED),
-                                rx.text("Use o formulário acima para configurar alertas.",
-                                        font_size="0.72rem", color=S.TEXT_MUTED),
-                                spacing="2", align="center",
-                            ),
-                            width="100%", padding="36px", text_align="center",
-                        ),
-                    ),
-                    spacing="0",
-                    width="100%",
-                ),
-                overflow_x="auto",
-                width="100%",
-            ),
-            spacing="3",
-            width="100%",
-        ),
-        **{**S.GLASS_CARD_NO_HOVER, "padding": "22px"},
-        width="100%",
-    )
-
-
-# ── History row ───────────────────────────────────────────────────────────────
-
-def _history_row(item: dict) -> rx.Component:
-    color = item["alert_color"]
-    return rx.flex(
-        rx.text(item["timestamp"], font_family=S.FONT_MONO, font_size="0.72rem",
-                color=S.TEXT_MUTED, min_width="125px"),
-        rx.box(
-            rx.hstack(
-                rx.box(width="6px", height="6px", border_radius="50%", bg=color, flex_shrink="0"),
-                rx.text(item["alert_label"], font_size="0.72rem", font_weight="700", color=color),
-                spacing="1", align="center",
-            ),
-            min_width="150px",
-        ),
-        rx.text(item["contract"], font_family=S.FONT_MONO, font_size="0.72rem",
-                color=S.COPPER, font_weight="600", min_width="105px"),
-        rx.text(item["message"], font_size="0.7rem", color=S.TEXT_SECONDARY,
-                flex="1", overflow="hidden", text_overflow="ellipsis", white_space="nowrap"),
-        gap="14px",
-        align="center",
-        width="100%",
-        padding="9px 14px",
-        border_bottom=f"1px solid {S.BORDER_SUBTLE}",
-        _hover={"bg": "rgba(255,255,255,0.02)"},
-        transition="background 0.15s ease",
-    )
-
-
-# ── History panel ─────────────────────────────────────────────────────────────
-
-def _history_panel() -> rx.Component:
-    return rx.box(
-        rx.vstack(
-            rx.hstack(
-                rx.hstack(
-                    rx.icon(tag="history", size=17, color=S.PATINA),
-                    rx.text("Histórico de Disparos", font_family=S.FONT_TECH, font_weight="700",
-                            font_size="0.95rem", color=S.TEXT_PRIMARY, text_transform="uppercase",
-                            letter_spacing="0.06em"),
-                    spacing="2", align="center",
-                ),
-                rx.spacer(),
-                rx.text(AlertasState.history_page_info,
-                        font_size="0.7rem", color=S.TEXT_MUTED),
-                align="center",
-                width="100%",
-            ),
-            # Headers + Rows (scrollable on mobile)
-            rx.box(
-                rx.vstack(
-                    rx.box(
-                        rx.flex(
-                            rx.text("DATA/HORA", font_size="0.62rem", font_weight="700",
-                                    color=S.TEXT_MUTED, letter_spacing="0.15em", min_width="125px"),
-                            rx.text("TIPO", font_size="0.62rem", font_weight="700",
-                                    color=S.TEXT_MUTED, letter_spacing="0.15em", min_width="150px"),
-                            rx.text("CONTRATO", font_size="0.62rem", font_weight="700",
-                                    color=S.TEXT_MUTED, letter_spacing="0.15em", min_width="105px"),
-                            rx.text("MENSAGEM", font_size="0.62rem", font_weight="700",
-                                    color=S.TEXT_MUTED, letter_spacing="0.15em", flex="1"),
-                            gap="14px",
-                            width="100%",
-                            min_width="480px",
-                        ),
-                        padding="8px 14px",
-                        border_bottom=f"1px solid {S.BORDER_ACCENT}",
-                    ),
-                    rx.cond(
-                        AlertasState.history,
-                        rx.vstack(
-                            rx.foreach(AlertasState.history, _history_row),
-                            spacing="0",
-                            width="100%",
-                            min_width="480px",
-                        ),
-                        rx.box(
-                            rx.vstack(
-                                rx.icon(tag="inbox", size=28, color=S.TEXT_MUTED),
-                                rx.text("Nenhum alerta disparado ainda.",
-                                        font_size="0.82rem", color=S.TEXT_MUTED),
-                                rx.text("Use o ⚡ nos cards acima para testar.",
-                                        font_size="0.72rem", color=S.TEXT_MUTED),
-                                spacing="2", align="center",
-                            ),
-                            width="100%", padding="36px", text_align="center",
-                        ),
-                    ),
-                    spacing="0",
-                    width="100%",
-                ),
-                overflow_x="auto",
-                width="100%",
-            ),
-            # Pagination controls
-            rx.cond(
-                AlertasState.history_total > AlertasState.history_per_page,
-                rx.hstack(
-                    rx.icon_button(
-                        rx.icon(tag="chevron-left", size=14),
-                        on_click=AlertasState.history_prev,
-                        disabled=~AlertasState.history_has_prev,
-                        variant="ghost",
-                        color_scheme="gray",
-                        size="2",
-                        cursor="pointer",
-                    ),
-                    rx.text(
-                        "Pág. " + AlertasState.history_page.to_string()
-                        + " / " + AlertasState.history_total_pages.to_string(),
-                        font_size="0.72rem",
-                        color=S.TEXT_MUTED,
-                    ),
-                    rx.icon_button(
-                        rx.icon(tag="chevron-right", size=14),
-                        on_click=AlertasState.history_next,
-                        disabled=~AlertasState.history_has_next,
-                        variant="ghost",
-                        color_scheme="gray",
-                        size="2",
-                        cursor="pointer",
-                    ),
-                    justify="center",
-                    spacing="3",
-                    padding_y="10px",
-                    border_top=f"1px solid {S.BORDER_SUBTLE}",
-                    width="100%",
-                ),
-            ),
-            spacing="0",
-            width="100%",
-        ),
-        **{**S.GLASS_CARD_NO_HOVER, "padding": "22px"},
-        width="100%",
+        _hover={"bg": S.COPPER_GLOW, "border_color": S.BORDER_ACCENT},
+        on_click=AlertasState.set_active_tab(value),
     )
 
 
 # ── Page header ───────────────────────────────────────────────────────────────
 
 def _page_header() -> rx.Component:
-    total_subs = AlertasState.subscriptions.length()
     return rx.vstack(
         rx.hstack(
             rx.vstack(
-                rx.hstack(
-                    rx.icon(tag="bell-ring", size=20, color=S.COPPER),
-                    rx.text(
-                        "ALERTAS PROATIVOS",
-                        font_family=S.FONT_TECH,
-                        font_size="1.6rem",
-                        font_weight="700",
-                        color=S.TEXT_WHITE,
-                        letter_spacing="-0.01em",
-                    ),
-                    spacing="3", align="center",
+                rx.text(
+                    "CENTRAL DE ALERTAS",
+                    font_family=S.FONT_TECH,
+                    font_size="1.6rem",
+                    font_weight="700",
+                    letter_spacing="0.1em",
+                    color="white",
+                    line_height="1",
                 ),
                 rx.text(
-                    "Monitoramento automático e notificações em tempo real para C-level e gestão",
-                    font_size="0.82rem",
+                    "Regras dinâmicas, alertas reativos e monitoramento contínuo de projetos",
+                    font_size="0.85rem",
                     color=S.TEXT_MUTED,
+                    font_family=S.FONT_BODY,
                 ),
-                spacing="1", align="start",
+                spacing="1",
+                align="start",
             ),
             rx.spacer(),
-            rx.hstack(
-                rx.cond(
-                    AlertasState.sweep_running,
-                    rx.hstack(
-                        rx.spinner(size="2", color=S.COPPER),
-                        rx.text("Disparando...", font_size="0.78rem",
-                                color=S.COPPER, font_weight="700"),
-                        spacing="2", align="center",
-                        bg=S.COPPER_GLOW,
-                        border=f"1px solid {S.COPPER}50",
-                        border_radius="10px",
-                        padding="7px 13px",
-                    ),
+            rx.button(
+                rx.hstack(
+                    rx.icon(tag="plus", size=14),
+                    rx.text("Nova Regra", font_size="12px", font_family=S.FONT_TECH, font_weight="700"),
+                    spacing="2",
+                    align="center",
                 ),
-                rx.box(
-                    rx.hstack(
-                        rx.box(width="7px", height="7px", border_radius="50%",
-                               bg=S.SUCCESS, box_shadow=f"0 0 6px {S.SUCCESS}"),
-                        rx.text("Scheduler Ativo", font_size="0.75rem",
-                                color=S.SUCCESS, font_weight="700"),
-                        spacing="2", align="center",
-                    ),
-                    bg=S.SUCCESS_BG,
-                    border=f"1px solid {S.SUCCESS}50",
-                    border_radius="10px",
-                    padding="7px 13px",
-                ),
-                rx.cond(
-                    AlertasState.subscriptions,
-                    rx.box(
-                        rx.hstack(
-                            rx.icon(tag="mail", size=13, color=S.COPPER),
-                            rx.text(
-                                rx.cond(total_subs == 1, "1 grupo ativo",
-                                        total_subs.to_string() + " grupos ativos"),
-                                font_size="0.75rem", color=S.COPPER, font_weight="700",
-                            ),
-                            spacing="2", align="center",
-                        ),
-                        bg=S.COPPER_GLOW,
-                        border=f"1px solid {S.COPPER}50",
-                        border_radius="10px",
-                        padding="7px 13px",
-                    ),
-                ),
-                spacing="2",
+                on_click=[AlertasState.open_wizard, AlertasState.set_active_tab("criar")],
+                bg=S.COPPER,
+                color="white",
+                border_radius="10px",
+                padding="10px 20px",
+                _hover={"opacity": "0.85", "transform": "translateY(-1px)"},
+                transition="all 0.15s ease",
             ),
-            align="center",
             width="100%",
+            align="center",
         ),
+        # Tab bar
+        rx.hstack(
+            _tab_btn("Minhas Regras", "shield", "regras", AlertasState.active_tab),
+            _tab_btn("Criar Alerta", "plus-circle", "criar", AlertasState.active_tab),
+            _tab_btn("Histórico", "history", "historico", AlertasState.active_tab),
+            spacing="2",
+            padding="4px",
+            bg=S.BG_ELEVATED,
+            border=f"1px solid {S.BORDER_SUBTLE}",
+            border_radius="14px",
+            width="fit-content",
+        ),
+        spacing="4",
         width="100%",
     )
 
 
-# ── Main page ─────────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 1 — MINHAS REGRAS
+# ══════════════════════════════════════════════════════════════════════════════
 
-def alertas_page() -> rx.Component:
-    return rx.box(
-        _confirm_dialog(),
-        rx.vstack(
-            _page_header(),
-            # ── Loading skeleton covers data-dependent panels ──────────────────
+def _category_badge(category: str) -> rx.Component:
+    return rx.cond(
+        category == "threshold",
+        rx.badge("THRESHOLD", color_scheme="amber", variant="soft", size="1", font_family=S.FONT_TECH),
+        rx.cond(
+            category == "event",
+            rx.badge("EVENTO", color_scheme="blue", variant="soft", size="1", font_family=S.FONT_TECH),
             rx.cond(
-                AlertasState.is_loading,
-                page_centered_loader(
-                    "CARREGANDO ALERTAS",
-                    "Verificando subscrições e histórico de disparos…",
-                    "bell-ring",
-                ),
-                # ── Real content ──────────────────────────────────────────────
-                rx.vstack(
-                    # Split-screen panels
-                    rx.flex(
-                        rx.box(_panel_cronologico(), class_name="chart-enter", flex="1"),
-                        rx.box(_panel_reativo(), class_name="chart-enter delay-100", flex="1"),
-                        gap="14px",
-                        flex_wrap=["wrap", "wrap", "nowrap"],
-                        width="100%",
-                        align="stretch",
-                        min_width="0",
+                category == "ai_custom",
+                rx.badge("IA CUSTOM", color_scheme="violet", variant="soft", size="1", font_family=S.FONT_TECH),
+                rx.badge("AGENDA", color_scheme="teal", variant="soft", size="1", font_family=S.FONT_TECH),
+            ),
+        ),
+    )
+
+
+def _rule_card(rule: dict) -> rx.Component:
+    is_active = rule["is_active"]
+    return rx.box(
+        rx.hstack(
+            # Left: icon + status indicator
+            rx.box(
+                rx.center(
+                    rx.cond(
+                        rule["icon"] == "trending-up",
+                        rx.icon(tag="trending-up", size=18, color=rule["color"]),
+                        rx.cond(
+                            rule["icon"] == "zap",
+                            rx.icon(tag="zap", size=18, color=rule["color"]),
+                            rx.cond(
+                                rule["icon"] == "sparkles",
+                                rx.icon(tag="sparkles", size=18, color=rule["color"]),
+                                rx.icon(tag="bell", size=18, color=rule["color"]),
+                            ),
+                        ),
                     ),
-                    # Registration form
-                    _registration_form(),
-                    # Active subscriptions
-                    _subscriptions_panel(),
-                    # History
-                    _history_panel(),
-                    spacing="4",
-                    width="100%",
-                    class_name="animate-enter",
+                    width="42px",
+                    height="42px",
+                    border_radius="10px",
+                    bg=f"rgba(0,0,0,0.25)",
+                    border=f"1px solid {rule['color']}40",
                 ),
+                position="relative",
+            ),
+            # Middle: info
+            rx.vstack(
+                rx.hstack(
+                    rx.text(
+                        rule["name"],
+                        font_family=S.FONT_TECH,
+                        font_size="0.95rem",
+                        font_weight="700",
+                        color="white",
+                        letter_spacing="0.03em",
+                    ),
+                    _category_badge(rule["category"]),
+                    spacing="2",
+                    align="center",
+                    flex_wrap="wrap",
+                ),
+                rx.text(
+                    rule["description"],
+                    font_size="0.75rem",
+                    color=S.TEXT_MUTED,
+                    line_height="1.4",
+                ),
+                rx.hstack(
+                    rx.hstack(
+                        rx.icon(tag="bell", size=10, color=S.TEXT_MUTED),
+                        rx.text(rule["frequency"], font_size="10px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                        spacing="1",
+                        align="center",
+                    ),
+                    rx.hstack(
+                        rx.icon(tag="users", size=10, color=S.TEXT_MUTED),
+                        rx.text(
+                            rule["recipients_count"],
+                            " dest.",
+                            font_size="10px",
+                            color=S.TEXT_MUTED,
+                            font_family=S.FONT_MONO,
+                        ),
+                        spacing="1",
+                        align="center",
+                    ),
+                    rx.cond(
+                        rule["last_fired_at"] != "",
+                        rx.hstack(
+                            rx.icon(tag="zap", size=10, color=S.COPPER),
+                            rx.text(
+                                "Último: ", rule["last_fired_at"],
+                                font_size="10px",
+                                color=S.COPPER,
+                                font_family=S.FONT_MONO,
+                            ),
+                            spacing="1",
+                            align="center",
+                        ),
+                    ),
+                    spacing="4",
+                    flex_wrap="wrap",
+                ),
+                spacing="1",
+                align="start",
+                flex="1",
+            ),
+            # Right: actions
+            rx.vstack(
+                # Toggle switch
+                rx.hstack(
+                    rx.text(
+                        rx.cond(is_active, "Ativo", "Inativo"),
+                        font_size="10px",
+                        color=rx.cond(is_active, S.PATINA, S.TEXT_MUTED),
+                        font_family=S.FONT_MONO,
+                        font_weight="700",
+                    ),
+                    rx.switch(
+                        checked=is_active,
+                        on_change=AlertasState.toggle_rule_active_db(rule["id"]),
+                        size="1",
+                        color_scheme="teal",
+                    ),
+                    spacing="2",
+                    align="center",
+                ),
+                rx.hstack(
+                    rx.tooltip(
+                        rx.center(
+                            rx.icon(tag="zap", size=12, color=S.COPPER),
+                            width="28px",
+                            height="28px",
+                            border_radius="8px",
+                            bg=S.COPPER_GLOW,
+                            border=f"1px solid {S.BORDER_ACCENT}",
+                            cursor="pointer",
+                            _hover={"opacity": "0.8"},
+                            on_click=AlertasState.run_rules_sweep,
+                        ),
+                        content="Disparar manualmente",
+                    ),
+                    rx.tooltip(
+                        rx.center(
+                            rx.icon(tag="trash-2", size=12, color=S.DANGER),
+                            width="28px",
+                            height="28px",
+                            border_radius="8px",
+                            bg=S.DANGER_BG,
+                            border=f"1px solid rgba(239,68,68,0.3)",
+                            cursor="pointer",
+                            _hover={"opacity": "0.8"},
+                            on_click=AlertasState.delete_alert_rule(rule["id"]),
+                        ),
+                        content="Excluir regra",
+                    ),
+                    spacing="2",
+                ),
+                spacing="2",
+                align="end",
             ),
             spacing="4",
+            align="start",
             width="100%",
         ),
-        padding_y=["12px", "16px", "24px"],
+        padding="16px 20px",
+        bg=rx.cond(is_active, "rgba(8,18,16,0.7)", "rgba(8,18,16,0.4)"),
+        border=rx.cond(
+            is_active,
+            f"1px solid {rule['color']}30",
+            f"1px solid {S.BORDER_SUBTLE}",
+        ),
+        border_left=rx.cond(is_active, f"3px solid {rule['color']}", f"3px solid {S.BORDER_SUBTLE}"),
+        border_radius="12px",
+        transition="all 0.15s ease",
+        opacity=rx.cond(is_active, "1", "0.6"),
+    )
+
+
+def _tab_regras() -> rx.Component:
+    return rx.vstack(
+        # Stats strip
+        rx.hstack(
+            rx.box(
+                rx.vstack(
+                    rx.text(
+                        AlertasState.alert_rules.length().to_string(),
+                        font_family=S.FONT_MONO,
+                        font_size="1.8rem",
+                        font_weight="700",
+                        color=S.COPPER,
+                        line_height="1",
+                    ),
+                    rx.text("Total de Regras", font_size="11px", color=S.TEXT_MUTED),
+                    spacing="1",
+                    align="center",
+                ),
+                flex="1",
+                **{**S.GLASS_CARD, "padding": "16px", "text_align": "center"},
+            ),
+            rx.box(
+                rx.vstack(
+                    rx.text(
+                        AlertasState.active_rules_count.to_string(),
+                        font_family=S.FONT_MONO,
+                        font_size="1.8rem",
+                        font_weight="700",
+                        color=S.PATINA,
+                        line_height="1",
+                    ),
+                    rx.text("Regras Ativas", font_size="11px", color=S.TEXT_MUTED),
+                    spacing="1",
+                    align="center",
+                ),
+                flex="1",
+                **{**S.GLASS_CARD, "padding": "16px", "text_align": "center"},
+            ),
+            rx.box(
+                rx.vstack(
+                    rx.text(
+                        AlertasState.history_total.to_string(),
+                        font_family=S.FONT_MONO,
+                        font_size="1.8rem",
+                        font_weight="700",
+                        color="white",
+                        line_height="1",
+                    ),
+                    rx.text("Disparos Totais", font_size="11px", color=S.TEXT_MUTED),
+                    spacing="1",
+                    align="center",
+                ),
+                flex="1",
+                **{**S.GLASS_CARD, "padding": "16px", "text_align": "center"},
+            ),
+            spacing="3",
+            width="100%",
+        ),
+        # Rules list
+        rx.cond(
+            AlertasState.is_loading_rules,
+            rx.center(
+                rx.vstack(
+                    rx.spinner(size="3", color=S.COPPER),
+                    rx.text("Carregando regras...", font_size="13px", color=S.TEXT_MUTED),
+                    spacing="3",
+                    align="center",
+                ),
+                padding_y="60px",
+                width="100%",
+            ),
+            rx.cond(
+                AlertasState.alert_rules.length() == 0,
+                rx.center(
+                    rx.vstack(
+                        rx.center(
+                            rx.icon(tag="shield-off", size=40, color=S.TEXT_MUTED),
+                            width="80px",
+                            height="80px",
+                            border_radius="20px",
+                            bg=S.BG_ELEVATED,
+                            border=f"1px solid {S.BORDER_SUBTLE}",
+                        ),
+                        rx.text(
+                            "Nenhuma regra configurada",
+                            font_family=S.FONT_TECH,
+                            font_size="1.1rem",
+                            font_weight="700",
+                            color="white",
+                        ),
+                        rx.text(
+                            "Crie sua primeira regra de alerta para monitorar projetos automaticamente.",
+                            font_size="13px",
+                            color=S.TEXT_MUTED,
+                            text_align="center",
+                            max_width="380px",
+                            line_height="1.6",
+                        ),
+                        rx.button(
+                            rx.hstack(
+                                rx.icon(tag="plus", size=14),
+                                rx.text("Criar Primeira Regra", font_size="13px"),
+                                spacing="2",
+                                align="center",
+                            ),
+                            on_click=[AlertasState.open_wizard, AlertasState.set_active_tab("criar")],
+                            bg=S.COPPER,
+                            color="white",
+                            border_radius="10px",
+                            padding="10px 24px",
+                            _hover={"opacity": "0.85"},
+                        ),
+                        spacing="3",
+                        align="center",
+                    ),
+                    padding_y="60px",
+                    width="100%",
+                ),
+                rx.vstack(
+                    rx.foreach(AlertasState.alert_rules, _rule_card),
+                    spacing="3",
+                    width="100%",
+                ),
+            ),
+        ),
+        spacing="4",
         width="100%",
-        on_mount=AlertasState.load_page,
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 2 — CRIAR ALERTA (Wizard 3-step)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _wizard_step_indicator() -> rx.Component:
+    steps = [
+        ("1", "O que monitorar"),
+        ("2", "Quando disparar"),
+        ("3", "Quem notificar"),
+    ]
+    def _step(num: str, label: str) -> rx.Component:
+        is_active = AlertasState.wizard_step == int(num)
+        is_done = AlertasState.wizard_step > int(num)
+        return rx.hstack(
+            rx.center(
+                rx.cond(
+                    is_done,
+                    rx.icon(tag="check", size=12, color="white"),
+                    rx.text(num, font_size="12px", font_weight="700",
+                            color=rx.cond(is_active, "white", S.TEXT_MUTED)),
+                ),
+                width="28px",
+                height="28px",
+                border_radius="50%",
+                bg=rx.cond(is_done, S.PATINA, rx.cond(is_active, S.COPPER, "transparent")),
+                border=rx.cond(
+                    is_done, f"2px solid {S.PATINA}",
+                    rx.cond(is_active, f"2px solid {S.COPPER}", f"2px solid {S.BORDER_SUBTLE}")
+                ),
+            ),
+            rx.text(
+                label,
+                font_size="12px",
+                font_family=S.FONT_TECH,
+                font_weight="700",
+                color=rx.cond(is_active, "white", S.TEXT_MUTED),
+                display=["none", "none", "block"],
+            ),
+            spacing="2",
+            align="center",
+        )
+
+    return rx.hstack(
+        _step("1", "O que monitorar"),
+        rx.box(height="1px", flex="1", bg=S.BORDER_SUBTLE, margin_x="4px"),
+        _step("2", "Quando disparar"),
+        rx.box(height="1px", flex="1", bg=S.BORDER_SUBTLE, margin_x="4px"),
+        _step("3", "Quem notificar"),
+        width="100%",
+        align="center",
+        padding="16px 24px",
+        bg=S.BG_ELEVATED,
+        border=f"1px solid {S.BORDER_SUBTLE}",
+        border_radius="12px",
+    )
+
+
+def _category_option(value: str, label: str, desc: str, icon: str, color: str) -> rx.Component:
+    is_sel = AlertasState.wizard_category == value
+    return rx.box(
+        rx.hstack(
+            rx.center(
+                rx.icon(tag=icon, size=16, color=color),
+                width="36px",
+                height="36px",
+                border_radius="8px",
+                bg=f"rgba(0,0,0,0.2)",
+                border=f"1px solid {color}40",
+                flex_shrink="0",
+            ),
+            rx.vstack(
+                rx.text(label, font_family=S.FONT_TECH, font_size="0.85rem",
+                        font_weight="700", color="white"),
+                rx.text(desc, font_size="11px", color=S.TEXT_MUTED, line_height="1.3"),
+                spacing="0",
+                align="start",
+            ),
+            spacing="3",
+            align="center",
+            width="100%",
+        ),
+        padding="12px 16px",
+        border_radius="10px",
+        border=rx.cond(is_sel, f"2px solid {color}", f"1px solid {S.BORDER_SUBTLE}"),
+        bg=rx.cond(is_sel, f"rgba(0,0,0,0.3)", S.BG_INPUT),
+        cursor="pointer",
+        transition="all 0.15s ease",
+        _hover={"border_color": color},
+        on_click=AlertasState.set_wizard_category(value),
+    )
+
+
+def _wizard_step1() -> rx.Component:
+    """Step 1: O que monitorar."""
+    return rx.vstack(
+        # Name + description
+        rx.vstack(
+            rx.hstack(
+                rx.vstack(
+                    _section_label("NOME DA REGRA"),
+                    rx.input(
+                        value=AlertasState.wizard_name,
+                        on_change=AlertasState.set_wizard_name,
+                        placeholder="Ex: Alerta de atraso crítico",
+                        bg=S.BG_INPUT,
+                        border=f"1px solid {S.BORDER_SUBTLE}",
+                        color="white",
+                        border_radius="8px",
+                        _focus={"border_color": S.COPPER, "outline": "none"},
+                        _placeholder={"color": S.TEXT_MUTED},
+                        width="100%",
+                    ),
+                    spacing="1",
+                    width="100%",
+                ),
+                rx.vstack(
+                    _section_label("CONTRATOS (vazio = todos)"),
+                    rx.input(
+                        value=AlertasState.wizard_contracts,
+                        on_change=AlertasState.set_wizard_contracts,
+                        placeholder="CT-001, CT-002 ou vazio para todos",
+                        bg=S.BG_INPUT,
+                        border=f"1px solid {S.BORDER_SUBTLE}",
+                        color="white",
+                        border_radius="8px",
+                        _focus={"border_color": S.COPPER, "outline": "none"},
+                        _placeholder={"color": S.TEXT_MUTED},
+                        width="100%",
+                    ),
+                    spacing="1",
+                    width="100%",
+                ),
+                spacing="4",
+                width="100%",
+            ),
+            rx.vstack(
+                _section_label("DESCRIÇÃO (opcional)"),
+                rx.input(
+                    value=AlertasState.wizard_description,
+                    on_change=AlertasState.set_wizard_description,
+                    placeholder="Descreva quando esse alerta deve disparar...",
+                    bg=S.BG_INPUT,
+                    border=f"1px solid {S.BORDER_SUBTLE}",
+                    color="white",
+                    border_radius="8px",
+                    _focus={"border_color": S.COPPER, "outline": "none"},
+                    _placeholder={"color": S.TEXT_MUTED},
+                    width="100%",
+                ),
+                spacing="1",
+                width="100%",
+            ),
+            spacing="3",
+            width="100%",
+        ),
+        rx.divider(color_scheme="gray", opacity="0.15"),
+        # Category selection
+        _section_label("TIPO DE ALERTA"),
+        rx.grid(
+            _category_option("threshold", "Threshold / Métrica", "Dispara quando uma métrica ultrapassa um limite", "trending-up", S.COPPER),
+            _category_option("event", "Baseado em Evento", "Dispara quando um evento específico ocorre", "zap", S.PATINA),
+            _category_option("ai_custom", "IA em Linguagem Natural", "Descreva em português e a IA interpreta a regra", "sparkles", "#8B5CF6"),
+            columns="3",
+            spacing="3",
+            width="100%",
+        ),
+        # Sub-options based on category
+        rx.cond(
+            AlertasState.wizard_category == "threshold",
+            rx.vstack(
+                rx.divider(color_scheme="gray", opacity="0.15"),
+                _section_label("CONFIGURAR THRESHOLD"),
+                rx.grid(
+                    rx.vstack(
+                        _section_label("MÉTRICA"),
+                        rx.select.root(
+                            rx.select.trigger(width="100%"),
+                            rx.select.content(
+                                rx.select.item("Desvio de Prazo (%)", value="desvio_prazo_pct"),
+                                rx.select.item("Estouro de Orçamento (%)", value="budget_overage_pct"),
+                                rx.select.item("Score de Risco", value="risk_score"),
+                                rx.select.item("Horas sem RDO", value="rdo_horas_sem_submit"),
+                                rx.select.item("Queda de Produção (%)", value="producao_queda_pct"),
+                                bg=S.BG_ELEVATED,
+                                border=f"1px solid {S.BORDER_SUBTLE}",
+                            ),
+                            value=AlertasState.wizard_metric,
+                            on_change=AlertasState.set_wizard_metric,
+                            width="100%",
+                        ),
+                        spacing="1",
+                        width="100%",
+                    ),
+                    rx.vstack(
+                        _section_label("OPERADOR"),
+                        rx.select.root(
+                            rx.select.trigger(width="100%"),
+                            rx.select.content(
+                                rx.select.item("Maior que (>)", value="gt"),
+                                rx.select.item("Maior ou igual (≥)", value="gte"),
+                                rx.select.item("Menor que (<)", value="lt"),
+                                rx.select.item("Menor ou igual (≤)", value="lte"),
+                                bg=S.BG_ELEVATED,
+                                border=f"1px solid {S.BORDER_SUBTLE}",
+                            ),
+                            value=AlertasState.wizard_operator,
+                            on_change=AlertasState.set_wizard_operator,
+                            width="100%",
+                        ),
+                        spacing="1",
+                        width="100%",
+                    ),
+                    rx.vstack(
+                        _section_label("VALOR LIMITE"),
+                        rx.input(
+                            value=AlertasState.wizard_threshold,
+                            on_change=AlertasState.set_wizard_threshold,
+                            placeholder="Ex: 10",
+                            type="number",
+                            bg=S.BG_INPUT,
+                            border=f"1px solid {S.BORDER_SUBTLE}",
+                            color="white",
+                            border_radius="8px",
+                            _focus={"border_color": S.COPPER, "outline": "none"},
+                            _placeholder={"color": S.TEXT_MUTED},
+                            width="100%",
+                        ),
+                        spacing="1",
+                        width="100%",
+                    ),
+                    columns="3",
+                    spacing="3",
+                    width="100%",
+                ),
+                spacing="3",
+                width="100%",
+            ),
+        ),
+        rx.cond(
+            AlertasState.wizard_category == "event",
+            rx.vstack(
+                rx.divider(color_scheme="gray", opacity="0.15"),
+                _section_label("TIPO DE EVENTO"),
+                rx.select.root(
+                    rx.select.trigger(width="100%"),
+                    rx.select.content(
+                        rx.select.item("RDO Submetido", value="rdo_submitted"),
+                        rx.select.item("Documento Crítico (IA)", value="document_critical_alert"),
+                        rx.select.item("Cronograma Atualizado", value="cronograma_updated"),
+                        rx.select.item("Financeiro Atualizado", value="financeiro_updated"),
+                        bg=S.BG_ELEVATED,
+                        border=f"1px solid {S.BORDER_SUBTLE}",
+                    ),
+                    value=AlertasState.wizard_event_type,
+                    on_change=AlertasState.set_wizard_event_type,
+                    width="100%",
+                ),
+                spacing="3",
+                width="100%",
+            ),
+        ),
+        rx.cond(
+            AlertasState.wizard_category == "ai_custom",
+            rx.vstack(
+                rx.divider(color_scheme="gray", opacity="0.15"),
+                _section_label("DESCREVA A REGRA EM PORTUGUÊS"),
+                rx.text_area(
+                    value=AlertasState.wizard_natural_language,
+                    on_change=AlertasState.set_wizard_natural_language,
+                    placeholder='Ex: "Notifique quando o desvio de prazo for maior que 15% ou quando não houver RDO por mais de 48 horas"',
+                    min_height="90px",
+                    bg=S.BG_INPUT,
+                    border=f"1px solid {S.BORDER_SUBTLE}",
+                    color="white",
+                    border_radius="8px",
+                    _focus={"border_color": "#8B5CF6", "outline": "none"},
+                    _placeholder={"color": S.TEXT_MUTED},
+                    resize="vertical",
+                    width="100%",
+                ),
+                rx.button(
+                    rx.cond(
+                        AlertasState.is_interpreting_rule,
+                        rx.hstack(
+                            rx.spinner(size="1", color="white"),
+                            rx.text("Interpretando...", font_size="12px"),
+                            spacing="2",
+                            align="center",
+                        ),
+                        rx.hstack(
+                            rx.icon(tag="sparkles", size=13),
+                            rx.text("Interpretar com IA", font_size="12px"),
+                            spacing="2",
+                            align="center",
+                        ),
+                    ),
+                    on_click=AlertasState.interpret_ai_rule,
+                    disabled=AlertasState.is_interpreting_rule,
+                    bg="#8B5CF6",
+                    color="white",
+                    border_radius="8px",
+                    padding="8px 16px",
+                    _hover={"opacity": "0.85"},
+                    font_family=S.FONT_TECH,
+                    font_weight="700",
+                ),
+                # AI interpretation result
+                rx.cond(
+                    AlertasState.ai_rule_interpretation != "",
+                    rx.box(
+                        rx.hstack(
+                            rx.icon(tag="check-circle", size=14, color=S.PATINA),
+                            rx.text(
+                                "INTERPRETAÇÃO DA IA",
+                                font_size="10px",
+                                font_weight="700",
+                                letter_spacing="0.1em",
+                                color=S.PATINA,
+                                font_family=S.FONT_TECH,
+                            ),
+                            spacing="2",
+                            align="center",
+                            margin_bottom="8px",
+                        ),
+                        rx.text(
+                            AlertasState.ai_rule_interpretation,
+                            font_size="12px",
+                            color=S.TEXT_PRIMARY,
+                            line_height="1.6",
+                        ),
+                        padding="12px 16px",
+                        bg=S.PATINA_GLOW,
+                        border=f"1px solid rgba(42,157,143,0.3)",
+                        border_radius="8px",
+                        width="100%",
+                    ),
+                ),
+                spacing="3",
+                width="100%",
+            ),
+        ),
+        spacing="4",
+        width="100%",
+    )
+
+
+def _wizard_step2() -> rx.Component:
+    """Step 2: Quando disparar."""
+    freq_options = [
+        ("always", "Sempre que detectado", "Dispara toda vez que a condição for verdadeira"),
+        ("daily", "Uma vez por dia", "Máximo 1 disparo por dia por contrato"),
+        ("weekly", "Uma vez por semana", "Máximo 1 disparo por semana"),
+        ("monthly", "Uma vez por mês", "Relatório mensal consolidado"),
+    ]
+    def _freq_opt(value: str, label: str, desc: str) -> rx.Component:
+        is_sel = AlertasState.wizard_frequency == value
+        return rx.box(
+            rx.hstack(
+                rx.box(
+                    width="16px",
+                    height="16px",
+                    border_radius="50%",
+                    bg=rx.cond(is_sel, S.COPPER, "transparent"),
+                    border=rx.cond(is_sel, f"2px solid {S.COPPER}", f"2px solid {S.BORDER_SUBTLE}"),
+                    flex_shrink="0",
+                    transition="all 0.1s ease",
+                ),
+                rx.vstack(
+                    rx.text(label, font_size="13px", font_weight="600", color="white"),
+                    rx.text(desc, font_size="11px", color=S.TEXT_MUTED),
+                    spacing="0",
+                    align="start",
+                ),
+                spacing="3",
+                align="center",
+                width="100%",
+            ),
+            padding="12px 16px",
+            border_radius="10px",
+            border=rx.cond(is_sel, f"1px solid {S.COPPER}", f"1px solid {S.BORDER_SUBTLE}"),
+            bg=rx.cond(is_sel, S.COPPER_GLOW, S.BG_INPUT),
+            cursor="pointer",
+            transition="all 0.15s ease",
+            on_click=AlertasState.set_wizard_frequency(value),
+        )
+
+    return rx.vstack(
+        _section_label("FREQUÊNCIA DE DISPARO"),
+        rx.vstack(
+            *[_freq_opt(v, l, d) for v, l, d in freq_options],
+            spacing="2",
+            width="100%",
+        ),
+        rx.divider(color_scheme="gray", opacity="0.15"),
+        rx.vstack(
+            _section_label("COOLDOWN (horas mínimas entre disparos)"),
+            rx.hstack(
+                rx.input(
+                    value=AlertasState.wizard_cooldown_hours,
+                    on_change=AlertasState.set_wizard_cooldown_hours,
+                    type="number",
+                    placeholder="24",
+                    bg=S.BG_INPUT,
+                    border=f"1px solid {S.BORDER_SUBTLE}",
+                    color="white",
+                    border_radius="8px",
+                    _focus={"border_color": S.COPPER, "outline": "none"},
+                    width="120px",
+                ),
+                rx.text(
+                    "horas",
+                    font_size="13px",
+                    color=S.TEXT_MUTED,
+                    font_family=S.FONT_MONO,
+                ),
+                spacing="3",
+                align="center",
+            ),
+            rx.text(
+                "Evita spam: mesmo que a condição persista, o alerta só dispara novamente após o cooldown.",
+                font_size="11px",
+                color=S.TEXT_MUTED,
+                line_height="1.5",
+            ),
+            spacing="2",
+            width="100%",
+        ),
+        spacing="4",
+        width="100%",
+    )
+
+
+def _wizard_recipient_chip(r: dict) -> rx.Component:
+    return rx.hstack(
+        rx.center(
+            rx.text(r["name"].to(str)[:1].upper(), font_size="11px", font_weight="700", color="white"),
+            width="24px",
+            height="24px",
+            border_radius="50%",
+            bg=S.COPPER,
+            flex_shrink="0",
+        ),
+        rx.vstack(
+            rx.text(r["name"], font_size="12px", color="white", font_weight="600", line_height="1"),
+            rx.text(r["email"], font_size="10px", color=S.TEXT_MUTED, font_family=S.FONT_MONO, line_height="1"),
+            spacing="0",
+            align="start",
+        ),
+        rx.icon(tag=
+            "x",
+            size=12,
+            color=S.TEXT_MUTED,
+            cursor="pointer",
+            _hover={"color": S.DANGER},
+            on_click=AlertasState.wizard_remove_recipient(r["email"]),
+            margin_left="auto",
+        ),
+        spacing="2",
+        align="center",
+        padding="8px 12px",
+        bg=S.BG_ELEVATED,
+        border=f"1px solid {S.BORDER_SUBTLE}",
+        border_radius="8px",
+        width="100%",
+    )
+
+
+def _wizard_step3() -> rx.Component:
+    """Step 3: Quem notificar."""
+    return rx.vstack(
+        _section_label("ADICIONAR DESTINATÁRIO"),
+        rx.hstack(
+            rx.input(
+                value=AlertasState.wizard_recipient_name,
+                on_change=AlertasState.set_wizard_recipient_name,
+                placeholder="Nome",
+                bg=S.BG_INPUT,
+                border=f"1px solid {S.BORDER_SUBTLE}",
+                color="white",
+                border_radius="8px",
+                _focus={"border_color": S.COPPER, "outline": "none"},
+                _placeholder={"color": S.TEXT_MUTED},
+                width="160px",
+            ),
+            rx.input(
+                value=AlertasState.wizard_recipient_email,
+                on_change=AlertasState.set_wizard_recipient_email,
+                placeholder="email@exemplo.com",
+                type="email",
+                bg=S.BG_INPUT,
+                border=f"1px solid {S.BORDER_SUBTLE}",
+                color="white",
+                border_radius="8px",
+                _focus={"border_color": S.COPPER, "outline": "none"},
+                _placeholder={"color": S.TEXT_MUTED},
+                flex="1",
+            ),
+            rx.button(
+                rx.icon(tag="user-plus", size=14),
+                on_click=AlertasState.wizard_add_recipient,
+                bg=S.COPPER,
+                color="white",
+                border_radius="8px",
+                padding="0 14px",
+                height="36px",
+                _hover={"opacity": "0.85"},
+            ),
+            spacing="2",
+            width="100%",
+            align="center",
+        ),
+        rx.cond(
+            AlertasState.wizard_recipients.length() > 0,
+            rx.vstack(
+                _section_label("DESTINATÁRIOS CONFIGURADOS"),
+                rx.foreach(AlertasState.wizard_recipients, _wizard_recipient_chip),
+                spacing="2",
+                width="100%",
+            ),
+            rx.box(
+                rx.vstack(
+                    rx.icon(tag="inbox", size=24, color=S.TEXT_MUTED),
+                    rx.text(
+                        "Nenhum destinatário adicionado ainda",
+                        font_size="12px",
+                        color=S.TEXT_MUTED,
+                    ),
+                    spacing="2",
+                    align="center",
+                ),
+                padding="24px",
+                border=f"1px dashed {S.BORDER_SUBTLE}",
+                border_radius="10px",
+                width="100%",
+                text_align="center",
+            ),
+        ),
+        rx.box(
+            rx.hstack(
+                rx.icon(tag="info", size=13, color=S.COPPER),
+                rx.text(
+                    "Os e-mails recebidos incluem contexto do projeto, valor atual da métrica e recomendação da IA.",
+                    font_size="11px",
+                    color=S.TEXT_MUTED,
+                    line_height="1.4",
+                ),
+                spacing="2",
+                align="start",
+            ),
+            padding="10px 14px",
+            bg=S.COPPER_GLOW,
+            border=f"1px solid {S.BORDER_ACCENT}",
+            border_radius="8px",
+            width="100%",
+        ),
+        spacing="4",
+        width="100%",
+    )
+
+
+def _tab_criar() -> rx.Component:
+    return rx.vstack(
+        _wizard_step_indicator(),
+        rx.box(
+            rx.cond(AlertasState.wizard_step == 1, _wizard_step1()),
+            rx.cond(AlertasState.wizard_step == 2, _wizard_step2()),
+            rx.cond(AlertasState.wizard_step == 3, _wizard_step3()),
+            width="100%",
+            **{**S.GLASS_CARD, "padding": "24px"},
+        ),
+        # Navigation buttons
+        rx.hstack(
+            rx.cond(
+                AlertasState.wizard_step > 1,
+                rx.button(
+                    rx.hstack(
+                        rx.icon(tag="arrow-left", size=14),
+                        rx.text("Voltar", font_size="13px"),
+                        spacing="2",
+                        align="center",
+                    ),
+                    on_click=AlertasState.wizard_prev,
+                    variant="ghost",
+                    color=S.TEXT_MUTED,
+                    border=f"1px solid {S.BORDER_SUBTLE}",
+                    border_radius="10px",
+                    padding="10px 20px",
+                    _hover={"color": "white", "border_color": S.BORDER_HIGHLIGHT},
+                ),
+                rx.box(),
+            ),
+            rx.spacer(),
+            # Save button (only on step 3)
+            rx.cond(
+                AlertasState.wizard_step == 3,
+                rx.button(
+                    rx.cond(
+                        AlertasState.is_saving_rule,
+                        rx.hstack(
+                            rx.spinner(size="1", color="white"),
+                            rx.text("Salvando...", font_size="13px"),
+                            spacing="2",
+                            align="center",
+                        ),
+                        rx.hstack(
+                            rx.icon(tag="save", size=14),
+                            rx.text("Salvar Regra", font_size="13px", font_family=S.FONT_TECH, font_weight="700"),
+                            spacing="2",
+                            align="center",
+                        ),
+                    ),
+                    on_click=AlertasState.save_alert_rule,
+                    disabled=AlertasState.is_saving_rule,
+                    bg=S.PATINA,
+                    color="white",
+                    border_radius="10px",
+                    padding="10px 24px",
+                    _hover={"opacity": "0.85"},
+                ),
+                rx.button(
+                    rx.hstack(
+                        rx.text("Próximo", font_size="13px", font_family=S.FONT_TECH, font_weight="700"),
+                        rx.icon(tag="arrow-right", size=14),
+                        spacing="2",
+                        align="center",
+                    ),
+                    on_click=AlertasState.wizard_next,
+                    bg=S.COPPER,
+                    color="white",
+                    border_radius="10px",
+                    padding="10px 24px",
+                    _hover={"opacity": "0.85"},
+                ),
+            ),
+            width="100%",
+            align="center",
+        ),
+        # Feedback message
+        rx.cond(
+            AlertasState.rule_form_message != "",
+            rx.hstack(
+                rx.icon(tag=
+                    rx.cond(AlertasState.rule_form_is_error, "x-circle", "check-circle"),
+                    size=14,
+                    color=rx.cond(AlertasState.rule_form_is_error, S.DANGER, S.PATINA),
+                ),
+                rx.text(
+                    AlertasState.rule_form_message,
+                    font_size="13px",
+                    color=rx.cond(AlertasState.rule_form_is_error, S.DANGER, S.PATINA),
+                ),
+                spacing="2",
+                align="center",
+                padding="12px 16px",
+                bg=rx.cond(AlertasState.rule_form_is_error, S.DANGER_BG, S.PATINA_GLOW),
+                border=rx.cond(
+                    AlertasState.rule_form_is_error,
+                    "1px solid rgba(239,68,68,0.3)",
+                    "1px solid rgba(42,157,143,0.3)",
+                ),
+                border_radius="10px",
+                width="100%",
+            ),
+        ),
+        spacing="4",
+        width="100%",
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 3 — HISTÓRICO
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _history_row(h: dict) -> rx.Component:
+    return rx.table.row(
+        rx.table.cell(
+            rx.text(h["timestamp"], font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+        ),
+        rx.table.cell(
+            rx.hstack(
+                rx.box(
+                    width="8px",
+                    height="8px",
+                    border_radius="50%",
+                    bg=h["alert_color"],
+                    flex_shrink="0",
+                ),
+                rx.text(h["alert_label"], font_size="12px", color="white", font_weight="500"),
+                spacing="2",
+                align="center",
+            ),
+        ),
+        rx.table.cell(
+            rx.badge(h["contract"], color_scheme="gray", variant="soft", size="1", font_family=S.FONT_MONO),
+        ),
+        rx.table.cell(
+            rx.text(h["message"], font_size="11px", color=S.TEXT_MUTED, line_height="1.4"),
+            max_width="400px",
+        ),
+        rx.table.cell(
+            rx.cond(
+                h["is_read"],
+                rx.badge("Lido", color_scheme="gray", variant="soft", size="1"),
+                rx.badge("Novo", color_scheme="amber", variant="soft", size="1"),
+            ),
+        ),
+    )
+
+
+def _tab_historico() -> rx.Component:
+    return rx.vstack(
+        rx.cond(
+            AlertasState.history.length() == 0,
+            rx.center(
+                rx.vstack(
+                    rx.icon(tag="inbox", size=32, color=S.TEXT_MUTED),
+                    rx.text("Nenhum disparo registrado ainda", font_size="13px", color=S.TEXT_MUTED),
+                    spacing="2",
+                    align="center",
+                ),
+                padding_y="48px",
+                width="100%",
+            ),
+            rx.vstack(
+                rx.table.root(
+                    rx.table.header(
+                        rx.table.row(
+                            *[rx.table.column_header_cell(
+                                col,
+                                style={"fontSize": "10px", "color": S.TEXT_MUTED,
+                                       "letterSpacing": "0.1em", "fontFamily": S.FONT_TECH,
+                                       "background": S.BG_SURFACE},
+                            ) for col in ["DATA/HORA", "TIPO", "CONTRATO", "MENSAGEM", "STATUS"]],
+                        ),
+                    ),
+                    rx.table.body(
+                        rx.foreach(AlertasState.history, _history_row),
+                    ),
+                    width="100%",
+                    variant="ghost",
+                    size="1",
+                    style={"background": "transparent"},
+                ),
+                # Pagination
+                rx.hstack(
+                    rx.text(
+                        AlertasState.history_page_info,
+                        font_size="12px",
+                        color=S.TEXT_MUTED,
+                        font_family=S.FONT_MONO,
+                    ),
+                    rx.spacer(),
+                    rx.button(
+                        rx.icon(tag="chevron-left", size=14),
+                        on_click=AlertasState.history_prev,
+                        disabled=~AlertasState.history_has_prev,
+                        variant="ghost",
+                        color=S.TEXT_MUTED,
+                        border=f"1px solid {S.BORDER_SUBTLE}",
+                        border_radius="8px",
+                        size="2",
+                        _hover={"color": "white"},
+                    ),
+                    rx.button(
+                        rx.icon(tag="chevron-right", size=14),
+                        on_click=AlertasState.history_next,
+                        disabled=~AlertasState.history_has_next,
+                        variant="ghost",
+                        color=S.TEXT_MUTED,
+                        border=f"1px solid {S.BORDER_SUBTLE}",
+                        border_radius="8px",
+                        size="2",
+                        _hover={"color": "white"},
+                    ),
+                    spacing="2",
+                    align="center",
+                    width="100%",
+                ),
+                spacing="3",
+                width="100%",
+            ),
+        ),
+        spacing="4",
+        width="100%",
+        **{**S.GLASS_CARD, "padding": "20px"},
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# MAIN PAGE
+# ══════════════════════════════════════════════════════════════════════════════
+
+def alertas_page() -> rx.Component:
+    return rx.cond(
+        AlertasState.is_loading,
+        page_centered_loader("Carregando alertas..."),
+        rx.vstack(
+            _page_header(),
+            rx.cond(AlertasState.active_tab == "regras", _tab_regras()),
+            rx.cond(AlertasState.active_tab == "criar", _tab_criar()),
+            rx.cond(AlertasState.active_tab == "historico", _tab_historico()),
+            spacing="4",
+            width="100%",
+            padding_bottom="40px",
+            class_name="animate-enter",
+        ),
     )

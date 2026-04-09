@@ -1776,6 +1776,18 @@ class RDOState(rx.State):
             except Exception:
                 pass
 
+            # AlertEngine: verifica regras de evento "rdo_submitted" em background
+            try:
+                from bomtempo.core.alert_engine import AlertEngine
+                AlertEngine.check_event(
+                    event_type="rdo_submitted",
+                    contrato=contrato,
+                    client_id=client_id,
+                    metadata={"rdo_id": str(id_rdo)},
+                )
+            except Exception:
+                pass
+
             toast_msg = f"✅ RDO processado! {f'Email enviado para {len(recipients)} destinatário(s).' if recipients else 'PDF gerado com sucesso.'}"
             async with self:
                 self._reset_form()

@@ -96,7 +96,45 @@ class AlertasState(rx.State):
     history: list[dict] = []
     subscription_counts: dict = {}  # {alert_type: n}
 
-    # Form — add subscription
+    # ── Tab navigation ────────────────────────────────────────────────────────
+    active_tab: str = "regras"  # "regras" | "criar" | "historico"
+
+    def set_active_tab(self, val: str):
+        self.active_tab = val
+
+    # ── Alert Rules Enterprise ─────────────────────────────────────────────────
+    alert_rules: list[dict] = []        # regras da tabela alert_rules
+    is_loading_rules: bool = False
+    rule_form_message: str = ""
+    rule_form_is_error: bool = False
+
+    # ── Wizard de criação de regra ────────────────────────────────────────────
+    wizard_open: bool = False
+    wizard_step: int = 1                # 1=O que monitorar 2=Quando 3=Quem
+    # Step 1 — O que monitorar
+    wizard_category: str = "threshold"  # threshold | event | ai_custom
+    wizard_metric: str = "desvio_prazo_pct"
+    wizard_operator: str = "gt"
+    wizard_threshold: str = "10"
+    wizard_event_type: str = "rdo_submitted"
+    wizard_natural_language: str = ""   # para ai_custom
+    wizard_contracts: str = ""          # vazio = todos
+    wizard_name: str = ""
+    wizard_description: str = ""
+    # Step 2 — Quando
+    wizard_frequency: str = "always"    # once | always | daily | weekly | monthly
+    wizard_cooldown_hours: str = "24"
+    # Step 3 — Quem
+    wizard_recipients: list[dict] = []  # [{email, name}]
+    wizard_recipient_email: str = ""
+    wizard_recipient_name: str = ""
+    # IA interpretação da regra em linguagem natural
+    ai_rule_interpretation: str = ""
+    is_interpreting_rule: bool = False
+    # Salvar
+    is_saving_rule: bool = False
+
+    # Form — add subscription (legado — mantido para compatibilidade)
     new_alert_type: str = "daily"
     new_contract: str = ""
     new_email: str = ""
@@ -123,14 +161,73 @@ class AlertasState(rx.State):
 
     # ── Explicit setters ──────────────────────────────────────────────────────
 
-    def set_new_alert_type(self, val: str):
-        self.new_alert_type = val
+    def set_new_alert_type(self, val: str): self.new_alert_type = val
+    def set_new_contract(self, val: str): self.new_contract = val
+    def set_new_email(self, val: str): self.new_email = val
 
-    def set_new_contract(self, val: str):
-        self.new_contract = val
+    # ── Wizard setters ────────────────────────────────────────────────────────
+    def set_wizard_category(self, val: str):
+        self.wizard_category = val
+        self.ai_rule_interpretation = ""
+    def set_wizard_metric(self, val: str): self.wizard_metric = val
+    def set_wizard_operator(self, val: str): self.wizard_operator = val
+    def set_wizard_threshold(self, val: str): self.wizard_threshold = val
+    def set_wizard_event_type(self, val: str): self.wizard_event_type = val
+    def set_wizard_natural_language(self, val: str): self.wizard_natural_language = val
+    def set_wizard_contracts(self, val: str): self.wizard_contracts = val
+    def set_wizard_name(self, val: str): self.wizard_name = val
+    def set_wizard_description(self, val: str): self.wizard_description = val
+    def set_wizard_frequency(self, val: str): self.wizard_frequency = val
+    def set_wizard_cooldown_hours(self, val: str): self.wizard_cooldown_hours = val
+    def set_wizard_recipient_email(self, val: str): self.wizard_recipient_email = val
+    def set_wizard_recipient_name(self, val: str): self.wizard_recipient_name = val
 
-    def set_new_email(self, val: str):
-        self.new_email = val
+    def open_wizard(self):
+        self.wizard_open = True
+        self.wizard_step = 1
+        self.wizard_name = ""
+        self.wizard_description = ""
+        self.wizard_natural_language = ""
+        self.wizard_recipients = []
+        self.wizard_recipient_email = ""
+        self.ai_rule_interpretation = ""
+        self.rule_form_message = ""
+
+    def close_wizard(self):
+        self.wizard_open = False
+
+    def wizard_next(self):
+        if self.wizard_step < 3:
+            self.wizard_step += 1
+
+    def wizard_prev(self):
+        if self.wizard_step > 1:
+            self.wizard_step -= 1
+
+    def wizard_add_recipient(self):
+        email = self.wizard_recipient_email.strip()
+        name = self.wizard_recipient_name.strip()
+        if email and "@" in email:
+            existing = [r.get("email") for r in self.wizard_recipients]
+            if email not in existing:
+                self.wizard_recipients = list(self.wizard_recipients) + [
+                    {"email": email, "name": name or email}
+                ]
+            self.wizard_recipient_email = ""
+            self.wizard_recipient_name = ""
+
+    def wizard_remove_recipient(self, email: str):
+        self.wizard_recipients = [r for r in self.wizard_recipients if r.get("email") != email]
+
+    def toggle_rule_active(self, rule_id: str):
+        """Toggle is_active de uma regra localmente (atualiza no banco em bg)."""
+        updated = []
+        for r in self.alert_rules:
+            if str(r.get("id")) == rule_id:
+                updated.append({**r, "is_active": not r.get("is_active", True)})
+            else:
+                updated.append(r)
+        self.alert_rules = updated
 
     # ── History pagination computed vars ──────────────────────────────────────
 
@@ -139,6 +236,10 @@ class AlertasState(rx.State):
         if self.history_total == 0:
             return 1
         return max(1, (self.history_total + self.history_per_page - 1) // self.history_per_page)
+
+    @rx.var
+    def active_rules_count(self) -> int:
+        return sum(1 for r in self.alert_rules if r.get("is_active", True))
 
     @rx.var
     def history_has_prev(self) -> bool:
@@ -416,3 +517,320 @@ class AlertasState(rx.State):
         async with self:
             self.history = [_norm_hist(h) for h in rows]
             self.history_total = total
+
+    # ── Load Alert Rules ──────────────────────────────────────────────────────
+
+    @rx.event(background=True)
+    async def load_alert_rules(self):
+        """Carrega regras enterprise da tabela alert_rules."""
+        async with self:
+            self.is_loading_rules = True
+
+        client_id = ""
+        try:
+            from bomtempo.state.global_state import GlobalState as _GS
+            _gs = await self.get_state(_GS)
+            client_id = str(_gs.current_client_id or "")
+        except Exception:
+            pass
+
+        loop = asyncio.get_running_loop()
+        try:
+            from bomtempo.core.supabase_client import sb_select
+            filters: dict = {"is_active": None}  # não filtrar por is_active — carrega tudo
+            if client_id:
+                filters = {"client_id": client_id}
+            rules = await loop.run_in_executor(
+                None, lambda: sb_select("alert_rules", filters={"client_id": client_id} if client_id else {}, limit=100)
+            )
+            normalized = []
+            for r in (rules or []):
+                normalized.append({
+                    "id": str(r.get("id", "")),
+                    "name": str(r.get("name", "—")),
+                    "description": str(r.get("description", "")),
+                    "category": str(r.get("category", "reativo")),
+                    "trigger_type": str(r.get("trigger_type", "threshold")),
+                    "trigger_config": r.get("trigger_config") or {},
+                    "contracts": r.get("contracts") or [],
+                    "recipients": r.get("recipients") or [],
+                    "frequency": str(r.get("frequency", "always")),
+                    "cooldown_hours": int(r.get("cooldown_hours") or 24),
+                    "is_active": bool(r.get("is_active", True)),
+                    "fire_count": int(r.get("fire_count") or 0),
+                    "last_fired_at": str(r.get("last_fired_at") or "—"),
+                    "color": str(r.get("color", "#C98B2A")),
+                    "icon": str(r.get("icon", "bell")),
+                    "recipients_count": str(len(r.get("recipients") or [])),
+                })
+            async with self:
+                self.alert_rules = normalized
+                self.is_loading_rules = False
+        except Exception as exc:
+            logger.error(f"[AlertasState.load_alert_rules] {exc}")
+            async with self:
+                self.is_loading_rules = False
+
+    # ── Interpret AI Custom Rule ───────────────────────────────────────────────
+
+    @rx.event(background=True)
+    async def interpret_ai_rule(self):
+        """
+        IA interpreta o texto em linguagem natural e gera a configuração da regra.
+        Mostra preview ao usuário (HITL) antes de salvar.
+        """
+        async with self:
+            nl_input = self.wizard_natural_language.strip()
+            if not nl_input:
+                return
+            self.is_interpreting_rule = True
+            self.ai_rule_interpretation = ""
+
+        loop = asyncio.get_running_loop()
+        try:
+            from bomtempo.core.ai_client import ai_client
+
+            available_metrics = "\n".join([
+                "- desvio_prazo_pct: % de desvio do prazo (positivo = atrasado)",
+                "- budget_overage_pct: % de estouro orçamentário",
+                "- risk_score: score de risco 0-100",
+                "- rdo_horas_sem_submit: horas desde o último RDO",
+                "- producao_queda_pct: queda % de produção vs média 7 dias",
+            ])
+
+            prompt = (
+                f"O usuário quer criar um alerta com esta descrição:\n"
+                f"\"{nl_input}\"\n\n"
+                f"Métricas disponíveis:\n{available_metrics}\n\n"
+                f"Responda em JSON com EXATAMENTE esta estrutura (sem markdown, sem explicação):\n"
+                f'{{"name": "nome curto do alerta", '
+                f'"description": "descrição em 1 frase", '
+                f'"metric": "nome_da_metrica", '
+                f'"operator": "gt|gte|lt|lte|eq", '
+                f'"threshold": numero, '
+                f'"frequency": "once|always|daily", '
+                f'"interpretation": "explique em 2 frases o que este alerta vai monitorar"}}'
+            )
+
+            resp = await loop.run_in_executor(
+                None, lambda: ai_client.query([{"role": "user", "content": prompt}], max_tokens=400)
+            )
+
+            import json, re
+            json_match = re.search(r'\{[\s\S]*\}', resp or "")
+            if json_match:
+                parsed = json.loads(json_match.group())
+                interpretation = parsed.get("interpretation", "Regra criada com base na sua descrição.")
+                # Preenche os campos do wizard automaticamente
+                async with self:
+                    self.wizard_name = parsed.get("name", self.wizard_name or "Alerta personalizado")
+                    self.wizard_description = parsed.get("description", "")
+                    self.wizard_metric = parsed.get("metric", "desvio_prazo_pct")
+                    self.wizard_operator = parsed.get("operator", "gt")
+                    self.wizard_threshold = str(parsed.get("threshold", "10"))
+                    self.wizard_frequency = parsed.get("frequency", "always")
+                    self.ai_rule_interpretation = interpretation
+                    self.is_interpreting_rule = False
+            else:
+                async with self:
+                    self.ai_rule_interpretation = "Não consegui interpretar. Preencha manualmente os campos abaixo."
+                    self.is_interpreting_rule = False
+        except Exception as exc:
+            logger.error(f"[interpret_ai_rule] {exc}")
+            async with self:
+                self.ai_rule_interpretation = f"Erro: {str(exc)[:100]}. Preencha manualmente."
+                self.is_interpreting_rule = False
+
+    # ── Save Alert Rule ────────────────────────────────────────────────────────
+
+    @rx.event(background=True)
+    async def save_alert_rule(self):
+        """Salva a regra configurada no wizard na tabela alert_rules."""
+        async with self:
+            self.is_saving_rule = True
+            self.rule_form_message = ""
+            self.rule_form_is_error = False
+            # Snapshot
+            category = self.wizard_category
+            metric = self.wizard_metric
+            operator = self.wizard_operator
+            threshold = self.wizard_threshold
+            event_type = self.wizard_event_type
+            natural_language = self.wizard_natural_language
+            contracts_str = self.wizard_contracts.strip()
+            name = self.wizard_name.strip() or "Alerta personalizado"
+            description = self.wizard_description.strip()
+            frequency = self.wizard_frequency
+            cooldown_hours = int(self.wizard_cooldown_hours or 24)
+            recipients = list(self.wizard_recipients)
+
+        client_id = ""
+        current_user = ""
+        try:
+            from bomtempo.state.global_state import GlobalState as _GS
+            _gs = await self.get_state(_GS)
+            client_id = str(_gs.current_client_id or "")
+            current_user = str(_gs.current_user_name or "admin")
+        except Exception:
+            pass
+
+        # Monta trigger_config baseado na categoria
+        if category == "threshold":
+            trigger_type = "threshold"
+            trigger_config = {
+                "metric": metric,
+                "operator": operator,
+                "value": float(threshold) if threshold else 10.0,
+            }
+        elif category == "event":
+            trigger_type = "event"
+            trigger_config = {"event": event_type}
+        else:  # ai_custom
+            trigger_type = "ai_custom"
+            trigger_config = {
+                "metric": metric,
+                "operator": operator,
+                "value": float(threshold) if threshold else 10.0,
+                "natural_language": natural_language,
+            }
+
+        contracts = [c.strip() for c in contracts_str.split(",") if c.strip()] if contracts_str else []
+
+        record = {
+            "name": name,
+            "description": description,
+            "category": "ia_personalizado" if category == "ai_custom" else "reativo",
+            "trigger_type": trigger_type,
+            "trigger_config": trigger_config,
+            "contracts": contracts,
+            "recipients": recipients,
+            "frequency": frequency,
+            "cooldown_hours": cooldown_hours,
+            "is_active": True,
+            "created_by": current_user,
+            "natural_language_input": natural_language or None,
+        }
+        if client_id:
+            record["client_id"] = client_id
+
+        loop = asyncio.get_running_loop()
+        try:
+            from bomtempo.core.supabase_client import sb_insert
+            result = await loop.run_in_executor(None, lambda: sb_insert("alert_rules", record))
+
+            audit_log(
+                category=AuditCategory.ALERT_CONFIG,
+                action=f"Regra de alerta criada: '{name}'",
+                metadata={"trigger_type": trigger_type, "category": category, "recipients_count": len(recipients)},
+                status="success",
+                client_id=client_id,
+            )
+
+            # Recarrega lista de regras
+            await self.load_alert_rules()
+
+            async with self:
+                self.wizard_open = False
+                self.rule_form_message = f"Alerta '{name}' criado com sucesso!"
+                self.rule_form_is_error = False
+                self.is_saving_rule = False
+        except Exception as exc:
+            logger.error(f"[save_alert_rule] {exc}")
+            async with self:
+                self.rule_form_message = f"Erro ao salvar: {str(exc)[:150]}"
+                self.rule_form_is_error = True
+                self.is_saving_rule = False
+
+    # ── Delete Alert Rule ──────────────────────────────────────────────────────
+
+    @rx.event(background=True)
+    async def delete_alert_rule(self, rule_id: str):
+        """Remove uma regra da tabela alert_rules."""
+        client_id = ""
+        try:
+            from bomtempo.state.global_state import GlobalState as _GS
+            _gs = await self.get_state(_GS)
+            client_id = str(_gs.current_client_id or "")
+        except Exception:
+            pass
+
+        loop = asyncio.get_running_loop()
+        try:
+            from bomtempo.core.supabase_client import sb_delete
+            await loop.run_in_executor(None, lambda: sb_delete("alert_rules", filters={"id": rule_id}))
+            audit_log(
+                category=AuditCategory.ALERT_CONFIG,
+                action=f"Regra de alerta removida — id '{rule_id}'",
+                entity_type="alert_rules",
+                entity_id=rule_id,
+                status="success",
+                client_id=client_id,
+            )
+            await self.load_alert_rules()
+        except Exception as exc:
+            logger.error(f"[delete_alert_rule] {exc}")
+
+    # ── Toggle Rule Active ────────────────────────────────────────────────────
+
+    @rx.event(background=True)
+    async def toggle_rule_active_db(self, rule_id: str):
+        """Alterna is_active de uma regra no banco."""
+        # Encontra o estado atual
+        current_active = True
+        async with self:
+            for r in self.alert_rules:
+                if str(r.get("id")) == rule_id:
+                    current_active = bool(r.get("is_active", True))
+                    break
+            # Otimistic update
+            self.toggle_rule_active(rule_id)
+
+        loop = asyncio.get_running_loop()
+        try:
+            from bomtempo.core.supabase_client import sb_update
+            await loop.run_in_executor(
+                None,
+                lambda: sb_update("alert_rules", filters={"id": rule_id}, data={"is_active": not current_active})
+            )
+        except Exception as exc:
+            logger.error(f"[toggle_rule_active_db] {exc}")
+            # Reverte o otimistic update em caso de erro
+            async with self:
+                self.toggle_rule_active(rule_id)
+
+    # ── Run Rule Sweep ────────────────────────────────────────────────────────
+
+    @rx.event(background=True)
+    async def run_rules_sweep(self):
+        """Varre todas as regras threshold ativas via AlertEngine."""
+        async with self:
+            self.sweep_running = True
+            self.sweep_running_type = "rules_sweep"
+
+        client_id = ""
+        try:
+            from bomtempo.state.global_state import GlobalState as _GS
+            _gs = await self.get_state(_GS)
+            client_id = str(_gs.current_client_id or "")
+        except Exception:
+            pass
+
+        loop = asyncio.get_running_loop()
+        try:
+            from bomtempo.core.alert_engine import AlertEngine
+            result = await loop.run_in_executor(
+                None, lambda: AlertEngine.run_sweep(client_id=client_id)
+            )
+            sent = result.get("sent", 0)
+            errors = result.get("errors", 0)
+            skipped = result.get("skipped", 0)
+            msg = f"{sent} alerta(s) disparado(s), {skipped} sem gatilho, {errors} erro(s)."
+            async with self:
+                self.sweep_results = {**self.sweep_results, "rules_sweep": msg}
+                self.sweep_running = False
+                self.sweep_running_type = ""
+        except Exception as exc:
+            logger.error(f"[run_rules_sweep] {exc}")
+            async with self:
+                self.sweep_running = False
+                self.sweep_running_type = ""

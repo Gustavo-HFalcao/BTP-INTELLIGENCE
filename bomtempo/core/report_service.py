@@ -577,6 +577,145 @@ def _md_to_html(text: str) -> str:
 # HTML/CSS CHART GENERATORS (WeasyPrint-compatible — no SVG)
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _build_s_curve_svg(planned_series: list, actual_series: list) -> str:
+    """
+    Gera SVG puro da curva S (avanço planejado vs realizado ao longo do tempo).
+    planned_series: [{label, value}] — valores cumulativos %
+    actual_series:  [{label, value}] — valores cumulativos %
+    Funciona 100% no Playwright/Chromium sem dependência de JS ou Recharts.
+    """
+    if not planned_series and not actual_series:
+        return ""
+
+    W, H = 520, 180
+    PAD_L, PAD_R, PAD_T, PAD_B = 40, 16, 12, 32
+
+    plot_w = W - PAD_L - PAD_R
+    plot_h = H - PAD_T - PAD_B
+
+    # Normaliza para max 100
+    all_labels = [p["label"] for p in (planned_series or actual_series)]
+    n = len(all_labels)
+    if n < 2:
+        return ""
+
+    def to_xy(series: list) -> list:
+        pts = []
+        for i, item in enumerate(series):
+            x = PAD_L + (i / (n - 1)) * plot_w
+            y = PAD_T + (1 - min(100, max(0, float(item.get("value", 0)))) / 100) * plot_h
+            pts.append((x, y))
+        return pts
+
+    def pts_to_path(pts: list) -> str:
+        if not pts:
+            return ""
+        cmds = [f"M {pts[0][0]:.1f} {pts[0][1]:.1f}"]
+        for px, py in pts[1:]:
+            cmds.append(f"L {px:.1f} {py:.1f}")
+        return " ".join(cmds)
+
+    plan_pts = to_xy(planned_series) if planned_series else []
+    actual_pts = to_xy(actual_series) if actual_series else []
+
+    # Grid lines horizontais em 0, 25, 50, 75, 100%
+    grid_lines = ""
+    for pct in (0, 25, 50, 75, 100):
+        y = PAD_T + (1 - pct / 100) * plot_h
+        label_x = PAD_L - 6
+        grid_lines += (
+            f'<line x1="{PAD_L}" y1="{y:.1f}" x2="{PAD_L + plot_w}" y2="{y:.1f}" '
+            f'stroke="#E5E7EB" stroke-width="1"/>'
+            f'<text x="{label_x}" y="{y + 4:.1f}" font-size="8" fill="#9CA3AF" '
+            f'text-anchor="end" font-family="JetBrains Mono, monospace">{pct}%</text>'
+        )
+
+    # Labels do eixo X
+    x_labels = ""
+    step = max(1, n // 6)
+    for i in range(0, n, step):
+        x = PAD_L + (i / (n - 1)) * plot_w
+        label = all_labels[i][:8]
+        x_labels += (
+            f'<text x="{x:.1f}" y="{H - PAD_B + 14}" font-size="7" fill="#9CA3AF" '
+            f'text-anchor="middle" font-family="Outfit, sans-serif">{_html_lib.escape(label)}</text>'
+        )
+
+    # Paths
+    plan_path = pts_to_path(plan_pts)
+    actual_path = pts_to_path(actual_pts)
+
+    plan_elem = (
+        f'<path d="{plan_path}" fill="none" stroke="rgba(201,139,42,0.6)" '
+        f'stroke-width="1.5" stroke-dasharray="4 3"/>'
+    ) if plan_path else ""
+
+    actual_elem = (
+        f'<path d="{actual_path}" fill="none" stroke="#2A9D8F" stroke-width="2"/>'
+    ) if actual_path else ""
+
+    # Pontos finais com valor
+    dot_elems = ""
+    if actual_pts:
+        lx, ly = actual_pts[-1]
+        val = actual_series[-1].get("value", 0)
+        dot_elems += (
+            f'<circle cx="{lx:.1f}" cy="{ly:.1f}" r="4" fill="#2A9D8F"/>'
+            f'<text x="{lx + 6:.1f}" y="{ly - 4:.1f}" font-size="8" fill="#2A9D8F" '
+            f'font-weight="700" font-family="JetBrains Mono, monospace">{val:.0f}%</text>'
+        )
+
+    legend = (
+        f'<line x1="{PAD_L}" y1="{H - 4}" x2="{PAD_L + 20}" y2="{H - 4}" '
+        f'stroke="rgba(201,139,42,0.6)" stroke-width="1.5" stroke-dasharray="4 3"/>'
+        f'<text x="{PAD_L + 24}" y="{H}" font-size="8" fill="#9CA3AF" '
+        f'font-family="Outfit, sans-serif">Planejado</text>'
+        f'<line x1="{PAD_L + 80}" y1="{H - 4}" x2="{PAD_L + 100}" y2="{H - 4}" '
+        f'stroke="#2A9D8F" stroke-width="2"/>'
+        f'<text x="{PAD_L + 104}" y="{H}" font-size="8" fill="#9CA3AF" '
+        f'font-family="Outfit, sans-serif">Realizado</text>'
+    )
+
+    return (
+        f'<svg viewBox="0 0 {W} {H + 14}" width="100%" height="{H + 14}" '
+        f'xmlns="http://www.w3.org/2000/svg" style="display:block;margin:10px 0;">'
+        f'<rect width="{W}" height="{H}" fill="white" rx="6"/>'
+        f'{grid_lines}'
+        f'<line x1="{PAD_L}" y1="{PAD_T}" x2="{PAD_L}" y2="{PAD_T + plot_h}" '
+        f'stroke="#D1D5DB" stroke-width="1"/>'
+        f'{plan_elem}{actual_elem}{dot_elems}{x_labels}{legend}'
+        f'</svg>'
+    )
+
+
+def _md_to_html_sections(md_text: str) -> str:
+    """
+    Converte Markdown com marcadores ---PAGE--- para HTML com page-break semântico.
+    A IA deve usar '---PAGE---' em linha isolada antes de cada seção principal.
+    Garante que nenhuma seção seja cortada no meio — cada ## vira uma div protegida.
+    """
+    if not md_text:
+        return ""
+
+    # Divide em segmentos por ---PAGE---
+    segments = md_text.split("\n---PAGE---\n")
+    html_parts = []
+
+    for i, segment in enumerate(segments):
+        segment = segment.strip()
+        if not segment:
+            continue
+        page_break = ' style="page-break-before:always;"' if i > 0 else ""
+        inner_html = _md_to_html(segment)
+        html_parts.append(
+            f'<div class="report-page-section avoid-break"{page_break}>'
+            f'{inner_html}'
+            f'</div>'
+        )
+
+    return "\n".join(html_parts)
+
+
 def _build_discipline_svg(disciplinas: list) -> str:
     """HTML/CSS horizontal dual-bar chart per discipline (previsto + realizado)."""
     if not disciplinas:
@@ -727,6 +866,10 @@ _AI_HTML_TEMPLATE = """<!DOCTYPE html>
   .section { page-break-inside:avoid; }
   .sec-hdr { page-break-after:avoid; }
   .cover { page-break-after:always; }
+  /* Enterprise page-break semântico — seções nunca cortadas no meio */
+  .report-page-section { page-break-before:always; }
+  .report-page-section:first-child { page-break-before:auto; }
+  .avoid-break { page-break-inside:avoid; break-inside:avoid; }
   .footer { background:linear-gradient(135deg,#0B1A14,#071D15); color:rgba(255,255,255,.5); padding:16px 36px; display:flex; justify-content:space-between; align-items:center; font-size:10px; letter-spacing:.04em; page-break-before:avoid; }
   .footer-brand { font-family:'Rajdhani',sans-serif; font-weight:700; font-size:14px; color:var(--copper); letter-spacing:.15em; }
   .footer-conf { background:rgba(239,68,68,.2); border:1px solid rgba(239,68,68,.4); color:rgba(239,68,68,.8); padding:2px 8px; border-radius:4px; font-size:9px; text-transform:uppercase; letter-spacing:.15em; }
@@ -860,6 +1003,11 @@ os dados fornecidos — NÃO gerar insights baseados em suposições ou conhecim
   • Markdown com seções ## e ###
   • Números sempre com a unidade do contexto (%, R$, dias, pessoas)
   • Ao citar um KPI, referencie o valor exato do contexto
+  • ANTES de cada seção principal (## Título), escreva exatamente:
+      ---PAGE---
+    em linha isolada — isso cria quebra de página correta no PDF
+  • A primeira seção NÃO precisa de ---PAGE--- antes dela
+  • Conclua cada seção COMPLETAMENTE antes de escrever ---PAGE---
 
 VIOLAÇÃO DESTA POLÍTICA = RELATÓRIO INVÁLIDO PARA USO CORPORATIVO.
 ════════════════════════════════════════════════════════════
@@ -1053,7 +1201,8 @@ class ReportService:
 
         disc_chart = _build_discipline_svg(disciplinas)
         budget_chart = _build_budget_svg(fmt)
-        ai_body = _md_to_html(ai_text)
+        # Usa _md_to_html_sections para respeitar ---PAGE--- e gerar page-breaks corretos
+        ai_body = _md_to_html_sections(ai_text) if "---PAGE---" in (ai_text or "") else _md_to_html(ai_text)
 
         html = _AI_HTML_TEMPLATE
         replacements = {
@@ -1210,6 +1359,136 @@ class ReportService:
                 f"com base nos dados reais do projeto abaixo.\n\n{context}"
                 f"{depth_instruction}"
             )
+
+        return [
+            {"role": "system", "content": system_msg},
+            {"role": "user", "content": user_content},
+        ]
+
+    # ── AI Prompt com MCP (execute_sql direto no banco) ────────────────────────
+
+    @staticmethod
+    def build_ai_prompt_with_mcp(
+        approach: str,
+        contrato: str,
+        client_id: str,
+        periodo_inicio: str = "",
+        periodo_fim: str = "",
+        escopo: dict = None,
+        etapa_especifica: str = "",
+        custom_instruction: str = "",
+        gerado_por: str = "Sistema",
+    ) -> list[dict]:
+        """
+        Prompt enterprise para relatório IA com acesso direto ao banco via execute_sql.
+        A IA consulta dados REAIS — sem snapshot estático.
+
+        Diferença do build_ai_prompt clássico:
+        - IA usa tools (execute_sql, search_documents, get_schema_info)
+        - Dados em tempo real, não snapshot do GlobalState
+        - LGPD: client_id obrigatório em todas as queries
+        - IA instrui-se a usar ---PAGE--- entre seções
+
+        escopo: {cronograma, financeiro, rdos, documentos, equipe, alertas}
+        """
+        from bomtempo.core.ai_context import AIContext
+
+        escopo = escopo or {
+            "cronograma": True, "financeiro": True, "rdos": True,
+            "documentos": True, "equipe": True, "alertas": True,
+        }
+
+        persona = _PERSONAS.get(approach, _PERSONAS["estrategica"])
+
+        periodo_str = ""
+        if periodo_inicio and periodo_fim:
+            periodo_str = f"Período de análise: {periodo_inicio} a {periodo_fim}"
+        elif periodo_inicio:
+            periodo_str = f"A partir de: {periodo_inicio}"
+
+        etapa_str = f"\nEtapa específica a destacar: {etapa_especifica}" if etapa_especifica else ""
+        custom_str = f"\nInstrução adicional do usuário: {custom_instruction}" if custom_instruction else ""
+
+        # Monta a lista de seções esperadas baseada no escopo
+        secoes_esperadas = []
+        sec_n = 1
+        secoes_esperadas.append(f"{sec_n}. Sumário Executivo (KPIs críticos em 1 parágrafo)")
+        sec_n += 1
+        if escopo.get("cronograma"):
+            secoes_esperadas.append(f"{sec_n}. Cronograma — Avanço por Macro-Etapa (tabela previsto vs realizado, desvio)")
+            sec_n += 1
+        if escopo.get("financeiro"):
+            secoes_esperadas.append(f"{sec_n}. Financeiro — Orçado vs Realizado, Saldo, Medições")
+            sec_n += 1
+        if escopo.get("rdos"):
+            secoes_esperadas.append(f"{sec_n}. RDOs do Período — Atividades, Efetivo, Produtividade")
+            sec_n += 1
+        if escopo.get("documentos"):
+            secoes_esperadas.append(f"{sec_n}. Documentos e Cláusulas Críticas")
+            sec_n += 1
+        if escopo.get("alertas"):
+            secoes_esperadas.append(f"{sec_n}. Riscos e Alertas Ativos")
+            sec_n += 1
+        secoes_esperadas.append(f"{sec_n}. Conclusão e Recomendações")
+        secoes_list = "\n".join(secoes_esperadas)
+
+        system_msg = f"""{persona}
+
+{_GUARDRAIL}
+
+══════════════════════════════════════════════════════════════
+ACESSO AO BANCO DE DADOS — PROTOCOLO MCP
+══════════════════════════════════════════════════════════════
+Você tem acesso às ferramentas execute_sql, search_documents e get_schema_info.
+
+REGRAS ABSOLUTAS DE LGPD — ZERO TOLERÂNCIA:
+1. TODA query execute_sql DEVE ter WHERE client_id = '{client_id}' OU WHERE contrato = '{contrato}'
+2. NUNCA omita o filtro de tenant — isso é violação de LGPD
+3. Use get_schema_info antes de qualquer query para conhecer as colunas exatas
+4. Se client_id não puder ser adicionado (tabela sem coluna), use contrato como filtro
+
+SEQUÊNCIA OBRIGATÓRIA antes de escrever o relatório:
+1. get_schema_info — mapear tabelas e colunas disponíveis
+2. Para cada seção, execute_sql com filtros de tenant
+3. search_documents para cláusulas e alertas de documentos
+4. Escrever o relatório APENAS com dados retornados pelas queries
+
+SE UMA QUERY RETORNAR VAZIO:
+- Escreva: "Dado não disponível para o período/contrato consultado."
+- NUNCA invente ou estime valores
+
+══════════════════════════════════════════════════════════════
+FORMATO OBRIGATÓRIO DO RELATÓRIO
+══════════════════════════════════════════════════════════════
+- Use Markdown com ## para cada seção principal
+- ANTES de cada seção principal (exceto a primeira), escreva exatamente:
+  ---PAGE---
+  (em linha isolada, sem nada antes ou depois)
+- Isso garante quebra de página correta no PDF
+- NUNCA corte uma seção no meio — conclua cada seção completamente
+- Tabelas Markdown são permitidas e encorajadas para dados tabulares
+
+SEÇÕES ESPERADAS (nesta ordem):
+{secoes_list}
+"""
+
+        user_content = (
+            f"Gere um relatório executivo completo para o contrato {contrato}.\n\n"
+            f"Tenant/Client ID: {client_id}\n"
+            f"Contrato: {contrato}\n"
+            f"Gerado por: {gerado_por}\n"
+            f"Data: {datetime.now().strftime('%d/%m/%Y %H:%M')}\n"
+            f"{periodo_str}"
+            f"{etapa_str}"
+            f"{custom_str}\n\n"
+            f"Comece com get_schema_info para mapear as tabelas disponíveis, "
+            f"depois execute as queries necessárias para cada seção, "
+            f"e então escreva o relatório completo com os dados reais obtidos.\n\n"
+            f"Lembre-se:\n"
+            f"- Adicionar ---PAGE--- antes de cada seção (exceto a primeira)\n"
+            f"- Filtrar SEMPRE por client_id = '{client_id}' ou contrato = '{contrato}'\n"
+            f"- Nunca inventar dados — se não encontrar, declarar 'Dado não disponível'"
+        )
 
         return [
             {"role": "system", "content": system_msg},

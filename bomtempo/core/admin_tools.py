@@ -489,6 +489,85 @@ ADMIN_AI_TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_users",
+            "strict": True,
+            "description": (
+                "Lista os usuários cadastrados no sistema para encontrar emails por nome. "
+                "Use ANTES de propose_generate_report quando o usuário mencionar um destinatário por nome "
+                "(ex: 'envie para Renato', 'manda para o Gustavo'). "
+                "Retorna username, user_role e projeto de cada usuário — sem senhas."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "propose_generate_report",
+            "strict": True,
+            "description": (
+                "Propõe a geração de um relatório executivo para um contrato específico. "
+                "Use quando o usuário pedir 'gere um relatório', 'crie um relatório do contrato X', "
+                "'relatório semanal de Y', 'manda relatório para Z', etc. "
+                "IMPORTANTE: este tool NÃO executa imediatamente — retorna uma proposta HITL para confirmação. "
+                "FLUXO: 1) execute_sql para buscar contratos disponíveis, "
+                "2) list_users se o usuário mencionou destinatário por nome, "
+                "3) propose_generate_report com os dados coletados. "
+                "Tipos disponíveis: 'ia_mcp' (completo, consulta banco em tempo real), "
+                "'estatico' (estruturado com dados atuais), 'ia_snapshot' (IA com snapshot)."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "contrato": {
+                        "type": "string",
+                        "description": "Código do contrato. Ex: 'BOM-029'. Use o código exato do banco.",
+                    },
+                    "tipo": {
+                        "type": "string",
+                        "description": "Tipo de relatório: 'ia_mcp' (recomendado), 'estatico', 'ia_snapshot'.",
+                        "enum": ["ia_mcp", "estatico", "ia_snapshot"],
+                    },
+                    "abordagem": {
+                        "type": "string",
+                        "description": "Abordagem da análise IA: 'estrategica', 'analitica', 'descritiva', 'operacional', 'custom'.",
+                        "enum": ["estrategica", "analitica", "descritiva", "operacional", "custom"],
+                    },
+                    "periodo": {
+                        "type": "string",
+                        "description": "Período desejado: 'hoje', 'semana', 'mes', 'total', ou datas 'YYYY-MM-DD:YYYY-MM-DD'.",
+                    },
+                    "recipient_emails": {
+                        "type": "string",
+                        "description": "Emails dos destinatários separados por vírgula. Use '' se não houver destinatário.",
+                    },
+                    "recipient_names": {
+                        "type": "string",
+                        "description": "Nomes dos destinatários separados por vírgula (para personalização).",
+                    },
+                    "instrucao_adicional": {
+                        "type": "string",
+                        "description": "Instrução adicional para personalizar o relatório. Ex: 'foque nos desvios financeiros'.",
+                    },
+                    "summary": {
+                        "type": "string",
+                        "description": "Resumo em 1 frase para o card de confirmação HITL.",
+                    },
+                },
+                "required": ["contrato", "tipo", "abordagem", "periodo", "recipient_emails",
+                             "recipient_names", "instrucao_adicional", "summary"],
+                "additionalProperties": False,
+            },
+        },
+    },
 ]
 
 
@@ -709,6 +788,72 @@ def execute_admin_tool(name: str, args: dict) -> tuple[str, dict | None]:
             }
             return json.dumps(proposal), proposal
 
+        elif name == "list_users":
+            # Lista usuários sem senhas — para o Action AI encontrar destinatários por nome
+            try:
+                from bomtempo.core.supabase_client import sb_select
+                rows = sb_select("login", filters={}, limit=50) or []
+                users = []
+                for r in rows:
+                    users.append({
+                        "username": r.get("user") or r.get("username", ""),
+                        "user_role": r.get("user_role", ""),
+                        "project": r.get("project", ""),
+                    })
+                return json.dumps({"users": users, "count": len(users)}), None
+            except Exception as e:
+                return f"Erro ao listar usuários: {str(e)}", None
+
+        elif name == "propose_generate_report":
+            contrato = args.get("contrato", "")
+            tipo = args.get("tipo", "ia_mcp")
+            abordagem = args.get("abordagem", "estrategica")
+            periodo = args.get("periodo", "total")
+            recipient_emails_str = args.get("recipient_emails", "")
+            recipient_names_str = args.get("recipient_names", "")
+            instrucao = args.get("instrucao_adicional", "")
+
+            # Monta lista de destinatários
+            emails = [e.strip() for e in recipient_emails_str.split(",") if e.strip()]
+            names = [n.strip() for n in recipient_names_str.split(",") if n.strip()]
+            recipients = [
+                {"email": e, "name": names[i] if i < len(names) else e}
+                for i, e in enumerate(emails)
+            ]
+
+            # Labels legíveis
+            tipo_labels = {"ia_mcp": "IA Enterprise (banco em tempo real)", "estatico": "Estático", "ia_snapshot": "IA (snapshot)"}
+            abordagem_labels = {"estrategica": "Estratégica", "analitica": "Analítica", "descritiva": "Auditoria Técnica", "operacional": "Operacional de Campo", "custom": "Personalizado"}
+            tipo_label = tipo_labels.get(tipo, tipo)
+            ab_label = abordagem_labels.get(abordagem, abordagem)
+
+            preview = [
+                f"📋 Contrato: **{contrato}**",
+                f"📄 Tipo: {tipo_label}",
+                f"🎯 Abordagem: {ab_label}",
+                f"📅 Período: {periodo}",
+            ]
+            if recipients:
+                preview.append(f"📧 Destinatários: {', '.join(r['name'] for r in recipients)}")
+            if instrucao:
+                preview.append(f"💬 Instrução: {instrucao[:80]}")
+
+            proposal = {
+                "__hitl__": True,
+                "action": "generate_report",
+                "summary": args.get("summary", f"Gerar relatório {ab_label} do contrato {contrato}"),
+                "data": {
+                    "contrato": contrato,
+                    "tipo": tipo,
+                    "abordagem": abordagem,
+                    "periodo": periodo,
+                    "recipients": recipients,
+                    "instrucao_adicional": instrucao,
+                },
+                "preview_lines": preview,
+            }
+            return json.dumps(proposal), proposal
+
         return f"Ferramenta {name} não encontrada.", None
     except Exception as e:
         logger.error(f"Error in admin tool {name}: {e}")
@@ -905,6 +1050,126 @@ def execute_confirmed_action(action: str, data: dict) -> str:
                     pass
                 return f"✅ Registro criado em `{table}` com sucesso."
             return f"❌ Falha ao criar registro em `{table}`. Verifique se os campos são válidos."
+
+        elif action == "generate_report":
+            contrato = data.get("contrato", "")
+            tipo = data.get("tipo", "ia_mcp")
+            abordagem = data.get("abordagem", "estrategica")
+            periodo = data.get("periodo", "total")
+            recipients = data.get("recipients", [])
+            instrucao = data.get("instrucao_adicional", "")
+            client_id = data.get("_client_id", "")
+            created_by = data.get("_created_by", "Action AI")
+
+            if not contrato:
+                return "❌ Contrato não especificado. Informe o código do contrato para gerar o relatório."
+
+            try:
+                from bomtempo.core.report_service import ReportService
+                import unicodedata, threading
+                from datetime import datetime as _dt
+
+                # Para relatório ia_mcp, usamos o prompt enterprise com acesso ao banco
+                if tipo == "ia_mcp":
+                    # Determina período
+                    periodo_inicio = ""
+                    periodo_fim = ""
+                    if periodo == "hoje":
+                        d = _dt.now().strftime("%Y-%m-%d")
+                        periodo_inicio = periodo_fim = d
+                    elif periodo == "semana":
+                        from datetime import timedelta
+                        hoje = _dt.now()
+                        periodo_inicio = (hoje - timedelta(days=7)).strftime("%Y-%m-%d")
+                        periodo_fim = hoje.strftime("%Y-%m-%d")
+                    elif periodo == "mes":
+                        from datetime import timedelta
+                        hoje = _dt.now()
+                        periodo_inicio = (hoje - timedelta(days=30)).strftime("%Y-%m-%d")
+                        periodo_fim = hoje.strftime("%Y-%m-%d")
+                    elif ":" in (periodo or ""):
+                        parts = periodo.split(":")
+                        periodo_inicio = parts[0].strip()
+                        periodo_fim = parts[1].strip() if len(parts) > 1 else ""
+
+                    messages = ReportService.build_ai_prompt_with_mcp(
+                        approach=abordagem,
+                        contrato=contrato,
+                        client_id=client_id,
+                        periodo_inicio=periodo_inicio,
+                        periodo_fim=periodo_fim,
+                        custom_instruction=instrucao,
+                        gerado_por=created_by,
+                    )
+
+                    # Chama a IA de forma síncrona (estamos em run_in_executor)
+                    from bomtempo.core.ai_client import ai_client
+                    ai_text = ai_client.query(messages, max_tokens=4000) or ""
+
+                    if not ai_text:
+                        return "❌ A IA não retornou conteúdo. Tente novamente."
+
+                    data_for_html = {
+                        "contrato": contrato, "cliente": "—",
+                        "gerado_por": created_by, "fmt": {}, "obra": {}, "disciplinas": [],
+                    }
+                    html = ReportService.build_ai_html(ai_text, data_for_html, abordagem)
+                else:
+                    # Relatório estático — usa dados disponíveis
+                    data_for_html = {
+                        "contrato": contrato, "cliente": "—",
+                        "gerado_por": created_by, "fmt": {}, "obra": {}, "disciplinas": [],
+                    }
+                    html = ReportService.build_static_html(data_for_html)
+
+                # Gera PDF
+                ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+                _raw = contrato.replace(" ", "_").replace("/", "-")[:30]
+                safe_name = unicodedata.normalize("NFKD", _raw).encode("ascii", "ignore").decode("ascii")
+                filename = f"relatorio_ai_{safe_name}_{ts}.pdf"
+                pdf_path, pdf_url = ReportService.generate_pdf(html, filename)
+
+                # Salva no banco
+                record_report = {
+                    "contrato": contrato, "cliente": "—",
+                    "tipo": tipo, "abordagem": abordagem,
+                    "titulo": f"Relatório {abordagem.title()} — {contrato} (Action AI)",
+                    "pdf_path": pdf_path, "pdf_url": pdf_url,
+                    "created_by": created_by,
+                    "recipients": recipients,
+                }
+                if client_id:
+                    record_report["client_id"] = client_id
+                sb_insert("relatorios", record_report)
+
+                # Envia emails em background
+                if recipients:
+                    def _send():
+                        try:
+                            from bomtempo.core.email_service import EmailService
+                            email_list = [r.get("email") for r in recipients if r.get("email")]
+                            if email_list:
+                                EmailService.send_document_email(
+                                    recipients=email_list,
+                                    doc_label=f"Relatório {contrato} — {_dt.now().strftime('%d/%m/%Y')}",
+                                    doc_url=pdf_url,
+                                    sender_username=created_by,
+                                )
+                        except Exception as _em:
+                            logger.warning(f"send_report email error: {_em}")
+                    threading.Thread(target=_send, daemon=True).start()
+                    return (
+                        f"✅ Relatório **{contrato}** gerado com sucesso!\n"
+                        f"📄 [Abrir PDF]({pdf_url})\n"
+                        f"📧 Enviando para {len(recipients)} destinatário(s) em background."
+                    )
+                return (
+                    f"✅ Relatório **{contrato}** gerado com sucesso!\n"
+                    f"📄 [Abrir PDF]({pdf_url})"
+                )
+            except Exception as e:
+                logger.error(f"generate_report action error: {e}")
+                return f"❌ Erro ao gerar relatório: {str(e)[:200]}"
 
         return "❌ Ação desconhecida."
     except Exception as e:
