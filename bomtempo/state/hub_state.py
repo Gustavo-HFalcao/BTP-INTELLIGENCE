@@ -324,33 +324,105 @@ def _norm_pct(v: object) -> str:
 # State
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _working_days_between(d_start, d_end) -> int:
+    """Conta dias úteis (seg-sex) entre duas datas, inclusive d_start, exclusive d_end."""
+    from datetime import timedelta
+    if d_end <= d_start:
+        return 0
+    total = (d_end - d_start).days
+    # Semanas completas
+    weeks, rem = divmod(total, 7)
+    wd = weeks * 5
+    # Dias restantes: conta seg-sex começando do weekday de d_start
+    start_wd = d_start.weekday()  # 0=seg, 6=dom
+    for i in range(rem):
+        if (start_wd + i) % 7 < 5:
+            wd += 1
+    return max(0, wd)
+
+
+def _add_working_days_simple(d_start, n: int):
+    """Avança n dias úteis a partir de d_start."""
+    from datetime import timedelta
+    current = d_start
+    added = 0
+    while added < n:
+        current += timedelta(days=1)
+        if current.weekday() < 5:
+            added += 1
+    return current
+
+
 def _compute_forecast_rows(cron_rows: list) -> list:
     """
-    Função pura: enriquece micro-atividades com campos de forecast + day-context.
-    Executada em run_in_executor (thread pool) pelo load_cronograma — nunca no event loop.
+    Função pura: enriquece micro-atividades (e suas subs) com campos de forecast.
+    Executada em run_in_executor (thread pool) pelo load_cronograma.
+
+    Correções v2:
+    - pct da micro recalculado a partir das subs (mesmo bug que filtered_cron_rows já corrigia,
+      mas o forecast lia o valor bruto do banco)
+    - dias úteis reais usados em todo o cálculo (não aproximação * 5/7)
+    - threshold "sem_dados": só quando exec_qty == 0 (não mais dias_decorridos < 3)
+    - tendência override: se EAC já passou do termino_previsto, nunca pode ser "acima"
+    - EAC projetado em dias úteis, não corridos
+    - pct_esperado baseado em dias úteis decorridos vs dias úteis planejados
+    - subs incluídas no resultado, agrupadas abaixo da sua micro
     """
-    from datetime import date, timedelta
+    from datetime import date
     today = date.today()
     tol = 10.0
+
+    # ── Pré-indexar subs por parent_id ───────────────────────────────────────
+    subs_by_parent: dict = {}
+    for r in cron_rows:
+        if r.get("nivel", "macro") not in ("macro", "micro", ""):
+            pid = r.get("parent_id", "")
+            if pid:
+                subs_by_parent.setdefault(pid, []).append(r)
+
     result = []
+
     for r in cron_rows:
         if r.get("nivel", "macro") != "micro":
             continue
+
         total_qty_s = r.get("total_qty",  "0") or "0"
         exec_qty_s  = r.get("exec_qty",   "0") or "0"
         dias_plan_s = r.get("dias_planejados", "0") or "0"
-        pct_s       = r.get("conclusao_pct", "0") or "0"
+        micro_id    = r.get("id", "")
+
         try:
             total_qty = float(total_qty_s)
             exec_qty  = float(exec_qty_s)
             dias_plan = int(dias_plan_s)
-            pct       = int(pct_s)
         except (ValueError, TypeError):
             continue
+
         inicio_iso  = r.get("inicio_iso", "")
         termino_iso = r.get("termino_iso", "")
         unidade     = r.get("unidade", "")
+
+        # ── FIX 3: recalcular pct da micro a partir das subs se existirem ──
+        sub_list = subs_by_parent.get(micro_id, [])
+        if sub_list:
+            sub_peso_total = sum(int(s.get("peso_pct", "0") or "0") for s in sub_list)
+            if sub_peso_total > 0:
+                sub_wpct = sum(
+                    int(s.get("conclusao_pct", "0") or "0") * int(s.get("peso_pct", "0") or "0")
+                    for s in sub_list
+                ) / sub_peso_total
+            else:
+                sub_wpct = sum(int(s.get("conclusao_pct", "0") or "0") for s in sub_list) / len(sub_list)
+            pct = round(sub_wpct)
+        else:
+            pct_s = r.get("conclusao_pct", "0") or "0"
+            try:
+                pct = int(pct_s)
+            except (ValueError, TypeError):
+                pct = 0
+
         prod_plan = total_qty / dias_plan if total_qty > 0 and dias_plan > 0 else 0.0
+
         d_inicio = d_termino = None
         if inicio_iso and len(inicio_iso) >= 10:
             try: d_inicio = date.fromisoformat(inicio_iso[:10])
@@ -358,42 +430,82 @@ def _compute_forecast_rows(cron_rows: list) -> list:
         if termino_iso and len(termino_iso) >= 10:
             try: d_termino = date.fromisoformat(termino_iso[:10])
             except ValueError: pass
-        dias_decorridos = max(0, (today - d_inicio).days) if d_inicio and d_inicio <= today else 0
-        dias_uteis = max(1, int(dias_decorridos * 5 / 7))
-        prod_real  = exec_qty / dias_uteis if exec_qty > 0 else 0.0
-        dia_atual  = min(dias_decorridos + 1, dias_plan) if d_inicio and d_inicio <= today else 0
+
+        # ── FIX 1 + 6: dias úteis reais, não aproximação ──────────────────
+        if d_inicio and d_inicio <= today:
+            dias_uteis_decorridos = _working_days_between(d_inicio, today + __import__('datetime').timedelta(days=1))
+            # dia_atual = dia útil corrente dentro do plano
+            dia_atual = min(dias_uteis_decorridos, dias_plan)
+        else:
+            dias_uteis_decorridos = 0
+            dia_atual = 0
+
+        # FIX 6: pct_esperado baseado em dias úteis, não corridos
         pct_esperado = round(min(100.0, dia_atual / dias_plan * 100), 1) if dias_plan > 0 and dia_atual > 0 else 0.0
+
+        # prod_real: baseado em dias úteis reais decorridos (min 1 para evitar div/0)
+        prod_real = exec_qty / max(1, dias_uteis_decorridos) if exec_qty > 0 else 0.0
+
+        desvio_pct = round((prod_real - prod_plan) / prod_plan * 100, 1) if prod_plan > 0 else 0.0
+
+        exec_label = ""
         if total_qty > 0 and unidade:
             exec_label = f"{exec_qty:.1f} de {total_qty:.1f} {unidade}"
         elif total_qty > 0:
             exec_label = f"{exec_qty:.1f} de {total_qty:.1f}"
-        else:
-            exec_label = ""
-        desvio_pct = round((prod_real - prod_plan) / prod_plan * 100, 1) if prod_plan > 0 else 0.0
-        if exec_qty == 0 or dias_decorridos < 3:
-            tendencia = "sem_dados"
-        elif pct >= 100:
-            tendencia = "concluida"
-        elif desvio_pct >= tol:
-            tendencia = "acima"
-        elif desvio_pct <= -tol:
-            tendencia = "abaixo"
-        else:
-            tendencia = "dentro"
+
+        # ── FIX 4: EAC em dias úteis ───────────────────────────────────────
         data_fim_prev_str = ""
         desvio_dias = 0
         if prod_real > 0 and total_qty > 0 and pct < 100:
             saldo = max(0.0, total_qty - exec_qty)
-            fim_prev = today + timedelta(days=int(saldo / prod_real * 1.4))
+            dias_restantes_uteis = max(1, round(saldo / prod_real))
+            fim_prev = _add_working_days_simple(today, dias_restantes_uteis)
             data_fim_prev_str = fim_prev.isoformat()
             if d_termino:
-                desvio_dias = (fim_prev - d_termino).days
+                # desvio em dias úteis também
+                if fim_prev > d_termino:
+                    desvio_dias = _working_days_between(d_termino, fim_prev)
+                elif fim_prev < d_termino:
+                    desvio_dias = -_working_days_between(fim_prev, d_termino)
+
+        # ── FIX 1: threshold sem_dados: só quando realmente sem produção ──
+        # FIX 2: override acima→abaixo se EAC já ultrapassou termino_previsto
+        prazo_estourado = (
+            data_fim_prev_str != "" and d_termino is not None
+            and desvio_dias > 0
+        )
+
+        if exec_qty == 0:
+            tendencia = "sem_dados"
+        elif pct >= 100:
+            tendencia = "concluida"
+        elif desvio_pct >= tol and not prazo_estourado:
+            tendencia = "acima"
+        elif desvio_pct <= -tol or prazo_estourado:
+            tendencia = "abaixo"
+        else:
+            tendencia = "dentro"
+
+        # ── FIX 5: magnitude do desvio para display ───────────────────────
+        if abs(desvio_pct) < 1:
+            desvio_label = "no ritmo"
+        elif abs(desvio_pct) < tol:
+            desvio_label = f"{desvio_pct:+.0f}%"
+        elif abs(desvio_pct) < 50:
+            desvio_label = f"{desvio_pct:+.0f}%"
+        else:
+            desvio_label = f"{desvio_pct:+.0f}%"  # sempre mostrar
+
         result.append(dict(
             r,
+            conclusao_pct=str(pct),         # pct recalculado pelas subs
             _prod_planejada=f"{prod_plan:.1f}",
             _prod_real=f"{prod_real:.1f}",
             _desvio_pct=f"{desvio_pct:+.1f}",
+            _desvio_label=desvio_label,
             _tendencia=tendencia,
+            _prazo_estourado="1" if prazo_estourado else "0",
             _data_fim_prevista=_utc_date_to_br(data_fim_prev_str) if data_fim_prev_str else "—",
             _desvio_dias=str(desvio_dias),
             _saldo_qty=f"{max(0.0, total_qty - exec_qty):.1f}",
@@ -401,7 +513,55 @@ def _compute_forecast_rows(cron_rows: list) -> list:
             _total_dias=str(dias_plan),
             _pct_esperado=str(pct_esperado),
             _exec_label=exec_label,
+            _has_subs="1" if sub_list else "0",
+            _sub_count=str(len(sub_list)),
         ))
+
+        # ── Subs agrupadas logo abaixo da micro ───────────────────────────
+        for s in sub_list:
+            sub_pct_s = s.get("conclusao_pct", "0") or "0"
+            try:
+                sub_pct = int(sub_pct_s)
+            except (ValueError, TypeError):
+                sub_pct = 0
+            sub_peso = s.get("peso_pct", "0") or "0"
+
+            # Tendência da sub: simples — só baseada no pct vs pct_esperado da micro
+            if sub_pct >= 100:
+                sub_tend = "concluida"
+            elif dia_atual > 0 and pct_esperado > 0:
+                sub_desvio = sub_pct - pct_esperado
+                if sub_desvio >= tol:
+                    sub_tend = "acima"
+                elif sub_desvio <= -tol:
+                    sub_tend = "abaixo"
+                else:
+                    sub_tend = "dentro"
+            else:
+                sub_tend = "sem_dados"
+
+            result.append(dict(
+                s,
+                _nivel_display="sub",
+                _tendencia=sub_tend,
+                _desvio_pct="0",
+                _desvio_label="",
+                _prod_planejada="—",
+                _prod_real="—",
+                _data_fim_prevista="—",
+                _desvio_dias="0",
+                _saldo_qty="0",
+                _dia_atual=str(dia_atual),
+                _total_dias=str(dias_plan),
+                _pct_esperado=str(pct_esperado),
+                _exec_label="",
+                _has_subs="0",
+                _sub_count="0",
+                _prazo_estourado="0",
+                _is_sub="1",
+                _sub_peso=sub_peso,
+            ))
+
     return result
 
 
@@ -416,6 +576,13 @@ class HubState(rx.State):
     # ── Forecast cache — computado em background no load_cronograma ──────────
     # Evita recalcular cron_forecast_rows (O(n) heavy) em toda mudança de state.
     _cron_forecast_cache: List[Dict[str, str]] = []
+
+    # Filtro ativo do painel Produtividade & Forecast
+    # "execucao" | "concluida" | "prevista" | "todas"
+    cron_forecast_filter: str = "execucao"
+
+    def set_cron_forecast_filter(self, v: str):
+        self.cron_forecast_filter = v
 
     # ── Lazy load sentinels — True após primeiro carregamento para o contrato ──
     # Evita disparar load_auditoria e load_timeline no select_project:
@@ -968,6 +1135,83 @@ class HubState(rx.State):
         via run_in_executor dentro de load_cronograma — nunca no event loop.
         """
         return self._cron_forecast_cache
+
+    @rx.var
+    def cron_forecast_filtered(self) -> List[Dict[str, str]]:
+        """
+        Cache filtrado + ordenado. Subs sempre ficam coladas à sua micro (não filtradas
+        individualmente). Filtra apenas micros; subs seguem junto.
+        """
+        rows = self._cron_forecast_cache
+        f = self.cron_forecast_filter
+        _order = {"abaixo": 0, "dentro": 1, "acima": 2, "sem_dados": 3, "concluida": 4}
+
+        # Separar micros de subs
+        micros = [r for r in rows if r.get("_is_sub", "0") != "1"]
+        subs_by_micro: dict = {}
+        for r in rows:
+            if r.get("_is_sub", "0") == "1":
+                pid = r.get("parent_id", "")
+                subs_by_micro.setdefault(pid, []).append(r)
+
+        # Filtrar micros conforme filtro ativo
+        if f == "execucao":
+            filtered_micros = [r for r in micros
+                                if r.get("_tendencia") != "concluida"
+                                and r.get("_dia_atual", "0") != "0"]
+        elif f == "concluida":
+            filtered_micros = [r for r in micros if r.get("_tendencia") == "concluida"]
+        elif f == "prevista":
+            filtered_micros = [r for r in micros if r.get("_dia_atual", "0") == "0"]
+        else:
+            filtered_micros = list(micros)
+
+        # Ordenar micros por desvio
+        sorted_micros = sorted(filtered_micros,
+                               key=lambda r: _order.get(r.get("_tendencia", "sem_dados"), 99))
+
+        # Reinserir subs logo abaixo de cada micro
+        result = []
+        for micro in sorted_micros:
+            result.append(micro)
+            for sub in subs_by_micro.get(micro.get("id", ""), []):
+                result.append(sub)
+        return result
+
+    @rx.var
+    def cron_forecast_kpis(self) -> Dict[str, str]:
+        """
+        KPIs do summary bar — single-pass, ignora subs nas contagens.
+        """
+        n_exec = n_conc = n_prev = n_risco = 0
+        desvios: list = []
+        for r in self._cron_forecast_cache:
+            if r.get("_is_sub", "0") == "1":
+                continue  # subs não contam nos KPIs
+            t   = r.get("_tendencia", "sem_dados")
+            dia = r.get("_dia_atual", "0")
+            if t == "concluida":
+                n_conc += 1
+            elif dia == "0":
+                n_prev += 1
+            else:
+                n_exec += 1
+                if t == "abaixo":
+                    n_risco += 1
+                if t not in ("sem_dados",):
+                    try:
+                        desvios.append(float(r.get("_desvio_pct", "0")))
+                    except ValueError:
+                        pass
+        desvio_medio = round(sum(desvios) / len(desvios), 1) if desvios else 0.0
+        return {
+            "em_exec":         str(n_exec),
+            "concluidas":      str(n_conc),
+            "previstas":       str(n_prev),
+            "em_risco":        str(n_risco),
+            "desvio_medio":    f"{desvio_medio:+.1f}%",
+            "desvio_positivo": "1" if desvio_medio >= 0 else "0",
+        }
 
     @rx.var
     def cron_kpi_dashboard(self) -> Dict[str, str]:

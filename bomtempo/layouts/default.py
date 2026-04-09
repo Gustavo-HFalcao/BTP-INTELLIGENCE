@@ -1044,7 +1044,10 @@ def default_layout(content: rx.Component) -> rx.Component:
   }
 })();
 """),
-        # ── Banner de reconexão WebSocket — visível apenas quando desconectado ──
+        # ── Banner de reconexão WebSocket ─────────────────────────────────────
+        # Só aparece se ~is_hydrated persistir >2.5s (WebSocket realmente caiu).
+        # Navegações SPA normais hidratam em <500ms — o banner some antes de aparecer.
+        # CSS animation-delay garante invisibilidade durante o flash inicial.
         rx.cond(
             ~rx.State.is_hydrated,
             rx.box(
@@ -1064,6 +1067,10 @@ def default_layout(content: rx.Component) -> rx.Component:
                 top="0",
                 left="0",
                 z_index="10000",
+                opacity="0",
+                style={
+                    "animation": "reconnect-banner-appear 0s 2.5s forwards",
+                },
             ),
             rx.fragment(),
         ),

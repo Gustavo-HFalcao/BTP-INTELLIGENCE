@@ -13,11 +13,11 @@ from bomtempo.components.skeletons import page_loading_skeleton
 from bomtempo.components.windy_map_widget import windy_map_widget
 from bomtempo.components.tooltips import (
     gantt_hover_content,
-    TOOLTIP_MONEY,
-    TOOLTIP_SPI,
-    TOOLTIP_PCT_SCURVE,
-    TOOLTIP_PCT_DAILY,
-    TOOLTIP_PCT_DISC,
+    TOOLTIP_SPLIT,
+    TOOLTIP_SIGNAL,
+    TOOLTIP_SPI_RING,
+    TOOLTIP_PILL,
+    TOOLTIP_STACK_DISC,
 )
 from bomtempo.core import styles as S
 from bomtempo.state.global_state import GlobalState
@@ -2119,7 +2119,7 @@ def _tab_dashboard() -> rx.Component:
                             rx.recharts.x_axis(data_key="data", tick=_TICK_STYLE),
                             rx.recharts.y_axis(unit="%", tick=_TICK_STYLE, width=32),
                             rx.recharts.cartesian_grid(stroke_dasharray="3 3", stroke="rgba(255,255,255,0.04)"),
-                            TOOLTIP_PCT_SCURVE,
+                            TOOLTIP_SIGNAL,
                             rx.recharts.legend(
                                 icon_type="line",
                                 wrapper_style={"fontSize": "10px", "color": S.TEXT_MUTED, "paddingTop": "8px"},
@@ -2162,7 +2162,7 @@ def _tab_dashboard() -> rx.Component:
                                 domain=[0.5, 1.5],
                             ),
                             rx.recharts.cartesian_grid(stroke_dasharray="3 3", stroke="rgba(255,255,255,0.04)"),
-                            TOOLTIP_SPI,
+                            TOOLTIP_SPI_RING,
                             rx.recharts.reference_line(y=1, stroke=S.COPPER, stroke_dasharray="4 2", stroke_width=1),
                             data=GlobalState.dash_spi_trend_chart,
                             height=200, width="100%",
@@ -2201,7 +2201,7 @@ def _tab_dashboard() -> rx.Component:
                             rx.recharts.x_axis(data_key="data", tick=_TICK_STYLE),
                             rx.recharts.y_axis(unit="%", tick=_TICK_STYLE, width=36),
                             rx.recharts.cartesian_grid(stroke_dasharray="3 3", stroke="rgba(255,255,255,0.04)"),
-                            TOOLTIP_PCT_DAILY,
+                            TOOLTIP_PILL,
                             rx.recharts.legend(
                                 wrapper_style={"fontSize": "10px", "color": S.TEXT_MUTED, "paddingTop": "8px"},
                             ),
@@ -2238,7 +2238,7 @@ def _tab_dashboard() -> rx.Component:
                             ),
                             rx.recharts.y_axis(unit="%", tick=_TICK_STYLE, width=32),
                             rx.recharts.cartesian_grid(stroke_dasharray="3 3", stroke="rgba(255,255,255,0.04)"),
-                            TOOLTIP_PCT_DISC,
+                            TOOLTIP_STACK_DISC,
                             rx.recharts.legend(
                                 wrapper_style={"fontSize": "10px", "color": S.TEXT_MUTED, "paddingTop": "8px", "display": "flex", "flexWrap": "wrap", "justifyContent": "center"},
                             ),
@@ -2279,7 +2279,7 @@ def _tab_dashboard() -> rx.Component:
                             rx.recharts.y_axis(tick=_TICK_STYLE, width=64,
                                 tick_formatter="(v) => v >= 1000000 ? 'R$' + (v/1000000).toFixed(1) + 'M' : v >= 1000 ? 'R$' + (v/1000).toFixed(0) + 'k' : 'R$' + v"),
                             rx.recharts.cartesian_grid(stroke_dasharray="3 3", stroke="rgba(255,255,255,0.04)"),
-                            TOOLTIP_MONEY,
+                            TOOLTIP_SPLIT,
                             rx.recharts.legend(
                                 wrapper_style={"fontSize": "10px", "color": S.TEXT_MUTED, "paddingTop": "8px"},
                             ),
@@ -3258,273 +3258,565 @@ def _cron_kpi_panel() -> rx.Component:
     )
 
 
-def _forecast_card(row: dict) -> rx.Component:
-    """Enterprise forecast card — horizontal layout, full info, compact."""
+def _forecast_row(row: dict) -> rx.Component:
+    """One <tr> in the forecast table. Handles both micro rows and sub rows."""
+    is_sub    = row["_is_sub"] == "1"
     tendencia = row["_tendencia"]
-    pct_int   = row["conclusao_pct"].to(int)
-    esp_int   = row["_pct_esperado"].to(float).to(int)
 
-    # Tendency color + icon
     tend_color = rx.cond(
-        tendencia == "acima",    S.PATINA,
-        rx.cond(tendencia == "abaixo",   S.DANGER,
-        rx.cond(tendencia == "concluida","#A855F7", S.TEXT_MUTED))
+        tendencia == "acima",     S.PATINA,
+        rx.cond(tendencia == "abaixo",    S.DANGER,
+        rx.cond(tendencia == "concluida", "#A855F7", S.TEXT_MUTED))
     )
     tend_icon = rx.cond(
-        tendencia == "acima",    "trending-up",
-        rx.cond(tendencia == "abaixo",   "trending-down",
-        rx.cond(tendencia == "concluida","check-circle", "minus"))
+        tendencia == "acima",     "trending-up",
+        rx.cond(tendencia == "abaixo",    "trending-down",
+        rx.cond(tendencia == "concluida", "check-circle", "minus"))
     )
     tend_label = rx.cond(
-        tendencia == "acima",    "Acima do ritmo",
-        rx.cond(tendencia == "abaixo",   "Abaixo do ritmo",
-        rx.cond(tendencia == "concluida","Concluída",
-        rx.cond(tendencia == "dentro",   "No ritmo", "Aguardando dados")))
+        tendencia == "acima",     "Acima",
+        rx.cond(tendencia == "abaixo",    "Abaixo",
+        rx.cond(tendencia == "concluida", "Concluída",
+        rx.cond(tendencia == "dentro",    "No ritmo", "Aguardando")))
     )
-
-    # Progress bar color: matches status
     bar_color = rx.cond(
         tendencia == "concluida", "#A855F7",
-        rx.cond(tendencia == "acima", S.PATINA,
+        rx.cond(tendencia == "acima",  S.PATINA,
         rx.cond(tendencia == "abaixo", S.DANGER,
         rx.cond(tendencia == "dentro", S.COPPER, S.TEXT_MUTED)))
     )
-
-    # EAC deviation coloring
     desvio_color = rx.cond(
         row["_desvio_dias"].startswith("-"), S.PATINA,
         rx.cond(row["_desvio_dias"] == "0", S.TEXT_MUTED, S.DANGER)
     )
-
-    # Productivity display: realizado vs planejado (color coded)
-    # realizado: green if >= plan, amber if >=80%, red if below
-    prod_real_f  = row["_prod_real"].to(float)
-    prod_plan_f  = row["_prod_planejada"].to(float)
+    prod_real_f = row["_prod_real"].to(float)
+    prod_plan_f = row["_prod_planejada"].to(float)
     prod_color = rx.cond(
         prod_plan_f == 0, S.TEXT_MUTED,
-        rx.cond(
-            prod_real_f >= prod_plan_f, S.PATINA,
-            rx.cond(prod_real_f >= prod_plan_f * 0.8, S.COPPER, S.DANGER)
-        )
+        rx.cond(prod_real_f >= prod_plan_f, S.PATINA,
+        rx.cond(prod_real_f >= prod_plan_f * 0.8, S.COPPER, S.DANGER))
     )
-
-    # Day context: "dia X de Y"
     has_day_ctx = (row["_dia_atual"] != "0") & (row["_total_dias"] != "0")
-    has_eac = row["_data_fim_prevista"] != "—"
+    has_eac     = row["_data_fim_prevista"] != "—"
+    show_esp    = has_day_ctx & (row["_pct_esperado"] != "0")
+    has_subs    = row["_has_subs"] == "1"
+    prazo_est   = row["_prazo_estourado"] == "1"
 
-    return rx.box(
-        rx.hstack(
-            # COLUMN A: activity identity (26%)
-            rx.vstack(
-                rx.hstack(
-                    rx.box(
-                        rx.text(row["fase_macro"], font_size="10px", color=S.COPPER,
-                                font_weight="700", letter_spacing="0.04em", text_transform="uppercase"),
-                        padding="2px 8px", border_radius="4px",
-                        bg="rgba(201,139,42,0.1)", border="1px solid rgba(201,139,42,0.2)",
-                        flex_shrink="0",
-                    ),
-                    rx.cond(
-                        has_day_ctx,
-                        rx.text(
-                            "Dia " + row["_dia_atual"] + " de " + row["_total_dias"],
-                            font_size="10px", color=S.TEXT_MUTED, font_family=S.FONT_MONO,
+    # ── SUB ROW: visual compacto, indentado ───────────────────────────────
+    sub_pct_f = row["conclusao_pct"].to(float)
+
+    td_sub = {
+        "padding": "7px 10px",
+        "vertical_align": "middle",
+        "border_bottom": f"1px solid rgba(255,255,255,0.04)",
+        "background": "rgba(255,255,255,0.012)",
+    }
+    sub_row = rx.el.tr(
+        rx.el.td(
+            rx.hstack(
+                # Indent indicator
+                rx.box(width="2px", height="28px", bg="rgba(255,255,255,0.1)",
+                       border_radius="1px", flex_shrink="0"),
+                rx.box(width="12px", height="1px", bg="rgba(255,255,255,0.1)", flex_shrink="0"),
+                rx.vstack(
+                    rx.text(row["atividade"],
+                            font_size="11px", color="rgba(255,255,255,0.65)",
+                            font_weight="500", line_height="1.2"),
+                    rx.hstack(
+                        rx.icon(tag="user", size=9, color="rgba(255,255,255,0.3)"),
+                        rx.text(row["responsavel"], font_size="9px",
+                                color="rgba(255,255,255,0.3)"),
+                        rx.cond(
+                            row["_sub_peso"] != "0",
+                            rx.text("· peso " + row["_sub_peso"] + "%",
+                                    font_size="9px", color="rgba(255,255,255,0.25)",
+                                    font_family=S.FONT_MONO),
                         ),
+                        spacing="1", align="center",
                     ),
-                    spacing="2", align="center", flex_wrap="wrap",
+                    spacing="1",
                 ),
-                rx.text(
-                    row["atividade"],
-                    font_size="14px", color="rgba(255,255,255,0.95)", font_weight="600",
-                    white_space="normal", word_break="break-word", line_height="1.35",
-                ),
-                rx.hstack(
-                    rx.icon(tag="user", size=11, color=S.TEXT_MUTED),
-                    rx.text(row["responsavel"], font_size="11px", color=S.TEXT_MUTED),
-                    spacing="1", align="center",
-                ),
-                spacing="2", align_items="flex-start",
-                width="26%", flex_shrink="0",
+                spacing="0", align="center",
             ),
-            # COLUMN B: progress (23%)
-            rx.vstack(
+            **td_sub,
+            border_left="3px solid rgba(255,255,255,0.06)",
+            padding_left="12px",
+        ),
+        # Sub progresso
+        rx.el.td(
+            rx.box(
                 rx.hstack(
-                    rx.text("Realizado", font_size="10px", color=S.TEXT_MUTED),
                     rx.spacer(),
-                    rx.text(row["conclusao_pct"] + "%", font_size="16px",
-                            color=bar_color, font_family=S.FONT_MONO, font_weight="700"),
+                    rx.text(row["conclusao_pct"] + "%",
+                            font_size="12px", color=bar_color,
+                            font_family=S.FONT_MONO, font_weight="700"),
                     width="100%", align="center",
                 ),
                 rx.box(
                     rx.box(width=row["conclusao_pct"] + "%", height="100%",
-                           bg=bar_color, border_radius="3px", transition="width 0.3s ease"),
-                    width="100%", height="7px", bg="rgba(255,255,255,0.07)",
-                    border_radius="3px", overflow="hidden",
+                           bg=bar_color, border_radius="2px"),
+                    width="100%", height="3px", bg="rgba(255,255,255,0.05)",
+                    border_radius="2px", overflow="hidden", margin_top="4px",
                 ),
-                rx.cond(
-                    has_day_ctx & (row["_pct_esperado"] != "0"),
-                    rx.vstack(
-                        rx.hstack(
-                            rx.text("Esperado", font_size="10px", color="rgba(255,255,255,0.35)"),
-                            rx.spacer(),
-                            rx.text(row["_pct_esperado"] + "%", font_size="10px",
-                                    color="rgba(255,255,255,0.45)", font_family=S.FONT_MONO),
-                            width="100%", align="center",
-                        ),
-                        rx.box(
-                            rx.box(width=row["_pct_esperado"] + "%", height="100%",
-                                   bg="rgba(255,255,255,0.2)", border_radius="2px"),
-                            width="100%", height="3px", bg="rgba(255,255,255,0.05)",
-                            border_radius="2px", overflow="hidden",
-                        ),
-                        spacing="1", width="100%",
-                    ),
-                ),
-                spacing="2", width="23%", flex_shrink="0",
-            ),
-            # COLUMN C: productivity (22%)
-            rx.vstack(
                 rx.hstack(
-                    rx.text(row["_prod_real"], font_size="18px", color=prod_color,
+                    rx.text("Esperado", font_size="9px",
+                            color=rx.cond(show_esp, "rgba(255,255,255,0.2)", "transparent")),
+                    rx.spacer(),
+                    rx.text(rx.cond(show_esp, row["_pct_esperado"] + "%", ""),
+                            font_size="9px", font_family=S.FONT_MONO,
+                            color=rx.cond(show_esp, "rgba(255,255,255,0.3)", "transparent")),
+                    width="100%", align="center", margin_top="4px",
+                ),
+            ),
+            **td_sub,
+        ),
+        # Sub produtividade — vazio (subs não têm qty própria)
+        rx.el.td(rx.box(), **td_sub),
+        # Sub tendência
+        rx.el.td(
+            rx.hstack(
+                rx.icon(tag=tend_icon, size=11, color=tend_color),
+                rx.text(tend_label, font_size="10px", color=tend_color, font_weight="600"),
+                spacing="1", align="center",
+                padding="3px 8px", border_radius="5px",
+                display="inline-flex",
+                bg=rx.cond(
+                    tendencia == "acima",  "rgba(42,157,143,0.08)",
+                    rx.cond(tendencia == "abaixo", "rgba(239,68,68,0.08)",
+                    rx.cond(tendencia == "concluida", "rgba(168,85,247,0.08)",
+                            "rgba(255,255,255,0.03)"))
+                ),
+            ),
+            **td_sub,
+        ),
+        # Sub EAC — vazio
+        rx.el.td(rx.box(), **td_sub, padding_right="20px"),
+        style={"transition": "background 0.1s"},
+    )
+
+    # ── MICRO ROW ─────────────────────────────────────────────────────────
+    td_style = {
+        "padding": "14px 10px",
+        "vertical_align": "middle",
+        "border_bottom": f"1px solid {S.BORDER_SUBTLE}",
+    }
+    micro_row = rx.el.tr(
+        # TD 1: atividade
+        rx.el.td(
+            rx.box(
+                rx.hstack(
+                    rx.box(
+                        rx.text(row["fase_macro"],
+                                font_size="9px", color=S.COPPER,
+                                font_weight="700", letter_spacing="0.05em",
+                                text_transform="uppercase"),
+                        padding="1px 6px", border_radius="3px",
+                        bg="rgba(201,139,42,0.12)", border="1px solid rgba(201,139,42,0.25)",
+                        white_space="nowrap",
+                    ),
+                    rx.cond(
+                        has_day_ctx,
+                        rx.text("Dia " + row["_dia_atual"] + " de " + row["_total_dias"],
+                                font_size="9px", color=S.TEXT_MUTED,
+                                font_family=S.FONT_MONO, white_space="nowrap"),
+                    ),
+                    spacing="2", align="center",
+                ),
+                rx.hstack(
+                    rx.text(row["atividade"],
+                            font_size="13px", color="rgba(255,255,255,0.92)",
+                            font_weight="600", line_height="1.35",
+                            margin_top="5px"),
+                    rx.cond(
+                        has_subs,
+                        rx.box(
+                            rx.text(row["_sub_count"] + " subs",
+                                    font_size="8px", color="rgba(255,255,255,0.35)",
+                                    font_family=S.FONT_MONO),
+                            padding="1px 5px", border_radius="3px",
+                            bg="rgba(255,255,255,0.05)",
+                            border="1px solid rgba(255,255,255,0.08)",
+                            margin_top="6px", flex_shrink="0",
+                        ),
+                    ),
+                    spacing="2", align="start",
+                ),
+                rx.hstack(
+                    rx.icon(tag="user", size=10, color=S.TEXT_MUTED),
+                    rx.text(row["responsavel"], font_size="10px", color=S.TEXT_MUTED),
+                    spacing="1", align="center", margin_top="4px",
+                ),
+            ),
+            padding="14px 16px",
+            vertical_align="middle",
+            border_bottom=f"1px solid {S.BORDER_SUBTLE}",
+            border_left=rx.cond(
+                tendencia == "concluida", "3px solid #A855F7",
+                rx.cond(tendencia == "acima",  f"3px solid {S.PATINA}",
+                rx.cond(tendencia == "abaixo", f"3px solid {S.DANGER}",
+                rx.cond(tendencia == "dentro", f"3px solid {S.COPPER}",
+                        "3px solid rgba(255,255,255,0.08)")))
+            ),
+        ),
+        # TD 2: progresso
+        rx.el.td(
+            rx.box(
+                rx.hstack(
+                    rx.text("Realizado", font_size="9px", color=S.TEXT_MUTED),
+                    rx.spacer(),
+                    rx.text(row["conclusao_pct"] + "%",
+                            font_size="15px", color=bar_color,
                             font_family=S.FONT_MONO, font_weight="700", line_height="1"),
-                    rx.text("/", font_size="13px", color=S.TEXT_MUTED),
-                    rx.text(row["_prod_planejada"], font_size="14px", color=S.TEXT_MUTED,
-                            font_family=S.FONT_MONO),
+                    width="100%", align="center",
+                ),
+                rx.box(
+                    rx.box(width=row["conclusao_pct"] + "%", height="100%",
+                           bg=bar_color, border_radius="2px",
+                           transition="width 0.4s ease"),
+                    width="100%", height="5px", bg="rgba(255,255,255,0.07)",
+                    border_radius="2px", overflow="hidden", margin_top="5px",
+                ),
+                rx.hstack(
+                    rx.text("Esperado", font_size="9px",
+                            color=rx.cond(show_esp, "rgba(255,255,255,0.3)", "transparent")),
+                    rx.spacer(),
+                    rx.text(rx.cond(show_esp, row["_pct_esperado"] + "%", ""),
+                            font_size="9px", font_family=S.FONT_MONO,
+                            color=rx.cond(show_esp, "rgba(255,255,255,0.4)", "transparent")),
+                    width="100%", align="center", margin_top="6px",
+                ),
+                rx.box(
+                    rx.box(
+                        width=rx.cond(show_esp, row["_pct_esperado"] + "%", "0%"),
+                        height="100%", bg="rgba(255,255,255,0.18)", border_radius="1px",
+                    ),
+                    width="100%", height="2px",
+                    bg=rx.cond(show_esp, "rgba(255,255,255,0.04)", "transparent"),
+                    border_radius="1px", overflow="hidden", margin_top="3px",
+                ),
+            ),
+            **td_style,
+            padding_right="16px",
+        ),
+        # TD 3: produtividade / dia
+        rx.el.td(
+            rx.box(
+                rx.hstack(
+                    rx.text(row["_prod_real"],
+                            font_size="17px", color=prod_color,
+                            font_family=S.FONT_MONO, font_weight="700", line_height="1"),
+                    rx.text("/", font_size="12px", color=S.TEXT_MUTED, line_height="1"),
+                    rx.text(row["_prod_planejada"],
+                            font_size="13px", color=S.TEXT_MUTED,
+                            font_family=S.FONT_MONO, line_height="1"),
                     spacing="1", align="baseline",
                 ),
                 rx.text(row["unidade"] + "/dia · realizado / planejado",
-                        font_size="10px", color=S.TEXT_MUTED),
-                rx.cond(
-                    row["_exec_label"] != "",
-                    rx.text(row["_exec_label"], font_size="11px", color="rgba(255,255,255,0.65)",
-                            font_family=S.FONT_MONO),
+                        font_size="9px", color=S.TEXT_MUTED, margin_top="4px"),
+                rx.text(
+                    rx.cond(row["_exec_label"] != "", row["_exec_label"], ""),
+                    font_size="10px", font_family=S.FONT_MONO, margin_top="2px",
+                    color=rx.cond(row["_exec_label"] != "",
+                                  "rgba(255,255,255,0.55)", "transparent"),
                 ),
-                spacing="1", width="22%", flex_shrink="0",
             ),
-            # COLUMN D: tendency (16%)
-            rx.hstack(
-                rx.icon(tag=tend_icon, size=16, color=tend_color),
-                rx.text(tend_label, font_size="12px", color=tend_color, font_weight="700"),
-                spacing="2", align="center",
-                padding="6px 10px", border_radius="8px",
-                bg=rx.cond(
-                    tendencia == "acima",    "rgba(42,157,143,0.1)",
-                    rx.cond(tendencia == "abaixo",   "rgba(239,68,68,0.1)",
-                    rx.cond(tendencia == "concluida","rgba(168,85,247,0.1)", "rgba(255,255,255,0.04)"))
-                ),
-                border=rx.cond(
-                    tendencia == "acima",    f"1px solid {S.PATINA}44",
-                    rx.cond(tendencia == "abaixo",   f"1px solid {S.DANGER}44",
-                    rx.cond(tendencia == "concluida","1px solid rgba(168,85,247,0.3)", f"1px solid {S.BORDER_SUBTLE}"))
-                ),
-                width="16%", flex_shrink="0",
-            ),
-            # COLUMN E: EAC — fills remaining space
-            rx.cond(
-                has_eac,
-                rx.vstack(
-                    rx.text(row["_data_fim_prevista"], font_size="15px",
-                            color="rgba(255,255,255,0.85)", font_family=S.FONT_MONO, font_weight="600"),
-                    rx.text(
-                        rx.cond(row["_desvio_dias"] == "0", "no prazo",
-                            rx.cond(row["_desvio_dias"].startswith("-"),
-                                row["_desvio_dias"] + "d adiantado",
-                                "+" + row["_desvio_dias"] + "d atraso")),
-                        font_size="11px", color=desvio_color, font_family=S.FONT_MONO, font_weight="600",
+            **td_style,
+            padding_right="16px",
+        ),
+        # TD 4: tendência + magnitude
+        rx.el.td(
+            rx.vstack(
+                rx.hstack(
+                    rx.icon(tag=tend_icon, size=13, color=tend_color),
+                    rx.text(tend_label, font_size="11px", color=tend_color,
+                            font_weight="700", white_space="nowrap"),
+                    spacing="1", align="center",
+                    padding="5px 10px", border_radius="6px",
+                    display="inline-flex",
+                    bg=rx.cond(
+                        tendencia == "acima",     "rgba(42,157,143,0.1)",
+                        rx.cond(tendencia == "abaixo",    "rgba(239,68,68,0.1)",
+                        rx.cond(tendencia == "concluida", "rgba(168,85,247,0.1)",
+                                "rgba(255,255,255,0.04)"))
                     ),
-                    rx.text("conclusão projetada", font_size="10px", color=S.TEXT_MUTED),
-                    spacing="1", align_items="flex-end",
+                    border=rx.cond(
+                        tendencia == "acima",     f"1px solid {S.PATINA}44",
+                        rx.cond(tendencia == "abaixo",    f"1px solid {S.DANGER}44",
+                        rx.cond(tendencia == "concluida", "1px solid rgba(168,85,247,0.3)",
+                                f"1px solid {S.BORDER_SUBTLE}"))
+                    ),
                 ),
-                rx.vstack(
-                    rx.text(row["termino_previsto"], font_size="15px",
-                            color=S.TEXT_MUTED, font_family=S.FONT_MONO),
-                    rx.text("término previsto", font_size="10px", color=S.TEXT_MUTED),
-                    spacing="1", align_items="flex-end",
+                # Magnitude do desvio — só quando tem dado real
+                rx.cond(
+                    (tendencia != "sem_dados") & (tendencia != "concluida"),
+                    rx.text(row["_desvio_label"],
+                            font_size="9px", font_family=S.FONT_MONO,
+                            color=rx.cond(
+                                tendencia == "acima",  f"{S.PATINA}99",
+                                rx.cond(tendencia == "abaixo", f"{S.DANGER}99", S.TEXT_MUTED)
+                            ),
+                            margin_top="3px"),
                 ),
+                spacing="0", align_items="flex-start",
             ),
-            spacing="5", align="center", width="100%",
+            **td_style,
+            padding_right="16px",
         ),
-        padding="16px 20px",
-        border_bottom=f"1px solid {S.BORDER_SUBTLE}",
-        _hover={"bg": "rgba(255,255,255,0.025)"},
-        transition="background 0.15s",
-        border_left=rx.cond(
-            tendencia == "concluida", "4px solid #A855F7",
-            rx.cond(tendencia == "acima",   f"4px solid {S.PATINA}",
-            rx.cond(tendencia == "abaixo",  f"4px solid {S.DANGER}",
-            rx.cond(tendencia == "dentro",  f"4px solid {S.COPPER}",
-                    "4px solid rgba(255,255,255,0.1)")))
+        # TD 5: EAC
+        rx.el.td(
+            rx.box(
+                rx.text(
+                    rx.cond(has_eac, row["_data_fim_prevista"], row["termino_previsto"]),
+                    font_size="14px", font_family=S.FONT_MONO, font_weight="600",
+                    color=rx.cond(has_eac, "rgba(255,255,255,0.88)", S.TEXT_MUTED),
+                    white_space="nowrap",
+                ),
+                rx.text(
+                    rx.cond(row["_desvio_dias"] == "0", "no prazo",
+                        rx.cond(row["_desvio_dias"].startswith("-"),
+                            row["_desvio_dias"] + "du adiantado",
+                            "+" + row["_desvio_dias"] + "du atraso")),
+                    font_size="10px", font_family=S.FONT_MONO, font_weight="600",
+                    color=rx.cond(has_eac, desvio_color, "transparent"),
+                    margin_top="2px", white_space="nowrap",
+                ),
+                rx.text("término previsto", font_size="9px", color=S.TEXT_MUTED,
+                        margin_top="1px"),
+            ),
+            **td_style,
+            padding_right="20px",
+            text_align="right",
         ),
+        _hover={"background": "rgba(255,255,255,0.022)"},
+        style={"transition": "background 0.15s"},
+    )
+
+    return rx.cond(is_sub, sub_row, micro_row)
+
+
+# Keep old name as alias
+_forecast_card = _forecast_row
+
+
+def _forecast_filter_btn(label: str, value: str, count_key: str) -> rx.Component:
+    """Botão de filtro de status do painel forecast."""
+    is_active = HubState.cron_forecast_filter == value
+    count = HubState.cron_forecast_kpis[count_key]
+    return rx.button(
+        rx.hstack(
+            rx.text(label, font_size="11px", font_weight="600", white_space="nowrap"),
+            rx.box(
+                rx.text(count, font_size="9px", font_family=S.FONT_MONO, font_weight="700"),
+                padding="1px 6px", border_radius="10px",
+                bg=rx.cond(is_active, "rgba(255,255,255,0.15)", "rgba(255,255,255,0.06)"),
+            ),
+            spacing="2", align="center",
+        ),
+        variant="ghost",
+        cursor="pointer",
+        on_click=HubState.set_cron_forecast_filter(value),
+        padding="5px 12px",
+        border_radius="6px",
+        border=rx.cond(is_active, "1px solid rgba(168,85,247,0.5)", f"1px solid transparent"),
+        bg=rx.cond(is_active, "rgba(168,85,247,0.1)", "transparent"),
+        color=rx.cond(is_active, "#A855F7", S.TEXT_MUTED),
+        _hover={"bg": "rgba(255,255,255,0.04)", "color": "white"},
     )
 
 
-# Keep old name as alias for backward compat
-_forecast_row = _forecast_card
-
-
 def _cron_forecast_panel() -> rx.Component:
-    """Enterprise Produtividade & Forecast panel — horizontal grid, full width."""
+    """Produtividade & Forecast — HTML table garante alinhamento perfeito de colunas."""
+    kpis = HubState.cron_forecast_kpis
+    desvio_positivo = kpis["desvio_positivo"] == "1"
+
+    th_style_base = {
+        "font_size": "9px", "color": S.TEXT_MUTED,
+        "font_family": S.FONT_MONO, "letter_spacing": "0.08em",
+        "font_weight": "600", "background": "rgba(255,255,255,0.02)",
+        "border_bottom": f"1px solid {S.BORDER_SUBTLE}",
+    }
+
     return rx.cond(
         HubState.cron_forecast_rows.length() > 0,
-        rx.vstack(
-            # ── Header ────────────────────────────────────────────
+        rx.box(
+            # ── Header: título + legenda ──────────────────────────────────
             rx.hstack(
                 rx.box(
-                    rx.icon(tag="radar", size=15, color="#A855F7"),
-                    padding="8px", border_radius="8px",
+                    rx.icon(tag="radar", size=14, color="#A855F7"),
+                    padding="7px", border_radius="8px",
                     bg="rgba(168,85,247,0.1)", border="1px solid rgba(168,85,247,0.2)",
+                    flex_shrink="0",
                 ),
                 rx.vstack(
                     rx.text("PRODUTIVIDADE & FORECAST",
-                            font_size="12px", font_family=S.FONT_MONO,
-                            font_weight="700", color="#A855F7", letter_spacing="0.08em"),
+                            font_size="11px", font_family=S.FONT_MONO,
+                            font_weight="700", color="#A855F7", letter_spacing="0.09em"),
                     rx.text("Ritmo de execução · Dia atual do plano · Projeção EAC",
-                            font_size="10px", color=S.TEXT_MUTED),
+                            font_size="9px", color=S.TEXT_MUTED),
                     spacing="0", align="start",
                 ),
                 rx.spacer(),
                 rx.hstack(
-                    rx.hstack(rx.box(width="8px", height="8px", border_radius="50%", bg=S.PATINA),
-                              rx.text("Acima", font_size="9px", color=S.TEXT_MUTED), spacing="1", align="center"),
-                    rx.hstack(rx.box(width="8px", height="8px", border_radius="50%", bg=S.COPPER),
-                              rx.text("No ritmo", font_size="9px", color=S.TEXT_MUTED), spacing="1", align="center"),
-                    rx.hstack(rx.box(width="8px", height="8px", border_radius="50%", bg=S.DANGER),
-                              rx.text("Abaixo", font_size="9px", color=S.TEXT_MUTED), spacing="1", align="center"),
-                    rx.hstack(rx.box(width="8px", height="8px", border_radius="50%", bg="#A855F7"),
-                              rx.text("Concluída", font_size="9px", color=S.TEXT_MUTED), spacing="1", align="center"),
-                    spacing="3", align="center",
+                    rx.hstack(rx.box(width="7px", height="7px", border_radius="50%", bg=S.PATINA),
+                              rx.text("Acima",    font_size="9px", color=S.TEXT_MUTED),
+                              spacing="1", align="center"),
+                    rx.hstack(rx.box(width="7px", height="7px", border_radius="50%", bg=S.COPPER),
+                              rx.text("No ritmo", font_size="9px", color=S.TEXT_MUTED),
+                              spacing="1", align="center"),
+                    rx.hstack(rx.box(width="7px", height="7px", border_radius="50%", bg=S.DANGER),
+                              rx.text("Abaixo",   font_size="9px", color=S.TEXT_MUTED),
+                              spacing="1", align="center"),
+                    rx.hstack(rx.box(width="7px", height="7px", border_radius="50%", bg="#A855F7"),
+                              rx.text("Concluída", font_size="9px", color=S.TEXT_MUTED),
+                              spacing="1", align="center"),
+                    spacing="4", align="center",
                 ),
                 width="100%", align="center", spacing="3",
-                padding="14px 16px 12px 16px",
+                padding="13px 20px 11px 16px",
                 border_bottom=f"1px solid {S.BORDER_SUBTLE}",
             ),
-            # ── Column headers ────────────────────────────────────
+            # ── KPI summary bar ───────────────────────────────────────────
             rx.hstack(
-                rx.text("ATIVIDADE", font_size="10px", color=S.TEXT_MUTED,
-                        font_family=S.FONT_MONO, letter_spacing="0.07em", width="26%"),
-                rx.text("PROGRESSO", font_size="10px", color=S.TEXT_MUTED,
-                        font_family=S.FONT_MONO, letter_spacing="0.07em", width="23%"),
-                rx.text("PRODUTIVIDADE / DIA", font_size="10px", color=S.TEXT_MUTED,
-                        font_family=S.FONT_MONO, letter_spacing="0.07em", width="22%"),
-                rx.text("TENDÊNCIA", font_size="10px", color=S.TEXT_MUTED,
-                        font_family=S.FONT_MONO, letter_spacing="0.07em", width="16%"),
-                rx.text("EAC", font_size="10px", color=S.TEXT_MUTED,
-                        font_family=S.FONT_MONO, letter_spacing="0.07em", flex="1", text_align="right"),
-                spacing="5", width="100%", align="center",
-                padding="8px 20px",
-                bg="rgba(255,255,255,0.02)",
+                # Em execução
+                rx.hstack(
+                    rx.box(
+                        rx.icon(tag="activity", size=13, color=S.COPPER),
+                        padding="5px", border_radius="6px",
+                        bg="rgba(201,139,42,0.1)", border=f"1px solid rgba(201,139,42,0.2)",
+                    ),
+                    rx.vstack(
+                        rx.text(kpis["em_exec"],
+                                font_size="16px", font_family=S.FONT_MONO, font_weight="700",
+                                color="rgba(255,255,255,0.9)", line_height="1"),
+                        rx.text("em execução", font_size="9px", color=S.TEXT_MUTED),
+                        spacing="0",
+                    ),
+                    spacing="2", align="center",
+                ),
+                rx.box(width="1px", height="28px", bg=S.BORDER_SUBTLE),
+                # Em risco
+                rx.hstack(
+                    rx.box(
+                        rx.icon(tag="alert-triangle", size=13, color=S.DANGER),
+                        padding="5px", border_radius="6px",
+                        bg="rgba(239,68,68,0.1)", border="1px solid rgba(239,68,68,0.2)",
+                    ),
+                    rx.vstack(
+                        rx.text(kpis["em_risco"],
+                                font_size="16px", font_family=S.FONT_MONO, font_weight="700",
+                                color=rx.cond(kpis["em_risco"] == "0",
+                                              "rgba(255,255,255,0.9)", S.DANGER),
+                                line_height="1"),
+                        rx.text("em risco", font_size="9px", color=S.TEXT_MUTED),
+                        spacing="0",
+                    ),
+                    spacing="2", align="center",
+                ),
+                rx.box(width="1px", height="28px", bg=S.BORDER_SUBTLE),
+                # Desvio médio
+                rx.hstack(
+                    rx.box(
+                        rx.icon(tag="trending-up", size=13,
+                                color=rx.cond(desvio_positivo, S.PATINA, S.DANGER)),
+                        padding="5px", border_radius="6px",
+                        bg=rx.cond(desvio_positivo,
+                                   "rgba(42,157,143,0.1)", "rgba(239,68,68,0.1)"),
+                        border=rx.cond(desvio_positivo,
+                                       f"1px solid {S.PATINA}44", "1px solid rgba(239,68,68,0.2)"),
+                    ),
+                    rx.vstack(
+                        rx.text(kpis["desvio_medio"],
+                                font_size="16px", font_family=S.FONT_MONO, font_weight="700",
+                                color=rx.cond(desvio_positivo, S.PATINA, S.DANGER),
+                                line_height="1"),
+                        rx.text("desvio médio prod.", font_size="9px", color=S.TEXT_MUTED),
+                        spacing="0",
+                    ),
+                    spacing="2", align="center",
+                ),
+                rx.box(width="1px", height="28px", bg=S.BORDER_SUBTLE),
+                # Concluídas
+                rx.hstack(
+                    rx.box(
+                        rx.icon(tag="check-circle", size=13, color="#A855F7"),
+                        padding="5px", border_radius="6px",
+                        bg="rgba(168,85,247,0.1)", border="1px solid rgba(168,85,247,0.2)",
+                    ),
+                    rx.vstack(
+                        rx.text(kpis["concluidas"],
+                                font_size="16px", font_family=S.FONT_MONO, font_weight="700",
+                                color="rgba(255,255,255,0.9)", line_height="1"),
+                        rx.text("concluídas", font_size="9px", color=S.TEXT_MUTED),
+                        spacing="0",
+                    ),
+                    spacing="2", align="center",
+                ),
+                rx.spacer(),
+                # ── Filtros de status ─────────────────────────────────────
+                rx.hstack(
+                    _forecast_filter_btn("Em execução", "execucao", "em_exec"),
+                    _forecast_filter_btn("Concluídas",  "concluida", "concluidas"),
+                    _forecast_filter_btn("Previstas",   "prevista",  "previstas"),
+                    _forecast_filter_btn("Todas",       "todas",     "em_exec"),
+                    spacing="2", flex_shrink="0",
+                ),
+                spacing="4", align="center", width="100%",
+                padding="10px 20px",
                 border_bottom=f"1px solid {S.BORDER_SUBTLE}",
+                bg="rgba(255,255,255,0.015)",
             ),
-            # ── Activity cards ────────────────────────────────────
-            rx.vstack(
-                rx.foreach(HubState.cron_forecast_rows, _forecast_card),
-                spacing="0", width="100%",
+            # ── Empty state quando filtro não tem resultados ───────────────
+            rx.cond(
+                HubState.cron_forecast_filtered.length() == 0,
+                rx.hstack(
+                    rx.icon(tag="inbox", size=16, color=S.TEXT_MUTED),
+                    rx.text(
+                        rx.cond(HubState.cron_forecast_filter == "concluida",
+                                "Nenhuma atividade concluída ainda.",
+                        rx.cond(HubState.cron_forecast_filter == "prevista",
+                                "Sem atividades previstas com dados de quantidade.",
+                                "Nenhuma atividade em execução no momento.")),
+                        font_size="13px", color=S.TEXT_MUTED,
+                    ),
+                    spacing="2", align="center",
+                    padding="24px 20px", justify="center", width="100%",
+                ),
+                # ── HTML table ────────────────────────────────────────────
+                rx.el.table(
+                    rx.el.colgroup(
+                        rx.el.col(style={"width": "26%"}),
+                        rx.el.col(style={"width": "23%"}),
+                        rx.el.col(style={"width": "22%"}),
+                        rx.el.col(style={"width": "16%"}),
+                        rx.el.col(style={"width": "13%"}),
+                    ),
+                    rx.el.thead(
+                        rx.el.tr(
+                            rx.el.th("ATIVIDADE", style={**th_style_base,
+                                     "text_align": "left", "padding": "7px 16px", "white_space": "nowrap"}),
+                            rx.el.th("PROGRESSO", style={**th_style_base,
+                                     "text_align": "left", "padding": "7px 16px 7px 10px"}),
+                            rx.el.th("PRODUTIVIDADE / DIA", style={**th_style_base,
+                                     "text_align": "left", "padding": "7px 16px 7px 10px"}),
+                            rx.el.th("TENDÊNCIA", style={**th_style_base,
+                                     "text_align": "left", "padding": "7px 16px 7px 10px"}),
+                            rx.el.th("EAC", style={**th_style_base,
+                                     "text_align": "right", "padding": "7px 20px 7px 10px"}),
+                        )
+                    ),
+                    rx.el.tbody(
+                        rx.foreach(HubState.cron_forecast_filtered, _forecast_row),
+                    ),
+                    width="100%",
+                    border_collapse="collapse",
+                    style={"table_layout": "fixed"},
+                ),
             ),
-            spacing="0", width="100%",
             border=f"1px solid {S.BORDER_SUBTLE}",
             border_radius=S.R_CARD,
             overflow="hidden",
             bg="rgba(14,26,23,0.4)",
+            width="100%",
         ),
     )
 
@@ -5586,7 +5878,7 @@ def _fin_scurve_chart() -> rx.Component:
                     axisLine=False, tickLine=False,
                     width=65,
                 ),
-                TOOLTIP_MONEY,
+                TOOLTIP_SPLIT,
                 rx.recharts.legend(
                     wrapper_style={"fontSize": "11px", "fontFamily": "'JetBrains Mono', monospace", "color": "#889999"},
                 ),
@@ -5632,7 +5924,7 @@ def _fin_by_cat_chart() -> rx.Component:
                     axisLine=False, tickLine=False,
                     width=65,
                 ),
-                TOOLTIP_MONEY,
+                TOOLTIP_SPLIT,
                 rx.recharts.legend(
                     wrapper_style={"fontSize": "11px", "fontFamily": "'JetBrains Mono', monospace", "color": "#889999"},
                 ),

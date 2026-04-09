@@ -108,6 +108,15 @@ h6 {
 }
 
 /* ── Animations ─────────────────────────────────────────────── */
+
+/* Banner de reconexão: fica invisível por 2.5s.
+   Navegações SPA normais hidratam em <500ms — o elemento é removido
+   pelo React antes do delay expirar, então o user nunca vê.
+   Só aparece se ~is_hydrated persistir (WebSocket realmente caiu). */
+@keyframes reconnect-banner-appear {
+    to { opacity: 1; }
+}
+
 @keyframes enter {
     from {
         opacity: 0;

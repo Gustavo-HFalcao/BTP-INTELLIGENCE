@@ -869,6 +869,773 @@ def tooltip_generic(icon: str = "[lista]") -> rx.Component:
     )
 
 
+# ── TOOLTIP_SIGNAL (substitui TOOLTIP_PCT_SCURVE) ─────────────────────────────
+
+def tooltip_signal() -> rx.Component:
+    """S-curve tooltip: previsto / realizado (%) com sparkline e delta pp."""
+    js = """
+(function() {
+  """ + _JS_PREAMBLE + """
+  return function(props) {
+    var active  = props.active;
+    var payload = props.payload;
+    var label   = props.label;
+    if (!active || !payload || !payload.length) return null;
+
+    var accentColor = "#2a9d8f";
+
+    var labelNum = parseFloat(label);
+    var labelStr = !isNaN(labelNum) ? ("Sem. " + label) : String(label != null ? label : "");
+
+    // sparkline bars
+    var sparks = [30, 45, 55, 60, 70, 90];
+    var sparkBars = [];
+    for (var si = 0; si < sparks.length; si++) {
+      var sh = Math.round(24 * sparks[si] / 100);
+      var sy = 24 - sh;
+      sparkBars.push(React.createElement("rect", {
+        key: si,
+        x: String(si * 8),
+        y: String(sy),
+        width: "5",
+        height: String(sh),
+        rx: "2",
+        fill: si === sparks.length - 1 ? "#c98b2a" : "rgba(255,255,255,0.15)"
+      }));
+    }
+    var sparkSvg = React.createElement("svg", {width: "48", height: "24"}, sparkBars);
+
+    var header = React.createElement("div", {style: {
+      padding: "12px 14px 10px",
+      borderBottom: "1px solid rgba(255,255,255,0.06)",
+      display: "flex", alignItems: "center", justifyContent: "space-between"
+    }},
+      React.createElement("div", null,
+        React.createElement("div", {style: {fontSize: "13px", fontWeight: "600", color: "#F0EDE6", letterSpacing: "-0.01em"}}, labelStr),
+        React.createElement("div", {style: {fontSize: "10px", color: "#5A5852", textTransform: "uppercase", letterSpacing: "0.05em", marginTop: "2px"}}, "curva s")
+      ),
+      sparkSvg
+    );
+
+    var prevVal = null, realVal = null;
+    for (var i = 0; i < payload.length; i++) {
+      var p = payload[i];
+      if (p.dataKey === "previsto")  prevVal = parseFloat(p.value);
+      if (p.dataKey === "realizado") realVal = parseFloat(p.value);
+    }
+
+    var atrasado = (prevVal !== null && realVal !== null && !isNaN(prevVal) && !isNaN(realVal)) ? (realVal < prevVal) : false;
+    var prevColor = "#888999";
+    var realColor = atrasado ? "#e05a5a" : "#4ead78";
+    var realBg    = atrasado ? "rgba(224,90,90,0.07)" : "rgba(78,173,120,0.07)";
+    var realBorder = atrasado ? "1px solid rgba(224,90,90,0.15)" : "1px solid rgba(78,173,120,0.15)";
+
+    var tileStyle = {borderRadius: "6px", padding: "7px 9px", flex: "1"};
+
+    var prevTile = React.createElement("div", {style: Object.assign({}, tileStyle, {background: "rgba(255,255,255,0.03)"})},
+      React.createElement("div", {style: {fontSize: "11px", color: "#7A7870", marginBottom: "2px"}}, "Planejado"),
+      React.createElement("div", {style: {fontSize: "20px", fontWeight: "500", color: prevColor, lineHeight: "1"}},
+        prevVal !== null && !isNaN(prevVal) ? prevVal.toFixed(1) : "--",
+        React.createElement("span", {style: {fontSize: "12px", fontWeight: "400", marginLeft: "2px"}}, "%")
+      )
+    );
+
+    var realTile = React.createElement("div", {style: Object.assign({}, tileStyle, {background: realBg, border: realBorder})},
+      React.createElement("div", {style: {fontSize: "11px", color: "#7A7870", marginBottom: "2px"}}, "Realizado"),
+      React.createElement("div", {style: {fontSize: "20px", fontWeight: "500", color: realColor, lineHeight: "1"}},
+        realVal !== null && !isNaN(realVal) ? realVal.toFixed(1) : "--",
+        React.createElement("span", {style: {fontSize: "12px", fontWeight: "400", marginLeft: "2px"}}, "%")
+      )
+    );
+
+    var progressW = (realVal !== null && !isNaN(realVal)) ? Math.max(0, Math.min(realVal, 100)).toFixed(0) + "%" : "0%";
+    var progressBar = React.createElement("div", {style: {marginTop: "8px", height: "3px", background: "rgba(255,255,255,0.07)", borderRadius: "2px", overflow: "hidden"}},
+      React.createElement("div", {style: {width: progressW, height: "100%", background: realColor, borderRadius: "2px"}})
+    );
+
+    var bodyEl = React.createElement("div", {style: {padding: "10px 14px"}},
+      React.createElement("div", {style: {display: "flex", gap: "8px"}}, prevTile, realTile),
+      progressBar
+    );
+
+    var footerEl = null;
+    if (prevVal !== null && realVal !== null && !isNaN(prevVal) && !isNaN(realVal)) {
+      var delta = realVal - prevVal;
+      var deltaAbs = Math.abs(delta).toFixed(1);
+      var deltaColor = delta >= 0 ? "#4ead78" : "#e05a5a";
+      var deltaBg    = delta >= 0 ? "rgba(78,173,120,0.12)" : "rgba(224,90,90,0.12)";
+      var deltaStr   = delta >= 0 ? ("+" + deltaAbs + "pp \u25b2 adiantado") : ("\u2212" + deltaAbs + "pp \u25bc atrasado");
+      footerEl = React.createElement("div", {style: {
+        padding: "8px 14px 12px",
+        borderTop: "1px solid rgba(255,255,255,0.06)",
+        background: "rgba(255,255,255,0.02)",
+        display: "flex", justifyContent: "space-between", alignItems: "center"
+      }},
+        React.createElement("span", {style: {fontSize: "10px", color: "#7A7870", textTransform: "uppercase", letterSpacing: "0.05em"}}, "DELTA"),
+        React.createElement("span", {style: {
+          padding: "2px 7px 3px", borderRadius: "4px", fontSize: "11px", fontWeight: "600",
+          background: deltaBg, color: deltaColor
+        }}, deltaStr)
+      );
+    }
+
+    return React.createElement("div", {style: _cardStyle(accentColor)}, header, bodyEl, footerEl);
+  };
+})()
+"""
+    return rx.recharts.graphing_tooltip(
+        special_props=[rx.Var("{content: " + js + "}")],
+        wrapper_style={"zIndex": 9999, "outline": "none"},
+        allow_escape_view_box={"x": True, "y": True},
+        cursor=_CURSOR_AREA,
+    )
+
+
+# ── TOOLTIP_SPLIT (previsto × realizado financeiro) ────────────────────────────
+
+def tooltip_split(
+    label_subtitle: str = "Valores Financeiros",
+    currency: str = "R$",
+) -> rx.Component:
+    """Tooltip side-by-side previsto × realizado com desvio % e monetário."""
+    js = """
+(function() {
+  """ + _JS_PREAMBLE + """
+  var CURRENCY = \"""" + currency + """\";
+  var SUBTITLE = \"""" + label_subtitle + """\";
+
+  var fmt = function(v) {
+    var n = parseFloat(v);
+    if (isNaN(n)) return String(v);
+    if (n >= 1000000) return CURRENCY + "\u00a0" + (n/1000000).toFixed(1).replace(".",",") + "M";
+    if (n >= 1000)    return CURRENCY + "\u00a0" + (n/1000).toFixed(1).replace(".",",") + "k";
+    return CURRENCY + "\u00a0" + n.toFixed(0);
+  };
+
+  return function(props) {
+    var active  = props.active;
+    var payload = props.payload;
+    var label   = props.label;
+    if (!active || !payload || !payload.length) return null;
+
+    var accentColor = payload[0] ? (payload[0].color || payload[0].fill || "#5282dc") : "#5282dc";
+
+    var header = React.createElement("div", {style: {
+      padding: "12px 14px 10px",
+      borderBottom: "1px solid rgba(255,255,255,0.06)",
+      display: "flex", alignItems: "center", gap: "8px"
+    }},
+      React.createElement("div", {style: {width: "7px", height: "7px", borderRadius: "50%", background: accentColor, flexShrink: "0", boxShadow: "0 0 0 2px rgba(255,255,255,0.08)"}}),
+      React.createElement("div", null,
+        React.createElement("div", {style: {fontSize: "13px", fontWeight: "600", color: "#F0EDE6", letterSpacing: "-0.01em"}}, String(label != null ? label : "")),
+        React.createElement("div", {style: {fontSize: "11px", color: "#5A5852", textTransform: "uppercase", letterSpacing: "0.02em", marginTop: "2px"}}, SUBTITLE)
+      )
+    );
+
+    var prevVal = null, realVal = null;
+    var prevColor = "#888999", realColor = accentColor;
+    for (var i = 0; i < payload.length; i++) {
+      var p = payload[i];
+      var k = p.dataKey || p.name || "";
+      if (k === "previsto" || k === "planejado" || k === "total_contratado" || k === "cumulative_planned" || k === "previsto_acum") {
+        prevVal = parseFloat(p.value);
+        prevColor = p.color || p.fill || "#888999";
+      }
+      if (k === "realizado" || k === "executado" || k === "total_realizado" || k === "cumulative_actual" || k === "executado_acum") {
+        realVal = parseFloat(p.value);
+        realColor = p.color || p.fill || accentColor;
+      }
+    }
+
+    var hasBoth = (prevVal !== null && realVal !== null && !isNaN(prevVal) && !isNaN(realVal) && prevVal !== 0);
+
+    var desvPct = hasBoth ? ((realVal / prevVal - 1) * 100) : null;
+    var desvAbs = hasBoth ? (realVal - prevVal) : null;
+
+    var desvPctEl = null;
+    if (desvPct !== null) {
+      var dpColor = desvPct >= 0 ? "#4ead78" : "#e05a5a";
+      var dpStr   = desvPct >= 0 ? ("\u25b2 +" + Math.abs(desvPct).toFixed(1) + "%") : ("\u25bc \u2212" + Math.abs(desvPct).toFixed(1) + "%");
+      desvPctEl = React.createElement("div", {style: {fontSize: "10px", color: dpColor, marginTop: "3px"}}, dpStr);
+    }
+
+    var desvAbsEl = null;
+    if (desvAbs !== null) {
+      var daColor = desvAbs >= 0 ? "#4ead78" : "#e05a5a";
+      var daStr   = "\u00b1" + fmt(Math.abs(desvAbs));
+      desvAbsEl = React.createElement("div", {style: {fontSize: "10px", color: daColor, marginTop: "3px"}}, daStr);
+    }
+
+    var bodyEl;
+    if (hasBoth) {
+      bodyEl = React.createElement("div", {style: {
+        padding: "10px 13px",
+        display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0"
+      }},
+        React.createElement("div", {style: {borderRight: "1px solid rgba(255,255,255,0.05)", padding: "10px 13px 10px 0"}},
+          React.createElement("div", {style: {fontSize: "11px", color: "#7A7870", marginBottom: "2px"}}, "Previsto"),
+          React.createElement("div", {style: {fontSize: "16px", fontWeight: "500", color: prevColor}}, fmt(prevVal)),
+          desvPctEl
+        ),
+        React.createElement("div", {style: {padding: "10px 0 10px 13px"}},
+          React.createElement("div", {style: {fontSize: "11px", color: "#7A7870", marginBottom: "2px"}}, "Realizado"),
+          React.createElement("div", {style: {fontSize: "16px", fontWeight: "500", color: realColor}}, fmt(realVal)),
+          desvAbsEl
+        )
+      );
+    } else {
+      var rows = [];
+      for (var j = 0; j < payload.length; j++) {
+        var pj = payload[j];
+        var rowStyle = j === 0 ? """ + _JS_ROW_FIRST_STYLE + """ : """ + _JS_ROW_STYLE + """;
+        rows.push(React.createElement("div", {key: j, style: rowStyle},
+          React.createElement("div", {style: {display: "flex", alignItems: "center", gap: "8px"}},
+            React.createElement("div", {style: {width: "7px", height: "7px", borderRadius: "50%", background: pj.color || pj.fill || "#c98b2a", flexShrink: "0"}}),
+            React.createElement("span", {style: {color: "#7A7870", fontSize: "12px"}}, pj.name || pj.dataKey)
+          ),
+          React.createElement("span", {style: {color: "#F0EDE6", fontSize: "13px", fontWeight: "600", fontVariantNumeric: "tabular-nums"}}, fmt(pj.value))
+        ));
+      }
+      bodyEl = React.createElement("div", {style: {padding: "10px 14px"}}, rows);
+    }
+
+    var progressW = (hasBoth && prevVal > 0) ? (Math.max(0, Math.min(realVal / prevVal * 100, 150)).toFixed(0) + "%") : "0%";
+    var progColor = (desvPct !== null && desvPct >= 0) ? "#4ead78" : realColor;
+
+    var footerEl = React.createElement("div", {style: {
+      padding: "8px 14px 12px",
+      borderTop: "1px solid rgba(255,255,255,0.06)",
+      background: "rgba(255,255,255,0.02)"
+    }},
+      React.createElement("div", {style: {height: "3px", background: "rgba(255,255,255,0.07)", borderRadius: "2px", overflow: "hidden", marginBottom: "6px"}},
+        React.createElement("div", {style: {width: progressW, height: "100%", background: progColor, borderRadius: "2px"}})
+      ),
+      React.createElement("div", {style: {display: "flex", justifyContent: "space-between", alignItems: "center"}},
+        React.createElement("span", {style: {fontSize: "10px", color: "#7A7870"}},
+          hasBoth ? (Math.min(realVal / prevVal * 100, 999).toFixed(0) + "% executado") : ""
+        ),
+        desvAbs !== null ? React.createElement("span", {style: {fontSize: "10px", color: (desvAbs >= 0 ? "#4ead78" : "#e05a5a")}},
+          fmt(Math.abs(desvAbs))
+        ) : null
+      )
+    );
+
+    return React.createElement("div", {style: Object.assign({}, _cardStyle(accentColor), {borderTop: "2px solid " + accentColor})}, header, bodyEl, footerEl);
+  };
+})()
+"""
+    return rx.recharts.graphing_tooltip(
+        special_props=[rx.Var("{content: " + js + "}")],
+        wrapper_style={"zIndex": 9999, "outline": "none"},
+        allow_escape_view_box={"x": True, "y": True},
+        cursor=_CURSOR_AREA,
+    )
+
+
+# ── TOOLTIP_PILL (substitui TOOLTIP_PCT_DAILY) ────────────────────────────────
+
+def tooltip_pill(label_subtitle: str = "Produtividade Diária") -> rx.Component:
+    """Tooltip compacto com mini-barras horizontais e badge de eficiência."""
+    js = """
+(function() {
+  """ + _JS_PREAMBLE + """
+  var SUBTITLE = \"""" + label_subtitle + """\";
+
+  return function(props) {
+    var active  = props.active;
+    var payload = props.payload;
+    var label   = props.label;
+    if (!active || !payload || !payload.length) return null;
+
+    var accentColor = "#c98b2a";
+    var cardBase = _cardStyle(accentColor);
+    var cardStyle = Object.assign({}, cardBase, {minWidth: "200px", maxWidth: "260px", borderRadius: "8px"});
+
+    var header = React.createElement("div", {style: {
+      padding: "8px 11px",
+      borderBottom: "1px solid rgba(255,255,255,0.05)",
+      display: "flex", alignItems: "center", gap: "6px"
+    }},
+      React.createElement("span", {style: {fontSize: "12px", fontWeight: "500", color: "#F0EDE6"}}, String(label != null ? label : "")),
+      React.createElement("span", {style: {fontSize: "9px", textTransform: "uppercase", color: "#7A7870", letterSpacing: "0.05em", marginLeft: "auto"}}, SUBTITLE)
+    );
+
+    var maxVal = 0;
+    for (var mi = 0; mi < payload.length; mi++) {
+      var mv = parseFloat(payload[mi].value);
+      if (!isNaN(mv) && mv > maxVal) maxVal = mv;
+    }
+    maxVal = maxVal || 1;
+
+    var rows = [];
+    for (var i = 0; i < payload.length; i++) {
+      var p = payload[i];
+      var pColor = p.color || p.fill || "#c98b2a";
+      var pVal   = parseFloat(p.value);
+      var pName  = p.name || p.dataKey || "";
+      var barW   = (!isNaN(pVal) ? Math.min(pVal / maxVal * 100, 100) : 0).toFixed(0) + "%";
+      rows.push(React.createElement("div", {key: i, style: {display: "flex", alignItems: "center", gap: "6px"}},
+        React.createElement("div", {style: {width: "7px", height: "7px", borderRadius: "50%", background: pColor, flexShrink: "0", boxShadow: "0 0 0 2px rgba(255,255,255,0.08)"}}),
+        React.createElement("span", {style: {fontSize: "11px", color: "#7A7870", flex: "1"}}, pName),
+        React.createElement("div", {style: {flex: "1", height: "3px", background: "rgba(255,255,255,0.07)", borderRadius: "2px", overflow: "hidden"}},
+          React.createElement("div", {style: {width: barW, height: "100%", background: pColor, borderRadius: "2px"}})
+        ),
+        React.createElement("span", {style: {fontSize: "12px", fontWeight: "500", color: "#F0EDE6", fontVariantNumeric: "tabular-nums", minWidth: "36px", textAlign: "right"}},
+          !isNaN(pVal) ? pVal.toFixed(1) + "%" : "--"
+        )
+      ));
+    }
+
+    var bodyEl = React.createElement("div", {style: {padding: "7px 11px", display: "flex", flexDirection: "column", gap: "5px"}}, rows);
+
+    var metaVal = null, realVal2 = null;
+    for (var j = 0; j < payload.length; j++) {
+      var pj = payload[j];
+      if (pj.dataKey === "meta")      metaVal  = parseFloat(pj.value);
+      if (pj.dataKey === "realizado") realVal2 = parseFloat(pj.value);
+    }
+
+    var footerEl = null;
+    if (metaVal !== null && realVal2 !== null && !isNaN(metaVal) && !isNaN(realVal2) && metaVal > 0) {
+      var eff = realVal2 / metaVal * 100;
+      var effColor, effBg, effStr;
+      if (eff >= 100) {
+        effColor = "#4ead78"; effBg = "rgba(78,173,120,0.12)"; effStr = eff.toFixed(0) + "% \u2713 meta atingida";
+      } else if (eff >= 80) {
+        effColor = "#c98b2a"; effBg = "rgba(201,139,42,0.12)"; effStr = eff.toFixed(0) + "% \u25cf abaixo da meta";
+      } else {
+        effColor = "#e05a5a"; effBg = "rgba(224,90,90,0.12)"; effStr = eff.toFixed(0) + "% \u25bc critico";
+      }
+      footerEl = React.createElement("div", {style: {
+        padding: "6px 11px 8px",
+        borderTop: "1px solid rgba(255,255,255,0.05)",
+        background: "rgba(255,255,255,0.02)",
+        display: "flex", justifyContent: "space-between", alignItems: "center"
+      }},
+        React.createElement("span", {style: {fontSize: "9px", color: "#7A7870", textTransform: "uppercase", letterSpacing: "0.05em"}}, "EFICIENCIA"),
+        React.createElement("span", {style: {
+          padding: "2px 7px 3px", borderRadius: "4px", fontSize: "10px", fontWeight: "600",
+          background: effBg, color: effColor
+        }}, effStr)
+      );
+    }
+
+    return React.createElement("div", {style: cardStyle}, header, bodyEl, footerEl);
+  };
+})()
+"""
+    return rx.recharts.graphing_tooltip(
+        special_props=[rx.Var("{content: " + js + "}")],
+        wrapper_style={"zIndex": 9999, "outline": "none"},
+        allow_escape_view_box={"x": True, "y": True},
+        cursor=_CURSOR_AREA,
+    )
+
+
+# ── TOOLTIP_GANTT_RECHARTS ─────────────────────────────────────────────────────
+
+def tooltip_gantt_recharts() -> rx.Component:
+    """Tooltip para versões do Gantt baseadas em Recharts (não o hover card HTML)."""
+    js = """
+(function() {
+  """ + _JS_PREAMBLE + """
+  return function(props) {
+    var active  = props.active;
+    var payload = props.payload;
+    if (!active || !payload || !payload.length) return null;
+
+    var raw = payload[0].payload || {};
+    var accentColor = raw.color || payload[0].fill || payload[0].color || "#c98b2a";
+    var cardStyle = Object.assign({}, _cardStyle(accentColor), {minWidth: "280px", maxWidth: "380px"});
+
+    var nivel = raw.nivel || "macro";
+    var badgeColor, badgeBg, badgeLabel;
+    if (nivel === "sub")   { badgeColor = "#8B5CF6"; badgeBg = "rgba(139,92,246,0.15)"; badgeLabel = "SUB"; }
+    else if (nivel === "micro") { badgeColor = "#2a9d8f"; badgeBg = "rgba(42,157,143,0.15)"; badgeLabel = "MICRO"; }
+    else                   { badgeColor = "#c98b2a"; badgeBg = "rgba(201,139,42,0.15)"; badgeLabel = "MACRO"; }
+
+    var badge = React.createElement("span", {style: {
+      fontSize: "8px", fontWeight: "500", padding: "1px 5px", borderRadius: "3px",
+      letterSpacing: ".04em", background: badgeBg, color: badgeColor, marginLeft: "6px"
+    }}, badgeLabel);
+
+    var header = React.createElement("div", {style: {
+      padding: "12px 14px 10px", borderBottom: "1px solid rgba(255,255,255,0.06)",
+      display: "flex", alignItems: "center", gap: "8px"
+    }},
+      React.createElement("div", {style: {width: "7px", height: "7px", borderRadius: "50%", background: accentColor, flexShrink: "0", boxShadow: "0 0 0 2px rgba(255,255,255,0.08)"}}),
+      React.createElement("div", null,
+        React.createElement("div", {style: {fontSize: "12px", fontWeight: "500", color: "#F0EDE6", display: "flex", alignItems: "center"}},
+          String(raw.atividade || ""),
+          badge
+        ),
+        React.createElement("div", {style: {fontSize: "10px", color: accentColor, textTransform: "uppercase", letterSpacing: "0.04em", marginTop: "2px"}},
+          String(raw.fase_macro || "")
+        )
+      )
+    );
+
+    var pct = raw.conclusao_pct || "0";
+    var pctNum = parseFloat(pct);
+    var overdue = raw.gantt_overdue === "1";
+    var done    = pct === "100";
+    var pctColor = done ? "#4ead78" : (overdue ? "#e05a5a" : "#c98b2a");
+
+    var statusColor, statusBg, statusStr;
+    if (overdue)     { statusColor = "#e05a5a"; statusBg = "rgba(224,90,90,0.12)"; statusStr = "\u26a0 atrasada"; }
+    else if (done)   { statusColor = "#4ead78"; statusBg = "rgba(78,173,120,0.12)"; statusStr = "\u2713 concluida"; }
+    else             { statusColor = "#5282dc"; statusBg = "rgba(82,130,220,0.12)"; statusStr = "\u25cf em execucao"; }
+
+    var rows = [
+      React.createElement("div", {key: "r", style: """ + _JS_ROW_FIRST_STYLE + """},
+        React.createElement("span", {style: {color: "#7A7870", fontSize: "12px"}}, "Responsavel"),
+        React.createElement("span", {style: {color: "#F0EDE6", fontSize: "12px", fontWeight: "500"}}, String(raw.responsavel || "—"))
+      ),
+      React.createElement("div", {key: "p", style: """ + _JS_ROW_STYLE + """},
+        React.createElement("span", {style: {color: "#7A7870", fontSize: "12px"}}, "Progresso"),
+        React.createElement("span", {style: {color: pctColor, fontSize: "12px", fontWeight: "500", fontVariantNumeric: "tabular-nums"}}, pct + "%")
+      )
+    ];
+
+    var progressBar = React.createElement("div", {style: {height: "3px", background: "rgba(255,255,255,0.07)", borderRadius: "2px", overflow: "hidden", marginTop: "2px", marginBottom: "4px"}},
+      React.createElement("div", {style: {width: Math.min(pctNum || 0, 100).toFixed(0) + "%", height: "100%", background: pctColor, borderRadius: "2px"}})
+    );
+
+    var statusRow = React.createElement("div", {key: "s", style: """ + _JS_ROW_STYLE + """},
+      React.createElement("span", {style: {color: "#7A7870", fontSize: "12px"}}, "Status"),
+      React.createElement("span", {style: {
+        padding: "2px 7px 3px", borderRadius: "4px", fontSize: "11px", fontWeight: "600",
+        background: statusBg, color: statusColor
+      }}, statusStr)
+    );
+
+    var bodyChildren = [
+      React.createElement("div", {key: "rows", style: {padding: "10px 14px"}}, rows, progressBar, statusRow)
+    ];
+
+    if (raw.critico === "1") {
+      bodyChildren.push(React.createElement("div", {key: "crit", style: """ + _JS_ROW_STYLE + """},
+        React.createElement("span", {style: {color: "#7A7870", fontSize: "12px"}}, "Prioridade"),
+        React.createElement("span", {style: {
+          padding: "2px 7px 3px", borderRadius: "4px", fontSize: "11px", fontWeight: "600",
+          background: "rgba(201,139,42,0.12)", color: "#c98b2a"
+        }}, "CRITICO")
+      ));
+    }
+
+    var sep = React.createElement("div", {style: {height: "1px", background: "rgba(255,255,255,0.06)", margin: "4px 0"}});
+
+    var termColor = overdue ? "#e05a5a" : "#F0EDE6";
+    var datas = React.createElement("div", {style: {
+      padding: "8px 13px", display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center"
+    }},
+      React.createElement("div", null,
+        React.createElement("div", {style: {fontSize: "9px", color: "#7A7870", textTransform: "uppercase", letterSpacing: "0.05em"}}, "INICIO"),
+        React.createElement("div", {style: {fontSize: "12px", fontWeight: "500", fontFamily: "monospace", color: "#F0EDE6"}}, String(raw.inicio_previsto || "—"))
+      ),
+      React.createElement("div", {style: {width: "1px", height: "24px", background: "rgba(255,255,255,0.07)", margin: "0 auto"}}),
+      React.createElement("div", {style: {textAlign: "right"}},
+        React.createElement("div", {style: {fontSize: "9px", color: "#7A7870", textTransform: "uppercase", letterSpacing: "0.05em"}}, "TERMINO"),
+        React.createElement("div", {style: {fontSize: "12px", fontWeight: "500", fontFamily: "monospace", color: termColor}}, String(raw.termino_previsto || "—"))
+      )
+    );
+
+    var totalQty = raw.total_qty || "0";
+    var footerEl = null;
+    if (totalQty !== "0") {
+      footerEl = React.createElement("div", {style: {
+        padding: "8px 14px 12px", borderTop: "1px solid rgba(255,255,255,0.06)",
+        background: "rgba(255,255,255,0.02)",
+        display: "flex", justifyContent: "space-between", alignItems: "center"
+      }},
+        React.createElement("div", null,
+          React.createElement("span", {style: {fontSize: "9px", color: "#7A7870"}}, "exec: "),
+          React.createElement("span", {style: {fontSize: "11px", fontWeight: "500", fontFamily: "monospace", color: "#F0EDE6"}},
+            (raw.exec_qty || "0") + " / " + totalQty + " " + (raw.unidade || "")
+          )
+        ),
+        raw.critico === "1" ? React.createElement("span", {style: {
+          padding: "2px 7px 3px", borderRadius: "4px", fontSize: "10px", fontWeight: "600",
+          background: "rgba(201,139,42,0.12)", color: "#c98b2a"
+        }}, "CRITICO") : null
+      );
+    }
+
+    return React.createElement("div", {style: cardStyle}, header,
+      React.createElement("div", null, bodyChildren),
+      sep, datas, footerEl
+    );
+  };
+})()
+"""
+    return rx.recharts.graphing_tooltip(
+        special_props=[rx.Var("{content: " + js + "}")],
+        wrapper_style={"zIndex": 9999, "outline": "none"},
+        allow_escape_view_box={"x": True, "y": True},
+        cursor=_CURSOR_LINE,
+    )
+
+
+# ── TOOLTIP_SPI_RING (substitui TOOLTIP_SPI) ──────────────────────────────────
+
+def tooltip_spi_ring() -> rx.Component:
+    """Tooltip SPI com gauge SVG, tendência e escala de gradiente."""
+    js = """
+(function() {
+  """ + _JS_PREAMBLE + """
+  return function(props) {
+    var active  = props.active;
+    var payload = props.payload;
+    var label   = props.label;
+    if (!active || !payload || !payload.length) return null;
+
+    var accentColor = "#5282dc";
+
+    var spiVal = null;
+    for (var i = 0; i < payload.length; i++) {
+      if (payload[i].dataKey !== "baseline") {
+        spiVal = parseFloat(payload[i].value);
+        break;
+      }
+    }
+
+    var header = React.createElement("div", {style: {
+      padding: "12px 14px 10px", borderBottom: "1px solid rgba(255,255,255,0.06)",
+      display: "flex", alignItems: "center", gap: "8px"
+    }},
+      React.createElement("div", {style: {width: "7px", height: "7px", borderRadius: "50%", background: accentColor, flexShrink: "0", boxShadow: "0 0 0 2px rgba(255,255,255,0.08)"}}),
+      React.createElement("div", null,
+        React.createElement("div", {style: {fontSize: "13px", fontWeight: "600", color: "#F0EDE6", letterSpacing: "-0.01em"}}, String(label != null ? label : "")),
+        React.createElement("div", {style: {fontSize: "11px", color: "#7A7870", marginTop: "2px"}}, "schedule performance index")
+      )
+    );
+
+    var gaugeColor = (!isNaN(spiVal) && spiVal !== null)
+      ? (spiVal >= 1.05 ? "#4ead78" : (spiVal >= 0.95 ? "#c98b2a" : "#e05a5a"))
+      : "#7A7870";
+    var arcLen = 163;
+    var offset = (!isNaN(spiVal) && spiVal !== null)
+      ? (arcLen - Math.max(0, Math.min((spiVal - 0.5) / 1.0, 1)) * arcLen)
+      : arcLen;
+    var spiText = (spiVal !== null && !isNaN(spiVal)) ? spiVal.toFixed(2) : "--";
+
+    var gaugeSvg = React.createElement("svg", {width: "64", height: "64"},
+      React.createElement("circle", {cx: "32", cy: "32", r: "26", fill: "none", stroke: "rgba(255,255,255,0.06)", strokeWidth: "6"}),
+      React.createElement("circle", {cx: "32", cy: "32", r: "26", fill: "none",
+        stroke: gaugeColor, strokeWidth: "6", strokeLinecap: "round",
+        transform: "rotate(-90 32 32)",
+        strokeDasharray: String(arcLen),
+        strokeDashoffset: String(offset)
+      }),
+      React.createElement("text", {x: "32", y: "36", textAnchor: "middle",
+        fill: "#F0EDE6", fontSize: "13", fontWeight: "500", fontFamily: "monospace"
+      }, spiText)
+    );
+
+    var diff = (spiVal !== null && !isNaN(spiVal)) ? ((spiVal - 1.0) * 100) : 0;
+    var trendColor = diff >= 0 ? "#4ead78" : "#e05a5a";
+    var trendStr   = diff >= 0
+      ? ("\u25b2 +" + diff.toFixed(0) + "%")
+      : ("\u25bc \u2212" + Math.abs(diff).toFixed(0) + "%");
+
+    var spiColor = gaugeColor;
+
+    var rightRows = [
+      React.createElement("div", {key: "spi", style: {display: "flex", justifyContent: "space-between", alignItems: "center", padding: "3px 0"}},
+        React.createElement("span", {style: {color: "#7A7870", fontSize: "12px"}}, "SPI"),
+        React.createElement("span", {style: {color: spiColor, fontSize: "13px", fontWeight: "600", fontVariantNumeric: "tabular-nums"}}, spiText)
+      ),
+      React.createElement("div", {key: "base", style: {display: "flex", justifyContent: "space-between", alignItems: "center", padding: "3px 0"}},
+        React.createElement("span", {style: {color: "#7A7870", fontSize: "12px"}}, "Base"),
+        React.createElement("span", {style: {color: "#F0EDE6", fontSize: "13px", fontWeight: "600"}}, "1.00")
+      ),
+      React.createElement("div", {key: "trend", style: {display: "flex", justifyContent: "space-between", alignItems: "center", padding: "3px 0"}},
+        React.createElement("span", {style: {color: "#7A7870", fontSize: "12px"}}, "Tendencia"),
+        React.createElement("span", {style: {color: trendColor, fontSize: "12px", fontWeight: "600"}}, trendStr)
+      )
+    ];
+
+    var bodyEl = React.createElement("div", {style: {padding: "10px 14px"}},
+      React.createElement("div", {style: {display: "flex", alignItems: "center", gap: "14px"}},
+        gaugeSvg,
+        React.createElement("div", {style: {flex: "1", display: "flex", flexDirection: "column", gap: "3px"}}, rightRows)
+      )
+    );
+
+    var interpStr, interpColor2, interpBg;
+    if (spiVal === null || isNaN(spiVal)) {
+      interpStr = "sem dados"; interpColor2 = "#7A7870"; interpBg = "rgba(255,255,255,0.06)";
+    } else if (spiVal >= 1.05) {
+      interpStr = "\u25b2 Adiantado"; interpColor2 = "#4ead78"; interpBg = "rgba(78,173,120,0.12)";
+    } else if (spiVal >= 0.95) {
+      interpStr = "\u25cf No prazo"; interpColor2 = "#c98b2a"; interpBg = "rgba(201,139,42,0.12)";
+    } else {
+      interpStr = "\u25bc Atrasado"; interpColor2 = "#e05a5a"; interpBg = "rgba(224,90,90,0.12)";
+    }
+
+    var footerEl = React.createElement("div", {style: {
+      padding: "8px 14px 12px", borderTop: "1px solid rgba(255,255,255,0.06)",
+      background: "rgba(255,255,255,0.02)",
+      display: "flex", justifyContent: "space-between", alignItems: "center"
+    }},
+      React.createElement("div", {style: {display: "flex", alignItems: "center", gap: "6px"}},
+        React.createElement("div", {style: {
+          width: "60px", height: "3px", borderRadius: "2px",
+          background: "linear-gradient(90deg,#e05a5a 0%,#c98b2a 40%,#4ead78 75%)"
+        }}),
+        React.createElement("span", {style: {fontSize: "9px", color: "#7A7870"}}, "escala SPI")
+      ),
+      React.createElement("span", {style: {
+        padding: "2px 7px 3px", borderRadius: "4px", fontSize: "11px", fontWeight: "600",
+        background: interpBg, color: interpColor2
+      }}, interpStr)
+    );
+
+    return React.createElement("div", {style: _cardStyle(accentColor)}, header, bodyEl, footerEl);
+  };
+})()
+"""
+    return rx.recharts.graphing_tooltip(
+        special_props=[rx.Var("{content: " + js + "}")],
+        wrapper_style={"zIndex": 9999, "outline": "none"},
+        allow_escape_view_box={"x": True, "y": True},
+        cursor=_CURSOR_LINE,
+    )
+
+
+# ── TOOLTIP_STACK_DISC (substitui TOOLTIP_PCT_DISC) ───────────────────────────
+
+def tooltip_stack_disc() -> rx.Component:
+    """Tooltip disciplinas: barras empilhadas com delta e acum."""
+    js = """
+(function() {
+  """ + _JS_PREAMBLE + """
+  var LABELS = {
+    "previsto_pct": "Planejado",
+    "realizado_pct": "Realizado",
+    "acum_previsto": "Acum. prev.",
+    "cumulative_planned": "Acum. plan.",
+    "cumulative_actual": "Acum. real."
+  };
+  var getName = function(p) {
+    return LABELS[p.dataKey] || LABELS[p.name] || p.name || p.dataKey || "";
+  };
+
+  return function(props) {
+    var active  = props.active;
+    var payload = props.payload;
+    var label   = props.label;
+    if (!active || !payload || !payload.length) return null;
+
+    var accentColor = payload[0] ? (payload[0].color || payload[0].fill || "#c98b2a") : "#c98b2a";
+
+    var header = React.createElement("div", {style: {
+      padding: "12px 14px 10px", borderBottom: "1px solid rgba(255,255,255,0.06)",
+      display: "flex", alignItems: "center", gap: "8px"
+    }},
+      React.createElement("div", null,
+        React.createElement("div", {style: {
+          fontSize: "13px", fontWeight: "500", color: "#F0EDE6",
+          maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"
+        }}, String(label != null ? label : "")),
+        React.createElement("div", {style: {
+          fontSize: "11px", color: "#5A5852", textTransform: "uppercase",
+          letterSpacing: "0.02em", marginTop: "2px"
+        }}, "disciplinas \u00b7 % avan\u00e7o")
+      )
+    );
+
+    var maxVal = 0;
+    for (var k = 0; k < payload.length; k++) {
+      var vk = parseFloat(payload[k].value);
+      if (!isNaN(vk) && vk > maxVal) maxVal = vk;
+    }
+    maxVal = maxVal || 1;
+
+    var seriesEls = [];
+    for (var i = 0; i < payload.length; i++) {
+      var p = payload[i];
+      var pColor = p.color || p.fill || "#c98b2a";
+      var val = parseFloat(p.value);
+      var barW = (!isNaN(val) ? Math.min(val / maxVal * 100, 100) : 0).toFixed(0) + "%";
+      seriesEls.push(React.createElement("div", {
+        key: i,
+        style: {marginBottom: i < payload.length - 1 ? "8px" : "0"}
+      },
+        React.createElement("div", {style: {
+          display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px"
+        }},
+          React.createElement("div", {style: {display: "flex", alignItems: "center", gap: "6px"}},
+            React.createElement("div", {style: {width: "7px", height: "7px", borderRadius: "50%", background: pColor, flexShrink: "0", boxShadow: "0 0 0 2px rgba(255,255,255,0.08)"}}),
+            React.createElement("span", {style: {fontSize: "12px", color: "#7A7870"}}, getName(p))
+          ),
+          React.createElement("span", {style: {fontSize: "12px", fontWeight: "500", color: pColor, fontVariantNumeric: "tabular-nums"}},
+            !isNaN(val) ? val.toFixed(1) + "%" : "--"
+          )
+        ),
+        React.createElement("div", {style: {height: "3px", background: "rgba(255,255,255,0.07)", borderRadius: "2px", overflow: "hidden"}},
+          React.createElement("div", {style: {width: barW, height: "100%", background: pColor, borderRadius: "2px"}})
+        )
+      ));
+    }
+
+    var bodyEl = React.createElement("div", {style: {padding: "10px 14px"}}, seriesEls);
+
+    var prevDisc = null, realDisc = null, acumPrev = null;
+    for (var j = 0; j < payload.length; j++) {
+      var pj = payload[j];
+      if (pj.dataKey === "previsto_pct")  prevDisc = parseFloat(pj.value);
+      if (pj.dataKey === "realizado_pct") realDisc = parseFloat(pj.value);
+      if (pj.dataKey === "acum_previsto") acumPrev = parseFloat(pj.value);
+    }
+
+    var hasDelta = (prevDisc !== null && realDisc !== null && !isNaN(prevDisc) && !isNaN(realDisc));
+    if (!hasDelta && acumPrev === null) return React.createElement("div", {style: _cardStyle(accentColor)}, header, bodyEl);
+
+    var footerChildren = [];
+
+    if (acumPrev !== null && !isNaN(acumPrev)) {
+      footerChildren.push(React.createElement("div", {key: "acum", style: {
+        display: "flex", justifyContent: "space-between", marginBottom: "6px"
+      }},
+        React.createElement("span", {style: {fontSize: "10px", color: "#7A7870"}}, "Acum. prev."),
+        React.createElement("span", {style: {fontSize: "10px", color: "#7A7870", fontVariantNumeric: "tabular-nums"}}, acumPrev.toFixed(1) + "%")
+      ));
+    }
+
+    if (hasDelta) {
+      var delta = realDisc - prevDisc;
+      var dColor = delta >= 0 ? "#4ead78" : "#e05a5a";
+      var dBg    = delta >= 0 ? "rgba(78,173,120,0.12)" : "rgba(224,90,90,0.12)";
+      var dStr   = delta >= 0 ? ("+" + Math.abs(delta).toFixed(1) + "pp \u25b2") : ("\u2212" + Math.abs(delta).toFixed(1) + "pp \u25bc");
+      footerChildren.push(React.createElement("div", {key: "delta", style: {
+        display: "flex", justifyContent: "space-between", alignItems: "center"
+      }},
+        React.createElement("span", {style: {fontSize: "10px", color: "#7A7870", textTransform: "uppercase", letterSpacing: "0.04em"}}, "DELTA"),
+        React.createElement("span", {style: {
+          padding: "2px 7px 3px", borderRadius: "4px", fontSize: "11px", fontWeight: "600",
+          background: dBg, color: dColor
+        }}, dStr)
+      ));
+    }
+
+    var footerEl = React.createElement("div", {style: {
+      padding: "8px 14px 12px", borderTop: "1px solid rgba(255,255,255,0.06)",
+      background: "rgba(255,255,255,0.02)"
+    }}, footerChildren);
+
+    return React.createElement("div", {style: _cardStyle(accentColor)}, header, bodyEl, footerEl);
+  };
+})()
+"""
+    return rx.recharts.graphing_tooltip(
+        special_props=[rx.Var("{content: " + js + "}")],
+        wrapper_style={"zIndex": 9999, "outline": "none"},
+        allow_escape_view_box={"x": True, "y": True},
+        cursor=_CURSOR_AREA,
+    )
+
+
 # ── Module-level pre-instantiated constants ────────────────────────────────────
 # Importe as constantes, não as funções, para evitar duplicação no bundle.
 
@@ -881,6 +1648,14 @@ TOOLTIP_PCT_SCURVE  = tooltip_pct_scurve()
 TOOLTIP_PCT_DAILY   = tooltip_pct_daily()
 TOOLTIP_PCT_DISC    = tooltip_pct_disc()
 TOOLTIP_PCT_GENERIC = tooltip_pct(icon="[grafico]")
+
+# V2 — novos designs
+TOOLTIP_SIGNAL          = tooltip_signal()
+TOOLTIP_SPLIT           = tooltip_split()
+TOOLTIP_PILL            = tooltip_pill()
+TOOLTIP_GANTT_RECHARTS  = tooltip_gantt_recharts()
+TOOLTIP_SPI_RING        = tooltip_spi_ring()
+TOOLTIP_STACK_DISC      = tooltip_stack_disc()
 
 
 # ── GANTT hover card (Reflex native — não é Recharts) ─────────────────────────

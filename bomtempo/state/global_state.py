@@ -4733,13 +4733,18 @@ class GlobalState(rx.State):
         if not contrato:
             return
 
-        hub = await self.get_state(HubState)
+        audit_loaded = ""
+        timeline_loaded = ""
+        async with self:
+            hub = await self.get_state(HubState)
+            audit_loaded = hub._audit_loaded_contrato
+            timeline_loaded = hub._timeline_loaded_contrato
 
         if tab == "dashboard":
             yield HubState.run_agente_atividades(contrato)
-        elif tab == "auditoria" and hub._audit_loaded_contrato != contrato:
+        elif tab == "auditoria" and audit_loaded != contrato:
             yield HubState.load_auditoria(contrato)
-        elif tab == "timeline" and hub._timeline_loaded_contrato != contrato:
+        elif tab == "timeline" and timeline_loaded != contrato:
             yield HubState.load_timeline(contrato)
 
     @rx.event(background=True)

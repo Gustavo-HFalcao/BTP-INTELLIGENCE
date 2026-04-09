@@ -6,7 +6,7 @@ into a single page with Project Pulse Cards list and a tabbed Hub detail view.
 import reflex as rx
 
 from bomtempo.components.skeletons import page_loading_skeleton
-from bomtempo.components.tooltips import TOOLTIP_PCT_GENERIC
+from bomtempo.components.tooltips import TOOLTIP_SIGNAL
 from bomtempo.components.windy_map_widget import windy_map_widget
 from bomtempo.core import styles as S
 from bomtempo.state.global_state import GlobalState
@@ -659,7 +659,7 @@ def _scurve_chart() -> rx.Component:
                         stroke_dasharray="3 3",
                         stroke="rgba(255,255,255,0.04)",
                     ),
-                    TOOLTIP_PCT_GENERIC,
+                    TOOLTIP_SIGNAL,
                     rx.recharts.reference_line(
                         y=GlobalState.obra_kpi_fmt["avanco_pct"],
                         stroke=S.COPPER,
