@@ -30,6 +30,12 @@ import reflex as rx
 from bomtempo.core.fuel_service import FuelService
 from bomtempo.core.logging_utils import get_logger
 from bomtempo.core.audit_logger import audit_log, audit_error, AuditCategory
+from bomtempo.core.executors import (
+    get_ai_executor,
+    get_db_executor,
+    get_http_executor,
+    get_heavy_executor,
+)
 
 logger = get_logger(__name__)
 
@@ -224,7 +230,7 @@ class ReembolsoState(rx.State):
         try:
             from bomtempo.core.feature_flags import FeatureFlagsService
             features = await loop.run_in_executor(
-                None,
+                get_db_executor(),
                 lambda: FeatureFlagsService.get_features_for_contract(contract_filter),
             )
             self.dash_active_features = features
@@ -436,7 +442,7 @@ class ReembolsoState(rx.State):
 
         if ok and lat:
             loop = asyncio.get_running_loop()
-            endereco = await loop.run_in_executor(None, lambda: _reverse_geocode(lat, lng))
+            endereco = await loop.run_in_executor(get_http_executor(), lambda: _reverse_geocode(lat, lng))
 
             # Geocode cidade declarada para calcular distância
             if cidade_declarada:
@@ -590,7 +596,7 @@ class ReembolsoState(rx.State):
                 import asyncio as _aio
                 _loop = _aio.get_running_loop()
                 _hash = img_hash
-                dup_id = await _loop.run_in_executor(None, lambda: FuelService.check_duplicate_hash(_hash))
+                dup_id = await _loop.run_in_executor(get_db_executor(), lambda: FuelService.check_duplicate_hash(_hash))
                 if dup_id:
                     self.duplicate_warning = dup_id
                     yield rx.toast(
@@ -640,7 +646,7 @@ class ReembolsoState(rx.State):
                 return
 
             ai_result = await loop.run_in_executor(
-                None, lambda: FuelService.analyze_receipt_image(b64, mime)
+                get_ai_executor(), lambda: FuelService.analyze_receipt_image(b64, mime)
             )
             logger.info(f"✅ Vision API result: {ai_result}")
         except Exception as e:
@@ -782,7 +788,7 @@ class ReembolsoState(rx.State):
             id_fr: str = ""
             try:
                 id_fr = await loop.run_in_executor(
-                    None, lambda: FuelService.save_to_database(data, submitted_by=current_user, client_id=current_client_id)
+                    get_db_executor(), lambda: FuelService.save_to_database(data, submitted_by=current_user, client_id=current_client_id)
                 )
                 logger.info(f"✅ FR save_to_database: {id_fr}")
             except Exception as e:
@@ -797,7 +803,7 @@ class ReembolsoState(rx.State):
             if image_b64:
                 try:
                     await loop.run_in_executor(
-                        None,
+                        get_heavy_executor(),
                         lambda: FuelService.upload_image_to_storage(image_b64, id_fr, image_mime),
                     )
                     logger.info(f"✅ FR image uploaded for {id_fr}")
@@ -808,7 +814,7 @@ class ReembolsoState(rx.State):
             pdf_path: str = ""
             try:
                 result = await loop.run_in_executor(
-                    None, lambda: FuelService.generate_pdf(data, id_fr=id_fr)
+                    get_heavy_executor(), lambda: FuelService.generate_pdf(data, id_fr=id_fr)
                 )
                 pdf_path = result[0] if result else ""
                 logger.info(f"✅ FR generate_pdf: {pdf_path}")
@@ -819,7 +825,7 @@ class ReembolsoState(rx.State):
             if pdf_path:
                 try:
                     await loop.run_in_executor(
-                        None, lambda: FuelService.upload_pdf_to_storage(pdf_path, id_fr)
+                        get_heavy_executor(), lambda: FuelService.upload_pdf_to_storage(pdf_path, id_fr)
                     )
                     logger.info(f"✅ FR PDF uploaded for {id_fr}")
                 except Exception as e:
@@ -923,7 +929,7 @@ class ReembolsoState(rx.State):
         loop = asyncio.get_running_loop()
 
         try:
-            records = await loop.run_in_executor(None, FuelService.get_all_reimbursements)
+            records = await loop.run_in_executor(get_db_executor(), FuelService.get_all_reimbursements)
 
             if self.dash_filtro_projeto != "Todos os Motivos":
                 records = [
@@ -1032,7 +1038,7 @@ class ReembolsoState(rx.State):
             username = str(gs.current_user_name)
 
             records = await loop.run_in_executor(
-                None, lambda: FuelService.get_reimbursements_by_user(username)
+                get_db_executor(), lambda: FuelService.get_reimbursements_by_user(username)
             )
             self.reembolsos_list = [self._normalize_record(r) for r in (records or [])]
         except Exception as e:
@@ -1065,7 +1071,7 @@ class ReembolsoState(rx.State):
         except Exception:
             _cid = ""
         try:
-            records = await loop.run_in_executor(None, lambda: FuelService.get_email_records(client_id=_cid))
+            records = await loop.run_in_executor(get_db_executor(), lambda: FuelService.get_email_records(client_id=_cid))
             self.email_list = [self._normalize_email_record(r) for r in (records or [])]
         except Exception as e:
             logger.error(f"❌ load_emails: {e}")
@@ -1098,12 +1104,12 @@ class ReembolsoState(rx.State):
         except Exception:
             pass
         ok = await loop.run_in_executor(
-            None, lambda: FuelService.add_notification_email(contract, email_addr, created_by)
+            get_db_executor(), lambda: FuelService.add_notification_email(contract, email_addr, created_by)
         )
         if ok:
             self.email_new_contract = ""
             self.email_new_address = ""
-            records = await loop.run_in_executor(None, lambda: FuelService.get_email_records(client_id=_cid_add))
+            records = await loop.run_in_executor(get_db_executor(), lambda: FuelService.get_email_records(client_id=_cid_add))
             self.email_list = [self._normalize_email_record(r) for r in (records or [])]
             yield rx.toast("✅ Email adicionado com sucesso.", position="top-center")
         else:
@@ -1123,10 +1129,10 @@ class ReembolsoState(rx.State):
             pass
 
         ok = await loop.run_in_executor(
-            None, lambda: FuelService.delete_notification_email(contract, email)
+            get_db_executor(), lambda: FuelService.delete_notification_email(contract, email)
         )
         if ok:
-            records = await loop.run_in_executor(None, lambda: FuelService.get_email_records(client_id=_cid_del))
+            records = await loop.run_in_executor(get_db_executor(), lambda: FuelService.get_email_records(client_id=_cid_del))
             self.email_list = [self._normalize_email_record(r) for r in (records or [])]
             yield rx.toast("✅ Email removido.", position="top-center")
         else:

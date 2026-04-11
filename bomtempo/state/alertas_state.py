@@ -12,6 +12,11 @@ import reflex as rx
 from bomtempo.core.alert_service import ALERT_TYPES, AlertService
 from bomtempo.core.logging_utils import get_logger
 from bomtempo.core.audit_logger import audit_log, AuditCategory
+from bomtempo.core.executors import (
+    get_ai_executor,
+    get_db_executor,
+    get_heavy_executor,
+)
 
 logger = get_logger(__name__)
 
@@ -295,8 +300,8 @@ class AlertasState(rx.State):
         try:
             # Busca subscriptions e histórico em paralelo — 2 requests simultâneas
             raw, (rows, total) = await asyncio.gather(
-                loop.run_in_executor(None, lambda: AlertService.get_email_subscriptions(client_id=client_id)),
-                loop.run_in_executor(None, lambda: AlertService.get_history(page=1, per_page=30, client_id=client_id)),
+                loop.run_in_executor(get_db_executor(), lambda: AlertService.get_email_subscriptions(client_id=client_id)),
+                loop.run_in_executor(get_db_executor(), lambda: AlertService.get_history(page=1, per_page=30, client_id=client_id)),
             )
 
             counts: dict = {k: 0 for k in ALERT_TYPES}
@@ -335,7 +340,7 @@ class AlertasState(rx.State):
             pass
         loop = asyncio.get_running_loop()
         rows, total = await loop.run_in_executor(
-            None, lambda: AlertService.get_history(page=page, per_page=30, client_id=client_id)
+            get_db_executor(), lambda: AlertService.get_history(page=page, per_page=30, client_id=client_id)
         )
         async with self:
             self.history = [_norm_hist(h) for h in rows]
@@ -357,7 +362,7 @@ class AlertasState(rx.State):
             pass
         loop = asyncio.get_running_loop()
         rows, total = await loop.run_in_executor(
-            None, lambda: AlertService.get_history(page=page, per_page=30, client_id=client_id)
+            get_db_executor(), lambda: AlertService.get_history(page=page, per_page=30, client_id=client_id)
         )
         async with self:
             self.history = [_norm_hist(h) for h in rows]
@@ -386,7 +391,7 @@ class AlertasState(rx.State):
 
         loop = asyncio.get_running_loop()
         ok, msg = await loop.run_in_executor(
-            None,
+            get_db_executor(),
             lambda: AlertService.add_email_subscription(
                 alert_type=alert_type,
                 contract=contract,
@@ -435,7 +440,7 @@ class AlertasState(rx.State):
         loop = asyncio.get_running_loop()
         try:
             # Delete + reload subscriptions em paralelo (delete primeiro, depois fetch)
-            await loop.run_in_executor(None, AlertService.delete_email_subscription, row_id)
+            await loop.run_in_executor(get_db_executor(), AlertService.delete_email_subscription, row_id)
             audit_log(
                 category=AuditCategory.ALERT_CONFIG,
                 action=f"Assinatura de alerta removida — id '{row_id}'",
@@ -444,7 +449,7 @@ class AlertasState(rx.State):
                 status="success",
                 client_id=client_id,
             )
-            raw = await loop.run_in_executor(None, lambda: AlertService.get_email_subscriptions(client_id=client_id))
+            raw = await loop.run_in_executor(get_db_executor(), lambda: AlertService.get_email_subscriptions(client_id=client_id))
             counts: dict = {k: 0 for k in ALERT_TYPES}
             for g in raw:
                 at = g.get("alert_type", "")
@@ -482,7 +487,7 @@ class AlertasState(rx.State):
             pass
 
         loop = asyncio.get_running_loop()
-        result = await loop.run_in_executor(None, lambda: AlertService.run_sweep(alert_type))
+        result = await loop.run_in_executor(get_heavy_executor(), lambda: AlertService.run_sweep(alert_type))
 
         async with self:
             sent = result.get("sent", 0)
@@ -512,7 +517,7 @@ class AlertasState(rx.State):
 
         # Reload history after releasing state lock
         rows, total = await loop.run_in_executor(
-            None, lambda: AlertService.get_history(page=1, per_page=30, client_id=client_id)
+            get_db_executor(), lambda: AlertService.get_history(page=1, per_page=30, client_id=client_id)
         )
         async with self:
             self.history = [_norm_hist(h) for h in rows]
@@ -541,7 +546,7 @@ class AlertasState(rx.State):
             if client_id:
                 filters = {"client_id": client_id}
             rules = await loop.run_in_executor(
-                None, lambda: sb_select("alert_rules", filters={"client_id": client_id} if client_id else {}, limit=100)
+                get_db_executor(), lambda: sb_select("alert_rules", filters={"client_id": client_id} if client_id else {}, limit=100)
             )
             normalized = []
             for r in (rules or []):
@@ -613,7 +618,7 @@ class AlertasState(rx.State):
             )
 
             resp = await loop.run_in_executor(
-                None, lambda: ai_client.query([{"role": "user", "content": prompt}], max_tokens=400)
+                get_ai_executor(), lambda: ai_client.query([{"role": "user", "content": prompt}], max_tokens=400)
             )
 
             import json, re
@@ -716,7 +721,7 @@ class AlertasState(rx.State):
         loop = asyncio.get_running_loop()
         try:
             from bomtempo.core.supabase_client import sb_insert
-            result = await loop.run_in_executor(None, lambda: sb_insert("alert_rules", record))
+            result = await loop.run_in_executor(get_db_executor(), lambda: sb_insert("alert_rules", record))
 
             audit_log(
                 category=AuditCategory.ALERT_CONFIG,
@@ -757,7 +762,7 @@ class AlertasState(rx.State):
         loop = asyncio.get_running_loop()
         try:
             from bomtempo.core.supabase_client import sb_delete
-            await loop.run_in_executor(None, lambda: sb_delete("alert_rules", filters={"id": rule_id}))
+            await loop.run_in_executor(get_db_executor(), lambda: sb_delete("alert_rules", filters={"id": rule_id}))
             audit_log(
                 category=AuditCategory.ALERT_CONFIG,
                 action=f"Regra de alerta removida — id '{rule_id}'",
@@ -789,7 +794,7 @@ class AlertasState(rx.State):
         try:
             from bomtempo.core.supabase_client import sb_update
             await loop.run_in_executor(
-                None,
+                get_db_executor(),
                 lambda: sb_update("alert_rules", filters={"id": rule_id}, data={"is_active": not current_active})
             )
         except Exception as exc:

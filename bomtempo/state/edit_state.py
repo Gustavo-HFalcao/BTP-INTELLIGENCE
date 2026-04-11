@@ -32,6 +32,9 @@ def _iso_to_br(val: str) -> str:
 
 from bomtempo.core.supabase_client import sb_select, sb_upsert, sb_insert, sb_delete, sb_bulk_upsert
 from bomtempo.core.logging_utils import get_logger
+from bomtempo.core.executors import (
+    get_db_executor,
+)
 from bomtempo.core.audit_logger import audit_log, audit_error, AuditCategory
 
 logger = get_logger(__name__)
@@ -270,7 +273,7 @@ class EditState(rx.State):
             except Exception as e:
                 result["error"] = str(e)
 
-        await loop.run_in_executor(None, _fetch)
+        await loop.run_in_executor(get_db_executor(), _fetch)
 
         async with self:
             self.is_loading_table = False
@@ -739,7 +742,7 @@ class EditState(rx.State):
                 result["errors"].extend(ins_res["errors"])
 
         try:
-            await loop.run_in_executor(None, _do_upsert)
+            await loop.run_in_executor(get_db_executor(), _do_upsert)
         except Exception as e:
             logger.error(f"Erro crítico no executor: {e}")
             async with self:
@@ -754,7 +757,7 @@ class EditState(rx.State):
             try:
                 from bomtempo.core.data_loader import DataLoader
                 DataLoader.invalidate_cache()
-                fresh_data = await loop.run_in_executor(None, DataLoader().load_all)
+                fresh_data = await loop.run_in_executor(get_db_executor(), DataLoader().load_all)
                 logger.info("📦 Dados frescos carregados para refresh")
             except Exception as e:
                 logger.warning(f"⚠️ Falha ao carregar dados frescos: {e}")

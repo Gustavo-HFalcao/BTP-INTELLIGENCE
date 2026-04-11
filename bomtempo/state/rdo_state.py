@@ -11,6 +11,12 @@ import reflex as rx
 
 from bomtempo.core.logging_utils import get_logger
 from bomtempo.core.rdo_service import RDOService, _haversine, _reverse_geocode
+from bomtempo.core.executors import (
+    get_ai_executor,
+    get_db_executor,
+    get_http_executor,
+    get_heavy_executor,
+)
 
 logger = get_logger(__name__)
 
@@ -334,7 +340,7 @@ class RDOState(rx.State):
             if _contrato_val and _contrato_val not in ("nan", "None", ""):
                 _loop = _asyncio.get_running_loop()
                 self.rdo_active_features = await _loop.run_in_executor(
-                    None,
+                    get_db_executor(),
                     lambda: FeatureFlagsService.get_features_for_contract(_contrato_val),
                 )
             else:
@@ -385,7 +391,7 @@ class RDOState(rx.State):
 
         loop = asyncio.get_running_loop()
         draft = await loop.run_in_executor(
-            None,
+            get_db_executor(),
             lambda: RDOService.get_active_draft(user, contrato if contrato not in ("nan","None","") else "", client_id=self._rdo_client_id),
         )
         if not draft:
@@ -415,7 +421,7 @@ class RDOState(rx.State):
     @rx.event(background=True)
     async def load_draft_by_id(self, id_rdo: str):
         loop = asyncio.get_running_loop()
-        data = await loop.run_in_executor(None, lambda: RDOService.get_full_rdo(id_rdo))
+        data = await loop.run_in_executor(get_db_executor(), lambda: RDOService.get_full_rdo(id_rdo))
         if not data:
             return
         async with self:
@@ -542,7 +548,7 @@ class RDOState(rx.State):
                 yield rx.toast("Nenhum rascunho ativo para excluir.", position="top-center")
             return
         loop = asyncio.get_running_loop()
-        ok = await loop.run_in_executor(None, lambda: RDOService.delete_draft(draft_id))
+        ok = await loop.run_in_executor(get_db_executor(), lambda: RDOService.delete_draft(draft_id))
         async with self:
             if ok:
                 # Reset all form state
@@ -621,10 +627,10 @@ class RDOState(rx.State):
 
         if ok and lat:
             loop = asyncio.get_running_loop()
-            endereco = await loop.run_in_executor(None, lambda: _reverse_geocode(lat, lng))
+            endereco = await loop.run_in_executor(get_http_executor(), lambda: _reverse_geocode(lat, lng))
             # Haversine distance to obra
             obra_lat, obra_lng = await loop.run_in_executor(
-                None, lambda: RDOService.get_obra_coords(contrato)
+                get_db_executor(), lambda: RDOService.get_obra_coords(contrato)
             )
             if obra_lat and obra_lng:
                 distancia = _haversine(lat, lng, obra_lat, obra_lng)
@@ -680,7 +686,7 @@ class RDOState(rx.State):
 
         if ok and lat:
             loop = asyncio.get_running_loop()
-            endereco = await loop.run_in_executor(None, lambda: _reverse_geocode(lat, lng))
+            endereco = await loop.run_in_executor(get_http_executor(), lambda: _reverse_geocode(lat, lng))
 
         async with self:
             self.checkout_lat       = lat
@@ -752,7 +758,7 @@ class RDOState(rx.State):
         if not id_rdo and contrato.strip():
             rdo_data = self._build_rdo_data()
             id_rdo = await loop.run_in_executor(
-                None,
+                get_db_executor(),
                 lambda: RDOService.upsert_draft(rdo_data, mestre_id=user),
             )
             self.draft_id_rdo = id_rdo
@@ -777,7 +783,7 @@ class RDOState(rx.State):
                 _ex_dt     = str(self.ev_exif_datetime or "")
                 _ex_lm     = str(self.ev_last_modified or "")
                 result = await loop.run_in_executor(
-                    None,
+                    get_heavy_executor(),
                     lambda: RDOService.process_evidence(
                         id_rdo=id_rdo,
                         file_bytes=_b,
@@ -886,7 +892,7 @@ class RDOState(rx.State):
         if not id_rdo and contrato.strip():
             rdo_data = self._build_rdo_data()
             id_rdo = await loop.run_in_executor(
-                None,
+                get_db_executor(),
                 lambda: RDOService.upsert_draft(rdo_data, mestre_id=user),
             )
             self.draft_id_rdo = id_rdo
@@ -907,7 +913,7 @@ class RDOState(rx.State):
                 _ci_lng = float(self.checkin_lng or 0.0)
                 _ci_end = str(self.checkin_endereco or "")
                 result = await loop.run_in_executor(
-                    None,
+                    get_heavy_executor(),
                     lambda: RDOService.process_evidence(
                         id_rdo=id_rdo,
                         file_bytes=_b,
@@ -959,7 +965,7 @@ class RDOState(rx.State):
         if not id_rdo and contrato.strip():
             rdo_data = self._build_rdo_data()
             id_rdo = await loop.run_in_executor(
-                None,
+                get_db_executor(),
                 lambda: RDOService.upsert_draft(rdo_data, mestre_id=user),
             )
             self.draft_id_rdo = id_rdo
@@ -980,7 +986,7 @@ class RDOState(rx.State):
                 _ci_lng = float(self.checkin_lng or 0.0)
                 _ci_end = str(self.checkin_endereco or "")
                 result = await loop.run_in_executor(
-                    None,
+                    get_heavy_executor(),
                     lambda: RDOService.process_evidence(
                         id_rdo=id_rdo,
                         file_bytes=_b,
@@ -1262,7 +1268,7 @@ class RDOState(rx.State):
         loop = asyncio.get_running_loop()
         try:
             id_rdo = await loop.run_in_executor(
-                None,
+                get_db_executor(),
                 lambda: RDOService.upsert_draft(rdo_data, mestre_id=user),
             )
             async with self:
@@ -1446,7 +1452,7 @@ class RDOState(rx.State):
                 try:
                     from bomtempo.core.supabase_client import sb_update as _sb_upd_eq
                     await loop.run_in_executor(
-                        None,
+                        get_db_executor(),
                         lambda: _sb_upd_eq(
                             "contratos",
                             filters={"contrato": contrato, "client_id": _submit_client_id},
@@ -1472,12 +1478,12 @@ class RDOState(rx.State):
                 try:
                     from bomtempo.core.supabase_client import sb_update as _sb_upd, sb_select as _sb_sel2, sb_insert as _sb_ins2
                     # Fetch current state for history
-                    cur_rows = await loop.run_in_executor(None, lambda: _sb_sel2("hub_atividades", filters={"id": _ativ_id}))
+                    cur_rows = await loop.run_in_executor(get_db_executor(), lambda: _sb_sel2("hub_atividades", filters={"id": _ativ_id}))
                     # If this activity has sub-children, direct % update from RDO is skipped —
                     # the % is driven by subs' weighted average instead.
                     # Only exec_qty accumulation and history are recorded.
                     _has_subs = await loop.run_in_executor(
-                        None, lambda: bool(_sb_sel2("hub_atividades", filters={"parent_id": _ativ_id, "nivel": "sub"}, limit=1))
+                        get_db_executor(), lambda: bool(_sb_sel2("hub_atividades", filters={"parent_id": _ativ_id, "nivel": "sub"}, limit=1))
                     )
                     cur_pct = int((cur_rows[0].get("conclusao_pct", 0) or 0) if cur_rows else 0)
                     # If activity has subs, conclusao_pct is driven by subs' weighted avg — don't overwrite
@@ -1505,7 +1511,7 @@ class RDOState(rx.State):
                         upd_data["status_atividade"] = "em_execucao"
                     # Update progress + qty + status
                     if upd_data:
-                        await loop.run_in_executor(None, lambda: _sb_upd("hub_atividades", filters={"id": _ativ_id}, data=upd_data))
+                        await loop.run_in_executor(get_db_executor(), lambda: _sb_upd("hub_atividades", filters={"id": _ativ_id}, data=upd_data))
 
                     # ── Cascade: recalculate parent(s) weighted progress ──────────
                     # If we updated a sub → recalculate micro parent
@@ -1520,7 +1526,7 @@ class RDOState(rx.State):
                             return
                         try:
                             children = await loop.run_in_executor(
-                                None, lambda: _sb_sel2("hub_atividades", filters={"parent_id": parent_id}, limit=200)
+                                get_db_executor(), lambda: _sb_sel2("hub_atividades", filters={"parent_id": parent_id}, limit=200)
                             )
                             if not children:
                                 return
@@ -1536,7 +1542,7 @@ class RDOState(rx.State):
                             new_parent_pct = min(100, int(round(avg_pct)))
                             # Auto status
                             p_rows = await loop.run_in_executor(
-                                None, lambda: _sb_sel2("hub_atividades", filters={"id": parent_id}, limit=1)
+                                get_db_executor(), lambda: _sb_sel2("hub_atividades", filters={"id": parent_id}, limit=1)
                             )
                             p_status = str((p_rows[0].get("status_atividade", "") or "") if p_rows else "")
                             p_update: dict = {"conclusao_pct": new_parent_pct}
@@ -1545,7 +1551,7 @@ class RDOState(rx.State):
                             elif new_parent_pct > 0 and p_status in ("nao_iniciada", "pronta_iniciar", ""):
                                 p_update["status_atividade"] = "em_execucao"
                             await loop.run_in_executor(
-                                None, lambda: _sb_upd("hub_atividades", filters={"id": parent_id}, data=p_update)
+                                get_db_executor(), lambda: _sb_upd("hub_atividades", filters={"id": parent_id}, data=p_update)
                             )
                             logger.info(f"✅ Cascata: parent {parent_id} → {new_parent_pct}%")
                             # Recurse: recalculate grandparent if parent has a parent
@@ -1563,7 +1569,7 @@ class RDOState(rx.State):
                     _hist_exec = upd_data.get("exec_qty")
                     _hist_total = float((cur_rows[0].get("total_qty", 0) or 0) if cur_rows else 0) or None
                     _hist_unidade = str((cur_rows[0].get("unidade", "") or "") if cur_rows else "")
-                    await loop.run_in_executor(None, lambda: _sb_ins2("hub_atividade_historico", {
+                    await loop.run_in_executor(get_db_executor(), lambda: _sb_ins2("hub_atividade_historico", {
                         "atividade_id":         _ativ_id,
                         "contrato":             contrato,
                         "rdo_id":               id_rdo,
@@ -1583,7 +1589,7 @@ class RDOState(rx.State):
                 try:
                     from bomtempo.core.supabase_client import sb_insert as _sb_ins3
                     _cid3 = rdo_data.get("client_id") or None
-                    await loop.run_in_executor(None, lambda: _sb_ins3("hub_atividades", {
+                    await loop.run_in_executor(get_db_executor(), lambda: _sb_ins3("hub_atividades", {
                         "contrato": contrato,
                         "atividade": _nova_nome,
                         "fase_macro": _nova_fase or "Geral",
@@ -1608,7 +1614,7 @@ class RDOState(rx.State):
                 try:
                     from bomtempo.core.supabase_client import sb_insert as _sb_ins_na
                     _cid_na = rdo_data.get("client_id") or None
-                    await loop.run_in_executor(None, lambda n=_na_nome, f=_na_fase, p=_na_pct: _sb_ins_na("hub_atividades", {
+                    await loop.run_in_executor(get_db_executor(), lambda n=_na_nome, f=_na_fase, p=_na_pct: _sb_ins_na("hub_atividades", {
                         "contrato": contrato,
                         "atividade": n,
                         "fase_macro": f,
@@ -1632,7 +1638,7 @@ class RDOState(rx.State):
                     continue
                 try:
                     from bomtempo.core.supabase_client import sb_update as _sb_upd_ex, sb_select as _sb_sel_ex, sb_insert as _sb_ins_ex
-                    _cur = await loop.run_in_executor(None, lambda i=_ex_id: _sb_sel_ex("hub_atividades", filters={"id": i}))
+                    _cur = await loop.run_in_executor(get_db_executor(), lambda i=_ex_id: _sb_sel_ex("hub_atividades", filters={"id": i}))
                     _cur_pct = int((_cur[0].get("conclusao_pct", 0) or 0) if _cur else 0)
                     _ex_upd: dict = {"conclusao_pct": _ex_pct}
                     _ex_hist_prod = None
@@ -1661,9 +1667,9 @@ class RDOState(rx.State):
                         _ex_upd["status_atividade"] = "concluida"
                     elif _ex_pct > 0 and _ex_cur_status in ("nao_iniciada", "pronta_iniciar", ""):
                         _ex_upd["status_atividade"] = "em_execucao"
-                    await loop.run_in_executor(None, lambda i=_ex_id, d=_ex_upd: _sb_upd_ex("hub_atividades", filters={"id": i}, data=d))
+                    await loop.run_in_executor(get_db_executor(), lambda i=_ex_id, d=_ex_upd: _sb_upd_ex("hub_atividades", filters={"id": i}, data=d))
                     _cid_ex = rdo_data.get("client_id") or None
-                    await loop.run_in_executor(None, lambda i=_ex_id, p=_ex_pct, cp=_cur_pct, hp=_ex_hist_prod, he=_ex_hist_exec, ht=_ex_hist_total, hu=_ex_hist_unidade: _sb_ins_ex("hub_atividade_historico", {
+                    await loop.run_in_executor(get_db_executor(), lambda i=_ex_id, p=_ex_pct, cp=_cur_pct, hp=_ex_hist_prod, he=_ex_hist_exec, ht=_ex_hist_total, hu=_ex_hist_unidade: _sb_ins_ex("hub_atividade_historico", {
                         "atividade_id": i,
                         "contrato": contrato,
                         "rdo_id": id_rdo,
@@ -1703,7 +1709,7 @@ class RDOState(rx.State):
                 for _ph in _sync_photos:
                     try:
                         _cid_aud = rdo_data.get("client_id") or None
-                        await loop.run_in_executor(None, lambda ph=_ph, c=_cid_aud: _sb_ins_aud("hub_auditoria_imgs", {
+                        await loop.run_in_executor(get_db_executor(), lambda ph=_ph, c=_cid_aud: _sb_ins_aud("hub_auditoria_imgs", {
                             "contrato": contrato,
                             "categoria": ph["categoria"],
                             "url": ph["url"],
@@ -1720,7 +1726,7 @@ class RDOState(rx.State):
             # 5d. Build view URL (public — absolute for email, relative for UI)
             from bomtempo.core.supabase_client import sb_select
             master_rows = await loop.run_in_executor(
-                None,
+                get_db_executor(),
                 lambda: sb_select("rdo_master", filters={"id_rdo": id_rdo}),
             )
             view_token = (master_rows[0].get("view_token") or "") if master_rows else ""
@@ -1732,7 +1738,7 @@ class RDOState(rx.State):
             recipients = []
             try:
                 rows = await loop.run_in_executor(
-                    None,
+                    get_db_executor(),
                     lambda: _sb_select("email_sender", filters={"module": "rdo"}),
                 )
                 recipients = [r.get("email", "").strip() for r in (rows or []) if r.get("email", "").strip()]

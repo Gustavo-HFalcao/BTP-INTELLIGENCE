@@ -10,6 +10,12 @@ import reflex as rx
 from bomtempo.core.audit_logger import AuditCategory, audit_error, audit_log
 from bomtempo.core.logging_utils import get_logger
 from bomtempo.core.supabase_client import sb_delete, sb_insert, sb_select, sb_update
+from bomtempo.core.executors import (
+    get_ai_executor,
+    get_db_executor,
+    get_http_executor,
+    get_heavy_executor,
+)
 
 logger = get_logger(__name__)
 
@@ -196,7 +202,7 @@ class UsuariosState(rx.State):
 
         try:
             loop = _asyncio.get_running_loop()
-            rows, client_map = await loop.run_in_executor(None, _fetch)
+            rows, client_map = await loop.run_in_executor(get_db_executor(), _fetch)
             users_list = [
                 {
                     "id":          str(r.get("id", "")),
@@ -235,7 +241,7 @@ class UsuariosState(rx.State):
 
         try:
             loop = _asyncio.get_running_loop()
-            rows = await loop.run_in_executor(None, _fetch)
+            rows = await loop.run_in_executor(get_db_executor(), _fetch)
             seen = set()
             unique_rows = []
             for r in rows:
@@ -467,7 +473,7 @@ class UsuariosState(rx.State):
                     logger.info(f"Novo usuário '{username}' criado por '{_admin}'")
                     return new_id
 
-            await loop.run_in_executor(None, _do_save)
+            await loop.run_in_executor(get_db_executor(), _do_save)
             async with self:
                 self.show_user_dialog = False
             yield UsuariosState.load_users

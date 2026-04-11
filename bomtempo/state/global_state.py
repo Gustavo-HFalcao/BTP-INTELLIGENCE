@@ -23,6 +23,12 @@ from bomtempo.core.analysis_service import AnalysisService
 from bomtempo.core.data_loader import DataLoader
 from bomtempo.core.logging_utils import get_logger
 from bomtempo.core.audit_logger import audit_log, audit_error, AuditCategory
+from bomtempo.core.executors import (
+    get_ai_executor,
+    get_db_executor,
+    get_http_executor,
+    get_heavy_executor,
+)
 from bomtempo.core.supabase_client import sb_select, sb_insert, sb_rpc
 from bomtempo.core.ai_tools import AI_TOOLS, execute_tool
 from bomtempo.core.auth_utils import verify_password
@@ -253,7 +259,7 @@ class GlobalState(rx.State):
         client_id = self.current_client_id or None
         loop = _asyncio.get_running_loop()
         new_sess = await loop.run_in_executor(
-            None,
+            get_db_executor(),
             lambda: sb_insert("chat_sessions", {"title": "Conversa", "username": username, "client_id": client_id})
         )
         if new_sess:
@@ -269,7 +275,7 @@ class GlobalState(rx.State):
         client_id = self.current_client_id or None
         loop = _asyncio.get_running_loop()
         new_sess = await loop.run_in_executor(
-            None,
+            get_db_executor(),
             lambda: sb_insert("chat_sessions", {"title": "Conversa", "username": username, "client_id": client_id})
         )
         if new_sess:
@@ -295,8 +301,8 @@ class GlobalState(rx.State):
         try:
             import asyncio as _aio_msg
             _msg_loop = _aio_msg.get_running_loop()
-            await _msg_loop.run_in_executor(None, lambda: sb_insert("chat_messages", data))
-            await _msg_loop.run_in_executor(None, lambda: sb_rpc("update_session_timestamp", {"sess_id": session_id}))
+            await _msg_loop.run_in_executor(get_db_executor(), lambda: sb_insert("chat_messages", data))
+            await _msg_loop.run_in_executor(get_db_executor(), lambda: sb_rpc("update_session_timestamp", {"sess_id": session_id}))
         except Exception as e:
             logger.warning(f"save_chat_msg falhou (não crítico): {e}")
 
@@ -352,7 +358,8 @@ class GlobalState(rx.State):
                 import asyncio as _aio_doc
                 _doc_loop = _aio_doc.get_running_loop()
                 doc_rows = await _doc_loop.run_in_executor(
-                    None, lambda: sb_select("hub_timeline", filters=_tl_filters)
+                    get_db_executor(),
+                    lambda: sb_select("hub_timeline", filters=_tl_filters)
                 )
                 if doc_rows:
                     doc_sections = []
@@ -647,7 +654,7 @@ class GlobalState(rx.State):
 
         try:
             loop = _asyncio.get_running_loop()
-            await loop.run_in_executor(None, lambda: _do_reset(_email))
+            await loop.run_in_executor(get_db_executor(), lambda: _do_reset(_email))
             async with self:
                 self.forgot_password_success = True
         except Exception as e:
@@ -942,9 +949,9 @@ class GlobalState(rx.State):
                 import asyncio
                 loop = asyncio.get_running_loop()
                 rdos, mo, eq = await asyncio.gather(
-                    loop.run_in_executor(None, lambda: RDOService.get_all_rdos(limit=200, client_id=self.current_client_id or "")),
-                    loop.run_in_executor(None, lambda: _sbsel("rdo_mao_obra", limit=1000) or []),
-                    loop.run_in_executor(None, lambda: _sbsel("rdo_equipamentos", limit=1000) or []),
+                    loop.run_in_executor(get_db_executor(), lambda: RDOService.get_all_rdos(limit=200, client_id=self.current_client_id or "")),
+                    loop.run_in_executor(get_db_executor(), lambda: _sbsel("rdo_mao_obra", limit=1000) or []),
+                    loop.run_in_executor(get_db_executor(), lambda: _sbsel("rdo_equipamentos", limit=1000) or []),
                 )
                 page_name = "Dashboard RDO Analytics"
                 data = {
@@ -1721,7 +1728,7 @@ class GlobalState(rx.State):
         try:
             loader = DataLoader(client_id=self.current_client_id)
             _loop = _asyncio.get_running_loop()
-            raw = await _loop.run_in_executor(None, loader.load_all)
+            raw = await _loop.run_in_executor(get_db_executor(), loader.load_all)
             self.data_version += 1
 
             def _norm_df(df: pd.DataFrame) -> pd.DataFrame:
@@ -1824,7 +1831,7 @@ class GlobalState(rx.State):
         try:
             loop = _asyncio.get_running_loop()
             loader = DataLoader(_client_id)
-            raw = await loop.run_in_executor(None, loader.load_all)
+            raw = await loop.run_in_executor(get_db_executor(), loader.load_all)
 
             def _norm_df(df: pd.DataFrame) -> pd.DataFrame:
                 for col in df.columns:
@@ -4546,7 +4553,7 @@ class GlobalState(rx.State):
                             timeout=8,
                         )
                         return resp.json()
-                    results = await _asyncio.get_running_loop().run_in_executor(None, _geocode)
+                    results = await _asyncio.get_running_loop().run_in_executor(get_http_executor(), _geocode)
                     if results:
                         lat = float(results[0].get("lat", 0))
                         lng = float(results[0].get("lon", 0))
@@ -4756,7 +4763,7 @@ class GlobalState(rx.State):
         try:
             loop = asyncio.get_running_loop()
             rows = await loop.run_in_executor(
-                None,
+                get_db_executor(),
                 lambda: sb_select("fin_custos", limit=2000) or [],
             )
             records = []
@@ -4800,7 +4807,7 @@ class GlobalState(rx.State):
         from bomtempo.core.supabase_client import sb_select
         loop = asyncio.get_running_loop()
         rdos = await loop.run_in_executor(
-            None,
+            get_db_executor(),
             lambda: sb_select("rdo_master", filters={"contrato": code}, limit=20) or []
         )
         rdos_sorted = sorted(rdos, key=lambda r: str(r.get("data_rdo", "")), reverse=True)
@@ -5040,7 +5047,7 @@ class GlobalState(rx.State):
                 )
 
         loop = _asyncio.get_running_loop()
-        ai_text = await loop.run_in_executor(None, run_ai)
+        ai_text = await loop.run_in_executor(get_ai_executor(), run_ai)
 
         # Persist to cache
         now_utc = datetime.now(timezone(timedelta(hours=0))).isoformat()

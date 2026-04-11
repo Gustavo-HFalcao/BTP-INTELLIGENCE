@@ -16,6 +16,12 @@ import reflex as rx
 from bomtempo.core.logging_utils import get_logger
 from bomtempo.core.report_service import ReportService
 from bomtempo.core.audit_logger import audit_log, audit_error, AuditCategory
+from bomtempo.core.executors import (
+    get_ai_executor,
+    get_db_executor,
+    get_heavy_executor,
+    get_http_executor,
+)
 
 logger = get_logger(__name__)
 
@@ -167,9 +173,11 @@ class RelatoriosState(rx.State):
             client_id = str(_gs.current_client_id or "")
         except Exception:
             pass
-        loop = asyncio.get_event_loop()
         try:
-            history = await loop.run_in_executor(None, lambda: ReportService.load_history(client_id=client_id))
+            history = await loop.run_in_executor(
+                get_db_executor(),
+                lambda: ReportService.load_history(client_id=client_id)
+            )
             self.reports_history = history
         except Exception as e:
             logger.error(f"RelatoriosState.load_page error: {e}")
@@ -220,8 +228,11 @@ class RelatoriosState(rx.State):
         loop = asyncio.get_running_loop()
 
         try:
-            # Build HTML (CPU-bound — run in executor to free event loop)
-            html = await loop.run_in_executor(None, lambda: ReportService.build_static_html(data))
+            # Build HTML (CPU-bound — run in heavy executor)
+            html = await loop.run_in_executor(
+                get_heavy_executor(),
+                lambda: ReportService.build_static_html(data)
+            )
 
             # Show preview immediately
             async with self:
@@ -234,7 +245,8 @@ class RelatoriosState(rx.State):
             filename = f"relatorio_{safe_name}_{ts}.pdf"
 
             pdf_path, pdf_url = await loop.run_in_executor(
-                None, lambda: ReportService.generate_pdf(html, filename)
+                get_heavy_executor(),
+                lambda: ReportService.generate_pdf(html, filename)
             )
 
             # Save record to Supabase
@@ -249,10 +261,17 @@ class RelatoriosState(rx.State):
             }
             if _report_client_id:
                 record["client_id"] = _report_client_id
-            await loop.run_in_executor(None, lambda: ReportService.save_report(record))
+            
+            await loop.run_in_executor(
+                get_db_executor(),
+                lambda: ReportService.save_report(record)
+            )
 
             # Reload history
-            history = await loop.run_in_executor(None, lambda: ReportService.load_history(client_id=_report_client_id))
+            history = await loop.run_in_executor(
+                get_db_executor(),
+                lambda: ReportService.load_history(client_id=_report_client_id)
+            )
 
             audit_log(
                 category=AuditCategory.REPORT_GEN,
@@ -332,14 +351,16 @@ class RelatoriosState(rx.State):
             try:
                 # Build styled HTML from AI markdown
                 ai_html = await loop.run_in_executor(
-                    None, lambda: ReportService.build_ai_html(full_text, data, abordagem)
+                    get_heavy_executor(),
+                    lambda: ReportService.build_ai_html(full_text, data, abordagem)
                 )
                 ts = datetime.now().strftime("%Y%m%d_%H%M%S")
                 _raw = contrato.replace(" ", "_").replace("/", "-")[:30]
                 safe_name = unicodedata.normalize("NFKD", _raw).encode("ascii", "ignore").decode("ascii")
                 filename = f"relatorio_ia_{safe_name}_{ts}.pdf"
                 pdf_path, pdf_url = await loop.run_in_executor(
-                    None, lambda: ReportService.generate_pdf(ai_html, filename)
+                    get_heavy_executor(),
+                    lambda: ReportService.generate_pdf(ai_html, filename)
                 )
             except Exception as e:
                 logger.error(f"Error generating AI report PDF: {e}")
@@ -358,8 +379,8 @@ class RelatoriosState(rx.State):
                 }
                 if _report_client_id:
                     record["client_id"] = _report_client_id
-                await loop.run_in_executor(None, lambda: ReportService.save_report(record))
-                history = await loop.run_in_executor(None, lambda: ReportService.load_history(client_id=_report_client_id))
+                await loop.run_in_executor(get_db_executor(), lambda: ReportService.save_report(record))
+                history = await loop.run_in_executor(get_db_executor(), lambda: ReportService.load_history(client_id=_report_client_id))
                 async with self:
                     self.report_pdf_url = pdf_url
                     self.reports_history = history
@@ -434,14 +455,17 @@ class RelatoriosState(rx.State):
             pdf_url = ""
             try:
                 ai_html = await loop.run_in_executor(
-                    None, lambda: ReportService.build_ai_html(full_text, data, "custom")
+                    get_heavy_executor(),
+                    lambda: ReportService.build_ai_html(full_text, data, "custom")
                 )
                 ts = datetime.now().strftime("%Y%m%d_%H%M%S")
                 _raw = contrato.replace(" ", "_").replace("/", "-")[:30]
+                import unicodedata
                 safe_name = unicodedata.normalize("NFKD", _raw).encode("ascii", "ignore").decode("ascii")
                 filename = f"relatorio_custom_{safe_name}_{ts}.pdf"
                 pdf_path, pdf_url = await loop.run_in_executor(
-                    None, lambda: ReportService.generate_pdf(ai_html, filename)
+                    get_heavy_executor(),
+                    lambda: ReportService.generate_pdf(ai_html, filename)
                 )
             except Exception as e:
                 logger.error(f"Error generating custom report PDF: {e}")
@@ -461,8 +485,8 @@ class RelatoriosState(rx.State):
                 }
                 if _report_client_id:
                     record["client_id"] = _report_client_id
-                await loop.run_in_executor(None, lambda: ReportService.save_report(record))
-                history = await loop.run_in_executor(None, lambda: ReportService.load_history(client_id=_report_client_id))
+                await loop.run_in_executor(get_db_executor(), lambda: ReportService.save_report(record))
+                history = await loop.run_in_executor(get_db_executor(), lambda: ReportService.load_history(client_id=_report_client_id))
                 async with self:
                     self.report_pdf_url = pdf_url
                     self.reports_history = history
@@ -537,6 +561,9 @@ class RelatoriosState(rx.State):
                         f"**Erro ao conectar com a IA:** {err[:200]}\n\nTente novamente."
                     )
                     self.error_msg = err[:200]
+                    self.is_streaming = False
+                    self.is_generating_ai = False
+                    self.is_generating_custom = False
                 return ""
 
             full_text += chunk
@@ -625,15 +652,15 @@ class RelatoriosState(rx.State):
                     "disciplinas": [],
                 }
                 ai_html = await loop.run_in_executor(
-                    None, lambda: ReportService.build_ai_html(full_text, data, abordagem)
+                    get_heavy_executor(),
+                    lambda: ReportService.build_ai_html(full_text, data, abordagem)
                 )
                 ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-                _raw = contrato.replace(" ", "_").replace("/", "-")[:30]
-                import unicodedata
-                safe_name = unicodedata.normalize("NFKD", _raw).encode("ascii", "ignore").decode("ascii")
+                # ...
                 filename = f"relatorio_mcp_{safe_name}_{ts}.pdf"
                 pdf_path, pdf_url = await loop.run_in_executor(
-                    None, lambda: ReportService.generate_pdf(ai_html, filename)
+                    get_heavy_executor(),
+                    lambda: ReportService.generate_pdf(ai_html, filename)
                 )
             except Exception as e:
                 logger.error(f"MCP report PDF error: {e}")
@@ -658,7 +685,10 @@ class RelatoriosState(rx.State):
                 }
                 if client_id:
                     record["client_id"] = client_id
-                await loop.run_in_executor(None, lambda: ReportService.save_report(record))
+                await loop.run_in_executor(
+                    get_db_executor(),
+                    lambda: ReportService.save_report(record)
+                )
 
                 # Envia por email se houver destinatários
                 if recipients and pdf_url:
@@ -676,7 +706,8 @@ class RelatoriosState(rx.State):
                     threading.Thread(target=_send_emails, daemon=True).start()
 
                 history = await loop.run_in_executor(
-                    None, lambda: ReportService.load_history(client_id=client_id)
+                    get_db_executor(),
+                    lambda: ReportService.load_history(client_id=client_id)
                 )
                 async with self:
                     self.report_pdf_url = pdf_url
@@ -718,13 +749,21 @@ class RelatoriosState(rx.State):
                 current_messages = list(user_msgs)
                 MAX_TOOL_ROUNDS = 8
                 for _round in range(MAX_TOOL_ROUNDS):
-                    # Tenta com tools primeiro
-                    resp = ai_client.query(
+                    # Feedback visual de progresso MCP
+                    asyncio.run_coroutine_threadsafe(
+                        q.put(f"__FEEDBACK__:Consultando dados do projeto (Rodada {_round + 1})..."),
+                        loop
+                    )
+                    
+                    # Tenta com tools primeiro via AI executor pool
+                    resp_future = get_ai_executor().submit(
+                        ai_client.query,
                         messages=current_messages,
                         system_prompt=system_msg,
                         tools=AI_TOOLS,
                         max_tokens=4000,
                     )
+                    resp = resp_future.result()
                     if not resp:
                         break
 
@@ -791,6 +830,12 @@ class RelatoriosState(rx.State):
                     self.error_msg = err[:200]
                 return ""
 
+            if isinstance(chunk, str) and chunk.startswith("__FEEDBACK__:"):
+                msg = chunk.split(":", 1)[1]
+                async with self:
+                    self.ai_report_text = f"_{msg}_"
+                continue
+
             full_text += chunk
             now = time.monotonic()
 
@@ -836,7 +881,7 @@ class RelatoriosState(rx.State):
 
         import asyncio as _aio
         loop = _aio.get_running_loop()
-        await loop.run_in_executor(None, _send)
+        await loop.run_in_executor(get_http_executor(), _send)
         async with self:
             self.success_msg = f"Relatório enviado para {len(recipients)} destinatário(s)."
 

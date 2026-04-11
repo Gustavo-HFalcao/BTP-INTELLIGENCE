@@ -30,6 +30,9 @@ import reflex as rx
 
 from bomtempo.core.audit_logger import CATEGORY_COLORS, CATEGORY_LABELS, AuditCategory
 from bomtempo.core.logging_utils import get_logger
+from bomtempo.core.executors import (
+    get_http_executor,
+)
 
 logger = get_logger(__name__)
 
@@ -298,7 +301,7 @@ class LogsState(rx.State):
                 logger.error(f"logs query exception: {e}")
                 return [], 0
 
-        rows, total = await loop.run_in_executor(None, _query)
+        rows, total = await loop.run_in_executor(get_http_executor(), _query)
         self.logs = [_normalize_log(r) for r in rows]
         self.total_count = total
 

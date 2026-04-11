@@ -9,13 +9,7 @@ from bomtempo.core.logging_utils import get_logger
 
 logger = get_logger(__name__)
 
-# ── Concurrency guard ─────────────────────────────────────────────────────────
-# 1GB RAM server: cada Chromium consome ~400-500 MB.
-# Mais de 1 instância simultânea = OOM garantido → crash sistêmico.
-# Este semáforo garante que apenas 1 PDF é gerado por vez, sistema-wide.
-# Demais chamadas ficam em fila (até 5 min) sem bloquear o event loop
-# (a chamada é feita dentro de run_in_executor no rdo_state.py).
-_PDF_SEMAPHORE = threading.Semaphore(1)
+
 
 
 def html_to_pdf(
@@ -136,33 +130,20 @@ def html_to_pdf(
         finally:
             loop.close()
 
-    # Aguarda vaga na fila — máximo 5 minutos antes de desistir
-    acquired = _PDF_SEMAPHORE.acquire(timeout=300)
-    if not acquired:
-        raise RuntimeError(
-            "PDF generation queue timeout (300s) — servidor sobrecarregado. "
-            "Tente novamente em alguns minutos."
-        )
+    t = threading.Thread(target=_thread_main, daemon=True)
+    t.start()
+    t.join(timeout=90)
 
-    try:
-        t = threading.Thread(target=_thread_main, daemon=True)
-        t.start()
-        t.join(timeout=90)
+    if t.is_alive():
+        # Timeout: encerra browser órfão para liberar RAM imediatamente
+        for proc in browser_proc:
+            try:
+                proc.terminate()
+                logger.warning("pdf_utils: browser process encerrado por timeout")
+            except Exception:
+                pass
+        browser_proc.clear()
+        raise RuntimeError("PDF generation timed out after 90s")
 
-        if t.is_alive():
-            # Timeout: encerra browser órfão para liberar RAM imediatamente
-            for proc in browser_proc:
-                try:
-                    proc.terminate()
-                    logger.warning("pdf_utils: browser process encerrado por timeout")
-                except Exception:
-                    pass
-            browser_proc.clear()
-            raise RuntimeError("PDF generation timed out after 90s")
-
-        if errors:
-            raise errors[0]
-
-    finally:
-        # Libera semáforo — próximo da fila pode prosseguir
-        _PDF_SEMAPHORE.release()
+    if errors:
+        raise errors[0]

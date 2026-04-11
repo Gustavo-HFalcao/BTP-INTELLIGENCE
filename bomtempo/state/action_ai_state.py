@@ -16,6 +16,9 @@ from bomtempo.core.admin_tools import ADMIN_AI_TOOLS, execute_admin_tool, execut
 from bomtempo.core.data_loader import DataLoader
 from bomtempo.core.logging_utils import get_logger
 from bomtempo.core.supabase_client import sb_rpc
+from bomtempo.core.executors import (
+    get_db_executor,
+)
 
 logger = get_logger(__name__)
 
@@ -148,7 +151,7 @@ class ActionAIState(rx.State):
             self.is_processing = True
 
         loop = asyncio.get_running_loop()
-        result = await loop.run_in_executor(None, lambda: execute_confirmed_action(action, data))
+        result = await loop.run_in_executor(get_db_executor(), lambda: execute_confirmed_action(action, data))
 
         async with self:
             self.last_response = result

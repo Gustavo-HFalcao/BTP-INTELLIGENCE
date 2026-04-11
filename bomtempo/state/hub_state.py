@@ -17,6 +17,12 @@ import reflex as rx
 
 from bomtempo.core.supabase_client import sb_select, sb_insert, sb_update, sb_delete
 from bomtempo.core.audit_logger import audit_log, AuditCategory
+from bomtempo.core.executors import (
+    get_ai_executor,
+    get_db_executor,
+    get_http_executor,
+    get_heavy_executor,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -2426,7 +2432,7 @@ Retorne SOMENTE JSON válido, sem texto antes/depois, sem markdown:
                 result_q.put(("err", str(ex)))
 
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, _call_ai)
+        await loop.run_in_executor(get_ai_executor(), _call_ai)
 
         if result_q.empty():
             self.cron_import_error = "IA não respondeu a tempo. Tente novamente."
@@ -2996,8 +3002,8 @@ Retorne SOMENTE JSON válido, sem texto antes/depois, sem markdown:
             path = f"{_dt.now().strftime('%Y%m%d_%H%M%S')}_{safe_name}"
 
             loop = _asyncio.get_running_loop()
-            await loop.run_in_executor(None, lambda: sb_storage_ensure_bucket("timeline-anexos", public=True))
-            url = await loop.run_in_executor(None, lambda: sb_storage_upload("timeline-anexos", path, data, "application/octet-stream"))
+            await loop.run_in_executor(get_heavy_executor(), lambda: sb_storage_ensure_bucket("timeline-anexos", public=True))
+            url = await loop.run_in_executor(get_heavy_executor(), lambda: sb_storage_upload("timeline-anexos", path, data, "application/octet-stream"))
 
             self.tl_anexo_url = url or ""
             self.tl_anexo_nome = nome
@@ -3274,9 +3280,9 @@ Retorne SOMENTE JSON válido, sem texto antes/depois, sem markdown:
                 return []
 
         last_rdo, prod_rows, hist_rows = await asyncio.gather(
-            loop.run_in_executor(None, _fetch_last_rdo),
-            loop.run_in_executor(None, _fetch_production_data),
-            loop.run_in_executor(None, _fetch_hist_data),
+            loop.run_in_executor(get_db_executor(), _fetch_last_rdo),
+            loop.run_in_executor(get_db_executor(), _fetch_production_data),
+            loop.run_in_executor(get_db_executor(), _fetch_hist_data),
         )
 
         # Build context for AI
@@ -3578,7 +3584,7 @@ Tipos:
         if not ia_breaker.is_open():
             try:
                 raw = await asyncio.wait_for(
-                    loop.run_in_executor(None, _call_ai),
+                    loop.run_in_executor(get_ai_executor(), _call_ai),
                     timeout=40.0,
                 )
                 ia_breaker.record_success()
@@ -3693,7 +3699,7 @@ Tipos:
                 logger.warning(f"agente_insights load failed: {_e}")
                 return None
 
-        row = await loop.run_in_executor(None, _fetch)
+        row = await loop.run_in_executor(get_db_executor(), _fetch)
 
         if not row:
             # No saved insights for this contract — leave empty so user can generate

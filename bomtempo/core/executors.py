@@ -25,10 +25,8 @@ from concurrent.futures import ThreadPoolExecutor
 # simultâneos saturem o sistema inteiro
 _ai_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="bt-ai")
 
-# ── Executor: Heavy I/O ───────────────────────────────────────────────────────
-# Geração de PDF com Chromium/Playwright e uploads para Supabase Storage
-# max_workers=3: Chromium é pesado — mais de 3 instâncias simultâneas causaria OOM
-_heavy_executor = ThreadPoolExecutor(max_workers=3, thread_name_prefix="bt-heavy")
+# max_workers=1: Chromium é extremamente pesado (~500MB) — 1 instância é o limite seguro
+_heavy_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="bt-heavy")
 
 # ── Executor: HTTP externo ────────────────────────────────────────────────────
 # Geocoding Nominatim, webhooks, APIs REST externas (sem ser o Supabase)

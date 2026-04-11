@@ -13,6 +13,9 @@ from bomtempo.state.global_state import GlobalState
 from bomtempo.state.rdo_state import RDOState
 from bomtempo.core.rdo_service import RDOService
 from bomtempo.core.logging_utils import get_logger
+from bomtempo.core.executors import (
+    get_db_executor,
+)
 
 logger = get_logger(__name__)
 
@@ -68,15 +71,15 @@ class RDOHistoricoState(rx.State):
 
         # Filtrar por role + tenant (client_id sempre passado para isolamento multi-tenant)
         if role in ("Administrador", "admin", "Gestão-Mobile"):
-            rdos = await loop.run_in_executor(None, lambda: RDOService.get_rdos_list(limit=200, client_id=client_id))
+            rdos = await loop.run_in_executor(get_db_executor(), lambda: RDOService.get_rdos_list(limit=200, client_id=client_id))
         elif role == "Mestre de Obras":
             rdos = await loop.run_in_executor(
-                None,
+                get_db_executor(),
                 lambda: RDOService.get_rdos_list(contrato=contrato, mestre_id=user, limit=100, client_id=client_id),
             )
         else:
             rdos = await loop.run_in_executor(
-                None,
+                get_db_executor(),
                 lambda: RDOService.get_rdos_list(contrato=contrato, limit=100, client_id=client_id),
             )
 
@@ -200,7 +203,7 @@ class RDOHistoricoState(rx.State):
         loop = asyncio.get_running_loop()
         # Safety check: only delete drafts
         rows = await loop.run_in_executor(
-            None,
+            get_db_executor(),
             lambda: RDOService.get_full_rdo(id_rdo),
         )
         if not rows:
@@ -211,7 +214,7 @@ class RDOHistoricoState(rx.State):
             async with self:
                 yield rx.toast("❌ RDOs finalizados não podem ser excluídos.", position="top-center")
             return
-        ok = await loop.run_in_executor(None, lambda: RDOService.delete_draft(id_rdo))
+        ok = await loop.run_in_executor(get_db_executor(), lambda: RDOService.delete_draft(id_rdo))
         async with self:
             if ok:
                 self.rdos_list = [r for r in self.rdos_list if r.get("id_rdo") != id_rdo]
