@@ -1365,36 +1365,55 @@ def _extra_atividade_row(extra: dict) -> rx.Component:
                         width="100%",
                     ),
                 ),
-                # Production qty input or manual % fallback
-                rx.cond(
-                    extra["total_qty"] != "0",
-                    rx.vstack(
-                        rx.text(
-                            "Producao de hoje (" + extra["unidade"] + ")",
-                            size="1", color="rgba(255,255,255,0.5)", font_family="var(--font-mono)"),
-                        rx.hstack(
-                            rx.el.input(
-                                type="number", min="0",
-                                placeholder="Ex: 120",
-                                default_value=extra["producao_dia"],
-                                on_change=RDOState.set_extra_atividade_producao(extra["_key"]),
-                                style=dict(_CARD_INPUT, **{"width": "160px"}),
+                # Production qty + efetivo side by side
+                rx.hstack(
+                    rx.cond(
+                        extra["total_qty"] != "0",
+                        rx.vstack(
+                            rx.text(
+                                "Producao de hoje (" + extra["unidade"] + ")",
+                                size="1", color="rgba(255,255,255,0.5)", font_family="var(--font-mono)"),
+                            rx.hstack(
+                                rx.el.input(
+                                    type="number", min="0",
+                                    placeholder="Ex: 120",
+                                    default_value=extra["producao_dia"],
+                                    on_change=RDOState.set_extra_atividade_producao(extra["_key"]),
+                                    style=dict(_CARD_INPUT, **{"width": "130px"}),
+                                ),
+                                rx.text("% auto", size="1", color="rgba(255,255,255,0.3)", font_style="italic"),
+                                spacing="2", align="center",
                             ),
-                            rx.text("% auto-calculado", size="1", color="rgba(255,255,255,0.3)", font_style="italic"),
-                            spacing="2", align="center",
+                            spacing="1",
                         ),
-                        spacing="1",
+                        rx.vstack(
+                            rx.text("Progresso (%)", size="1", color="rgba(255,255,255,0.5)", font_family="var(--font-mono)"),
+                            rx.el.input(
+                                type="number", min="0", max="100",
+                                default_value=extra["progresso"],
+                                on_blur=RDOState.set_extra_atividade_progresso(extra["_key"]),
+                                style=dict(_CARD_INPUT, **{"width": "100px"}),
+                            ),
+                            spacing="1",
+                        ),
                     ),
+                    # Efetivo alocado nesta atividade — inline
                     rx.vstack(
-                        rx.text("Progresso (%)", size="1", color="rgba(255,255,255,0.5)", font_family="var(--font-mono)"),
+                        rx.hstack(
+                            rx.icon(tag="users", size=11, color="rgba(201,139,42,0.8)"),
+                            rx.text("Pessoas hoje", size="1", color="rgba(255,255,255,0.5)", font_family="var(--font-mono)"),
+                            spacing="1", align="center",
+                        ),
                         rx.el.input(
-                            type="number", min="0", max="100",
-                            default_value=extra["progresso"],
-                            on_blur=RDOState.set_extra_atividade_progresso(extra["_key"]),
-                            style=dict(_CARD_INPUT, **{"width": "100px"}),
+                            type="number", min="0",
+                            placeholder="Ex: 4",
+                            default_value=extra["efetivo_alocado"],
+                            on_change=RDOState.set_extra_atividade_efetivo(extra["_key"]),
+                            style=dict(_CARD_INPUT, **{"width": "90px", "color": "#C98B2A", "fontWeight": "700"}),
                         ),
                         spacing="1",
                     ),
+                    spacing="4", align="end", flex_wrap="wrap",
                 ),
                 spacing="2", width="100%",
                 padding_left="8px",

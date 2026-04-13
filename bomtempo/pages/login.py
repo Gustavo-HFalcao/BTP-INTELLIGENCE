@@ -234,6 +234,7 @@ def _auth_form() -> rx.Component:
                 placeholder="Digite seu usuário",
                 value=GlobalState.username_input,
                 on_change=GlobalState.set_username_input,
+                debounce_timeout=150,
                 bg="#06100e", # surface-container-lowest
                 border=f"1px solid {S.BORDER_SUBTLE}",
                 color="white",
@@ -271,6 +272,7 @@ def _auth_form() -> rx.Component:
                 type="password",
                 value=GlobalState.password_input,
                 on_change=GlobalState.set_password_input,
+                debounce_timeout=150,
                 bg="#06100e", # surface-container-lowest
                 border=rx.cond(
                     GlobalState.login_error != "",
@@ -322,8 +324,8 @@ def _auth_form() -> rx.Component:
                     ),
                     rx.input(
                         placeholder="seu@email.com",
-                        value=GlobalState.forgot_password_email,
-                        on_change=GlobalState.set_forgot_password_email,
+                        default_value=GlobalState.forgot_password_email,
+                        on_blur=GlobalState.set_forgot_password_email,
                         width="100%",
                         bg="rgba(255,255,255,0.05)",
                         border=f"1px solid {S.BORDER_SUBTLE}",

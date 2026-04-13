@@ -218,15 +218,22 @@ class AIClient:
             logger.error(f"Error streaming from AI: {e}")
             raise
 
-    def query(self, messages: list[dict], model: str = "gpt-4o", username: str = "system", session_id: str = "") -> str:
+    def query(self, messages: list[dict], model: str = "gpt-4o", username: str = "system", session_id: str = "", system_prompt: str = "", max_tokens: int = 0) -> str:
         """Standard non-streaming completion."""
         t0 = time.time()
         try:
-            response = self.client.chat.completions.create(
-                model=model,
-                messages=messages,
-                temperature=0.3,
-            )
+            # Inject system_prompt as first message if provided and not already present
+            effective_messages = list(messages)
+            if system_prompt and (not effective_messages or effective_messages[0].get("role") != "system"):
+                effective_messages = [{"role": "system", "content": system_prompt}] + effective_messages
+            create_kwargs: dict = {
+                "model": model,
+                "messages": effective_messages,
+                "temperature": 0.3,
+            }
+            if max_tokens > 0:
+                create_kwargs["max_tokens"] = max_tokens
+            response = self.client.chat.completions.create(**create_kwargs)
             usage = response.usage
             duration_ms = int((time.time() - t0) * 1000)
             _log_observability({

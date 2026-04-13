@@ -2778,7 +2778,7 @@ def _cron_display_row(item: dict) -> rx.Component:
         rx.fragment(),
     )
 
-    font_sz = rx.cond(is_macro, "13px", rx.cond(is_micro, "12px", "11px"))
+    font_sz = rx.cond(is_macro, "15px", rx.cond(is_micro, "14px", "13px"))
     font_w  = rx.cond(is_macro, "600",  rx.cond(is_micro, "500",  "400"))
     row_padding = rx.cond(is_macro, "10px 14px", rx.cond(is_micro, "7px 14px 7px 4px", "5px 14px 5px 4px"))
     row_border  = rx.cond(is_sub, "1px solid rgba(139,92,246,0.08)",
@@ -2803,31 +2803,44 @@ def _cron_display_row(item: dict) -> rx.Component:
                 status_badge,
                 pending_badge,
                 micro_count_badge,
+                # Dependency badge — small orange label when this activity has a predecessor
+                rx.cond(
+                    item["_dep_fase"] != "",
+                    rx.hstack(
+                        rx.icon(tag="arrow-right", size=9, color="#F97316"),
+                        rx.text(item["_dep_fase"], font_size="8px", color="#F97316", font_family=S.FONT_MONO, font_weight="700"),
+                        spacing="0", align="center",
+                        padding="1px 5px", border_radius="3px",
+                        bg="rgba(249,115,22,0.08)", border="1px solid rgba(249,115,22,0.25)",
+                        flex_shrink="0",
+                    ),
+                    rx.fragment(),
+                ),
                 spacing="1", align="center",
             ),
             rx.hstack(
-                rx.text(item["fase_macro"], font_size="9px", color=rx.cond(is_sub, "#8B5CF6", item["color"]), font_family=S.FONT_MONO, font_weight="700"),
-                rx.text("·", font_size="9px", color=S.TEXT_MUTED),
-                rx.text(item["fase"], font_size="9px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                rx.text(item["fase_macro"], font_size="11px", color=rx.cond(is_sub, "#8B5CF6", item["color"]), font_family=S.FONT_MONO, font_weight="700"),
+                rx.text("·", font_size="11px", color=S.TEXT_MUTED),
+                rx.text(item["fase"], font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                 spacing="1", align="center",
             ),
             spacing="0", flex="1", min_width="0",
         ),
         # Responsável
-        rx.text(item["responsavel"], font_size="10px", font_family=S.FONT_MONO, color=S.TEXT_MUTED, white_space="nowrap", overflow="hidden", text_overflow="ellipsis", width="90px", flex_shrink="0", display=rx.breakpoints(initial="none", lg="block")),
+        rx.text(item["responsavel"], font_size="11px", font_family=S.FONT_MONO, color=S.TEXT_MUTED, white_space="nowrap", overflow="hidden", text_overflow="ellipsis", width="100px", flex_shrink="0", display=rx.breakpoints(initial="none", lg="block")),
         # Datas
         rx.vstack(
-            rx.text(item["inicio_previsto"], font_size="9px", color=S.TEXT_MUTED, font_family=S.FONT_MONO, white_space="nowrap"),
-            rx.text(item["termino_previsto"], font_size="9px", color=S.TEXT_MUTED, font_family=S.FONT_MONO, white_space="nowrap"),
+            rx.text(item["inicio_previsto"], font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO, white_space="nowrap"),
+            rx.text(item["termino_previsto"], font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO, white_space="nowrap"),
             spacing="0", flex_shrink="0", display=rx.breakpoints(initial="none", md="block"),
         ),
         # Progress bar + pct
         rx.vstack(
             rx.box(
                 rx.box(width=pct + "%", height="100%", bg=rx.cond(is_critical, S.DANGER, rx.cond(is_sub, "#8B5CF6", S.COPPER)), border_radius="2px", transition="width 0.4s ease"),
-                width="80px", height="4px", bg="rgba(255,255,255,0.08)", border_radius="2px", overflow="hidden",
+                width="80px", height="5px", bg="rgba(255,255,255,0.08)", border_radius="2px", overflow="hidden",
             ),
-            rx.text(pct + "%", font_size="10px", color=rx.cond(is_critical, S.DANGER, rx.cond(is_sub, "#8B5CF6", S.COPPER)), font_family=S.FONT_MONO, font_weight="700", text_align="center"),
+            rx.text(pct + "%", font_size="12px", color=rx.cond(is_critical, S.DANGER, rx.cond(is_sub, "#8B5CF6", S.COPPER)), font_family=S.FONT_MONO, font_weight="700", text_align="center"),
             spacing="1", align="center", flex_shrink="0",
         ),
         # Actions
@@ -4022,75 +4035,108 @@ def _cron_edit_dialog() -> rx.Component:
                     ),
                     gap="12px", flex_wrap="wrap",
                 ),
-                # Row 4a: Tipo (macro/micro/sub) + Pai
+                # Row 4a: Tipo (readonly badge) + Hierarquia pai (info) + Peso
                 rx.flex(
+                    # Tipo — sempre readonly (determinado pela ação de criação)
                     rx.vstack(
                         rx.text("Tipo", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
-                        rx.select.root(
-                            rx.select.trigger(style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","fontSize":"13px","width":"160px","outline":"none"}),
-                            rx.select.content(
-                                rx.select.item("Macro (Principal)", value="macro"),
-                                rx.select.item("Micro (Sub-atividade)", value="micro"),
-                                rx.select.item("Sub (Detalhe da micro)", value="sub"),
-                                style={"background": S.BG_ELEVATED, "border": f"1px solid {S.BORDER_SUBTLE}", "zIndex": "9999"},
-                                position="popper",
+                        rx.box(
+                            rx.text(
+                                HubState.cron_edit_nivel_label,
+                                font_size="13px",
+                                color=S.COPPER,
+                                font_family=S.FONT_MONO,
+                                font_weight="600",
                             ),
-                            value=HubState.cron_edit_nivel,
-                            on_change=HubState.set_cron_edit_nivel,
+                            style={
+                                "background": "rgba(201,139,42,0.1)",
+                                "border": f"1px solid {S.COPPER}55",
+                                "borderRadius": S.R_CONTROL,
+                                "padding": "8px 12px",
+                                "width": "180px",
+                            },
                         ),
                         spacing="1",
                     ),
-                    # Macro pai → quando nivel == "micro"
+                    # Hierarquia pai — exibição informativa (não editável quando parent_id já definido)
                     rx.cond(
-                        HubState.cron_edit_nivel == "micro",
-                        rx.vstack(
-                            rx.text("Macro Pai *", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                        HubState.cron_edit_nivel == "macro",
+                        rx.fragment(),  # macro não tem pai
+                        rx.cond(
+                            HubState.cron_edit_nivel == "micro",
+                            # micro: mostra macro pai como info se parent_id setado, senão select
                             rx.cond(
-                                HubState.cron_parent_options.length() > 0,
-                                rx.select.root(
-                                    rx.select.trigger(placeholder="Selecionar macro...", style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","fontSize":"13px","width":"200px","outline":"none"}),
-                                    rx.select.content(
-                                        rx.foreach(
-                                            HubState.cron_parent_options,
-                                            lambda opt: rx.select.item(opt["label"], value=opt["id"]),
-                                        ),
-                                        style={"background": S.BG_ELEVATED, "border": f"1px solid {S.BORDER_SUBTLE}", "zIndex": "9999"},
-                                        position="popper",
+                                HubState.cron_edit_parent_id != "",
+                                rx.vstack(
+                                    rx.text("Macro Pai", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                                    rx.hstack(
+                                        rx.icon(tag="layers", size=13, color="#2A9D8F"),
+                                        rx.text(HubState.cron_edit_parent_name, font_size="13px", color="#2A9D8F", font_weight="600"),
+                                        spacing="2", align="center",
+                                        style={"background": "rgba(42,157,143,0.1)", "border": "1px solid #2A9D8F55", "borderRadius": S.R_CONTROL, "padding": "8px 12px"},
                                     ),
-                                    value=HubState.cron_edit_parent_id,
-                                    on_change=HubState.set_cron_edit_parent_id,
+                                    spacing="1", flex="1",
                                 ),
-                                rx.text("Crie uma atividade macro primeiro", font_size="11px", color=S.TEXT_MUTED, font_style="italic"),
-                            ),
-                            spacing="1", flex="1",
-                        ),
-                        rx.fragment(),
-                    ),
-                    # Micro pai → quando nivel == "sub"
-                    rx.cond(
-                        HubState.cron_edit_nivel == "sub",
-                        rx.vstack(
-                            rx.text("Micro Pai *", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
-                            rx.cond(
-                                HubState.cron_micro_options.length() > 0,
-                                rx.select.root(
-                                    rx.select.trigger(placeholder="Selecionar micro...", style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","fontSize":"13px","width":"220px","outline":"none"}),
-                                    rx.select.content(
-                                        rx.foreach(
-                                            HubState.cron_micro_options,
-                                            lambda opt: rx.select.item(opt["label"], value=opt["id"]),
+                                # sem parent_id definido: dropdown de seleção
+                                rx.vstack(
+                                    rx.text("Macro Pai *", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                                    rx.cond(
+                                        HubState.cron_parent_options.length() > 0,
+                                        rx.select.root(
+                                            rx.select.trigger(placeholder="Selecionar macro...", style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","fontSize":"13px","width":"200px","outline":"none"}),
+                                            rx.select.content(
+                                                rx.foreach(HubState.cron_parent_options, lambda opt: rx.select.item(opt["label"], value=opt["id"])),
+                                                style={"background": S.BG_ELEVATED, "border": f"1px solid {S.BORDER_SUBTLE}", "zIndex": "9999"},
+                                                position="popper",
+                                            ),
+                                            value=HubState.cron_edit_parent_id,
+                                            on_change=HubState.set_cron_edit_parent_id,
                                         ),
-                                        style={"background": S.BG_ELEVATED, "border": f"1px solid {S.BORDER_SUBTLE}", "zIndex": "9999"},
-                                        position="popper",
+                                        rx.text("Crie uma atividade macro primeiro", font_size="11px", color=S.TEXT_MUTED, font_style="italic"),
                                     ),
-                                    value=HubState.cron_edit_parent_id,
-                                    on_change=HubState.set_cron_edit_parent_id,
+                                    spacing="1", flex="1",
                                 ),
-                                rx.text("Crie uma micro-atividade primeiro", font_size="11px", color=S.TEXT_MUTED, font_style="italic"),
                             ),
-                            spacing="1", flex="1",
+                            # sub: mostra macro + micro pai como info
+                            rx.vstack(
+                                rx.text("Hierarquia", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                                rx.cond(
+                                    HubState.cron_edit_parent_id != "",
+                                    rx.hstack(
+                                        rx.cond(
+                                            HubState.cron_edit_macro_name != "",
+                                            rx.hstack(
+                                                rx.icon(tag="layers", size=12, color=S.TEXT_MUTED),
+                                                rx.text(HubState.cron_edit_macro_name, font_size="12px", color=S.TEXT_MUTED),
+                                                spacing="1", align="center",
+                                            ),
+                                            rx.fragment(),
+                                        ),
+                                        rx.icon(tag="chevron-right", size=12, color=S.TEXT_MUTED),
+                                        rx.icon(tag="git-branch", size=12, color="#2A9D8F"),
+                                        rx.text(HubState.cron_edit_parent_name, font_size="12px", color="#2A9D8F", font_weight="600"),
+                                        spacing="2", align="center",
+                                        style={"background": "rgba(42,157,143,0.08)", "border": "1px solid #2A9D8F33", "borderRadius": S.R_CONTROL, "padding": "8px 12px"},
+                                    ),
+                                    # sem parent: dropdown de micro
+                                    rx.cond(
+                                        HubState.cron_micro_options.length() > 0,
+                                        rx.select.root(
+                                            rx.select.trigger(placeholder="Selecionar micro pai...", style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","fontSize":"13px","width":"220px","outline":"none"}),
+                                            rx.select.content(
+                                                rx.foreach(HubState.cron_micro_options, lambda opt: rx.select.item(opt["label"], value=opt["id"])),
+                                                style={"background": S.BG_ELEVATED, "border": f"1px solid {S.BORDER_SUBTLE}", "zIndex": "9999"},
+                                                position="popper",
+                                            ),
+                                            value=HubState.cron_edit_parent_id,
+                                            on_change=HubState.set_cron_edit_parent_id,
+                                        ),
+                                        rx.text("Crie uma micro-atividade primeiro", font_size="11px", color=S.TEXT_MUTED, font_style="italic"),
+                                    ),
+                                ),
+                                spacing="1", flex="1",
+                            ),
                         ),
-                        rx.fragment(),
                     ),
                     rx.vstack(
                         rx.hstack(
@@ -4316,6 +4362,24 @@ def _cron_edit_dialog() -> rx.Component:
                         ),
                     ),
                 ),
+                # Row 7: Efetivo alocado planejado
+                rx.vstack(
+                    rx.hstack(
+                        rx.icon(tag="users", size=13, color=S.COPPER),
+                        rx.text("Efetivo Alocado (planejado)", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                        rx.text("pessoas designadas para esta atividade", font_size="10px", color=S.TEXT_MUTED, font_style="italic"),
+                        spacing="2", align="center",
+                    ),
+                    rx.el.input(
+                        type="number",
+                        default_value=HubState.cron_edit_efetivo_alocado,
+                        on_blur=HubState.set_cron_edit_efetivo_alocado,
+                        placeholder="Ex: 4",
+                        min="0",
+                        style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":S.COPPER,"padding":"8px 10px","fontSize":"14px","width":"120px","outline":"none","fontWeight":"700","fontFamily":S.FONT_MONO},
+                    ),
+                    spacing="1",
+                ),
                 rx.vstack(rx.text("Observações", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                           rx.el.textarea(default_value=HubState.cron_edit_observacoes, on_blur=HubState.set_cron_edit_observacoes, placeholder="Notas técnicas, impedimentos, contexto...", rows="3", style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","padding":"8px 10px","fontSize":"13px","width":"100%","outline":"none","resize":"vertical","fontFamily":S.FONT_BODY}), spacing="1", width="100%"),
                 # Error
@@ -4444,9 +4508,19 @@ def _gantt_bar(item: dict) -> rx.Component:
     dep_text = rx.cond(
         item["dependencia"] != "",
         rx.hstack(
-            rx.icon(tag="arrow-right", size=9, color=S.TEXT_MUTED),
-            rx.text(item["dependencia"], font_size="8px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+            rx.icon(tag="link-2", size=10, color="#F97316"),
+            rx.text(
+                "após: ",
+                font_size="9px", color=S.TEXT_MUTED, font_family=S.FONT_MONO,
+            ),
+            rx.text(
+                item["dependencia"],
+                font_size="9px", color="#F97316", font_family=S.FONT_MONO, font_weight="600",
+            ),
             spacing="1", align="center",
+            padding="2px 6px",
+            border_radius="4px",
+            style={"background": "rgba(249,115,22,0.08)", "border": "1px solid rgba(249,115,22,0.2)"},
         ),
         rx.fragment(),
     )
@@ -6589,19 +6663,99 @@ def _novo_projeto_dialog() -> rx.Component:
                         flex_wrap="wrap",
                         width="100%",
                     ),
-                    # Row 3: Localização
+                    # Row 3: Localização com HITL de geocoding
                     rx.vstack(
                         rx.hstack(
                             rx.text("Localização / Endereço", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
-                            rx.text("(lat/lng calculados automaticamente)", font_size="9px", color=S.TEXT_MUTED, opacity="0.6"),
+                            rx.cond(
+                                GlobalState.np_loc_confirmed,
+                                rx.hstack(
+                                    rx.icon(tag="check-circle", size=12, color="#2A9D8F"),
+                                    rx.text("Localidade confirmada", font_size="9px", color="#2A9D8F"),
+                                    spacing="1", align="center",
+                                ),
+                                rx.text("(valide antes de salvar)", font_size="9px", color=S.TEXT_MUTED, opacity="0.6"),
+                            ),
                             spacing="2",
                             align="center",
                         ),
-                        rx.el.input(
-                            default_value=GlobalState.np_localizacao,
-                            on_blur=GlobalState.set_np_localizacao,
-                            placeholder="Ex: Rua das Palmeiras 100, Petrolina – PE",
-                            style=_INPUT_STYLE,
+                        # HITL: confirmed → mostra banner + botão Alterar; senão → input + Validar
+                        rx.cond(
+                            GlobalState.np_loc_confirmed,
+                            # ── Estado confirmado ──────────────────────────────
+                            rx.hstack(
+                                rx.icon(tag="check-circle", size=14, color=S.PATINA),
+                                rx.text(
+                                    GlobalState.np_localizacao,
+                                    font_size="13px", font_weight="600", color="white",
+                                    flex="1",
+                                ),
+                                rx.button(
+                                    rx.icon(tag="pencil", size=12), "Alterar",
+                                    on_click=GlobalState.reject_np_localizacao,
+                                    size="1", variant="soft", color_scheme="gray", cursor="pointer",
+                                ),
+                                spacing="2", align="center",
+                                style={"background": "rgba(74,222,128,0.06)", "border": f"1px solid {S.PATINA}55", "borderRadius": S.R_CONTROL, "padding": "10px 14px"},
+                                width="100%",
+                            ),
+                            # ── Estado não confirmado ──────────────────────────
+                            rx.vstack(
+                                rx.hstack(
+                                    rx.el.input(
+                                        default_value=GlobalState.np_localizacao,
+                                        on_blur=GlobalState.set_np_localizacao,
+                                        placeholder="Ex: Guaiúba, Ceará",
+                                        key=GlobalState.np_loc_input_key,
+                                        style={**_INPUT_STYLE, "flex": "1"},
+                                    ),
+                                    rx.button(
+                                        rx.cond(GlobalState.np_loc_validating, rx.spinner(size="1"), rx.icon(tag="map-pin", size=13)),
+                                        rx.text("Validar", font_size="12px"),
+                                        on_click=GlobalState.validate_np_localizacao,
+                                        disabled=GlobalState.np_loc_validating,
+                                        size="2", variant="soft", color_scheme="teal", cursor="pointer",
+                                    ),
+                                    spacing="2", width="100%",
+                                ),
+                                # Resultado geocoding aguardando confirmação
+                                rx.cond(
+                                    GlobalState.np_loc_geocoded_name != "",
+                                    rx.hstack(
+                                        rx.icon(tag="map-pin", size=13, color=S.COPPER),
+                                        rx.text(
+                                            "Encontrado: ",
+                                            rx.text.span(GlobalState.np_loc_geocoded_name, font_weight="700", color="white"),
+                                            font_size="12px", color=S.TEXT_MUTED, flex="1",
+                                        ),
+                                        rx.button(
+                                            rx.icon(tag="check", size=12), "Confirmar",
+                                            on_click=GlobalState.confirm_np_localizacao,
+                                            size="1", variant="solid", color_scheme="teal", cursor="pointer",
+                                        ),
+                                        rx.button(
+                                            rx.icon(tag="x", size=12), "Reescrever",
+                                            on_click=GlobalState.reject_np_localizacao,
+                                            size="1", variant="soft", color_scheme="gray", cursor="pointer",
+                                        ),
+                                        spacing="2", align="center",
+                                        style={"background": "rgba(201,139,42,0.08)", "border": f"1px solid {S.COPPER}44", "borderRadius": S.R_CONTROL, "padding": "8px 12px"},
+                                        width="100%",
+                                    ),
+                                    rx.fragment(),
+                                ),
+                                # Erro
+                                rx.cond(
+                                    GlobalState.np_loc_error != "",
+                                    rx.hstack(
+                                        rx.icon(tag="alert-circle", size=13, color="#EF4444"),
+                                        rx.text(GlobalState.np_loc_error, font_size="11px", color="#EF4444"),
+                                        spacing="2", align="center",
+                                    ),
+                                    rx.fragment(),
+                                ),
+                                spacing="1", width="100%",
+                            ),
                         ),
                         spacing="1",
                         width="100%",
@@ -6878,14 +7032,74 @@ def _edit_projeto_dialog() -> rx.Component:
                         flex_wrap="wrap",
                         width="100%",
                     ),
-                    # Row 3: Localização
+                    # Row 3: Localização com HITL de geocoding
                     rx.vstack(
-                        rx.text("Localização / Endereço", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
-                        rx.el.input(
-                            default_value=GlobalState.ep_localizacao,
-                            on_blur=GlobalState.set_ep_localizacao,
-                            placeholder="Ex: Rua das Palmeiras 100, Petrolina – PE",
-                            style=_INPUT_STYLE,
+                        rx.hstack(
+                            rx.text("Localização / Endereço", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                            rx.cond(
+                                GlobalState.ep_loc_confirmed,
+                                rx.hstack(
+                                    rx.icon(tag="check-circle", size=12, color="#2A9D8F"),
+                                    rx.text("Localidade confirmada", font_size="9px", color="#2A9D8F"),
+                                    spacing="1", align="center",
+                                ),
+                                rx.text("(valide antes de salvar)", font_size="9px", color=S.TEXT_MUTED, opacity="0.6"),
+                            ),
+                            spacing="2", align="center",
+                        ),
+                        # HITL: confirmed → banner + Alterar; senão → input + Validar
+                        rx.cond(
+                            GlobalState.ep_loc_confirmed,
+                            rx.hstack(
+                                rx.icon(tag="check-circle", size=14, color=S.PATINA),
+                                rx.text(GlobalState.ep_localizacao, font_size="13px", font_weight="600", color="white", flex="1"),
+                                rx.button(
+                                    rx.icon(tag="pencil", size=12), "Alterar",
+                                    on_click=GlobalState.reject_ep_localizacao,
+                                    size="1", variant="soft", color_scheme="gray", cursor="pointer",
+                                ),
+                                spacing="2", align="center",
+                                style={"background": "rgba(74,222,128,0.06)", "border": f"1px solid {S.PATINA}55", "borderRadius": S.R_CONTROL, "padding": "10px 14px"},
+                                width="100%",
+                            ),
+                            rx.vstack(
+                                rx.hstack(
+                                    rx.el.input(
+                                        default_value=GlobalState.ep_localizacao,
+                                        on_blur=GlobalState.set_ep_localizacao,
+                                        placeholder="Ex: Guaiúba, Ceará",
+                                        key=GlobalState.ep_loc_input_key,
+                                        style={**_INPUT_STYLE, "flex": "1"},
+                                    ),
+                                    rx.button(
+                                        rx.cond(GlobalState.ep_loc_validating, rx.spinner(size="1"), rx.icon(tag="map-pin", size=13)),
+                                        rx.text("Validar", font_size="12px"),
+                                        on_click=GlobalState.validate_ep_localizacao,
+                                        disabled=GlobalState.ep_loc_validating,
+                                        size="2", variant="soft", color_scheme="teal", cursor="pointer",
+                                    ),
+                                    spacing="2", width="100%",
+                                ),
+                                rx.cond(
+                                    GlobalState.ep_loc_geocoded_name != "",
+                                    rx.hstack(
+                                        rx.icon(tag="map-pin", size=13, color=S.COPPER),
+                                        rx.text("Encontrado: ", rx.text.span(GlobalState.ep_loc_geocoded_name, font_weight="700", color="white"), font_size="12px", color=S.TEXT_MUTED, flex="1"),
+                                        rx.button(rx.icon(tag="check", size=12), "Confirmar", on_click=GlobalState.confirm_ep_localizacao, size="1", variant="solid", color_scheme="teal", cursor="pointer"),
+                                        rx.button(rx.icon(tag="x", size=12), "Reescrever", on_click=GlobalState.reject_ep_localizacao, size="1", variant="soft", color_scheme="gray", cursor="pointer"),
+                                        spacing="2", align="center",
+                                        style={"background": "rgba(201,139,42,0.08)", "border": f"1px solid {S.COPPER}44", "borderRadius": S.R_CONTROL, "padding": "8px 12px"},
+                                        width="100%",
+                                    ),
+                                    rx.fragment(),
+                                ),
+                                rx.cond(
+                                    GlobalState.ep_loc_error != "",
+                                    rx.hstack(rx.icon(tag="alert-circle", size=13, color="#EF4444"), rx.text(GlobalState.ep_loc_error, font_size="11px", color="#EF4444"), spacing="2", align="center"),
+                                    rx.fragment(),
+                                ),
+                                spacing="1", width="100%",
+                            ),
                         ),
                         spacing="1",
                         width="100%",

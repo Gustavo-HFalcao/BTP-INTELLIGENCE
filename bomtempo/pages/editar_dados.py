@@ -892,6 +892,7 @@ def _edit_cell_dialog() -> rx.Component:
                 value=EditState.edit_modal_value,
                 on_change=EditState.set_edit_modal_value,
                 on_key_down=EditState.handle_edit_key_down,
+                debounce_timeout=150,
                 placeholder="Valor da célula...",
                 auto_focus=True,
                 size="3",

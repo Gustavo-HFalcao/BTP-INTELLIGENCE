@@ -59,6 +59,7 @@ def _projetos_header() -> rx.Component:
                 rx.el.input(
                     value=GlobalState.project_search,
                     on_change=GlobalState.set_project_search,
+                    debounce_timeout=300,
                     placeholder="BUSCAR PROJETOS...",
                     style={
                         "background": "rgba(6, 16, 14, 1)", # surface-container-lowest

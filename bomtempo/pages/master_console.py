@@ -129,8 +129,8 @@ def _create_tenant_modal() -> rx.Component:
                 _form_field("Nome do cliente / empresa",
                     rx.el.input(
                         placeholder="Ex: Construtora ABC Ltda",
-                        value=MasterState.new_tenant_name,
-                        on_change=MasterState.set_new_tenant_name,
+                        default_value=MasterState.new_tenant_name,
+                        on_blur=MasterState.set_new_tenant_name,
                         style=input_style,
                     ),
                 ),
@@ -138,8 +138,8 @@ def _create_tenant_modal() -> rx.Component:
                     rx.el.input(
                         placeholder="100",
                         type="number",
-                        value=MasterState.new_tenant_budget,
-                        on_change=MasterState.set_new_tenant_budget,
+                        default_value=MasterState.new_tenant_budget,
+                        on_blur=MasterState.set_new_tenant_budget,
                         style=input_style,
                     ),
                 ),
@@ -151,8 +151,8 @@ def _create_tenant_modal() -> rx.Component:
                 _form_field("Login do administrador",
                     rx.el.input(
                         placeholder="admin.cliente",
-                        value=MasterState.new_admin_username,
-                        on_change=MasterState.set_new_admin_username,
+                        default_value=MasterState.new_admin_username,
+                        on_blur=MasterState.set_new_admin_username,
                         style=input_style,
                     ),
                 ),
@@ -160,8 +160,8 @@ def _create_tenant_modal() -> rx.Component:
                     rx.el.input(
                         placeholder="senha",
                         type="password",
-                        value=MasterState.new_admin_password,
-                        on_change=MasterState.set_new_admin_password,
+                        default_value=MasterState.new_admin_password,
+                        on_blur=MasterState.set_new_admin_password,
                         style=input_style,
                     ),
                 ),

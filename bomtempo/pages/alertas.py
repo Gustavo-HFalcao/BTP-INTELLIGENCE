@@ -525,8 +525,8 @@ def _wizard_step1() -> rx.Component:
                 rx.vstack(
                     _section_label("NOME DA REGRA"),
                     rx.input(
-                        value=AlertasState.wizard_name,
-                        on_change=AlertasState.set_wizard_name,
+                        default_value=AlertasState.wizard_name,
+                        on_blur=AlertasState.set_wizard_name,
                         placeholder="Ex: Alerta de atraso crítico",
                         bg=S.BG_INPUT,
                         border=f"1px solid {S.BORDER_SUBTLE}",
@@ -542,8 +542,8 @@ def _wizard_step1() -> rx.Component:
                 rx.vstack(
                     _section_label("CONTRATOS (vazio = todos)"),
                     rx.input(
-                        value=AlertasState.wizard_contracts,
-                        on_change=AlertasState.set_wizard_contracts,
+                        default_value=AlertasState.wizard_contracts,
+                        on_blur=AlertasState.set_wizard_contracts,
                         placeholder="CT-001, CT-002 ou vazio para todos",
                         bg=S.BG_INPUT,
                         border=f"1px solid {S.BORDER_SUBTLE}",
@@ -562,8 +562,8 @@ def _wizard_step1() -> rx.Component:
             rx.vstack(
                 _section_label("DESCRIÇÃO (opcional)"),
                 rx.input(
-                    value=AlertasState.wizard_description,
-                    on_change=AlertasState.set_wizard_description,
+                    default_value=AlertasState.wizard_description,
+                    on_blur=AlertasState.set_wizard_description,
                     placeholder="Descreva quando esse alerta deve disparar...",
                     bg=S.BG_INPUT,
                     border=f"1px solid {S.BORDER_SUBTLE}",
@@ -639,8 +639,8 @@ def _wizard_step1() -> rx.Component:
                     rx.vstack(
                         _section_label("VALOR LIMITE"),
                         rx.input(
-                            value=AlertasState.wizard_threshold,
-                            on_change=AlertasState.set_wizard_threshold,
+                            default_value=AlertasState.wizard_threshold,
+                            on_blur=AlertasState.set_wizard_threshold,
                             placeholder="Ex: 10",
                             type="number",
                             bg=S.BG_INPUT,
@@ -691,8 +691,8 @@ def _wizard_step1() -> rx.Component:
                 rx.divider(color_scheme="gray", opacity="0.15"),
                 _section_label("DESCREVA A REGRA EM PORTUGUÊS"),
                 rx.text_area(
-                    value=AlertasState.wizard_natural_language,
-                    on_change=AlertasState.set_wizard_natural_language,
+                    default_value=AlertasState.wizard_natural_language,
+                    on_blur=AlertasState.set_wizard_natural_language,
                     placeholder='Ex: "Notifique quando o desvio de prazo for maior que 15% ou quando não houver RDO por mais de 48 horas"',
                     min_height="90px",
                     bg=S.BG_INPUT,
@@ -822,8 +822,8 @@ def _wizard_step2() -> rx.Component:
             _section_label("COOLDOWN (horas mínimas entre disparos)"),
             rx.hstack(
                 rx.input(
-                    value=AlertasState.wizard_cooldown_hours,
-                    on_change=AlertasState.set_wizard_cooldown_hours,
+                    default_value=AlertasState.wizard_cooldown_hours,
+                    on_blur=AlertasState.set_wizard_cooldown_hours,
                     type="number",
                     placeholder="24",
                     bg=S.BG_INPUT,
@@ -897,8 +897,8 @@ def _wizard_step3() -> rx.Component:
         _section_label("ADICIONAR DESTINATÁRIO"),
         rx.hstack(
             rx.input(
-                value=AlertasState.wizard_recipient_name,
-                on_change=AlertasState.set_wizard_recipient_name,
+                default_value=AlertasState.wizard_recipient_name,
+                on_blur=AlertasState.set_wizard_recipient_name,
                 placeholder="Nome",
                 bg=S.BG_INPUT,
                 border=f"1px solid {S.BORDER_SUBTLE}",
@@ -909,8 +909,8 @@ def _wizard_step3() -> rx.Component:
                 width="160px",
             ),
             rx.input(
-                value=AlertasState.wizard_recipient_email,
-                on_change=AlertasState.set_wizard_recipient_email,
+                default_value=AlertasState.wizard_recipient_email,
+                on_blur=AlertasState.set_wizard_recipient_email,
                 placeholder="email@exemplo.com",
                 type="email",
                 bg=S.BG_INPUT,

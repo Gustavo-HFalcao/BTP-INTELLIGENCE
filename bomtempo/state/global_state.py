@@ -757,6 +757,22 @@ class GlobalState(rx.State):
     np_cliente: str = ""
     np_terceirizado: str = ""
     np_localizacao: str = ""
+    # HITL geocoding validation
+    np_loc_validating: bool = False
+    np_loc_geocoded_name: str = ""    # "Guaiúba, Ceará, Brasil" — shown for confirmation
+    np_loc_geocoded_lat: str = ""
+    np_loc_geocoded_lon: str = ""
+    np_loc_confirmed: bool = False    # True after user confirms
+    np_loc_error: str = ""
+    np_loc_input_key: int = 0         # incremented on reject → forces input remount (clears field)
+    # Edit projeto geocoding
+    ep_loc_validating: bool = False
+    ep_loc_geocoded_name: str = ""
+    ep_loc_geocoded_lat: str = ""
+    ep_loc_geocoded_lon: str = ""
+    ep_loc_confirmed: bool = False
+    ep_loc_error: str = ""
+    ep_loc_input_key: int = 0         # incremented on reject → forces input remount
     np_data_inicio: str = ""
     np_data_termino: str = ""
     np_tipo: str = "EPC"
@@ -3768,8 +3784,9 @@ class GlobalState(rx.State):
         f3_desc = f"Chuva acumulada: {chuva:.0f}mm"
 
         # ── FATOR 4 — Produtividade (peso 15%) ────────────────────────────────
-        # Proxy: equipe presente vs planejado
-        if efetivo > 0:
+        # Proxy: equipe presente vs planejado — só avalia se há RDO (equipe > 0)
+        has_rdo_data_risco = any(float(pt.get("realizado", 0) or 0) > 0 for pt in scurve) if scurve else False
+        if efetivo > 0 and equipe > 0 and has_rdo_data_risco:
             prod_ratio = equipe / efetivo
             if prod_ratio >= 0.9:
                 f4_score = 1.0
@@ -3780,6 +3797,9 @@ class GlobalState(rx.State):
             else:
                 f4_score = 9.0
             f4_desc = f"Efetivo: {equipe}/{efetivo} pessoas ({prod_ratio*100:.0f}% do planejado)"
+        elif efetivo > 0 and not has_rdo_data_risco:
+            f4_score = 1.0  # sem RDOs ainda — não penalizar
+            f4_desc = "Aguardando primeiro RDO"
         else:
             f4_score = 2.0
             f4_desc = "Efetivo planejado não configurado"
@@ -3900,48 +3920,56 @@ class GlobalState(rx.State):
         efetivo = int(data.get("efetivo_planejado", 0) or 0)
         chuva = float(data.get("chuva_acumulada_mm", 0) or 0)
 
+        # Gate: só acionar alertas temporais se o projeto já tem RDOs submetidos
+        # "tem RDO" = há pelo menos 1 ponto de scurve com realizado > 0
+        has_rdo_data = any(float(pt.get("realizado", 0) or 0) > 0 for pt in scurve) if scurve else False
+
         # Desvio físico global — usa último ponto COM realizado
-        if scurve:
-            realized_pts = [pt for pt in scurve if "realizado" in pt]
-            last = realized_pts[-1] if realized_pts else scurve[-1]
-            r_last = float(last.get("realizado", 0) or 0)
-            p_last = float(last.get("previsto", 0) or 0)
-            if p_last > 0:
-                desvio = r_last - p_last
-                if desvio <= -20:
+        # Só aciona se já há RDOs reais (evita falso alarme no dia 0)
+        if scurve and has_rdo_data:
+            realized_pts = [pt for pt in scurve if float(pt.get("realizado", 0) or 0) > 0]
+            last = realized_pts[-1] if realized_pts else None
+            if last:
+                r_last = float(last.get("realizado", 0) or 0)
+                p_last = float(last.get("previsto", 0) or 0)
+                if p_last > 0:
+                    desvio = r_last - p_last
+                    if desvio <= -20:
+                        alertas.append({
+                            "severity": "critical",
+                            "icon": "calendar-x",
+                            "title": "Atraso crítico no cronograma",
+                            "desc": f"Físico realizado {abs(desvio):.1f}% abaixo do previsto. Risco de perda de prazo contratual.",
+                            "modulo": "cronograma",
+                        })
+                    elif desvio <= -10:
+                        alertas.append({
+                            "severity": "high",
+                            "icon": "clock",
+                            "title": "Desvio de prazo relevante",
+                            "desc": f"Cronograma {abs(desvio):.1f}% abaixo do planejado. Monitorar tendência.",
+                            "modulo": "cronograma",
+                        })
+
+        # Disciplinas críticas — só com RDO real
+        if has_rdo_data:
+            for d in disc_data:
+                r_val = float(d.get("realizado_pct", 0))
+                p_val = float(d.get("previsto_pct", 0))
+                nome = str(d.get("label", d.get("categoria", "—")))
+                if p_val > 0 and (p_val - r_val) > 25:
                     alertas.append({
                         "severity": "critical",
-                        "icon": "calendar-x",
-                        "title": "Atraso crítico no cronograma",
-                        "desc": f"Físico realizado {abs(desvio):.1f}% abaixo do previsto. Risco de perda de prazo contratual.",
+                        "icon": "alert-triangle",
+                        "title": f"Disciplina crítica: {nome}",
+                        "desc": f"{nome} com {p_val-r_val:.0f}pp de atraso. Impacto em caminho crítico.",
                         "modulo": "cronograma",
                     })
-                elif desvio <= -10:
-                    alertas.append({
-                        "severity": "high",
-                        "icon": "clock",
-                        "title": "Desvio de prazo relevante",
-                        "desc": f"Cronograma {abs(desvio):.1f}% abaixo do planejado. Monitorar tendência.",
-                        "modulo": "cronograma",
-                    })
+                    break  # só 1 disciplina crítica no card
 
-        # Disciplinas críticas
-        for d in disc_data:
-            r_val = float(d.get("realizado_pct", 0))
-            p_val = float(d.get("previsto_pct", 0))
-            nome = str(d.get("label", d.get("categoria", "—")))
-            if p_val > 0 and (p_val - r_val) > 25:
-                alertas.append({
-                    "severity": "critical",
-                    "icon": "alert-triangle",
-                    "title": f"Disciplina crítica: {nome}",
-                    "desc": f"{nome} com {p_val-r_val:.0f}pp de atraso. Impacto em caminho crítico.",
-                    "modulo": "cronograma",
-                })
-                break  # só 1 disciplina crítica no card
-
-        # Equipe abaixo do planejado
-        if efetivo > 0 and equipe < efetivo * 0.6:
+        # Equipe abaixo do planejado — só aciona se já há RDO do dia (equipe > 0 indica RDO enviado)
+        # Se equipe == 0 antes do primeiro RDO, é óbvio e não deve alertar
+        if efetivo > 0 and equipe > 0 and equipe < efetivo * 0.6:
             alertas.append({
                 "severity": "high",
                 "icon": "users",
@@ -4316,25 +4344,159 @@ class GlobalState(rx.State):
 
     def set_np_localizacao(self, v: str):
         self.np_localizacao = v
+        # Reset validation when user changes the field
+        self.np_loc_confirmed = False
+        self.np_loc_geocoded_name = ""
+        self.np_loc_error = ""
+
+    @rx.event(background=True)
+    async def validate_np_localizacao(self):
+        """Geocode the entered location and show result for user confirmation."""
+        loc = ""
+        async with self:
+            loc = self.np_localizacao.strip()
+            if not loc:
+                return
+            self.np_loc_validating = True
+            self.np_loc_geocoded_name = ""
+            self.np_loc_confirmed = False
+            self.np_loc_error = ""
+        try:
+            from bomtempo.core.weather_api import _geocode_one
+            import httpx
+            async with httpx.AsyncClient() as client:
+                result = await _geocode_one(client, loc)
+            if result:
+                # _geocode_one returns {"lat", "lon", "name"} where name is already "Cidade, Estado"
+                geocoded = str(result.get("name", ""))
+                lat = str(round(float(result.get("lat", 0)), 4))
+                lon = str(round(float(result.get("lon", 0)), 4))
+                async with self:
+                    self.np_loc_geocoded_name = geocoded
+                    self.np_loc_geocoded_lat = lat
+                    self.np_loc_geocoded_lon = lon
+                    self.np_loc_validating = False
+            else:
+                async with self:
+                    self.np_loc_error = f"Localidade não encontrada: '{loc}'. Tente ser mais específico (ex: 'Guaiúba, Ceará')."
+                    self.np_loc_validating = False
+        except Exception as e:
+            async with self:
+                self.np_loc_error = f"Erro ao validar localidade: {str(e)[:100]}"
+                self.np_loc_validating = False
+
+    def confirm_np_localizacao(self):
+        """User confirmed the geocoded location — also updates the text field."""
+        if self.np_loc_geocoded_name:
+            self.np_localizacao = self.np_loc_geocoded_name
+            self.np_loc_confirmed = True
+
+    def reject_np_localizacao(self):
+        """User wants to change location — clear everything and remount the input."""
+        self.np_localizacao = ""
+        self.np_loc_geocoded_name = ""
+        self.np_loc_geocoded_lat = ""
+        self.np_loc_geocoded_lon = ""
+        self.np_loc_confirmed = False
+        self.np_loc_validating = False
+        self.np_loc_error = ""
+        self.np_loc_input_key += 1  # forces React to remount the input as empty
+
+    @rx.event(background=True)
+    async def validate_ep_localizacao(self):
+        """Geocode for the edit projeto form."""
+        loc = ""
+        async with self:
+            loc = self.ep_localizacao.strip()
+            if not loc:
+                return
+            self.ep_loc_validating = True
+            self.ep_loc_geocoded_name = ""
+            self.ep_loc_confirmed = False
+            self.ep_loc_error = ""
+        try:
+            from bomtempo.core.weather_api import _geocode_one
+            import httpx
+            async with httpx.AsyncClient() as client:
+                result = await _geocode_one(client, loc)
+            if result:
+                geocoded = str(result.get("name", ""))
+                lat = str(round(float(result.get("lat", 0)), 4))
+                lon = str(round(float(result.get("lon", 0)), 4))
+                async with self:
+                    self.ep_loc_geocoded_name = geocoded
+                    self.ep_loc_geocoded_lat = lat
+                    self.ep_loc_geocoded_lon = lon
+                    self.ep_loc_validating = False
+            else:
+                async with self:
+                    self.ep_loc_error = f"Localidade não encontrada: '{loc}'. Tente ser mais específico."
+                    self.ep_loc_validating = False
+        except Exception as e:
+            async with self:
+                self.ep_loc_error = f"Erro ao validar: {str(e)[:100]}"
+                self.ep_loc_validating = False
+
+    def confirm_ep_localizacao(self):
+        """User confirmed the geocoded location — also updates the text field."""
+        if self.ep_loc_geocoded_name:
+            self.ep_localizacao = self.ep_loc_geocoded_name
+            self.ep_loc_confirmed = True
+
+    def reject_ep_localizacao(self):
+        self.ep_localizacao = ""
+        self.ep_loc_geocoded_name = ""
+        self.ep_loc_geocoded_lat = ""
+        self.ep_loc_geocoded_lon = ""
+        self.ep_loc_confirmed = False
+        self.ep_loc_validating = False
+        self.ep_loc_error = ""
+        self.ep_loc_input_key += 1  # forces React to remount the input as empty
+
+    def set_ep_localizacao(self, v: str):
+        self.ep_localizacao = v
+        self.ep_loc_confirmed = False
+        self.ep_loc_geocoded_name = ""
+        self.ep_loc_error = ""
 
     def _recalc_np_termino(self):
-        """Auto-calcula data_termino = data_inicio + prazo_dias (dias corridos)."""
+        """inicio + prazo_dias → termino (dias corridos)."""
         try:
             from datetime import date, timedelta
             inicio = self.np_data_inicio.strip()
             prazo = self.np_prazo_dias.strip()
             if inicio and prazo and int(prazo) > 0:
-                dt = date.fromisoformat(inicio) + timedelta(days=int(prazo))
+                dt = date.fromisoformat(inicio) + timedelta(days=int(prazo) - 1)
                 self.np_data_termino = dt.isoformat()
+        except Exception:
+            pass
+
+    def _recalc_np_prazo(self):
+        """inicio + termino → prazo_dias (dias corridos, inclusivo)."""
+        try:
+            from datetime import date
+            inicio = self.np_data_inicio.strip()
+            termino = self.np_data_termino.strip()
+            if inicio and termino:
+                d0 = date.fromisoformat(inicio)
+                d1 = date.fromisoformat(termino)
+                if d1 >= d0:
+                    self.np_prazo_dias = str((d1 - d0).days + 1)
         except Exception:
             pass
 
     def set_np_data_inicio(self, v: str):
         self.np_data_inicio = v
-        self._recalc_np_termino()
+        # Se termino preenchido mas sem prazo, recalcula prazo; caso contrário recalcula termino
+        if self.np_data_termino and not self.np_prazo_dias:
+            self._recalc_np_prazo()
+        else:
+            self._recalc_np_termino()
 
     def set_np_data_termino(self, v: str):
         self.np_data_termino = v
+        # Ao preencher o termino manualmente → recalcular prazo_dias
+        self._recalc_np_prazo()
 
     def set_np_tipo(self, v: str):
         self.np_tipo = v
@@ -4367,6 +4529,10 @@ class GlobalState(rx.State):
         self.ep_cliente = str(row.get("cliente", ""))
         self.ep_terceirizado = str(row.get("terceirizado", "") or "")
         self.ep_localizacao = str(row.get("localizacao", "") or "")
+        # Auto-confirm: location already saved = previously validated
+        self.ep_loc_confirmed = bool(self.ep_localizacao)
+        self.ep_loc_geocoded_name = ""
+        self.ep_loc_error = ""
         self.ep_data_inicio = str(row.get("data_inicio", "") or "")
         self.ep_data_termino = str(row.get("data_termino", "") or "")
         self.ep_tipo = str(row.get("tipo", "EPC") or "EPC")
@@ -4388,12 +4554,46 @@ class GlobalState(rx.State):
     def set_ep_projeto(self, v: str): self.ep_projeto = v
     def set_ep_cliente(self, v: str): self.ep_cliente = v
     def set_ep_terceirizado(self, v: str): self.ep_terceirizado = v
-    def set_ep_localizacao(self, v: str): self.ep_localizacao = v
-    def set_ep_data_inicio(self, v: str): self.ep_data_inicio = v
-    def set_ep_data_termino(self, v: str): self.ep_data_termino = v
+    def set_ep_data_inicio(self, v: str):
+        self.ep_data_inicio = v
+        if self.ep_data_termino and not self.ep_prazo_dias:
+            self._recalc_ep_prazo()
+        else:
+            self._recalc_ep_termino()
+
+    def set_ep_data_termino(self, v: str):
+        self.ep_data_termino = v
+        self._recalc_ep_prazo()
+
+    def _recalc_ep_termino(self):
+        try:
+            from datetime import date, timedelta
+            inicio = self.ep_data_inicio.strip()
+            prazo = self.ep_prazo_dias.strip()
+            if inicio and prazo and int(prazo) > 0:
+                dt = date.fromisoformat(inicio) + timedelta(days=int(prazo) - 1)
+                self.ep_data_termino = dt.isoformat()
+        except Exception:
+            pass
+
+    def _recalc_ep_prazo(self):
+        try:
+            from datetime import date
+            inicio = self.ep_data_inicio.strip()
+            termino = self.ep_data_termino.strip()
+            if inicio and termino:
+                d0 = date.fromisoformat(inicio)
+                d1 = date.fromisoformat(termino)
+                if d1 >= d0:
+                    self.ep_prazo_dias = str((d1 - d0).days + 1)
+        except Exception:
+            pass
+
     def set_ep_tipo(self, v: str): self.ep_tipo = v
     def set_ep_potencia_kwp(self, v: str): self.ep_potencia_kwp = v
-    def set_ep_prazo_dias(self, v: str): self.ep_prazo_dias = v
+    def set_ep_prazo_dias(self, v: str):
+        self.ep_prazo_dias = v
+        self._recalc_ep_termino()
     def set_ep_priority(self, v: str): self.ep_priority = v
     def set_ep_efetivo_planejado(self, v: str): self.ep_efetivo_planejado = v
     def toggle_ep_confirm_delete(self): self.ep_confirm_delete = not self.ep_confirm_delete
@@ -4415,6 +4615,9 @@ class GlobalState(rx.State):
             cliente = self.ep_cliente.strip()
             if not projeto or not cliente:
                 self.ep_error = "Projeto e cliente são obrigatórios."
+                return
+            if self.ep_localizacao.strip() and not self.ep_loc_confirmed:
+                self.ep_error = "Valide a localização antes de salvar (clique em 'Validar' e depois 'Confirmar')."
                 return
             self.ep_saving = True
             self.ep_error = ""
@@ -4490,6 +4693,10 @@ class GlobalState(rx.State):
             cliente = self.np_cliente.strip()
             if not contrato or not projeto or not cliente:
                 self.np_error = "Contrato, projeto e cliente são obrigatórios."
+                return
+            # Bloquear se localização foi preenchida mas não validada
+            if self.np_localizacao.strip() and not self.np_loc_confirmed:
+                self.np_error = "Valide a localização antes de salvar (clique em 'Validar' e depois 'Confirmar')."
                 return
             import re as _re2
             if not _re2.match(r'^[A-Z0-9.\-]+$', contrato):

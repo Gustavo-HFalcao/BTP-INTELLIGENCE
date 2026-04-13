@@ -127,6 +127,28 @@ def _add_working_days(start_iso: str, days: int, working_days: set = None) -> st
         return start_iso
 
 
+def _count_working_days(start_iso: str, end_iso: str, working_days: set = None) -> int:
+    """Count working days between start and end dates (inclusive).
+    Day 1 is the start date itself, matching _add_working_days convention."""
+    from datetime import date, timedelta
+    if working_days is None:
+        working_days = {0, 1, 2, 3, 4}
+    try:
+        d0 = date.fromisoformat(start_iso[:10])
+        d1 = date.fromisoformat(end_iso[:10])
+        if d1 < d0:
+            return 0
+        count = 0
+        cur = d0
+        while cur <= d1:
+            if cur.weekday() in working_days:
+                count += 1
+            cur += timedelta(days=1)
+        return count
+    except Exception:
+        return 0
+
+
 def _norm_str(v: object, fallback: str = "") -> str:
     if v is None or str(v) in ("None", "NaT", "nan", ""):
         return fallback
@@ -649,6 +671,8 @@ class HubState(rx.State):
     # Forecast / status fields
     cron_edit_status_atividade: str = "nao_iniciada"
     cron_edit_tipo_medicao: str = "quantidade"
+    # Efetivo alocado planejado para esta atividade
+    cron_edit_efetivo_alocado: str = ""
 
     # Delete confirm
     cron_delete_id: str = ""
@@ -840,6 +864,35 @@ class HubState(rx.State):
         ]
 
     @rx.var
+    def cron_edit_nivel_label(self) -> str:
+        """Human-readable label for the current activity level."""
+        labels = {"macro": "Macro (Principal)", "micro": "Micro (Sub-atividade)", "sub": "Sub (Detalhe da micro)"}
+        return labels.get(self.cron_edit_nivel, self.cron_edit_nivel)
+
+    @rx.var
+    def cron_edit_parent_name(self) -> str:
+        """Name of the parent activity (macro or micro) for display in the dialog."""
+        if not self.cron_edit_parent_id:
+            return ""
+        row = next((r for r in self.cron_rows if r["id"] == self.cron_edit_parent_id), None)
+        return row.get("atividade", "") if row else ""
+
+    @rx.var
+    def cron_edit_macro_name(self) -> str:
+        """Name of the macro ancestor for display when creating a Sub."""
+        if self.cron_edit_nivel != "sub" or not self.cron_edit_parent_id:
+            return ""
+        parent = next((r for r in self.cron_rows if r["id"] == self.cron_edit_parent_id), None)
+        if not parent:
+            return ""
+        # parent is micro; find its parent (macro)
+        macro_id = parent.get("parent_id", "")
+        if not macro_id:
+            return parent.get("fase_macro", "")
+        macro = next((r for r in self.cron_rows if r["id"] == macro_id), None)
+        return macro.get("atividade", "") if macro else parent.get("fase_macro", "")
+
+    @rx.var
     def gantt_rows(self) -> List[Dict[str, str]]:
         """
         Returns filtered_cron_rows enriched with Gantt positioning data.
@@ -965,8 +1018,18 @@ class HubState(rx.State):
 
     @rx.var
     def cron_macro_rows(self) -> List[Dict[str, str]]:
-        """All macro-level activities (nivel=='macro' or nivel missing/empty)."""
-        return [r for r in self.filtered_cron_rows if r.get("nivel", "macro") in ("macro", "")]
+        """All macro-level activities (nivel=='macro' or nivel missing/empty), sorted by fase."""
+        def _fase_key(r: dict) -> tuple:
+            fase = str(r.get("fase", "") or "")
+            parts = []
+            for seg in fase.split("."):
+                try:
+                    parts.append(int(seg))
+                except ValueError:
+                    parts.append(0)
+            return tuple(parts) if parts else (9999,)
+        rows = [r for r in self.filtered_cron_rows if r.get("nivel", "macro") in ("macro", "")]
+        return sorted(rows, key=_fase_key)
 
     @rx.var
     def cron_display_rows(self) -> List[Dict[str, str]]:
@@ -980,7 +1043,18 @@ class HubState(rx.State):
         all_rows = self.filtered_cron_rows
         expanded = self.cron_expanded_macros
 
-        # Separate by nivel — single pass O(n)
+        # Fase sort key: "1" → (1,), "1.2" → (1, 2), "1.2.3" → (1, 2, 3)
+        def _fase_key(r: dict) -> tuple:
+            fase = str(r.get("fase", "") or "")
+            parts = []
+            for seg in fase.split("."):
+                try:
+                    parts.append(int(seg))
+                except ValueError:
+                    parts.append(0)
+            return tuple(parts) if parts else (9999,)
+
+        # Separate by nivel — sort each group by fase
         macros: List[Dict[str, str]] = []
         micros: List[Dict[str, str]] = []
         subs: List[Dict[str, str]] = []
@@ -992,6 +1066,10 @@ class HubState(rx.State):
                 micros.append(r)
             else:
                 subs.append(r)
+
+        macros.sort(key=_fase_key)
+        micros.sort(key=_fase_key)
+        subs.sort(key=_fase_key)
 
         # Build lookup dicts — O(n) total
         micros_by_parent: Dict[str, List[Dict[str, str]]] = {}
@@ -1009,6 +1087,16 @@ class HubState(rx.State):
             subs_by_parent[pid].append(s)
 
         macro_ids: set = {m.get("id", "") for m in macros}
+
+        # Build id→fase lookup for dependency badge
+        id_to_fase: Dict[str, str] = {r.get("id", ""): r.get("fase", "") for r in all_rows}
+
+        def _dep_fase(row: dict) -> str:
+            """Return the predecessor's fase string (e.g. '2.2'), or '' if no dependency."""
+            dep_id = row.get("dependencia_id", "")
+            if dep_id:
+                return id_to_fase.get(dep_id, "")
+            return ""
 
         for macro in macros:
             macro_id = macro.get("id", "")
@@ -1054,6 +1142,7 @@ class HubState(rx.State):
                 _is_expanded=is_expanded,
                 _computed_pct=computed_pct,
                 _micro_count=str(len(children)),
+                _dep_fase=_dep_fase(macro),
             ))
 
             # Append micros (and their subs) if expanded
@@ -1067,6 +1156,7 @@ class HubState(rx.State):
                         _is_expanded="0",
                         _computed_pct=micro.get("conclusao_pct", "0"),
                         _micro_count=str(len(sub_children)),
+                        _dep_fase=_dep_fase(micro),
                     ))
                     for sub in sub_children:
                         result.append(dict(
@@ -1076,6 +1166,7 @@ class HubState(rx.State):
                             _is_expanded="0",
                             _computed_pct=sub.get("conclusao_pct", "0"),
                             _micro_count="0",
+                            _dep_fase=_dep_fase(sub),
                         ))
 
         # Orphan micros (no macro parent in current filter)
@@ -1088,6 +1179,7 @@ class HubState(rx.State):
                     _is_expanded="0",
                     _computed_pct=micro.get("conclusao_pct", "0"),
                     _micro_count="0",
+                    _dep_fase=_dep_fase(micro),
                 ))
 
         return result
@@ -1108,17 +1200,52 @@ class HubState(rx.State):
 
     @rx.var
     def cron_dep_options(self) -> List[Dict[str, str]]:
-        """All activities (macro + micro + sub) available as dependency targets, excluding self.
-        Label includes level prefix: macro=none, micro=↳, sub=↳↳"""
-        _prefixes = {"macro": "", "micro": "↳ ", "sub": "↳↳ "}
+        """All activities as dependency targets, ordered hierarchically (macro → micro → sub).
+        Label uses level prefix to show hierarchy: macro=bold, micro=↳, sub=↳↳"""
+        def _fase_key(r: dict) -> tuple:
+            fase = str(r.get("fase", "") or "")
+            parts = []
+            for seg in fase.split("."):
+                try:
+                    parts.append(int(seg))
+                except ValueError:
+                    parts.append(0)
+            return tuple(parts) if parts else (9999,)
+
+        edit_id = self.cron_edit_id
+        rows = [r for r in self.cron_rows if r.get("id") != edit_id]
+
+        # Separate and sort each level
+        macros = sorted([r for r in rows if r.get("nivel", "macro") in ("macro", "")], key=_fase_key)
+        micros_all = sorted([r for r in rows if r.get("nivel") == "micro"], key=_fase_key)
+        subs_all = sorted([r for r in rows if r.get("nivel") == "sub"], key=_fase_key)
+
+        # Index children by parent
+        micros_by_parent: dict = {}
+        for m in micros_all:
+            pid = m.get("parent_id", "")
+            micros_by_parent.setdefault(pid, []).append(m)
+
+        subs_by_parent: dict = {}
+        for s in subs_all:
+            pid = s.get("parent_id", "")
+            subs_by_parent.setdefault(pid, []).append(s)
+
         result = []
-        for r in self.cron_rows:
-            if r.get("id") == self.cron_edit_id:
-                continue
-            nivel = r.get("nivel", "macro")
-            atividade = r.get("atividade", "")
-            prefix = _prefixes.get(nivel, "")
-            result.append({"id": r.get("id", ""), "label": f"{prefix}{atividade}"})
+        for macro in macros:
+            macro_id = macro.get("id", "")
+            fase = macro.get("fase", "")
+            nome = macro.get("atividade", "")
+            result.append({"id": macro_id, "label": f"{fase} {nome}".strip()})
+            for micro in micros_by_parent.get(macro_id, []):
+                micro_id = micro.get("id", "")
+                m_fase = micro.get("fase", "")
+                m_nome = micro.get("atividade", "")
+                result.append({"id": micro_id, "label": f"  ↳ {m_fase} {m_nome}".strip()})
+                for sub in subs_by_parent.get(micro_id, []):
+                    s_fase = sub.get("fase", "")
+                    s_nome = sub.get("atividade", "")
+                    result.append({"id": sub.get("id", ""), "label": f"    ↳↳ {s_fase} {s_nome}".strip()})
         return result
 
     @rx.var
@@ -1510,6 +1637,7 @@ class HubState(rx.State):
                     "data_fim_prevista": _utc_date_to_br(_norm_str(r.get("data_fim_prevista") or "")),
                     "data_inicio_real_iso": _norm_str(r.get("data_inicio_real") or "")[:10],
                     "data_fim_real_iso":    _norm_str(r.get("data_fim_real") or "")[:10],
+                    "efetivo_alocado":      _norm_str(r.get("efetivo_alocado", "0") or "0"),
                 })
         except Exception as e:
             logger.error(f"load_cronograma error: {e}")
@@ -1635,6 +1763,7 @@ class HubState(rx.State):
         self.cron_edit_dias_planejados = ""
         self.cron_edit_status_atividade = "nao_iniciada"
         self.cron_edit_tipo_medicao = "quantidade"
+        self.cron_edit_efetivo_alocado = ""
         self.cron_error = ""
         # Hierarchy defaults — auto-detect nivel based on parent's nivel
         if parent_id:
@@ -1646,19 +1775,38 @@ class HubState(rx.State):
                 self.cron_edit_nivel = "sub" if parent_nivel == "micro" else "micro"
                 self.cron_edit_fase_macro = parent.get("fase_macro", "")
                 parent_fase = parent.get("fase", "")
-                if self.cron_edit_nivel == "sub" and parent_fase:
+                if parent_fase:
+                    child_nivel = self.cron_edit_nivel  # "micro" or "sub"
                     siblings = [
                         r for r in self.cron_rows
-                        if r.get("parent_id") == parent_id and r.get("nivel") == "sub"
+                        if r.get("parent_id") == parent_id and r.get("nivel") == child_nivel
                     ]
                     self.cron_edit_fase = f"{parent_fase}.{len(siblings) + 1}"
                 else:
-                    self.cron_edit_fase = parent_fase
+                    self.cron_edit_fase = ""
             else:
                 self.cron_edit_nivel = "micro"
         else:
             self.cron_edit_nivel = "macro"
             self.cron_edit_parent_id = ""
+            # Auto-number macro: next integer after the highest macro fase
+            # (use any existing row's contrato — all cron_rows share the same selected contract)
+            macro_siblings = [
+                r for r in self.cron_rows
+                if r.get("nivel", "macro") in ("macro", "")
+            ]
+            if macro_siblings:
+                max_n = 0
+                for r in macro_siblings:
+                    try:
+                        n = int(str(r.get("fase", "0") or "0").split(".")[0])
+                        if n > max_n:
+                            max_n = n
+                    except ValueError:
+                        pass
+                self.cron_edit_fase = str(max_n + 1)
+            else:
+                self.cron_edit_fase = "1"
         self.cron_edit_peso = "100"
         self.cron_show_dialog = True
 
@@ -1684,6 +1832,7 @@ class HubState(rx.State):
         self.cron_edit_dias_planejados = row.get("dias_planejados", "")
         self.cron_edit_status_atividade = row.get("status_atividade", "nao_iniciada") or "nao_iniciada"
         self.cron_edit_tipo_medicao = row.get("tipo_medicao", "quantidade") or "quantidade"
+        self.cron_edit_efetivo_alocado = str(row.get("efetivo_alocado", "") or "")
         # Hierarchy
         self.cron_edit_nivel = row.get("nivel", "macro")
         self.cron_edit_parent_id = row.get("parent_id", "")
@@ -1731,7 +1880,17 @@ class HubState(rx.State):
                 self.cron_edit_termino = _add_working_days(v, dias, wd)
             except Exception:
                 pass
-    def set_cron_edit_termino(self, v: str): self.cron_edit_termino = v
+    def set_cron_edit_termino(self, v: str):
+        self.cron_edit_termino = v
+        # Ao preencher termino manualmente → recalcular dias_planejados (dias úteis)
+        if v and self.cron_edit_inicio:
+            try:
+                wd = _parse_dias_uteis(self.cron_working_days_str)
+                dias = _count_working_days(self.cron_edit_inicio, v, wd)
+                if dias > 0:
+                    self.cron_edit_dias_planejados = str(dias)
+            except Exception:
+                pass
     def set_cron_edit_pct(self, v):
         """Set conclusao_pct. For 'progresso' dependency type, cap at predecessor's current pct."""
         try:
@@ -1810,6 +1969,7 @@ class HubState(rx.State):
             self.cron_edit_total_qty = "0"
             self.cron_edit_unidade = ""
     def set_cron_edit_peso(self, v): self.cron_edit_peso = str(v) if v is not None else "100"
+    def set_cron_edit_efetivo_alocado(self, v): self.cron_edit_efetivo_alocado = str(v) if v is not None else ""
     def set_cron_edit_parent_id(self, v: str):
         self.cron_edit_parent_id = v
         if not v:
@@ -1820,16 +1980,16 @@ class HubState(rx.State):
         # Inherit fase_macro from parent (works for both micro→macro and sub→micro)
         self.cron_edit_fase_macro = parent.get("fase_macro", "")
         parent_fase = parent.get("fase", "")
-        # Build next sub-index: e.g. parent fase "1.5" → count existing subs → "1.5.1"
-        if self.cron_edit_nivel == "sub" and parent_fase:
+        # Auto-number: count existing siblings of same nivel → next index
+        if parent_fase:
+            child_nivel = self.cron_edit_nivel  # "micro" or "sub"
             siblings = [
                 r for r in self.cron_rows
-                if r.get("parent_id") == v and r.get("nivel") == "sub"
+                if r.get("parent_id") == v and r.get("nivel") == child_nivel
             ]
-            next_idx = len(siblings) + 1
-            self.cron_edit_fase = f"{parent_fase}.{next_idx}"
+            self.cron_edit_fase = f"{parent_fase}.{len(siblings) + 1}"
         else:
-            self.cron_edit_fase = parent_fase
+            self.cron_edit_fase = ""
 
     def toggle_macro_expanded(self, macro_id: str):
         if macro_id in self.cron_expanded_macros:
@@ -1926,6 +2086,46 @@ class HubState(rx.State):
                 edit_dias_planejados = 0
             edit_status_atividade = self.cron_edit_status_atividade or "nao_iniciada"
             edit_tipo_medicao = self.cron_edit_tipo_medicao or "quantidade"
+            try:
+                edit_efetivo_alocado = int(self.cron_edit_efetivo_alocado.strip()) if self.cron_edit_efetivo_alocado.strip() else 0
+            except Exception:
+                edit_efetivo_alocado = 0
+
+            # ── Validação de consistência de datas ────────────────────────────
+            if edit_inicio and edit_termino:
+                try:
+                    from datetime import date as _date
+                    d_inicio = _date.fromisoformat(edit_inicio)
+                    d_termino = _date.fromisoformat(edit_termino)
+                    if d_termino < d_inicio:
+                        self.cron_error = "⚠ A data de término não pode ser anterior ao início."
+                        self.cron_saving = False
+                        return
+                except Exception:
+                    pass
+
+            if edit_parent_id and edit_inicio:
+                parent_row = next((r for r in self.cron_rows if r["id"] == edit_parent_id), None)
+                if parent_row:
+                    parent_inicio = parent_row.get("inicio_iso", "")
+                    warnings: list = []
+                    if parent_inicio:
+                        try:
+                            from datetime import date as _date
+                            d_child = _date.fromisoformat(edit_inicio)
+                            d_parent = _date.fromisoformat(parent_inicio)
+                            if d_child < d_parent:
+                                warnings.append(
+                                    f"⚠ A data de início ({edit_inicio}) é anterior ao início da atividade pai "
+                                    f"({parent_inicio})."
+                                )
+                        except Exception:
+                            pass
+                    if warnings:
+                        self.cron_error = " | ".join(warnings)
+                        self.cron_saving = False
+                        return
+
             # Capture old values for full diff log
             old_snapshot: Dict[str, str] = {}
             if edit_id:
@@ -1979,6 +2179,7 @@ class HubState(rx.State):
                 "dias_planejados":   edit_dias_planejados,
                 "status_atividade":  edit_status_atividade,
                 "tipo_medicao":      edit_tipo_medicao,
+                "efetivo_alocado":   edit_efetivo_alocado,
                 "client_id":         client_id,
             }
 
@@ -3472,10 +3673,22 @@ Retorne SOMENTE JSON válido, sem texto antes/depois, sem markdown:
                     except (ValueError, TypeError):
                         pass
 
+                # Efetivo alocado planejado vs real para granularidade
+                efetivo_plan_str = ""
+                if cron_act:
+                    try:
+                        ef_plan = int(cron_act.get("efetivo_alocado", 0) or 0)
+                        if ef_plan > 0:
+                            diff = avg_efetivo - ef_plan
+                            status = "OK" if abs(diff) <= 1 else (f"+{diff:.0f}p extra" if diff > 0 else f"{abs(diff):.0f}p faltando")
+                            efetivo_plan_str = f" [planejado: {ef_plan}p → real: {avg_efetivo:.0f}p → {status}]"
+                    except (ValueError, TypeError):
+                        pass
+
                 prod_lines.append(
                     f"  - [{act_name}] taxa histórica: {avg_taxa} {unidade}/pessoa/dia "
                     f"(média {n} RDOs, {avg_efetivo:.0f}p, {avg_qty:.1f} {unidade}/dia)"
-                    f"{saldo_str}{recovery_str}"
+                    f"{efetivo_plan_str}{saldo_str}{recovery_str}"
                 )
 
             # Also enrich with hub_atividade_historico producao_dia for any gaps

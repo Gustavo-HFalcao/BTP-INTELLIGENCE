@@ -43,6 +43,7 @@ class ActionAIState(rx.State):
     # ── Displayed content ─────────────────────────────────────────
     last_response: str = ""   # Última resposta da IA (exibida em destaque)
     input_text: str = ""      # Campo de texto (fallback)
+    input_key: int = 0        # Incrementado ao preencher via chip/voz → força remount do input
 
     # ── Contexto interno do agente (não renderizado) ──────────────
     # Guardamos como list[dict] com role/content para o loop agêntico
@@ -73,6 +74,13 @@ class ActionAIState(rx.State):
     def toggle_text_input(self):
         self.show_text_input = not self.show_text_input
         self.input_text = ""
+        self.input_key += 1
+
+    def set_input_text(self, text: str):
+        """Setter explícito — usado pelo chip para preencher o campo.
+        Incrementa input_key para forçar remount do input não-controlado."""
+        self.input_text = text
+        self.input_key += 1
 
     async def toggle_hands_free(self):
         self.is_hands_free = not self.is_hands_free
@@ -100,6 +108,7 @@ class ActionAIState(rx.State):
             return
         self.is_listening = False
         self.input_text = text
+        self.input_key += 1
         yield ActionAIState.send_message
 
     async def on_voice_stopped(self, _val: str):
@@ -117,6 +126,7 @@ class ActionAIState(rx.State):
         # Fecha o teclado após enviar
         self.show_text_input = False
         self.input_text = ""
+        self.input_key += 1
         self.is_processing = True
         # Adiciona ao contexto interno
         self._context = list(self._context) + [_amsg("user", text)]

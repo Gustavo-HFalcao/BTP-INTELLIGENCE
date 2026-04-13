@@ -88,8 +88,8 @@ def _tab_emails() -> rx.Component:
                         ),
                         rx.input(
                             placeholder="Ex: BOM-001",
-                            value=ReembolsoState.email_new_contract,
-                            on_change=ReembolsoState.set_email_new_contract,
+                            default_value=ReembolsoState.email_new_contract,
+                            on_blur=ReembolsoState.set_email_new_contract,
                             bg=S.BG_INPUT,
                             border=f"1px solid {S.BORDER_SUBTLE}",
                             border_radius="10px",

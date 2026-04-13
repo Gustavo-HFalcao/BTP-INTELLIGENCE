@@ -25,7 +25,6 @@ def _label(text: str) -> rx.Component:
 def _input_field(value: rx.Var, on_change=None, read_only: bool = False) -> rx.Component:
     """Styled borderless input — copper underline on focus."""
     props = dict(
-        value=value,
         read_only=read_only,
         background="rgba(255,255,255,0.03)",
         border="none",
@@ -44,8 +43,12 @@ def _input_field(value: rx.Var, on_change=None, read_only: bool = False) -> rx.C
         _placeholder={"color": S.TEXT_MUTED},
         cursor="default" if read_only else "text",
     )
-    if on_change:
-        props["on_change"] = on_change
+    if on_change and not read_only:
+        # Use default_value + on_blur to avoid per-keystroke round-trips
+        props["default_value"] = value
+        props["on_blur"] = on_change
+    else:
+        props["value"] = value
     return rx.el.input(**props)
 
 

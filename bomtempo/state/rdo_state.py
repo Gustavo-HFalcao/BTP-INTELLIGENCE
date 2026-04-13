@@ -1150,6 +1150,7 @@ class RDOState(rx.State):
             "id": "", "nome": "", "progresso": "0", "_key": str(int(time.time() * 1000) + len(new_list)),
             "total_qty": "0", "exec_qty": "0", "unidade": "", "producao_dia": "",
             "fase_macro_sel": "",  # two-step: phase selection before activity
+            "efetivo_alocado": "",  # quantas pessoas trabalharam nesta atividade hoje
         })
         self.rdo_extra_atividades = new_list
 
@@ -1199,6 +1200,13 @@ class RDOState(rx.State):
             for r in self.rdo_extra_atividades
         ]
 
+    def set_extra_atividade_efetivo(self, key: str, v: str):
+        """Set team size allocated to this activity today by _key."""
+        self.rdo_extra_atividades = [
+            {**r, "efetivo_alocado": str(v)} if r.get("_key", "") == key else r
+            for r in self.rdo_extra_atividades
+        ]
+
     @rx.event(background=True)
     async def load_hub_atividades(self, contrato: str):
         """Load available activities from hub_atividades for the given contract."""
@@ -1213,17 +1221,48 @@ class RDOState(rx.State):
             rows = _sb_select(
                 "hub_atividades",
                 filters={"contrato": contrato},
-                order="fase_macro.asc,atividade.asc",
-                limit=200,
+                limit=300,
             )
-            # Build id → row map for hierarchy lookup
-            _row_map = {str(r.get("id", "")): r for r in (rows or []) if r.get("id")}
-            def _nivel_prefix(nivel: str) -> str:
-                return {"micro": "↳ ", "sub": "↳↳ "}.get(nivel, "")
-            opts = [
-                {
+
+            def _fase_sort_key(r: dict) -> tuple:
+                fase = str(r.get("fase", "") or "")
+                parts = []
+                for seg in fase.split("."):
+                    try:
+                        parts.append(int(seg))
+                    except ValueError:
+                        parts.append(0)
+                return tuple(parts) if parts else (9999,)
+
+            # Filter first
+            filtered = [
+                r for r in (rows or [])
+                if r.get("id") and r.get("atividade")
+                and not str(r.get("pendente_aprovacao", "")).upper() in ("TRUE", "1")
+                and str(r.get("status_atividade", "") or "") not in ("cancelada", "bloqueada")
+            ]
+
+            # Build hierarchy: macros → micros → subs, each sorted by fase
+            macros = sorted([r for r in filtered if r.get("nivel", "macro") in ("macro", "")], key=_fase_sort_key)
+            micros_all = sorted([r for r in filtered if r.get("nivel") == "micro"], key=_fase_sort_key)
+            subs_all = sorted([r for r in filtered if r.get("nivel") == "sub"], key=_fase_sort_key)
+
+            micros_by_parent: dict = {}
+            for m in micros_all:
+                pid = str(m.get("parent_id", "") or "")
+                micros_by_parent.setdefault(pid, []).append(m)
+
+            subs_by_parent: dict = {}
+            for s in subs_all:
+                pid = str(s.get("parent_id", "") or "")
+                subs_by_parent.setdefault(pid, []).append(s)
+
+            def _build_opt(r: dict, prefix: str) -> dict:
+                fase = str(r.get("fase", "") or "")
+                nome = str(r.get("atividade", ""))
+                return {
                     "id":               str(r.get("id", "")),
-                    "label":            _nivel_prefix(str(r.get("nivel", "macro"))) + str(r.get("atividade", "")),
+                    "label":            f"{prefix}{fase} {nome}".strip(),
                     "fase_macro":       str(r.get("fase_macro", "") or "Geral"),
                     "nivel":            str(r.get("nivel", "macro") or "macro"),
                     "parent_id":        str(r.get("parent_id", "") or ""),
@@ -1233,15 +1272,19 @@ class RDOState(rx.State):
                     "unidade":          str(r.get("unidade", "") or ""),
                     "status_atividade": str(r.get("status_atividade", "") or "nao_iniciada"),
                     "tipo_medicao":     str(r.get("tipo_medicao", "") or "quantidade"),
+                    "efetivo_alocado":  str(r.get("efetivo_alocado", 0) or 0),
                 }
-                for r in (rows or [])
-                if r.get("id") and r.get("atividade")
-                and not str(r.get("pendente_aprovacao", "")).upper() in ("TRUE", "1")
-                # Exclude cancelled/blocked activities from RDO selection
-                and str(r.get("status_atividade", "") or "") not in ("cancelada", "bloqueada")
-                # Exclude pure macro (aggregator) when it has micro/sub children — progress comes from children
-                # Macros without children are valid milestones/marcos
-            ]
+
+            opts: list = []
+            for macro in macros:
+                macro_id = str(macro.get("id", ""))
+                opts.append(_build_opt(macro, ""))
+                for micro in micros_by_parent.get(macro_id, []):
+                    micro_id = str(micro.get("id", ""))
+                    opts.append(_build_opt(micro, "  ↳ "))
+                    for sub in subs_by_parent.get(micro_id, []):
+                        opts.append(_build_opt(sub, "    ↳↳ "))
+
         except Exception as e:
             logger.error(f"load_hub_atividades error: {e}")
             opts = []
@@ -1867,7 +1910,12 @@ class RDOState(rx.State):
                 {"atividade": r.get("nome", "").strip(), "progresso_percentual": str(r.get("progresso", "0")), "status": "Em andamento"}
                 for r in self.rdo_novas_atividades if r.get("nome", "").strip()
             ] + [
-                {"atividade": r.get("nome", ""), "progresso_percentual": str(r.get("progresso", "0")), "status": "Em andamento"}
+                {
+                    "atividade": r.get("nome", ""),
+                    "progresso_percentual": str(r.get("progresso", "0")),
+                    "status": "Em andamento",
+                    "efetivo": int(r.get("efetivo_alocado", "") or 0),
+                }
                 for r in self.rdo_extra_atividades if r.get("id", "") and r.get("nome", "")
             ],
             "evidencias":   list(self.evidencias_items),

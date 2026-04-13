@@ -168,8 +168,8 @@ class UsuariosState(rx.State):
         self._current_client_id = str(gs.current_client_id or "")
         if self._is_master:
             self._load_tenants_options()
-        self.load_users()
-        self.load_roles()
+        yield UsuariosState.load_users
+        yield UsuariosState.load_roles
 
     def _load_tenants_options(self):
         try:
