@@ -65,10 +65,12 @@ class ReembolsoState(rx.State):
     is_getting_checkin: bool = False
 
     # ── Upload de imagem ───────────────────────────────────────────────────────
-    image_b64: str = ""  # base64 puro (sem prefixo data:)
+    # image_b64 é var PRIVADA (prefixo _) — não sincroniza via WebSocket.
+    # Fotos de celular têm 8–12MB; colocar no state público causava crash de WS.
+    _image_b64: str = ""  # base64 puro (sem prefixo data:) — só lido em handlers Python
     image_mime: str = "image/jpeg"
     image_filename: str = ""
-    image_data_url: str = ""  # data:image/...;base64,... para preview
+    image_data_url: str = ""  # data:image/...;base64,... para preview (thumbnail 800px)
     image_hash: str = ""      # MD5 da imagem para detecção de duplicidade
     duplicate_warning: str = "" # ID do reembolso duplicado encontrado (vazio = sem duplicata)
 
@@ -380,7 +382,8 @@ class ReembolsoState(rx.State):
         self.km_final = ""
         self.rota = ""
         self.finalidade = ""
-        self.image_b64 = ""
+        # _image_b64 é var privada — limpa via evento síncrono separado (_clear_image_b64)
+        # pois object.__setattr__ falha em StateProxy (chamado de async with self:)
         self.image_mime = "image/jpeg"
         self.image_filename = ""
         self.image_data_url = ""
@@ -404,6 +407,10 @@ class ReembolsoState(rx.State):
         self.ai_attempt_count = 0
         self.ai_override = False
         self.submit_success = False
+
+    def _clear_image_b64(self):
+        """Limpa a var privada _image_b64 (não pode rodar dentro de async with self:)."""
+        object.__setattr__(self, "_image_b64", "")
 
     # ── GPS Check-in ──────────────────────────────────────────────────────────
 
@@ -558,10 +565,11 @@ class ReembolsoState(rx.State):
         yield  # flush para o cliente mostrar o spinner
 
         import base64
+        import hashlib
+        import io as _io
 
         file = files[0]
         data = await file.read()
-        b64 = base64.b64encode(data).decode("utf-8")
 
         ext = file.filename.split(".")[-1].lower() if "." in file.filename else "jpeg"
         mime_map = {
@@ -573,13 +581,32 @@ class ReembolsoState(rx.State):
         }
         mime = mime_map.get(ext, "image/jpeg")
 
-        import hashlib
         img_hash = hashlib.md5(data).hexdigest()
 
-        self.image_b64 = b64
+        # Guarda bytes originais como var privada (não sincroniza WebSocket)
+        b64_full = base64.b64encode(data).decode("utf-8")
+        object.__setattr__(self, "_image_b64", b64_full)
+
+        # Gera thumbnail comprimido para preview (max 800px, JPEG q=72)
+        # Fotos de celular chegam com 8–12MB; enviar base64 completo via WebSocket
+        # causa crash de conexão. O thumbnail é suficiente para o usuário conferir.
+        try:
+            from PIL import Image as _PILImg, ImageOps as _PILOps
+            _pil = _PILImg.open(_io.BytesIO(data))
+            _pil = _PILOps.exif_transpose(_pil)
+            _pil.thumbnail((800, 800), _PILImg.LANCZOS)
+            _buf = _io.BytesIO()
+            _pil.convert("RGB").save(_buf, format="JPEG", quality=72, optimize=True)
+            preview_b64 = base64.b64encode(_buf.getvalue()).decode("utf-8")
+            preview_mime = "image/jpeg"
+        except Exception:
+            # fallback: usar original (pode ser lento mas não quebra)
+            preview_b64 = b64_full
+            preview_mime = mime
+
         self.image_mime = mime
         self.image_filename = file.filename
-        self.image_data_url = f"data:{mime};base64,{b64}"
+        self.image_data_url = f"data:{preview_mime};base64,{preview_b64}"
         self.image_hash = img_hash
         self.duplicate_warning = ""
         # Limpa análise anterior
@@ -636,7 +663,7 @@ class ReembolsoState(rx.State):
             b64 = ""
             mime = "image/jpeg"
             async with self:
-                b64 = str(self.image_b64)
+                b64 = str(self._image_b64)
                 mime = str(self.image_mime)
 
             if not b64:
@@ -766,7 +793,7 @@ class ReembolsoState(rx.State):
                 current_client_id = str(gs.current_client_id or "")
                 data = self._build_data()
                 data["submitted_by"] = current_user
-                image_b64 = str(self.image_b64)
+                image_b64 = str(self._image_b64)
                 image_mime = str(self.image_mime)
                 ai_override_flag = bool(self.ai_override)
 
@@ -803,7 +830,7 @@ class ReembolsoState(rx.State):
             if image_b64:
                 try:
                     await loop.run_in_executor(
-                        get_heavy_executor(),
+                        get_db_executor(),
                         lambda: FuelService.upload_image_to_storage(image_b64, id_fr, image_mime),
                     )
                     logger.info(f"✅ FR image uploaded for {id_fr}")
@@ -883,6 +910,8 @@ class ReembolsoState(rx.State):
         finally:
             async with self:
                 self.is_submitting = False
+            # Limpa _image_b64 FORA do async with self: (object.__setattr__ falha em StateProxy)
+            yield ReembolsoState._clear_image_b64
 
     # ── Dashboard load ──────────────────────────────────────────────────────────
 

@@ -14,7 +14,6 @@ from bomtempo.core.executors import (
     get_ai_executor,
     get_db_executor,
     get_http_executor,
-    get_heavy_executor,
 )
 
 logger = get_logger(__name__)

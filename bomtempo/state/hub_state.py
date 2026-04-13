@@ -21,7 +21,6 @@ from bomtempo.core.executors import (
     get_ai_executor,
     get_db_executor,
     get_http_executor,
-    get_heavy_executor,
 )
 
 logger = logging.getLogger(__name__)
@@ -3203,8 +3202,8 @@ Retorne SOMENTE JSON válido, sem texto antes/depois, sem markdown:
             path = f"{_dt.now().strftime('%Y%m%d_%H%M%S')}_{safe_name}"
 
             loop = _asyncio.get_running_loop()
-            await loop.run_in_executor(get_heavy_executor(), lambda: sb_storage_ensure_bucket("timeline-anexos", public=True))
-            url = await loop.run_in_executor(get_heavy_executor(), lambda: sb_storage_upload("timeline-anexos", path, data, "application/octet-stream"))
+            await loop.run_in_executor(get_db_executor(), lambda: sb_storage_ensure_bucket("timeline-anexos", public=True))
+            url = await loop.run_in_executor(get_db_executor(), lambda: sb_storage_upload("timeline-anexos", path, data, "application/octet-stream"))
 
             self.tl_anexo_url = url or ""
             self.tl_anexo_nome = nome

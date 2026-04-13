@@ -248,10 +248,32 @@ def _apply_watermark(img_bytes: bytes, meta: Dict[str, Any], content_type: str =
       contrato / mestre       – RDO metadata
       map_bytes               – bytes|None OSM tile thumbnail
     """
+    # ── Safety cap: fotos de celular chegam em 3024×4032px (12MP) ou mais.
+    # Processar na resolução original usa 200–400MB de RAM e pode causar OOM.
+    # 2048px no lado maior preserva qualidade mais que suficiente para evidência.
+    _MAX_DIM = 2048
+
     try:
         from PIL import Image, ImageDraw, ImageFont
 
         img = Image.open(io.BytesIO(img_bytes)).convert("RGBA")
+
+        # Corrige orientação EXIF antes do resize (fotos de celular rotacionadas)
+        try:
+            from PIL import ImageOps
+            img = ImageOps.exif_transpose(img)
+        except Exception:
+            pass
+
+        # Resize se necessário — preserva aspect ratio
+        w, h = img.size
+        if max(w, h) > _MAX_DIM:
+            if w >= h:
+                new_w, new_h = _MAX_DIM, int(h * _MAX_DIM / w)
+            else:
+                new_w, new_h = int(w * _MAX_DIM / h), _MAX_DIM
+            img = img.resize((new_w, new_h), Image.LANCZOS)
+
         w, h = img.size
 
         # ── Font: proportional to image width, min 28px for readability ──────
@@ -1543,10 +1565,10 @@ class RDOService:
             watermarked = file_bytes
 
         # 7. Upload to Supabase Storage
-        # Watermark sempre retorna PNG (canal alpha). Força .png no filename e content_type.
-        upload_ct = "image/png"
+        # Watermark salva como JPEG (RGB, quality=92) — menor e compatível com browsers.
+        upload_ct = "image/jpeg"
         name_base = os.path.splitext(safe_filename)[0]
-        upload_filename = f"{name_base}.png"
+        upload_filename = f"{name_base}.jpg"
         foto_url = RDOService.upload_evidence(id_rdo, watermarked, upload_ct, upload_filename)
         if not foto_url:
             # Upload falhou — retorna dict vazio para o caller filtrar

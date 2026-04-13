@@ -16,6 +16,7 @@ from bomtempo.core.executors import (
     get_db_executor,
     get_http_executor,
     get_heavy_executor,
+    get_image_executor,
 )
 
 logger = get_logger(__name__)
@@ -783,7 +784,7 @@ class RDOState(rx.State):
                 _ex_dt     = str(self.ev_exif_datetime or "")
                 _ex_lm     = str(self.ev_last_modified or "")
                 result = await loop.run_in_executor(
-                    get_heavy_executor(),
+                    get_image_executor(),
                     lambda: RDOService.process_evidence(
                         id_rdo=id_rdo,
                         file_bytes=_b,
@@ -913,7 +914,7 @@ class RDOState(rx.State):
                 _ci_lng = float(self.checkin_lng or 0.0)
                 _ci_end = str(self.checkin_endereco or "")
                 result = await loop.run_in_executor(
-                    get_heavy_executor(),
+                    get_image_executor(),
                     lambda: RDOService.process_evidence(
                         id_rdo=id_rdo,
                         file_bytes=_b,
@@ -986,7 +987,7 @@ class RDOState(rx.State):
                 _ci_lng = float(self.checkin_lng or 0.0)
                 _ci_end = str(self.checkin_endereco or "")
                 result = await loop.run_in_executor(
-                    get_heavy_executor(),
+                    get_image_executor(),
                     lambda: RDOService.process_evidence(
                         id_rdo=id_rdo,
                         file_bytes=_b,

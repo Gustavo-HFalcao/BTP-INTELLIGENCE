@@ -9,10 +9,11 @@ Problema com o pool default do Python:
 Solução: pools separados por CATEGORIA de trabalho com limites ajustados.
 
 Uso em handlers async:
-    from bomtempo.core.executors import get_ai_executor, get_heavy_executor
+    from bomtempo.core.executors import get_ai_executor, get_heavy_executor, get_image_executor
 
     result = await loop.run_in_executor(get_ai_executor(), lambda: ai_call())
     pdf    = await loop.run_in_executor(get_heavy_executor(), lambda: generate_pdf())
+    foto   = await loop.run_in_executor(get_image_executor(), lambda: process_image())
 
 Regra: NUNCA use `loop.run_in_executor(None, ...)` — sempre especifique o executor
        correto para sua categoria de trabalho.
@@ -25,8 +26,18 @@ from concurrent.futures import ThreadPoolExecutor
 # simultâneos saturem o sistema inteiro
 _ai_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="bt-ai")
 
+# ── Executor: PDF (Chromium) ───────────────────────────────────────────────────
 # max_workers=1: Chromium é extremamente pesado (~500MB) — 1 instância é o limite seguro
+# NUNCA misturar com processamento de imagem: foto de celular pode levar 3–8s e
+# bloquearia geração de PDF indefinidamente (ou vice-versa).
 _heavy_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="bt-heavy")
+
+# ── Executor: Imagem ──────────────────────────────────────────────────────────
+# Watermark + EXIF + resize de fotos de celular (PIL, ~1–3s por foto após resize).
+# Separado do _heavy_executor para não bloquear geração de PDFs.
+# max_workers=3: 3 uploads simultâneos (EPI + evidência + ferramentas) sem disputar
+# com Chromium.
+_image_executor = ThreadPoolExecutor(max_workers=3, thread_name_prefix="bt-img")
 
 # ── Executor: HTTP externo ────────────────────────────────────────────────────
 # Geocoding Nominatim, webhooks, APIs REST externas (sem ser o Supabase)
@@ -46,8 +57,13 @@ def get_ai_executor() -> ThreadPoolExecutor:
 
 
 def get_heavy_executor() -> ThreadPoolExecutor:
-    """PDF com Chromium, processamento de imagem, uploads grandes."""
+    """PDF com Chromium (Playwright). NÃO usar para imagens — use get_image_executor()."""
     return _heavy_executor
+
+
+def get_image_executor() -> ThreadPoolExecutor:
+    """Processamento de imagem: watermark, EXIF, resize (PIL). Separado do PDF."""
+    return _image_executor
 
 
 def get_http_executor() -> ThreadPoolExecutor:
