@@ -140,16 +140,24 @@ class LogsState(rx.State):
         self.is_loading = True
         yield
         import asyncio
-        await asyncio.gather(self._fetch_logs(), self._fetch_stats())
-        self.is_loading = False
+        try:
+            await asyncio.gather(self._fetch_logs(), self._fetch_stats())
+        except Exception as e:
+            logger.error(f"load_page failed: {e}")
+        finally:
+            self.is_loading = False
 
     async def refresh(self):
         """Reload atual sem resetar filtros."""
         self.is_loading = True
         yield
         import asyncio
-        await asyncio.gather(self._fetch_logs(), self._fetch_stats())
-        self.is_loading = False
+        try:
+            await asyncio.gather(self._fetch_logs(), self._fetch_stats())
+        except Exception as e:
+            logger.error(f"refresh failed: {e}")
+        finally:
+            self.is_loading = False
 
     def set_filter_category(self, val: str):
         self.filter_category = val if val != self.filter_category else ""
@@ -188,24 +196,36 @@ class LogsState(rx.State):
         self.page = 1
         self.is_loading = True
         yield
-        await self._fetch_logs()
-        self.is_loading = False
+        try:
+            await self._fetch_logs()
+        except Exception as e:
+            logger.error(f"apply_filters failed: {e}")
+        finally:
+            self.is_loading = False
 
     async def go_prev(self):
         if self.page > 1:
             self.page -= 1
             self.is_loading = True
             yield
-            await self._fetch_logs()
-            self.is_loading = False
+            try:
+                await self._fetch_logs()
+            except Exception as e:
+                logger.error(f"go_prev failed: {e}")
+            finally:
+                self.is_loading = False
 
     async def go_next(self):
         if self.page < self.total_pages:
             self.page += 1
             self.is_loading = True
             yield
-            await self._fetch_logs()
-            self.is_loading = False
+            try:
+                await self._fetch_logs()
+            except Exception as e:
+                logger.error(f"go_next failed: {e}")
+            finally:
+                self.is_loading = False
 
     def open_detail(self, row: dict):
         self.detail_row = row

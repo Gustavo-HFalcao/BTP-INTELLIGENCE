@@ -741,89 +741,92 @@ class RDOState(rx.State):
         self.is_uploading_evidence = True
         yield
 
-        # Wait for receive_exif_json WebSocket round-trip to complete before reading
-        # ev_exif_* vars. exifr async parse + WS round-trip can take up to ~1s on mobile.
-        await asyncio.sleep(1.2)
+        try:
+            # Wait for receive_exif_json WebSocket round-trip to complete before reading
+            # ev_exif_* vars. exifr async parse + WS round-trip can take up to ~1s on mobile.
+            await asyncio.sleep(1.2)
 
-        from bomtempo.state.global_state import GlobalState
-        gs = await self.get_state(GlobalState)
-        user     = str(gs.current_user_name)
-        contrato = str(self.rdo_contrato)
-        data     = str(self.rdo_data)
-        legenda  = str(self.ev_legenda)
-        id_rdo   = str(self.draft_id_rdo)
+            from bomtempo.state.global_state import GlobalState
+            gs = await self.get_state(GlobalState)
+            user     = str(gs.current_user_name)
+            contrato = str(self.rdo_contrato)
+            data     = str(self.rdo_data)
+            legenda  = str(self.ev_legenda)
+            id_rdo   = str(self.draft_id_rdo)
 
-        loop = asyncio.get_running_loop()
+            loop = asyncio.get_running_loop()
 
-        # Auto-save to get an id_rdo if form not yet persisted
-        if not id_rdo and contrato.strip():
-            rdo_data = self._build_rdo_data()
-            id_rdo = await loop.run_in_executor(
-                get_db_executor(),
-                lambda: RDOService.upsert_draft(rdo_data, mestre_id=user),
-            )
-            self.draft_id_rdo = id_rdo
-
-        if not id_rdo:
-            self.is_uploading_evidence = False
-            yield rx.toast("⚠️ Preencha o contrato antes de adicionar fotos", position="top-center")
-            return
-
-        new_items = []
-        for f in files:
-            try:
-                file_bytes = await f.read()
-                _name = getattr(f, "filename", "foto.jpg")
-                _ct   = getattr(f, "content_type", None) or "image/jpeg"
-                _b, _n, _c = file_bytes, _name, _ct
-                _ci_lat    = float(self.checkin_lat or 0.0)
-                _ci_lng    = float(self.checkin_lng or 0.0)
-                _ci_end    = str(self.checkin_endereco or "")
-                _ex_lat    = float(self.ev_exif_lat or 0.0)
-                _ex_lng    = float(self.ev_exif_lng or 0.0)
-                _ex_dt     = str(self.ev_exif_datetime or "")
-                _ex_lm     = str(self.ev_last_modified or "")
-                result = await loop.run_in_executor(
-                    get_image_executor(),
-                    lambda: RDOService.process_evidence(
-                        id_rdo=id_rdo,
-                        file_bytes=_b,
-                        filename=_n,
-                        content_type=_c,
-                        legenda=legenda,
-                        mestre=user,
-                        contrato=contrato,
-                        data=data,
-                        checkin_lat=_ci_lat,
-                        checkin_lng=_ci_lng,
-                        checkin_endereco=_ci_end,
-                        client_exif_lat=_ex_lat,
-                        client_exif_lng=_ex_lng,
-                        client_exif_datetime=_ex_dt,
-                        client_last_modified=_ex_lm,
-                    ),
+            # Auto-save to get an id_rdo if form not yet persisted
+            if not id_rdo and contrato.strip():
+                rdo_data = self._build_rdo_data()
+                id_rdo = await loop.run_in_executor(
+                    get_db_executor(),
+                    lambda: RDOService.upsert_draft(rdo_data, mestre_id=user),
                 )
-                if result.get("foto_url"):
-                    new_items.append(result)
-            except Exception as e:
-                logger.error(f"upload_evidence_files: {e}", exc_info=True)
-                self.evidencias_items     = self.evidencias_items
+                self.draft_id_rdo = id_rdo
+
+            if not id_rdo:
                 self.is_uploading_evidence = False
-                yield rx.toast(f"❌ Erro no upload: {e}", position="top-center", duration=8000)
+                yield rx.toast("⚠️ Preencha o contrato antes de adicionar fotos", position="top-center")
                 return
 
-        self.evidencias_items     = [*self.evidencias_items, *new_items]
-        self.ev_legenda           = ""
-        self.ev_exif_datetime     = ""
-        self.ev_exif_lat          = 0.0
-        self.ev_exif_lng          = 0.0
-        self.ev_last_modified     = ""
-        self.is_uploading_evidence = False
+            new_items = []
+            for f in files:
+                try:
+                    file_bytes = await f.read()
+                    _name = getattr(f, "filename", "foto.jpg")
+                    _ct   = getattr(f, "content_type", None) or "image/jpeg"
+                    _b, _n, _c = file_bytes, _name, _ct
+                    _ci_lat    = float(self.checkin_lat or 0.0)
+                    _ci_lng    = float(self.checkin_lng or 0.0)
+                    _ci_end    = str(self.checkin_endereco or "")
+                    _ex_lat    = float(self.ev_exif_lat or 0.0)
+                    _ex_lng    = float(self.ev_exif_lng or 0.0)
+                    _ex_dt     = str(self.ev_exif_datetime or "")
+                    _ex_lm     = str(self.ev_last_modified or "")
+                    result = await loop.run_in_executor(
+                        get_image_executor(),
+                        lambda: RDOService.process_evidence(
+                            id_rdo=id_rdo,
+                            file_bytes=_b,
+                            filename=_n,
+                            content_type=_c,
+                            legenda=legenda,
+                            mestre=user,
+                            contrato=contrato,
+                            data=data,
+                            checkin_lat=_ci_lat,
+                            checkin_lng=_ci_lng,
+                            checkin_endereco=_ci_end,
+                            client_exif_lat=_ex_lat,
+                            client_exif_lng=_ex_lng,
+                            client_exif_datetime=_ex_dt,
+                            client_last_modified=_ex_lm,
+                        ),
+                    )
+                    if result.get("foto_url"):
+                        new_items.append(result)
+                except Exception as e:
+                    logger.error(f"upload_evidence_files: {e}", exc_info=True)
+                    yield rx.toast(f"❌ Erro no upload: {e}", position="top-center", duration=8000)
+                    return
 
-        if new_items:
-            yield rx.toast(f"✅ {len(new_items)} foto(s) adicionada(s)", position="top-center")
-        else:
-            yield rx.toast("⚠️ Nenhuma foto foi processada", position="top-center")
+            self.evidencias_items     = [*self.evidencias_items, *new_items]
+            self.ev_legenda           = ""
+            self.ev_exif_datetime     = ""
+            self.ev_exif_lat          = 0.0
+            self.ev_exif_lng          = 0.0
+            self.ev_last_modified     = ""
+
+            if new_items:
+                yield rx.toast(f"✅ {len(new_items)} foto(s) adicionada(s)", position="top-center")
+            else:
+                yield rx.toast("⚠️ Nenhuma foto foi processada", position="top-center")
+        except Exception as e:
+            logger.error(f"upload_evidence_files (outer): {e}", exc_info=True)
+            yield rx.toast(f"❌ Erro inesperado no upload: {str(e)[:100]}", position="top-center", duration=8000)
+        finally:
+            self.is_uploading_evidence = False
 
     def remove_evidence(self, foto_url: str):
         """Remove foto da lista local (estado draft)."""
@@ -881,70 +884,74 @@ class RDOState(rx.State):
         self.is_uploading_epi = True
         yield
 
-        from bomtempo.state.global_state import GlobalState
-        gs = await self.get_state(GlobalState)
-        user     = str(gs.current_user_name)
-        contrato = str(self.rdo_contrato)
-        data     = str(self.rdo_data)
-        id_rdo   = str(self.draft_id_rdo)
+        try:
+            from bomtempo.state.global_state import GlobalState
+            gs = await self.get_state(GlobalState)
+            user     = str(gs.current_user_name)
+            contrato = str(self.rdo_contrato)
+            data     = str(self.rdo_data)
+            id_rdo   = str(self.draft_id_rdo)
 
-        loop = asyncio.get_running_loop()
+            loop = asyncio.get_running_loop()
 
-        if not id_rdo and contrato.strip():
-            rdo_data = self._build_rdo_data()
-            id_rdo = await loop.run_in_executor(
-                get_db_executor(),
-                lambda: RDOService.upsert_draft(rdo_data, mestre_id=user),
-            )
-            self.draft_id_rdo = id_rdo
-
-        if not id_rdo:
-            self.is_uploading_epi = False
-            yield rx.toast("⚠️ Preencha o contrato antes de adicionar fotos", position="top-center")
-            return
-
-        new_items = []
-        for f in files[:1]:  # Only keep the latest EPI photo
-            try:
-                file_bytes = await f.read()
-                _name = getattr(f, "filename", "epi.jpg")
-                _ct   = getattr(f, "content_type", None) or "image/jpeg"
-                _b, _n, _c = file_bytes, _name, _ct
-                _ci_lat = float(self.checkin_lat or 0.0)
-                _ci_lng = float(self.checkin_lng or 0.0)
-                _ci_end = str(self.checkin_endereco or "")
-                result = await loop.run_in_executor(
-                    get_image_executor(),
-                    lambda: RDOService.process_evidence(
-                        id_rdo=id_rdo,
-                        file_bytes=_b,
-                        filename=f"epi_{_n}",
-                        content_type=_c,
-                        legenda="Equipe com EPIs",
-                        mestre=user,
-                        contrato=contrato,
-                        data=data,
-                        checkin_lat=_ci_lat,
-                        checkin_lng=_ci_lng,
-                        checkin_endereco=_ci_end,
-                    ),
+            if not id_rdo and contrato.strip():
+                rdo_data = self._build_rdo_data()
+                id_rdo = await loop.run_in_executor(
+                    get_db_executor(),
+                    lambda: RDOService.upsert_draft(rdo_data, mestre_id=user),
                 )
-                if result.get("foto_url"):
-                    new_items.append(result)
-            except Exception as e:
-                logger.error(f"upload_epi_files: {e}", exc_info=True)
+                self.draft_id_rdo = id_rdo
+
+            if not id_rdo:
                 self.is_uploading_epi = False
-                yield rx.toast(f"❌ Erro no upload EPI: {e}", position="top-center", duration=8000)
+                yield rx.toast("⚠️ Preencha o contrato antes de adicionar fotos", position="top-center")
                 return
 
-        if new_items:
-            self.epi_foto_items = new_items
-        self.is_uploading_epi = False
+            new_items = []
+            for f in files[:1]:  # Only keep the latest EPI photo
+                try:
+                    file_bytes = await f.read()
+                    _name = getattr(f, "filename", "epi.jpg")
+                    _ct   = getattr(f, "content_type", None) or "image/jpeg"
+                    _b, _n, _c = file_bytes, _name, _ct
+                    _ci_lat = float(self.checkin_lat or 0.0)
+                    _ci_lng = float(self.checkin_lng or 0.0)
+                    _ci_end = str(self.checkin_endereco or "")
+                    result = await loop.run_in_executor(
+                        get_image_executor(),
+                        lambda: RDOService.process_evidence(
+                            id_rdo=id_rdo,
+                            file_bytes=_b,
+                            filename=f"epi_{_n}",
+                            content_type=_c,
+                            legenda="Equipe com EPIs",
+                            mestre=user,
+                            contrato=contrato,
+                            data=data,
+                            checkin_lat=_ci_lat,
+                            checkin_lng=_ci_lng,
+                            checkin_endereco=_ci_end,
+                        ),
+                    )
+                    if result.get("foto_url"):
+                        new_items.append(result)
+                except Exception as e:
+                    logger.error(f"upload_epi_files: {e}", exc_info=True)
+                    yield rx.toast(f"❌ Erro no upload EPI: {e}", position="top-center", duration=8000)
+                    return
 
-        if new_items:
-            yield rx.toast("✅ Foto EPI adicionada", position="top-center")
-        else:
-            yield rx.toast("⚠️ Nenhuma foto foi processada", position="top-center")
+            if new_items:
+                self.epi_foto_items = new_items
+
+            if new_items:
+                yield rx.toast("✅ Foto EPI adicionada", position="top-center")
+            else:
+                yield rx.toast("⚠️ Nenhuma foto foi processada", position="top-center")
+        except Exception as e:
+            logger.error(f"upload_epi_files (outer): {e}", exc_info=True)
+            yield rx.toast(f"❌ Erro inesperado no upload EPI: {str(e)[:100]}", position="top-center", duration=8000)
+        finally:
+            self.is_uploading_epi = False
 
     async def upload_ferramentas_files(self, files: List[rx.UploadFile]):
         """Upload ferramentas photo — watermark + Supabase Storage."""
@@ -954,70 +961,74 @@ class RDOState(rx.State):
         self.is_uploading_ferramentas = True
         yield
 
-        from bomtempo.state.global_state import GlobalState
-        gs = await self.get_state(GlobalState)
-        user     = str(gs.current_user_name)
-        contrato = str(self.rdo_contrato)
-        data     = str(self.rdo_data)
-        id_rdo   = str(self.draft_id_rdo)
+        try:
+            from bomtempo.state.global_state import GlobalState
+            gs = await self.get_state(GlobalState)
+            user     = str(gs.current_user_name)
+            contrato = str(self.rdo_contrato)
+            data     = str(self.rdo_data)
+            id_rdo   = str(self.draft_id_rdo)
 
-        loop = asyncio.get_running_loop()
+            loop = asyncio.get_running_loop()
 
-        if not id_rdo and contrato.strip():
-            rdo_data = self._build_rdo_data()
-            id_rdo = await loop.run_in_executor(
-                get_db_executor(),
-                lambda: RDOService.upsert_draft(rdo_data, mestre_id=user),
-            )
-            self.draft_id_rdo = id_rdo
-
-        if not id_rdo:
-            self.is_uploading_ferramentas = False
-            yield rx.toast("⚠️ Preencha o contrato antes de adicionar fotos", position="top-center")
-            return
-
-        new_items = []
-        for f in files[:1]:
-            try:
-                file_bytes = await f.read()
-                _name = getattr(f, "filename", "ferramentas.jpg")
-                _ct   = getattr(f, "content_type", None) or "image/jpeg"
-                _b, _n, _c = file_bytes, _name, _ct
-                _ci_lat = float(self.checkin_lat or 0.0)
-                _ci_lng = float(self.checkin_lng or 0.0)
-                _ci_end = str(self.checkin_endereco or "")
-                result = await loop.run_in_executor(
-                    get_image_executor(),
-                    lambda: RDOService.process_evidence(
-                        id_rdo=id_rdo,
-                        file_bytes=_b,
-                        filename=f"ferramentas_{_n}",
-                        content_type=_c,
-                        legenda="Ferramentas Limpas e Organizadas",
-                        mestre=user,
-                        contrato=contrato,
-                        data=data,
-                        checkin_lat=_ci_lat,
-                        checkin_lng=_ci_lng,
-                        checkin_endereco=_ci_end,
-                    ),
+            if not id_rdo and contrato.strip():
+                rdo_data = self._build_rdo_data()
+                id_rdo = await loop.run_in_executor(
+                    get_db_executor(),
+                    lambda: RDOService.upsert_draft(rdo_data, mestre_id=user),
                 )
-                if result.get("foto_url"):
-                    new_items.append(result)
-            except Exception as e:
-                logger.error(f"upload_ferramentas_files: {e}", exc_info=True)
+                self.draft_id_rdo = id_rdo
+
+            if not id_rdo:
                 self.is_uploading_ferramentas = False
-                yield rx.toast(f"❌ Erro no upload ferramentas: {e}", position="top-center", duration=8000)
+                yield rx.toast("⚠️ Preencha o contrato antes de adicionar fotos", position="top-center")
                 return
 
-        if new_items:
-            self.ferramentas_foto_items = new_items
-        self.is_uploading_ferramentas = False
+            new_items = []
+            for f in files[:1]:
+                try:
+                    file_bytes = await f.read()
+                    _name = getattr(f, "filename", "ferramentas.jpg")
+                    _ct   = getattr(f, "content_type", None) or "image/jpeg"
+                    _b, _n, _c = file_bytes, _name, _ct
+                    _ci_lat = float(self.checkin_lat or 0.0)
+                    _ci_lng = float(self.checkin_lng or 0.0)
+                    _ci_end = str(self.checkin_endereco or "")
+                    result = await loop.run_in_executor(
+                        get_image_executor(),
+                        lambda: RDOService.process_evidence(
+                            id_rdo=id_rdo,
+                            file_bytes=_b,
+                            filename=f"ferramentas_{_n}",
+                            content_type=_c,
+                            legenda="Ferramentas Limpas e Organizadas",
+                            mestre=user,
+                            contrato=contrato,
+                            data=data,
+                            checkin_lat=_ci_lat,
+                            checkin_lng=_ci_lng,
+                            checkin_endereco=_ci_end,
+                        ),
+                    )
+                    if result.get("foto_url"):
+                        new_items.append(result)
+                except Exception as e:
+                    logger.error(f"upload_ferramentas_files: {e}", exc_info=True)
+                    yield rx.toast(f"❌ Erro no upload ferramentas: {e}", position="top-center", duration=8000)
+                    return
 
-        if new_items:
-            yield rx.toast("✅ Foto de ferramentas adicionada", position="top-center")
-        else:
-            yield rx.toast("⚠️ Nenhuma foto foi processada", position="top-center")
+            if new_items:
+                self.ferramentas_foto_items = new_items
+
+            if new_items:
+                yield rx.toast("✅ Foto de ferramentas adicionada", position="top-center")
+            else:
+                yield rx.toast("⚠️ Nenhuma foto foi processada", position="top-center")
+        except Exception as e:
+            logger.error(f"upload_ferramentas_files (outer): {e}", exc_info=True)
+            yield rx.toast(f"❌ Erro inesperado no upload ferramentas: {str(e)[:100]}", position="top-center", duration=8000)
+        finally:
+            self.is_uploading_ferramentas = False
 
     # ── Assinatura ────────────────────────────────────────────
 
@@ -1425,12 +1436,12 @@ class RDOState(rx.State):
                             get_ai_executor(),
                             lambda: RDOService.analyze_now(_d_for_ai, _id_for_ai),
                         ),
-                        timeout=45.0,
+                        timeout=70.0,
                     )
                     ia_breaker.record_success()
                 except asyncio.TimeoutError:
                     ia_breaker.record_failure()
-                    logger.warning("⚠️ AI analysis timeout após 45s — continuando sem resumo IA")
+                    logger.warning("⚠️ AI analysis timeout após 70s — continuando sem resumo IA")
                 except Exception as e:
                     ia_breaker.record_failure(e)
                     logger.error(f"⚠️ AI: {e}")
@@ -1553,7 +1564,14 @@ class RDOState(rx.State):
                         upd_data["status_atividade"] = "concluida"
                     elif _progresso > 0 and cur_status in ("nao_iniciada", "pronta_iniciar", "") and not _has_subs:
                         upd_data["status_atividade"] = "em_execucao"
-                    # Update progress + qty + status
+                    # Propagar data de referência do RDO como âncora temporal do cronograma
+                    # Isso permite que _compute_forecast_rows use min(today, last_rdo_date)
+                    # evitando que preenchimento retroativo avance dias além da data do RDO
+                    _rdo_ref_date = rdo_data.get("data", "")  # formato YYYY-MM-DD
+                    if _rdo_ref_date:
+                        upd_data["last_rdo_date"] = _rdo_ref_date
+
+                    # Update progress + qty + status + last_rdo_date
                     if upd_data:
                         await loop.run_in_executor(get_db_executor(), lambda: _sb_upd("hub_atividades", filters={"id": _ativ_id}, data=upd_data))
 
@@ -1711,6 +1729,10 @@ class RDOState(rx.State):
                         _ex_upd["status_atividade"] = "concluida"
                     elif _ex_pct > 0 and _ex_cur_status in ("nao_iniciada", "pronta_iniciar", ""):
                         _ex_upd["status_atividade"] = "em_execucao"
+                    # Propagar data de referência do RDO como âncora temporal
+                    _ex_rdo_date = rdo_data.get("data", "")
+                    if _ex_rdo_date:
+                        _ex_upd["last_rdo_date"] = _ex_rdo_date
                     await loop.run_in_executor(get_db_executor(), lambda i=_ex_id, d=_ex_upd: _sb_upd_ex("hub_atividades", filters={"id": i}, data=d))
                     _cid_ex = rdo_data.get("client_id") or None
                     await loop.run_in_executor(get_db_executor(), lambda i=_ex_id, p=_ex_pct, cp=_cur_pct, hp=_ex_hist_prod, he=_ex_hist_exec, ht=_ex_hist_total, hu=_ex_hist_unidade: _sb_ins_ex("hub_atividade_historico", {
@@ -1790,14 +1812,17 @@ class RDOState(rx.State):
                 pass
 
             # 7. Email (fire-and-forget — AI already ran above, pass ai_summary to email)
+            # SEMPRE envia se houver destinatários — mesmo sem PDF.
+            # Se PDF falhou, o email inclui link online + aviso para gerar o PDF pela plataforma.
             _d, _p, _r, _vu, _ai = dict(rdo_data_with_ai), str(pdf_path), list(recipients), str(view_url), str(ai_summary)
 
             def _send_email_task():
-                if _r and _p:
-                    try:
-                        RDOService.send_email(_r, _d, _p, _vu, _ai)
-                    except Exception as e:
-                        logger.error(f"Email: {e}")
+                if not _r:
+                    return
+                try:
+                    RDOService.send_email(_r, _d, _p, _vu, _ai)
+                except Exception as e:
+                    logger.error(f"Email: {e}")
 
             threading.Thread(target=_send_email_task, daemon=True).start()
 
@@ -1838,14 +1863,21 @@ class RDOState(rx.State):
             except Exception:
                 pass
 
-            toast_msg = f"✅ RDO processado! {f'Email enviado para {len(recipients)} destinatário(s).' if recipients else 'PDF gerado com sucesso.'}"
+            parts = ["✅ RDO finalizado com sucesso!"]
+            if pdf_url:
+                parts.append("PDF gerado.")
+            else:
+                parts.append("⚠️ PDF pendente — use 'Gerar PDF' no histórico.")
+            if recipients:
+                parts.append(f"📧 Email enviado para {len(recipients)} destinatário(s).")
+            toast_msg = " ".join(parts)
             async with self:
                 self._reset_form()
                 self.is_submitting = False
                 self.submit_status = ""
                 # Usuário já está no /rdo-historico (redirecionado antes do processamento)
-                # Este toast aparece lá quando o processamento termina
-                yield rx.toast(toast_msg, position="top-center", duration=6000)
+                # Este toast aparece lá quando o processamento termina em background
+                yield rx.toast(toast_msg, position="top-center", duration=8000)
 
         except Exception as e:
             logger.error(f"❌ execute_submit: {e}", exc_info=True)
@@ -1861,6 +1893,54 @@ class RDOState(rx.State):
                     self.submit_status = ""
 
     # ── Helpers ───────────────────────────────────────────────
+
+    def _build_atividades_list(self) -> List[Dict[str, Any]]:
+        """Build deduplicated atividades list. Cronograma entry takes priority over manual items with same name."""
+        seen: set = set()
+        result: List[Dict[str, Any]] = []
+
+        def _add(item: Dict[str, Any]) -> None:
+            nome = (item.get("atividade") or "").strip()
+            if not nome:
+                return
+            key = nome.lower()
+            if key in seen:
+                return
+            seen.add(key)
+            result.append(item)
+
+        # 1. Primary cronograma activity (highest priority)
+        if self.rdo_atividade_id and self.rdo_atividade_nome:
+            _add({
+                "atividade": self.rdo_atividade_nome,
+                "progresso_percentual": str(self.rdo_progresso_atividade),
+                "status": "Em andamento",
+            })
+
+        # 2. Extra cronograma activities with efetivo
+        for r in self.rdo_extra_atividades:
+            if r.get("id", "") and r.get("nome", ""):
+                _add({
+                    "atividade": r.get("nome", ""),
+                    "progresso_percentual": str(r.get("progresso", "0")),
+                    "status": "Em andamento",
+                    "efetivo": int(r.get("efetivo_alocado", "") or 0),
+                })
+
+        # 3. Manual atividades_items
+        for item in self.atividades_items:
+            _add(dict(item))
+
+        # 4. New manual activities
+        for r in self.rdo_novas_atividades:
+            if r.get("nome", "").strip():
+                _add({
+                    "atividade": r.get("nome", "").strip(),
+                    "progresso_percentual": str(r.get("progresso", "0")),
+                    "status": "Em andamento",
+                })
+
+        return result
 
     def _build_rdo_data(self) -> Dict[str, Any]:
         return {
@@ -1904,21 +1984,8 @@ class RDOState(rx.State):
             "epi_foto_url":         self.epi_foto_items[0].get("foto_url", "") if self.epi_foto_items else "",
             "ferramentas_foto_url": self.ferramentas_foto_items[0].get("foto_url", "") if self.ferramentas_foto_items else "",
             # Lists — include selected cronograma activity + extra activities if set
-            "atividades":   (
-                [{"atividade": self.rdo_atividade_nome, "progresso_percentual": str(self.rdo_progresso_atividade), "status": "Em andamento"}]
-                if self.rdo_atividade_id and self.rdo_atividade_nome else []
-            ) + list(self.atividades_items) + [
-                {"atividade": r.get("nome", "").strip(), "progresso_percentual": str(r.get("progresso", "0")), "status": "Em andamento"}
-                for r in self.rdo_novas_atividades if r.get("nome", "").strip()
-            ] + [
-                {
-                    "atividade": r.get("nome", ""),
-                    "progresso_percentual": str(r.get("progresso", "0")),
-                    "status": "Em andamento",
-                    "efetivo": int(r.get("efetivo_alocado", "") or 0),
-                }
-                for r in self.rdo_extra_atividades if r.get("id", "") and r.get("nome", "")
-            ],
+            # Dedup by name: cronograma entry takes priority; manual items with same name are skipped
+            "atividades":   self._build_atividades_list(),
             "evidencias":   list(self.evidencias_items),
             # Tenant isolation
             "client_id":    self._rdo_client_id or None,

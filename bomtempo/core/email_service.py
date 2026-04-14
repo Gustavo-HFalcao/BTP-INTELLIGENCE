@@ -315,7 +315,7 @@ class EmailService:
 
             logger.info(f"Conectando ao SMTP: {Config.RDO_SMTP_SERVER}:{Config.RDO_SMTP_PORT}")
 
-            with smtplib.SMTP(Config.RDO_SMTP_SERVER, Config.RDO_SMTP_PORT) as server:
+            with smtplib.SMTP(Config.RDO_SMTP_SERVER, Config.RDO_SMTP_PORT, timeout=15) as server:
                 server.starttls()
                 server.login(Config.RDO_EMAIL_USER, Config.RDO_EMAIL_PASSWORD)
                 server.send_message(msg)
@@ -489,7 +489,7 @@ class EmailService:
                     )
                     msg.attach(pdf_attach)
 
-            with smtplib.SMTP(Config.RDO_SMTP_SERVER, Config.RDO_SMTP_PORT) as server:
+            with smtplib.SMTP(Config.RDO_SMTP_SERVER, Config.RDO_SMTP_PORT, timeout=15) as server:
                 server.starttls()
                 server.login(Config.RDO_EMAIL_USER, Config.RDO_EMAIL_PASSWORD)
                 server.send_message(msg)
@@ -642,7 +642,7 @@ class EmailService:
             msg["Subject"] = f"[{alert_label}] {contract} — BOMTEMPO Alertas"
             msg.attach(MIMEText(body_html, "html"))
 
-            with smtplib.SMTP(Config.RDO_SMTP_SERVER, Config.RDO_SMTP_PORT) as server:
+            with smtplib.SMTP(Config.RDO_SMTP_SERVER, Config.RDO_SMTP_PORT, timeout=15) as server:
                 server.starttls()
                 server.login(Config.RDO_EMAIL_USER, Config.RDO_EMAIL_PASSWORD)
                 server.send_message(msg)
@@ -744,7 +744,7 @@ class EmailService:
       </td></tr>
       <tr><td style="padding:24px 32px;text-align:center;">
         {view_btn}
-        <p style="margin:12px 0 0;color:#889999;font-size:12px;">📎 O PDF completo está anexado a este email.</p>
+        {"<p style='margin:12px 0 0;color:#889999;font-size:12px;'>📎 O PDF completo está anexado a este email.</p>" if pdf_path else "<p style='margin:12px 0 0;background:rgba(249,115,22,0.08);border:1px solid rgba(249,115,22,0.3);border-radius:8px;padding:10px 16px;color:#F97316;font-size:12px;display:inline-block;'>⚠️ O PDF não pôde ser gerado automaticamente. Acesse a plataforma pelo link acima para gerar o arquivo novamente.</p>"}
       </td></tr>
       {f'<tr><td>{ai_section}</td></tr>' if ai_section else ''}
       <tr><td style="background:#081210;padding:16px 32px;border-top:1px solid rgba(255,255,255,0.06);text-align:center;">
@@ -766,7 +766,7 @@ class EmailService:
                     att.add_header("Content-Disposition", "attachment", filename=Path(pdf_path).name)
                     msg.attach(att)
 
-            with smtplib.SMTP(Config.RDO_SMTP_SERVER, Config.RDO_SMTP_PORT) as server:
+            with smtplib.SMTP(Config.RDO_SMTP_SERVER, Config.RDO_SMTP_PORT, timeout=15) as server:
                 server.starttls()
                 server.login(Config.RDO_EMAIL_USER, Config.RDO_EMAIL_PASSWORD)
                 server.send_message(msg)
@@ -844,7 +844,7 @@ class EmailService:
 
             msg.attach(MIMEText(body_html, "html", "utf-8"))
 
-            with smtplib.SMTP(Config.RDO_SMTP_SERVER, Config.RDO_SMTP_PORT) as server:
+            with smtplib.SMTP(Config.RDO_SMTP_SERVER, Config.RDO_SMTP_PORT, timeout=15) as server:
                 server.starttls()
                 server.login(Config.RDO_EMAIL_USER, Config.RDO_EMAIL_PASSWORD)
                 server.send_message(msg)
@@ -945,7 +945,7 @@ class EmailService:
             msg["Subject"] = f"[Bomtempo] {doc_label}"
             msg.attach(MIMEText(body_html, "html"))
 
-            with smtplib.SMTP(Config.RDO_SMTP_SERVER, Config.RDO_SMTP_PORT) as server:
+            with smtplib.SMTP(Config.RDO_SMTP_SERVER, Config.RDO_SMTP_PORT, timeout=15) as server:
                 server.starttls()
                 server.login(Config.RDO_EMAIL_USER, Config.RDO_EMAIL_PASSWORD)
                 server.send_message(msg)

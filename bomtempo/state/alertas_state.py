@@ -339,12 +339,15 @@ class AlertasState(rx.State):
         except Exception:
             pass
         loop = asyncio.get_running_loop()
-        rows, total = await loop.run_in_executor(
-            get_db_executor(), lambda: AlertService.get_history(page=page, per_page=30, client_id=client_id)
-        )
-        async with self:
-            self.history = [_norm_hist(h) for h in rows]
-            self.history_total = total
+        try:
+            rows, total = await loop.run_in_executor(
+                get_db_executor(), lambda: AlertService.get_history(page=page, per_page=30, client_id=client_id)
+            )
+            async with self:
+                self.history = [_norm_hist(h) for h in rows]
+                self.history_total = total
+        except Exception as e:
+            logger.error(f"history_prev: {e}")
 
     @rx.event(background=True)
     async def history_next(self):
@@ -361,12 +364,15 @@ class AlertasState(rx.State):
         except Exception:
             pass
         loop = asyncio.get_running_loop()
-        rows, total = await loop.run_in_executor(
-            get_db_executor(), lambda: AlertService.get_history(page=page, per_page=30, client_id=client_id)
-        )
-        async with self:
-            self.history = [_norm_hist(h) for h in rows]
-            self.history_total = total
+        try:
+            rows, total = await loop.run_in_executor(
+                get_db_executor(), lambda: AlertService.get_history(page=page, per_page=30, client_id=client_id)
+            )
+            async with self:
+                self.history = [_norm_hist(h) for h in rows]
+                self.history_total = total
+        except Exception as e:
+            logger.error(f"history_next: {e}")
 
     # ── Add subscription (async background) ──────────────────────────────────
 
@@ -390,16 +396,24 @@ class AlertasState(rx.State):
             pass
 
         loop = asyncio.get_running_loop()
-        ok, msg = await loop.run_in_executor(
-            get_db_executor(),
-            lambda: AlertService.add_email_subscription(
-                alert_type=alert_type,
-                contract=contract,
-                email=email,
-                created_by="admin",
-                client_id=client_id,
-            ),
-        )
+        try:
+            ok, msg = await loop.run_in_executor(
+                get_db_executor(),
+                lambda: AlertService.add_email_subscription(
+                    alert_type=alert_type,
+                    contract=contract,
+                    email=email,
+                    created_by="admin",
+                    client_id=client_id,
+                ),
+            )
+        except Exception as e:
+            logger.error(f"add_subscription executor: {e}")
+            async with self:
+                self.form_message = f"Erro ao salvar: {str(e)[:100]}"
+                self.form_is_error = True
+                self.is_adding = False
+            return
 
         if ok:
             audit_log(

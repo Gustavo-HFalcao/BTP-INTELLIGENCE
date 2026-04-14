@@ -142,15 +142,20 @@ class RDOHistoricoState(rx.State):
 
     @rx.event(background=True)
     async def load_emails(self):
+        import asyncio as _aio
         async with self:
             self.emails_loading = True
             self.emails_error = ""
-        from bomtempo.core.supabase_client import sb_select as _sel
+        loop = _aio.get_running_loop()
+        normalized: list = []
         try:
-            rows = _sel("email_sender", filters={"module": "rdo"}, order="created_at.asc", limit=50) or []
+            from bomtempo.core.supabase_client import sb_select as _sel
+            rows = await loop.run_in_executor(
+                get_db_executor(),
+                lambda: _sel("email_sender", filters={"module": "rdo"}, order="created_at.asc", limit=50) or [],
+            )
             normalized = [{"id": str(r.get("id", "")), "email": str(r.get("email", ""))} for r in rows]
         except Exception as e:
-            normalized = []
             async with self:
                 self.emails_error = f"Erro ao carregar e-mails: {str(e)[:80]}"
         async with self:
@@ -194,6 +199,56 @@ class RDOHistoricoState(rx.State):
         if url and url.startswith("http"):
             safe = _json.dumps(url)
             return rx.call_script(f"window.open({safe}, '_blank', 'noopener,noreferrer')")
+
+    @rx.event(background=True)
+    async def regenerate_pdf(self, id_rdo: str):
+        """Regenera o PDF de um RDO finalizado que não tem PDF ou teve falha na geração."""
+        if not id_rdo:
+            return
+        async with self:
+            yield rx.toast("⏳ Gerando PDF...", position="top-center", duration=5000)
+
+        loop = asyncio.get_running_loop()
+        try:
+            rdo_data = await loop.run_in_executor(
+                get_db_executor(),
+                lambda: RDOService.get_full_rdo(id_rdo),
+            )
+            if not rdo_data:
+                async with self:
+                    yield rx.toast("❌ RDO não encontrado.", position="top-center")
+                return
+
+            from bomtempo.core.executors import get_heavy_executor
+            pdf_result = await loop.run_in_executor(
+                get_heavy_executor(),
+                lambda: RDOService.generate_pdf(rdo_data, is_preview=False, id_rdo=id_rdo),
+            )
+            pdf_path = pdf_result[0] if pdf_result else ""
+            if not pdf_path:
+                async with self:
+                    yield rx.toast("❌ Falha ao gerar PDF. Tente novamente.", position="top-center")
+                return
+
+            pdf_url = await loop.run_in_executor(
+                get_heavy_executor(),
+                lambda: RDOService.upload_pdf(pdf_path, id_rdo),
+            )
+            await loop.run_in_executor(
+                get_db_executor(),
+                lambda: RDOService.finalize_rdo(id_rdo, pdf_path, pdf_url, rdo_data),
+            )
+            # Update local list so PDF button appears immediately
+            async with self:
+                self.rdos_list = [
+                    {**r, "pdf_url": pdf_url} if r.get("id_rdo") == id_rdo else r
+                    for r in self.rdos_list
+                ]
+                yield rx.toast("✅ PDF gerado com sucesso!", position="top-center")
+        except Exception as e:
+            logger.error(f"regenerate_pdf: {e}", exc_info=True)
+            async with self:
+                yield rx.toast(f"❌ Erro ao gerar PDF: {str(e)[:80]}", position="top-center")
 
     @rx.event(background=True)
     async def delete_draft_rdo(self, id_rdo: str):
@@ -291,6 +346,23 @@ def _rdo_card(rdo: Dict[str, Any]) -> rx.Component:
                             "border_radius": "5px",
                             "cursor": "pointer",
                         },
+                    ),
+                    rx.cond(
+                        rdo["status"] == "finalizado",
+                        rx.button(
+                            rx.icon("file-plus", size=14),
+                            "Gerar PDF",
+                            on_click=RDOHistoricoState.regenerate_pdf(rdo["id_rdo"]),
+                            size="1",
+                            style={
+                                "background": "rgba(249,115,22,0.10)",
+                                "border": "1px solid rgba(249,115,22,0.35)",
+                                "color": "#F97316",
+                                "border_radius": "5px",
+                                "cursor": "pointer",
+                            },
+                            title="PDF não disponível — clique para gerar",
+                        ),
                     ),
                 ),
                 rx.cond(

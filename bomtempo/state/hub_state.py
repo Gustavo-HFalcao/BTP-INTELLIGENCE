@@ -380,10 +380,16 @@ def _add_working_days_simple(d_start, n: int):
     return current
 
 
-def _compute_forecast_rows(cron_rows: list) -> list:
+def _compute_forecast_rows(cron_rows: list, reference_date=None) -> list:
     """
     Função pura: enriquece micro-atividades (e suas subs) com campos de forecast.
     Executada em run_in_executor (thread pool) pelo load_cronograma.
+
+    reference_date: âncora temporal para cálculos de SPI/EAC/desvio.
+      - None (padrão) → date.today() — hub ao vivo
+      - date explícita → usa essa data como "hoje efetivo", ex: data do RDO sendo processado
+      Atividades com last_rdo_date preenchida usam min(reference_date, last_rdo_date)
+      para evitar penalizar atividades cujo RDO ainda não chegou hoje.
 
     Correções v2:
     - pct da micro recalculado a partir das subs (mesmo bug que filtered_cron_rows já corrigia,
@@ -396,7 +402,7 @@ def _compute_forecast_rows(cron_rows: list) -> list:
     - subs incluídas no resultado, agrupadas abaixo da sua micro
     """
     from datetime import date
-    today = date.today()
+    today = reference_date if reference_date is not None else date.today()
     tol = 10.0
 
     # ── Pré-indexar subs por parent_id ───────────────────────────────────────
@@ -459,8 +465,20 @@ def _compute_forecast_rows(cron_rows: list) -> list:
             except ValueError: pass
 
         # ── FIX 1 + 6: dias úteis reais, não aproximação ──────────────────
-        if d_inicio and d_inicio <= today:
-            dias_uteis_decorridos = _working_days_between(d_inicio, today + __import__('datetime').timedelta(days=1))
+        # Se last_rdo_date disponível: usar como teto de "hoje efetivo" por atividade
+        # Garante que preenchimento retroativo não avança dias além da data do RDO
+        _lrd_s = r.get("last_rdo_date", "") or ""
+        if _lrd_s and len(_lrd_s) >= 10:
+            try:
+                _lrd = date.fromisoformat(_lrd_s[:10])
+                _effective_today = min(today, _lrd)
+            except ValueError:
+                _effective_today = today
+        else:
+            _effective_today = today
+
+        if d_inicio and d_inicio <= _effective_today:
+            dias_uteis_decorridos = _working_days_between(d_inicio, _effective_today + __import__('datetime').timedelta(days=1))
             # dia_atual = dia útil corrente dentro do plano
             dia_atual = min(dias_uteis_decorridos, dias_plan)
         else:
@@ -469,6 +487,8 @@ def _compute_forecast_rows(cron_rows: list) -> list:
 
         # FIX 6: pct_esperado baseado em dias úteis, não corridos
         pct_esperado = round(min(100.0, dia_atual / dias_plan * 100), 1) if dias_plan > 0 and dia_atual > 0 else 0.0
+        # EAC projetado a partir de _effective_today (não date.today())
+        _eac_base = _effective_today
 
         # prod_real: baseado em dias úteis reais decorridos (min 1 para evitar div/0)
         prod_real = exec_qty / max(1, dias_uteis_decorridos) if exec_qty > 0 else 0.0
@@ -481,13 +501,15 @@ def _compute_forecast_rows(cron_rows: list) -> list:
         elif total_qty > 0:
             exec_label = f"{exec_qty:.1f} de {total_qty:.1f}"
 
-        # ── FIX 4: EAC em dias úteis ───────────────────────────────────────
+        # ── FIX 4: EAC em dias úteis — ancorando em _effective_today ─────────
+        # Usa _effective_today (= min(today, last_rdo_date)) como base do EAC:
+        # preenchimento retroativo não projeta a partir de "hoje real" mas da data do RDO
         data_fim_prev_str = ""
         desvio_dias = 0
         if prod_real > 0 and total_qty > 0 and pct < 100:
             saldo = max(0.0, total_qty - exec_qty)
             dias_restantes_uteis = max(1, round(saldo / prod_real))
-            fim_prev = _add_working_days_simple(today, dias_restantes_uteis)
+            fim_prev = _add_working_days_simple(_eac_base, dias_restantes_uteis)
             data_fim_prev_str = fim_prev.isoformat()
             if d_termino:
                 # desvio em dias úteis também
@@ -1643,34 +1665,41 @@ class HubState(rx.State):
             normalized = []
 
         # ── Pré-computa forecast fora do lock (CPU-bound, evita bloquear state mutex) ──
-        import asyncio as _aio_fc
-        _fc_loop = _aio_fc.get_running_loop()
-        forecast_cache = await _fc_loop.run_in_executor(
-            None, lambda: _compute_forecast_rows(normalized)
-        )
+        _prev_contrato = contrato  # fallback
+        try:
+            import asyncio as _aio_fc
+            _fc_loop = _aio_fc.get_running_loop()
+            forecast_cache = await _fc_loop.run_in_executor(
+                None, lambda: _compute_forecast_rows(normalized)
+            )
 
-        async with self:
-            self.cron_rows = normalized
-            self._cron_forecast_cache = forecast_cache
-            self.cron_working_days_str = dias_uteis_str
-            _prev_contrato = self.cron_contrato
-            self.cron_contrato = contrato
-            self.cron_loading = False
+            async with self:
+                self.cron_rows = normalized
+                self._cron_forecast_cache = forecast_cache
+                self.cron_working_days_str = dias_uteis_str
+                _prev_contrato = self.cron_contrato
+                self.cron_contrato = contrato
+                self.cron_loading = False
 
-        # ── Update projetos_list (reactive var) with fresh progress from Supabase ──
-        # projetos_list é uma var Reflex reativa → atualizar ela dispara filtered_contratos
-        # → Progress Pulse no card reflete os mesmos dados do cronograma KPI.
-        if normalized and contrato:
-            progress_map = {
-                r["id"]: {"conclusao_pct": r.get("conclusao_pct", "0"), "peso_pct": r.get("peso_pct", "100")}
-                for r in normalized if r.get("id")
-            }
-            from bomtempo.state.global_state import GlobalState as _GS
-            yield _GS.update_projetos_list_progress(contrato, progress_map)
+            # ── Update projetos_list (reactive var) with fresh progress from Supabase ──
+            # projetos_list é uma var Reflex reativa → atualizar ela dispara filtered_contratos
+            # → Progress Pulse no card reflete os mesmos dados do cronograma KPI.
+            if normalized and contrato:
+                progress_map = {
+                    r["id"]: {"conclusao_pct": r.get("conclusao_pct", "0"), "peso_pct": r.get("peso_pct", "100")}
+                    for r in normalized if r.get("id")
+                }
+                from bomtempo.state.global_state import GlobalState as _GS
+                yield _GS.update_projetos_list_progress(contrato, progress_map)
 
-        # If switching contracts, load persisted insights from Supabase for the new one
-        if contrato and contrato != _prev_contrato:
-            yield HubState.load_persisted_insights(contrato)
+            # If switching contracts, load persisted insights from Supabase for the new one
+            if contrato and contrato != _prev_contrato:
+                yield HubState.load_persisted_insights(contrato)
+        except Exception as e:
+            logger.error(f"load_cronograma (forecast/state): {e}", exc_info=True)
+            async with self:
+                self.cron_loading = False
+                self.cron_rows = normalized
 
     def set_cron_fase_filter(self, value: str):
         self.cron_fase_filter = "" if self.cron_fase_filter == value else value
@@ -2148,12 +2177,21 @@ class HubState(rx.State):
                     "status_atividade": old_row.get("status_atividade", ""),
                     "tipo_medicao":     old_row.get("tipo_medicao", ""),
                 }
-            # Sempre busca GlobalState para client_id + fallback de contrato
+
+        # Sempre busca GlobalState para client_id + fallback de contrato (fora do lock)
+        try:
             gs = await self.get_state(GlobalState)
-            if not contrato:
-                contrato = str(gs.selected_contrato or gs.selected_project or "")
-            client_id = str(gs.current_client_id or "")
-            username = str(gs.current_user_name or "")
+            async with self:
+                if not contrato:
+                    contrato = str(gs.selected_contrato or gs.selected_project or "")
+                client_id = str(gs.current_client_id or "")
+                username = str(gs.current_user_name or "")
+        except Exception as e:
+            logger.error(f"save_cron_activity get_state error: {e}", exc_info=True)
+            async with self:
+                self.cron_saving = False
+                self.cron_error = "Erro ao obter estado. Tente novamente."
+            return
 
         try:
             data: Dict[str, Any] = {
@@ -3058,10 +3096,19 @@ Retorne SOMENTE JSON válido, sem texto antes/depois, sem markdown:
             upload_category = str(self.audit_upload_category)
             upload_url = str(self.audit_upload_url).strip()
             upload_legenda = str(self.audit_upload_legenda).strip()
+
+        try:
             gs = await self.get_state(GlobalState)
             autor = str(gs.current_user_name or "")
-            if not contrato:
-                contrato = str(gs.selected_contrato or gs.selected_project or "")
+            async with self:
+                if not contrato:
+                    contrato = str(gs.selected_contrato or gs.selected_project or "")
+        except Exception as e:
+            logger.error(f"save_audit_image get_state error: {e}", exc_info=True)
+            async with self:
+                self.audit_uploading = False
+                self.audit_upload_error = "Erro ao obter estado. Tente novamente."
+            return
 
         from datetime import date as _date
         try:
@@ -3250,10 +3297,19 @@ Retorne SOMENTE JSON válido, sem texto antes/depois, sem markdown:
             import re as _re
             raw_text = f"{entry_titulo} {entry_descricao}"
             entry_mencoes = list(set(_re.findall(r"@(\w+)", raw_text)))
+
+        try:
             gs = await self.get_state(GlobalState)
             autor = str(gs.current_user_name or "")
-            if not contrato:
-                contrato = str(gs.selected_contrato or gs.selected_project or "")
+            async with self:
+                if not contrato:
+                    contrato = str(gs.selected_contrato or gs.selected_project or "")
+        except Exception as e:
+            logger.error(f"submit_timeline_entry get_state error: {e}", exc_info=True)
+            async with self:
+                self.tl_submitting = False
+                self.tl_error = "Erro ao obter estado. Tente novamente."
+            return
 
         try:
             tl_result = sb_insert("hub_timeline", {
@@ -3414,12 +3470,14 @@ Retorne SOMENTE JSON válido, sem texto antes/depois, sem markdown:
 
         loop = asyncio.get_running_loop()
 
-        # Ensure cronograma is loaded for this contract
+        # Ensure cronograma is loaded (and fresh) for this contract
+        # When triggered by a new RDO submission (rdo_id provided), always reload to pick up updated exec_qty
         async with self:
             _cron_rows = list(self.cron_rows)
             _cron_contrato = self.cron_contrato
 
-        if not _cron_rows or _cron_contrato != _contrato:
+        needs_reload = not _cron_rows or _cron_contrato != _contrato or bool(rdo_id)
+        if needs_reload:
             yield HubState.load_cronograma(_contrato)
             await asyncio.sleep(2.0)
             async with self:
@@ -3479,11 +3537,18 @@ Retorne SOMENTE JSON válido, sem texto antes/depois, sem markdown:
             except Exception:
                 return []
 
-        last_rdo, prod_rows, hist_rows = await asyncio.gather(
-            loop.run_in_executor(get_db_executor(), _fetch_last_rdo),
-            loop.run_in_executor(get_db_executor(), _fetch_production_data),
-            loop.run_in_executor(get_db_executor(), _fetch_hist_data),
-        )
+        try:
+            last_rdo, prod_rows, hist_rows = await asyncio.gather(
+                loop.run_in_executor(get_db_executor(), _fetch_last_rdo),
+                loop.run_in_executor(get_db_executor(), _fetch_production_data),
+                loop.run_in_executor(get_db_executor(), _fetch_hist_data),
+            )
+        except Exception as _gather_err:
+            logger.error(f"generate_agente_insights: db gather falhou: {_gather_err}")
+            async with self:
+                self.agente_loading = False
+                self.agente_error = "Erro ao buscar dados. Tente novamente."
+            return
 
         # Build context for AI
         today_dt = date.today()
@@ -3523,15 +3588,18 @@ Retorne SOMENTE JSON válido, sem texto antes/depois, sem markdown:
         # Last RDO summary — from rdo_master (correct table)
         rdo_text = ""
         if last_rdo:
+            obs = (last_rdo.get('observacoes') or '').strip()
+            orient = (last_rdo.get('orientacao') or '').strip()
             rdo_text = (
-                f"Data: {last_rdo.get('data','')}\n"
+                f"Data de referência: {last_rdo.get('data','')}\n"
                 f"Equipe alocada: {last_rdo.get('equipe_alocada','')}\n"
                 f"Condição climática: {last_rdo.get('condicao_climatica','')}\n"
                 f"Houve chuva: {last_rdo.get('houve_chuva','')}\n"
                 f"Houve interrupção: {last_rdo.get('houve_interrupcao','')}\n"
                 f"Motivo interrupção: {last_rdo.get('motivo_interrupcao','')}\n"
-                f"Observações: {last_rdo.get('observacoes','')}\n"
-                f"Houve acidente: {last_rdo.get('houve_acidente','')}\n"
+                f"Observações: {obs or 'Nenhuma'}\n"
+                + (f"⚠️ ORIENTAÇÕES/PENDÊNCIAS DO MESTRE: {orient}\n" if orient else "")
+                + f"Houve acidente: {last_rdo.get('houve_acidente','')}\n"
             )
 
         # ── Compute derived metrics for richer prompt context ─────────────────
@@ -3582,7 +3650,38 @@ Retorne SOMENTE JSON válido, sem texto antes/depois, sem markdown:
                     pass
 
         spi_geral = round(realizado_peso / total_peso, 2) if total_peso > 0 else None
-        spi_line = f"SPI estimado do projeto: {spi_geral}" if spi_geral is not None else "SPI: dados insuficientes"
+        # Calcular SPI corrigido: apenas sobre atividades que já deveriam ter iniciado
+        # Atividades futuras (inicio > hoje) ainda NÃO deveriam estar em andamento — excluir do SPI
+        active_peso = 0.0
+        active_realizado = 0.0
+        for r in micros:
+            ini_iso = r.get("inicio_previsto", "")[:10] or r.get("inicio_iso", "")[:10]
+            if not ini_iso:
+                continue
+            try:
+                ini_dt = _date_cls.fromisoformat(ini_iso)
+            except ValueError:
+                continue
+            if ini_dt > today_dt:
+                continue  # atividade futura — não penaliza SPI
+            try:
+                peso_val = float(r.get("peso_pct", "0") or "0")
+                pct_val = float(r.get("conclusao_pct", "0") or "0")
+                active_peso += peso_val
+                active_realizado += peso_val * pct_val / 100.0
+            except (ValueError, TypeError):
+                pass
+        if active_peso > 0:
+            spi_ativo = round(active_realizado / active_peso, 2)
+            spi_line = (
+                f"SPI das atividades ativas (já iniciadas): {spi_ativo} "
+                f"(IMPORTANTE: {len([r for r in micros if (r.get('inicio_previsto','')[:10] or r.get('inicio_iso','')[:10]) > today_dt.isoformat()])} "
+                f"atividades são futuras e NÃO devem ser penalizadas no SPI)"
+            )
+        elif spi_geral is not None:
+            spi_line = f"SPI global do projeto: {spi_geral} (inclui atividades ainda não iniciadas)"
+        else:
+            spi_line = "SPI: dados insuficientes"
         late_summary = "\n".join(late_lines[:12]) if late_lines else "  Nenhuma atividade com prazo vencido detectada."
         ahead_summary = "\n".join(ahead_lines[:5]) if ahead_lines else "  Nenhuma."
         not_started_summary = "\n".join(f"  - {n}" for n in not_started_critical[:5]) if not_started_critical else "  Nenhuma."
@@ -3724,6 +3823,8 @@ MISSÃO: gerar entre 4 e 6 insights CIRÚRGICOS e ACIONÁVEIS. O gestor deve ler
 5. Não invente dados. Se estimar, sinalize com "(estimado)". Se os dados são insuficientes para o cálculo, diga qual informação falta
 6. O campo "atividade" deve ser o nome EXATO da atividade do cronograma (copie literalmente), ou '' se o insight for geral
 7. Insights POSITIVOS são tão importantes quanto negativos — reconheça e capitalize sobre o que está indo bem
+8. CRÍTICO — NÃO confunda ausência de dados com atraso: atividades com início_previsto > hoje são FUTURAS e não estão atrasadas. Só considere atrasada uma atividade cujo termino_previsto < hoje E pct < 100. Atividades futuras sem exec_qty são NORMAIS — obra não começou essa fase ainda.
+9. SPI do contexto abaixo é calculado APENAS sobre atividades já iniciadas (início ≤ hoje). Não extrapole para "equipe insuficiente" se as atividades ativas estão todas concluídas ou no ritmo.
 
 ═══ CONTEXTO DO PROJETO ═══
 Contrato: {_contrato}
@@ -3911,7 +4012,13 @@ Tipos:
                 logger.warning(f"agente_insights load failed: {_e}")
                 return None
 
-        row = await loop.run_in_executor(get_db_executor(), _fetch)
+        try:
+            row = await loop.run_in_executor(get_db_executor(), _fetch)
+        except Exception as e:
+            logger.error(f"load_persisted_insights executor error: {e}", exc_info=True)
+            async with self:
+                self.agente_loading = False
+            return
 
         if not row:
             # No saved insights for this contract — leave empty so user can generate

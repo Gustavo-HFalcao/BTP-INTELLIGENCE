@@ -392,49 +392,55 @@ class FinState(rx.State):
             except Exception:
                 pass
 
-        ok, result = FinService.save_custo(
-            contrato=contrato,
-            categoria_id=cat_id,
-            categoria_nome=cat_nome,
-            empresa=empresa,
-            descricao=descricao,
-            valor_previsto=prev_val,
-            valor_executado=exec_val,
-            status=status,
-            data_custo=data,
-            atividade_id=atividade_id,
-            custo_id=custo_id,
-            client_id=client_id,
-        )
-
-        if not ok:
-            async with self:
-                self.fin_error = f"Erro ao salvar: {result[:120]}"
-                self.fin_saving = False
-            return
-
-        # Reload custos list + recompute all charts
-        custos = FinService.load_custos(contrato)
-        scurve = FinService.compute_scurve(custos)
-        by_cat = FinService.compute_by_categoria(custos)
-        kpis = FinService.compute_kpis(custos)
-        forecast = FinService.compute_evm(custos, avg_pct)
-
-        async with self:
-            self.fin_custos = custos
-            self.fin_scurve = scurve
-            self.fin_by_cat = by_cat
-            self.fin_kpis = kpis
-            self.fin_forecast = forecast
-            self.fin_saving = False
-            self.fin_show_dialog = False
-
-        # Sync GlobalState financeiro_list for sidebar dashboard
         try:
-            from bomtempo.state.global_state import GlobalState
-            yield GlobalState.sync_financeiro_list
+            ok, result = FinService.save_custo(
+                contrato=contrato,
+                categoria_id=cat_id,
+                categoria_nome=cat_nome,
+                empresa=empresa,
+                descricao=descricao,
+                valor_previsto=prev_val,
+                valor_executado=exec_val,
+                status=status,
+                data_custo=data,
+                atividade_id=atividade_id,
+                custo_id=custo_id,
+                client_id=client_id,
+            )
+
+            if not ok:
+                async with self:
+                    self.fin_error = f"Erro ao salvar: {result[:120]}"
+                    self.fin_saving = False
+                return
+
+            # Reload custos list + recompute all charts
+            custos = FinService.load_custos(contrato)
+            scurve = FinService.compute_scurve(custos)
+            by_cat = FinService.compute_by_categoria(custos)
+            kpis = FinService.compute_kpis(custos)
+            forecast = FinService.compute_evm(custos, avg_pct)
+
+            async with self:
+                self.fin_custos = custos
+                self.fin_scurve = scurve
+                self.fin_by_cat = by_cat
+                self.fin_kpis = kpis
+                self.fin_forecast = forecast
+                self.fin_saving = False
+                self.fin_show_dialog = False
+
+            # Sync GlobalState financeiro_list for sidebar dashboard
+            try:
+                from bomtempo.state.global_state import GlobalState
+                yield GlobalState.sync_financeiro_list
+            except Exception as e:
+                logger.warning(f"sync_financeiro_list skipped: {e}")
         except Exception as e:
-            logger.warning(f"sync_financeiro_list skipped: {e}")
+            logger.error(f"save_fin_custo error: {e}", exc_info=True)
+            async with self:
+                self.fin_saving = False
+                self.fin_error = f"Erro inesperado: {str(e)[:120]}"
 
     # ═════════════════════════════════════════════════════════════════════════
     # Delete

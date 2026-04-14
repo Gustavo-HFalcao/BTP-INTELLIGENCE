@@ -104,7 +104,7 @@ async def get_forecast(lat: float = LAT, lon: float = LON) -> Optional[Dict[str,
     }
 
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=8.0) as client:
             response = await client.get(url, params=params, timeout=5.0)
             response.raise_for_status()
             data = response.json()
@@ -203,7 +203,7 @@ async def get_coordinates(city_name: str) -> Optional[Dict[str, Any]]:
     if city_name.strip() not in candidates:
         candidates.append(city_name.strip())
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=12.0) as client:
         for candidate in candidates:
             if not candidate or len(candidate) < 3:
                 continue

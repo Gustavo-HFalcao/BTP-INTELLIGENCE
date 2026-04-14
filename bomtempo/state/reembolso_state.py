@@ -680,60 +680,67 @@ class ReembolsoState(rx.State):
             logger.error(f"❌ analyze_receipt error: {e}")
 
         # FASE 3: validar e preencher campos
-        async with self:
-            self.ai_extracted = ai_result or {}
-            self.ai_confidence = float(ai_result.get("confidence", 0) or 0)
+        try:
+            async with self:
+                self.ai_extracted = ai_result or {}
+                self.ai_confidence = float(ai_result.get("confidence", 0) or 0)
 
-            # Montar insight text para o PDF
-            if ai_result:
-                parts = []
-                if ai_result.get("fuel_type"):
-                    parts.append(f"Combustível: {ai_result['fuel_type']}")
-                if ai_result.get("liters"):
-                    parts.append(f"Litros: {ai_result['liters']:.3f}L")
-                if ai_result.get("price_per_liter"):
-                    parts.append(f"Preço/L: R${ai_result['price_per_liter']:.3f}")
-                if ai_result.get("total"):
-                    parts.append(f"Total NF: R${ai_result['total']:.2f}")
-                if ai_result.get("station"):
-                    parts.append(f"Posto: {ai_result['station']}")
-                if ai_result.get("date"):
-                    parts.append(f"Data NF: {ai_result['date']}")
-                conf = self.ai_confidence
-                parts.append(f"Confiança IA: {conf:.0%}")
-                self.ai_insight_text = " | ".join(parts)
+                # Montar insight text para o PDF
+                if ai_result:
+                    parts = []
+                    if ai_result.get("fuel_type"):
+                        parts.append(f"Combustível: {ai_result['fuel_type']}")
+                    if ai_result.get("liters"):
+                        parts.append(f"Litros: {ai_result['liters']:.3f}L")
+                    if ai_result.get("price_per_liter"):
+                        parts.append(f"Preço/L: R${ai_result['price_per_liter']:.3f}")
+                    if ai_result.get("total"):
+                        parts.append(f"Total NF: R${ai_result['total']:.2f}")
+                    if ai_result.get("station"):
+                        parts.append(f"Posto: {ai_result['station']}")
+                    if ai_result.get("date"):
+                        parts.append(f"Data NF: {ai_result['date']}")
+                    conf = self.ai_confidence
+                    parts.append(f"Confiança IA: {conf:.0%}")
+                    self.ai_insight_text = " | ".join(parts)
 
-                # Pré-preencher campos se vazios
-                if not self.litros and ai_result.get("liters"):
-                    self.litros = f"{ai_result['liters']:.3f}"
-                if not self.valor_litro and ai_result.get("price_per_liter"):
-                    self.valor_litro = f"{ai_result['price_per_liter']:.3f}"
-                if not self.valor_total and ai_result.get("total"):
-                    self.valor_total = f"{ai_result['total']:.2f}"
-                if not self.combustivel and ai_result.get("fuel_type"):
-                    self.combustivel = ai_result["fuel_type"]
-                if not self.data_abastecimento and ai_result.get("date"):
-                    self.data_abastecimento = ai_result["date"]
+                    # Pré-preencher campos se vazios
+                    if not self.litros and ai_result.get("liters"):
+                        self.litros = f"{ai_result['liters']:.3f}"
+                    if not self.valor_litro and ai_result.get("price_per_liter"):
+                        self.valor_litro = f"{ai_result['price_per_liter']:.3f}"
+                    if not self.valor_total and ai_result.get("total"):
+                        self.valor_total = f"{ai_result['total']:.2f}"
+                    if not self.combustivel and ai_result.get("fuel_type"):
+                        self.combustivel = ai_result["fuel_type"]
+                    if not self.data_abastecimento and ai_result.get("date"):
+                        self.data_abastecimento = ai_result["date"]
 
-            # Validar
-            user_data = self._build_data()
-            validation = FuelService.validate_data(user_data, ai_result)
-            self.validation_errors = validation["errors"]
-            self.validation_warnings = validation["warnings"]
-            self.ai_verified = validation["ai_verified"]
-            self.ai_attempt_count += 1
-            self.analysis_done = True
-            self.is_analyzing = False
-            self._recalculate_score()
+                # Validar
+                user_data = self._build_data()
+                validation = FuelService.validate_data(user_data, ai_result)
+                self.validation_errors = validation["errors"]
+                self.validation_warnings = validation["warnings"]
+                self.ai_verified = validation["ai_verified"]
+                self.ai_attempt_count += 1
+                self.analysis_done = True
+                self.is_analyzing = False
+                self._recalculate_score()
 
-            if validation["valid"] and ai_result:
-                yield rx.toast("✅ Nota fiscal verificada pela IA!", position="top-center")
-            elif not validation["valid"]:
-                yield rx.toast(
-                    "⚠️ Divergência encontrada — verifique os campos.", position="top-center"
-                )
-            else:
-                yield rx.toast("ℹ️ Análise concluída. Verifique os avisos.", position="top-center")
+                if validation["valid"] and ai_result:
+                    yield rx.toast("✅ Nota fiscal verificada pela IA!", position="top-center")
+                elif not validation["valid"]:
+                    yield rx.toast(
+                        "⚠️ Divergência encontrada — verifique os campos.", position="top-center"
+                    )
+                else:
+                    yield rx.toast("ℹ️ Análise concluída. Verifique os avisos.", position="top-center")
+        except Exception as e:
+            logger.error(f"❌ analyze_receipt fase3 error: {e}", exc_info=True)
+            async with self:
+                self.is_analyzing = False
+                self.analysis_done = True
+                yield rx.toast("❌ Erro na análise. Tente novamente.", position="top-center")
 
     # ── Submit (com validação guiada) ──────────────────────────────────────────
 

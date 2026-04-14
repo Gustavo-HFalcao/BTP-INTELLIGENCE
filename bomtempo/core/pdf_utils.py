@@ -81,8 +81,30 @@ def html_to_pdf(
                 browser_proc.append(browser.process)
             try:
                 page = await browser.new_page()
-                # timeout=30000ms evita hang indefinido por Google Fonts ou rede lenta
-                await page.set_content(html, wait_until="networkidle", timeout=30000)
+
+                # Bloqueia requests externas (Google Fonts, Tailwind CDN, etc.)
+                # Em produção o servidor pode não ter acesso à internet, e networkidle
+                # nunca dispara enquanto essas requests ficam pendentes → timeout de 90s.
+                # O PDF é gerado corretamente com as fontes do sistema mesmo sem elas.
+                _BLOCKED_HOSTS = (
+                    "fonts.googleapis.com",
+                    "fonts.gstatic.com",
+                    "cdn.tailwindcss.com",
+                    "unpkg.com",
+                    "jsdelivr.net",
+                    "cdnjs.cloudflare.com",
+                )
+                async def _block_external(route):
+                    if any(h in route.request.url for h in _BLOCKED_HOSTS):
+                        await route.abort()
+                    else:
+                        await route.continue_()
+                await page.route("**/*", _block_external)
+
+                # domcontentloaded: não espera requests externas bloqueadas acima.
+                # load seria suficiente para HTML inline, mas domcontentloaded é mais rápido
+                # e PDFs não dependem de lazy-loaded assets.
+                await page.set_content(html, wait_until="domcontentloaded", timeout=15000)
                 _default_header = (
                     '<div style="width:100%;box-sizing:border-box;padding:0 48px;'
                     'font-family:Arial,sans-serif;font-size:8px;color:#9CA3AF;'

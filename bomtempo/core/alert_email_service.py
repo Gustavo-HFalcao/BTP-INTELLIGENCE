@@ -239,7 +239,7 @@ def _send_via_smtp(recipients: List[str], subject: str, html_body: str) -> bool:
         msg["To"] = ", ".join(recipients)
         msg.attach(MIMEText(html_body, "html", "utf-8"))
 
-        with smtplib.SMTP(Config.RDO_SMTP_SERVER, Config.RDO_SMTP_PORT) as server:
+        with smtplib.SMTP(Config.RDO_SMTP_SERVER, Config.RDO_SMTP_PORT, timeout=15) as server:
             server.ehlo()
             server.starttls()
             server.login(Config.RDO_EMAIL_USER, Config.RDO_EMAIL_PASSWORD)

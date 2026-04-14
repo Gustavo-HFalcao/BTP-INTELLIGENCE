@@ -248,10 +248,13 @@ def _apply_watermark(img_bytes: bytes, meta: Dict[str, Any], content_type: str =
       contrato / mestre       – RDO metadata
       map_bytes               – bytes|None OSM tile thumbnail
     """
-    # ── Safety cap: fotos de celular chegam em 3024×4032px (12MP) ou mais.
-    # Processar na resolução original usa 200–400MB de RAM e pode causar OOM.
-    # 2048px no lado maior preserva qualidade mais que suficiente para evidência.
-    _MAX_DIM = 2048
+    # ── Resolução padronizada de saída:
+    # 1. Cap de processamento (anti-OOM): limita ao processar a 2048px no lado maior.
+    # 2. Resolução de saída final: normaliza TODAS as imagens para 1920px no lado maior.
+    #    Garante watermark consistente independente da câmera/resolução original.
+    #    Imagens menores que 1920px são mantidas sem upscale.
+    _MAX_DIM = 2048       # cap de processamento (anti-OOM)
+    _OUTPUT_DIM = 1920    # resolução de saída normalizada
 
     try:
         from PIL import Image, ImageDraw, ImageFont
@@ -416,8 +419,17 @@ def _apply_watermark(img_bytes: bytes, meta: Dict[str, Any], content_type: str =
         result.paste(img, (0, 0))
         result.paste(panel, (0, h), panel)
 
+        # ── Normaliza resolução de saída para _OUTPUT_DIM no lado maior da FOTO.
+        # O painel do watermark cresce proporcionalmente.
+        # Imagens menores que _OUTPUT_DIM não são ampliadas (sem upscale).
+        if w > _OUTPUT_DIM:
+            scale = _OUTPUT_DIM / w
+            out_w = _OUTPUT_DIM
+            out_h = int(total_h * scale)
+            result = result.resize((out_w, out_h), Image.LANCZOS)
+
         buf = io.BytesIO()
-        result.convert("RGB").save(buf, format="JPEG", quality=92, optimize=True)
+        result.convert("RGB").save(buf, format="JPEG", quality=88, optimize=True)
         return buf.getvalue()
     except Exception as e:
         logger.error(f"❌ Watermark falhou (retornando original): {e}")
@@ -1606,10 +1618,29 @@ class RDOService:
     @staticmethod
     def _build_ai_prompt(rdo_data: Dict[str, Any]) -> list:
         """Build the Claude messages list for RDO analysis."""
-        acts = "\n".join(
-            f"  - {r.get('atividade', r.get('descricao','?'))} ({r.get('progresso_percentual',0)}%) [{r.get('status','Em andamento')}]"
-            for r in rdo_data.get("atividades", [])[:10]
-        )
+        def _fmt_act(r: Dict[str, Any]) -> str:
+            nome = r.get('atividade') or r.get('descricao') or '?'
+            status = r.get('status', 'Em andamento')
+            pct_raw = str(r.get('progresso_percentual', '') or '').strip()
+            efetivo = r.get('efetivo') or r.get('efetivo_alocado') or 0
+            exec_qty = r.get('exec_qty') or r.get('producao_dia') or 0
+            total_qty = r.get('total_qty', 0) or 0
+            unidade = r.get('unidade', '') or ''
+            # Marco: pct == 0 mas status concluído → trata como binário
+            if pct_raw in ('0', '0.0', '') and status in ('Concluído', 'Concluido', 'concluido'):
+                sufixo = '✅ Marco concluído'
+            elif exec_qty and total_qty:
+                sufixo = f'{exec_qty}/{total_qty} {unidade}'.strip() + f' — {pct_raw}%' if pct_raw else ''
+            elif pct_raw and pct_raw not in ('0', '0.0'):
+                sufixo = f'{pct_raw}%'
+            elif pct_raw in ('0', '0.0', ''):
+                sufixo = '⬜ Marco / Não iniciado'
+            else:
+                sufixo = f'{pct_raw}%'
+            equipe_info = f' ({efetivo} pessoa(s))' if efetivo else ''
+            return f'  - {nome}: {sufixo} [{status}]{equipe_info}'
+
+        acts = "\n".join(_fmt_act(r) for r in rdo_data.get("atividades", [])[:10])
         checkin_ts   = rdo_data.get("checkin_timestamp") or ""
         checkout_ts  = rdo_data.get("checkout_timestamp") or ""
         checkin_end  = rdo_data.get("checkin_endereco") or ""
@@ -1632,6 +1663,7 @@ GPS:{gps_info or ' não registrado'}
 Fotos de evidência: {n_fotos}
 Serviços Executados:\n{acts or '  (não informados)'}
 Observações: {(rdo_data.get('observacoes') or 'Nenhuma')[:400]}
+Orientações/Pendências: {(rdo_data.get('orientacao') or 'Nenhuma')[:300]}
 
 Responda em português, de forma direta e objetiva, com as seções:
 ## 📊 RESUMO EXECUTIVO

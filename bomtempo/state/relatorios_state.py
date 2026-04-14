@@ -340,8 +340,13 @@ class RelatoriosState(rx.State):
             "disciplinas": disciplinas,
         }
 
-        messages = ReportService.build_ai_prompt(abordagem, data)
-        full_text = await self._stream_ai_text(messages)
+        try:
+            messages = ReportService.build_ai_prompt(abordagem, data)
+            full_text = await self._stream_ai_text(messages)
+        except Exception as _e:
+            logger.error(f"generate_ai_report: stream falhou: {_e}")
+            yield RelatoriosState.reset_generating_ai
+            return
 
         # Generate PDF + save to Supabase
         if full_text:
@@ -399,6 +404,17 @@ class RelatoriosState(rx.State):
             self.is_generating_ai = False
             self.is_streaming = False
 
+    @rx.event(background=True)
+    async def reset_generating_ai(self):
+        """Safety valve: reseta is_generating_ai/is_streaming se o handler falhar."""
+        async with self:
+            self.is_generating_ai = False
+            self.is_streaming = False
+            self.is_generating_custom = False
+            self.is_generating_static = False
+            if not self.error_msg:
+                self.error_msg = "Erro inesperado ao gerar relatório. Tente novamente."
+
     # ── Generate Custom Report (Chatbox) ──────────────────────────────────────
 
     @rx.event(background=True)
@@ -446,8 +462,13 @@ class RelatoriosState(rx.State):
             "disciplinas": disciplinas,
         }
 
-        messages = ReportService.build_ai_prompt("custom", data, custom_instruction=prompt)
-        full_text = await self._stream_ai_text(messages)
+        try:
+            messages = ReportService.build_ai_prompt("custom", data, custom_instruction=prompt)
+            full_text = await self._stream_ai_text(messages)
+        except Exception as _e:
+            logger.error(f"generate_custom_report: stream falhou: {_e}")
+            yield RelatoriosState.reset_generating_ai
+            return
 
         if full_text:
             loop = asyncio.get_running_loop()

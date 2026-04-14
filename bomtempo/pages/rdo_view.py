@@ -112,25 +112,43 @@ class RDOViewState(rx.State):
         # Atividades (legacy manual list — kept for display)
         atividades_raw = data.get("atividades") or []
         at_list = []
-        at_names = set()
+        at_names_seen: set = set()
         for a in atividades_raw:
             desc = str(a.get("atividade") or a.get("descricao") or a.get("description") or "")
-            pct = str(a.get("progresso_percentual") or a.get("percentual_conclusao") or a.get("pct") or "")
+            if not desc:
+                continue
+            key = desc.lower().strip()
+            if key in at_names_seen:
+                continue  # deduplicate — same activity stored multiple times
+            at_names_seen.add(key)
+            pct_raw = str(a.get("progresso_percentual") or a.get("percentual_conclusao") or a.get("pct") or "")
+            pct = pct_raw.strip().rstrip("%")
+            efetivo = str(a.get("efetivo") or a.get("efetivo_alocado") or "")
             at_list.append({
                 "descricao": desc,
                 "status": str(a.get("status") or ""),
                 "percentual": pct,
+                "efetivo": efetivo,
             })
-            if desc:
-                at_names.add(desc.lower().strip())
+
+        def _fmt_date_inner(v: str) -> str:
+            if len(v) == 10 and v[4] == "-":
+                try:
+                    p = v.split("-")
+                    return f"{p[2]}/{p[1]}/{p[0]}"
+                except Exception:
+                    pass
+            return v
 
         # Load cronograma context from hub_atividades for the contract
         contrato_for_cron = str(data.get("contrato", "") or "")
+        # Names of activities reported in this RDO (for smart filtering)
+        rdo_ativ_names = {a["descricao"].lower().strip() for a in at_list if a["descricao"]}
         cron_list: list = []
         if contrato_for_cron:
             try:
                 from bomtempo.core.supabase_client import sb_select as _sb_sel
-                from datetime import date as _date
+                from datetime import date as _date, timedelta as _td_inner
                 hub_rows = await loop.run_in_executor(
                     None,
                     lambda: _sb_sel(
@@ -140,8 +158,15 @@ class RDOViewState(rx.State):
                         limit=200,
                     ),
                 )
-                today = _date.today()
-                for r in (hub_rows or []):
+                # Âncora temporal = data do RDO, não date.today()
+                # Evita que RDOs retroativos ou antigos mostrem EAC distorcido
+                _rdo_date_str = str(data.get("data", "") or "")[:10]
+                try:
+                    today = _date.fromisoformat(_rdo_date_str) if _rdo_date_str else _date.today()
+                except ValueError:
+                    today = _date.today()
+
+                def _build_cron_entry(r: dict) -> dict:
                     nivel = str(r.get("nivel", "macro") or "macro")
                     pct_val = int(r.get("conclusao_pct", 0) or 0)
                     total_qty = float(r.get("total_qty", 0) or 0)
@@ -150,10 +175,7 @@ class RDOViewState(rx.State):
                     t_iso = str(r.get("termino_previsto", "") or "")[:10]
                     s_iso = str(r.get("inicio_previsto", "") or "")[:10]
                     unidade = str(r.get("unidade", "") or "")
-                    # EAC calculation
-                    eac_str = ""
-                    desvio_str = ""
-                    tendencia = ""
+                    eac_str = desvio_str = tendencia = ""
                     if exec_qty > 0 and total_qty > 0 and dias_plan > 0 and s_iso:
                         try:
                             d_inicio = _date.fromisoformat(s_iso)
@@ -172,16 +194,14 @@ class RDOViewState(rx.State):
                                 saldo_qty = max(0.0, total_qty - exec_qty)
                                 if prod_real > 0 and saldo_qty > 0:
                                     dias_restantes = int(saldo_qty / prod_real * 1.4)
-                                    eac_date = today
-                                    from datetime import timedelta
-                                    eac_date = today + timedelta(days=int(dias_restantes * 7 / 5))
+                                    eac_date = today + _td_inner(days=int(dias_restantes * 7 / 5))
                                     eac_str = eac_date.strftime("%d/%m/%Y")
                                 elif pct_val >= 100:
                                     tendencia = "concluida"
                                     eac_str = _fmt_date_inner(t_iso) if t_iso else ""
                         except Exception:
                             pass
-                    cron_list.append({
+                    return {
                         "atividade": str(r.get("atividade", "") or ""),
                         "fase_macro": str(r.get("fase_macro", "") or ""),
                         "responsavel": str(r.get("responsavel", "") or ""),
@@ -192,18 +212,18 @@ class RDOViewState(rx.State):
                         "eac": eac_str,
                         "termino_previsto": _fmt_date_inner(t_iso) if t_iso else "",
                         "exec_label": f"{exec_qty:.1f}/{total_qty:.1f} {unidade}".strip() if total_qty > 0 else "",
-                    })
+                    }
+
+                all_entries = [_build_cron_entry(r) for r in (hub_rows or [])]
+
+                # Smart filter: prefer activities that match what this RDO reported
+                if rdo_ativ_names and all_entries:
+                    matched = [e for e in all_entries if e["atividade"].lower().strip() in rdo_ativ_names]
+                    cron_list = matched if matched else all_entries
+                else:
+                    cron_list = all_entries
             except Exception:
                 pass
-
-        def _fmt_date_inner(v: str) -> str:
-            if len(v) == 10 and v[4] == "-":
-                try:
-                    p = v.split("-")
-                    return f"{p[2]}/{p[1]}/{p[0]}"
-                except Exception:
-                    pass
-            return v
 
         def _fmt_date(val: str) -> str:
             v = str(val or "")[:10]
@@ -214,6 +234,19 @@ class RDOViewState(rx.State):
                 except Exception:
                     pass
             return v
+
+        def _fmt_ts(val: str) -> str:
+            """Converte ISO UTC timestamp → DD/MM/YYYY HH:MM (BRT, UTC-3)."""
+            from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+            v = str(val or "")
+            if not v or len(v) < 16:
+                return v
+            try:
+                dt = _dt.fromisoformat(v.replace("Z", "+00:00")[:32])
+                brt = dt.astimezone(_tz(_td(hours=-3)))
+                return brt.strftime("%d/%m/%Y %H:%M")
+            except Exception:
+                return v[:16].replace("T", " ")
 
         async with self:
             self.rdo_id                = str(data.get("id_rdo", ""))
@@ -229,11 +262,11 @@ class RDOViewState(rx.State):
             self.rdo_orientacao        = str(data.get("orientacao") or "")
             self.rdo_houve_chuva       = "Sim" if data.get("houve_chuva") else "Não"
             self.rdo_checkin_endereco  = str(data.get("checkin_endereco") or "")
-            self.rdo_checkin_timestamp = str(data.get("checkin_timestamp") or "")
+            self.rdo_checkin_timestamp = _fmt_ts(str(data.get("checkin_timestamp") or ""))
             self.rdo_checkin_lat       = str(data.get("checkin_lat") or "")
             self.rdo_checkin_lng       = str(data.get("checkin_lng") or "")
             self.rdo_checkout_endereco = str(data.get("checkout_endereco") or "")
-            self.rdo_checkout_timestamp = str(data.get("checkout_timestamp") or "")
+            self.rdo_checkout_timestamp = _fmt_ts(str(data.get("checkout_timestamp") or ""))
             self.rdo_epi_foto_url      = str(data.get("epi_foto_url") or "")
             self.rdo_ferramentas_foto_url = str(data.get("ferramentas_foto_url") or "")
             self.pdf_url               = str(data.get("pdf_url") or "")
@@ -374,67 +407,98 @@ def _at_row(at: Dict[str, str]) -> rx.Component:
         _PATINA,
         rx.cond(at["status"] == "Em andamento", _COPPER, _MUTED),
     )
+    bar_color = rx.cond(
+        at["status"] == "Concluído",
+        _PATINA,
+        _COPPER,
+    )
+    status_icon = rx.cond(
+        at["status"] == "Concluído",
+        "check-circle-2",
+        rx.cond(at["status"] == "Em andamento", "activity", "clock"),
+    )
     return rx.box(
         rx.vstack(
+            # Row 1: header with status badge
             rx.hstack(
-                rx.box(
-                    width="8px", height="8px",
-                    border_radius="50%",
-                    background=status_color,
-                    flex_shrink="0",
-                    margin_top="4px",
-                ),
-                rx.vstack(
-                    rx.text(at["descricao"], size="2", color=_TEXT, weight="medium"),
-                    rx.hstack(
-                        rx.text(at["status"], size="1", color=status_color),
-                        rx.cond(
-                            at["percentual"] != "",
-                            rx.text("·", size="1", color=_MUTED),
-                            rx.fragment(),
-                        ),
-                        rx.cond(
-                            at["percentual"] != "",
-                            rx.text(at["percentual"] + "%", size="1", color=_MUTED),
-                            rx.fragment(),
-                        ),
-                        spacing="1",
+                rx.hstack(
+                    rx.icon(tag=status_icon, size=12, color=status_color),
+                    rx.text(
+                        at["status"],
+                        size="1",
+                        color=status_color,
+                        font_weight="600",
+                        letter_spacing="0.03em",
                     ),
-                    spacing="1", align="start",
+                    spacing="1",
+                    align="center",
+                    padding="2px 7px",
+                    border_radius="4px",
+                    background=rx.cond(
+                        at["status"] == "Concluído",
+                        "rgba(42,157,143,0.12)",
+                        rx.cond(at["status"] == "Em andamento", "rgba(201,139,42,0.12)", "rgba(107,144,144,0.10)"),
+                    ),
                 ),
-                spacing="2", align="start", width="100%",
+                rx.spacer(),
+                rx.cond(
+                    at["percentual"] != "",
+                    rx.text(
+                        at["percentual"] + "%",
+                        size="2",
+                        color=bar_color,
+                        font_family="'JetBrains Mono', monospace",
+                        font_weight="700",
+                    ),
+                    rx.fragment(),
+                ),
+                spacing="2", align="center", width="100%",
             ),
-            # Progress bar
+            # Row 2: activity name
+            rx.text(at["descricao"], size="2", color=_TEXT, weight="medium",
+                    white_space="normal", word_break="break-word", line_height="1.4"),
+            # Row 3: progress bar
             rx.cond(
                 at["percentual"] != "",
                 rx.box(
                     rx.box(
                         width=at["percentual"] + "%",
-                        height="3px",
-                        background=rx.cond(
-                            at["percentual"].to(int) == 100,
-                            _PATINA,
-                            _COPPER,
-                        ),
+                        height="100%",
+                        background=bar_color,
                         border_radius="2px",
                         transition="width 0.3s ease",
                     ),
-                    width="100%",
-                    height="3px",
-                    background="rgba(255,255,255,0.06)",
+                    width="100%", height="4px",
+                    background="rgba(255,255,255,0.07)",
                     border_radius="2px",
-                    margin_top="4px",
+                    overflow="hidden",
                 ),
                 rx.fragment(),
             ),
-            spacing="1", width="100%",
+            # Row 4: meta info (efetivo alocado)
+            rx.cond(
+                at["efetivo"] != "",
+                rx.hstack(
+                    rx.icon("users", size=10, color=_MUTED),
+                    rx.text(at["efetivo"] + " pessoa(s) alocada(s)", size="1", color=_MUTED),
+                    spacing="1", align="center",
+                ),
+                rx.fragment(),
+            ),
+            spacing="2", width="100%",
         ),
         padding="12px 14px",
         background="rgba(255,255,255,0.02)",
         border=f"1px solid {_BORDER}",
+        border_left=rx.cond(
+            at["status"] == "Concluído",
+            f"3px solid {_PATINA}",
+            f"3px solid {_COPPER}",
+        ),
         border_radius="8px",
         width="100%",
     )
+
 
 
 
@@ -868,7 +932,21 @@ def rdo_view_page() -> rx.Component:
                     rx.cond(
                         RDOViewState.cronograma_entries.length() > 0,
                         _card(
-                            _section_header("Atividades Executadas", "git-branch"),
+                            rx.hstack(
+                                _section_header("Atividades Executadas", "git-branch"),
+                                rx.spacer(),
+                                rx.box(
+                                    rx.text("Cronograma Integrado", size="1", color=_COPPER,
+                                            font_family="'JetBrains Mono', monospace",
+                                            letter_spacing="0.05em"),
+                                    padding="2px 8px",
+                                    border_radius="4px",
+                                    background="rgba(201,139,42,0.08)",
+                                    border=f"1px solid {_BORDER2}",
+                                    margin_bottom="14px",
+                                ),
+                                align="start", width="100%",
+                            ),
                             rx.vstack(
                                 rx.foreach(RDOViewState.cronograma_entries, _cron_entry_row),
                                 spacing="2", width="100%",

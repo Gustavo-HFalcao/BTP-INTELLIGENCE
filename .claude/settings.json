@@ -51,7 +51,11 @@
       "Bash(py -3 -c ':*)",
       "Bash(py -3)",
       "Bash(py -3 -c \"import reflex as rx; print\\(hasattr\\(rx, 'client_storage'\\)\\); print\\(hasattr\\(rx, 'ClientStorageVar'\\)\\); print\\([x for x in dir\\(rx\\) if 'storage' in x.lower\\(\\) or 'cookie' in x.lower\\(\\)]\\)\")",
-      "Bash(py -3 -c \"import reflex as rx; help\\(rx.LocalStorage\\)\")"
+      "Bash(py -3 -c \"import reflex as rx; help\\(rx.LocalStorage\\)\")",
+      "Bash(cmd /c \"cd /d C:\\\\Users\\\\Gustavo\\\\bomtempo-dashboard && py -c \\\\\"import ast; ast.parse\\(open\\('bomtempo/pages/rdo_view.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\\\\\"\")",
+      "Bash(cmd /c \"cd /d C:\\\\\\\\Users\\\\\\\\Gustavo\\\\\\\\bomtempo-dashboard && py -c \\\\\"import ast, sys; ast.parse\\(open\\('bomtempo/pages/rdo_view.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\\\\\"\")",
+      "Bash(cmd /c \"cd /d C:\\\\\\\\Users\\\\\\\\Gustavo\\\\\\\\bomtempo-dashboard && py check_syntax.py\")",
+      "Bash(cmd /c \"py C:\\\\\\\\Users\\\\\\\\Gustavo\\\\\\\\bomtempo-dashboard\\\\\\\\bomtempo\\\\\\\\pages\\\\\\\\rdo_view.py\")"
     ]
   },
   "mcpServers": {

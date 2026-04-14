@@ -316,6 +316,8 @@ class GlobalState(rx.State):
             question = self.chat_history[-1]["content"] if self.chat_history and self.chat_history[-1]["role"] == "user" else ""
             is_mobile = self.current_user_role == "Gestão-Mobile"
             tenant_name = self.current_client_name
+            # Garantia: se qualquer exceção não capturada ocorrer abaixo,
+            # is_processing_chat é resetado via try/except no final desse handler.
             _stream_client_id = str(self.current_client_id or "")
             _selected_contrato = self.selected_contrato or self.obras_selected_contract or ""
             _needs_data_load = self._contratos_df.empty and self._projetos_df.empty
@@ -412,7 +414,16 @@ class GlobalState(rx.State):
         pending_chart_id = ""
         for i in range(max_iterations):
             # force_tool=True na primeira iteração evita que a IA "anuncie" antes de agir
-            response = ai_client.query_agentic(messages, tools=AI_TOOLS, force_tool=(i == 0))
+            try:
+                response = ai_client.query_agentic(messages, tools=AI_TOOLS, force_tool=(i == 0))
+            except Exception as _ai_err:
+                logger.error(f"stream_chat_bg: ai_client falhou na iteração {i}: {_ai_err}")
+                async with self:
+                    self.chat_history.append(_msg("assistant", "❌ Erro ao processar. Tente novamente."))
+                    self.is_processing_chat = False
+                    self.chat_tool_label = ""
+                    yield rx.call_script("window.scrollToBottom('chat-container')")
+                break
 
             if isinstance(response, str):
                 final_content = re.sub(r'!\[.*?\]\(.*?\)', '', response).strip()
@@ -481,6 +492,16 @@ class GlobalState(rx.State):
                 self.is_processing_chat = False
                 self.chat_tool_label = ""
                 self._pending_chart_json = ""
+                yield rx.call_script("window.scrollToBottom('chat-container')")
+
+    @rx.event(background=True)
+    async def reset_chat_processing(self):
+        """Safety valve: reseta is_processing_chat se o stream_chat_bg falhar."""
+        async with self:
+            if self.is_processing_chat:
+                self.is_processing_chat = False
+                self.chat_tool_label = ""
+                self.chat_history.append(_msg("assistant", "❌ Erro interno no processamento. Tente novamente."))
                 yield rx.call_script("window.scrollToBottom('chat-container')")
 
     async def process_voice_input(self, text: str):
@@ -5254,7 +5275,14 @@ class GlobalState(rx.State):
                 )
 
         loop = _asyncio.get_running_loop()
-        ai_text = await loop.run_in_executor(get_ai_executor(), run_ai)
+        try:
+            ai_text = await loop.run_in_executor(get_ai_executor(), run_ai)
+        except Exception as e:
+            logger.error(f"generate_obra_insight_bg executor error: {e}", exc_info=True)
+            async with self:
+                self.obra_insight_loading = False
+                self.obra_insight_text = "Erro ao gerar análise. Tente novamente."
+            return
 
         # Persist to cache
         now_utc = datetime.now(timezone(timedelta(hours=0))).isoformat()
@@ -5278,16 +5306,24 @@ class GlobalState(rx.State):
         except Exception:
             pass
 
-        async with self:
-            self.obra_insight_text = ai_text or "Análise em processamento..."
-            self.obra_insight_generated_at = now_brt_label
-            self.obra_insight_loading = False
-        # Notify user that analysis is done (only if it was freshly generated, not from cache)
-        yield rx.toast.success(
-            "✦ Análise IA concluída — painel Inteligência atualizado.",
-            duration=6000,
-            position="bottom-right",
-        )
+        try:
+            async with self:
+                self.obra_insight_text = ai_text or "Análise em processamento..."
+                self.obra_insight_generated_at = now_brt_label
+                self.obra_insight_loading = False
+            # Notify user that analysis is done (only if it was freshly generated, not from cache)
+            yield rx.toast.success(
+                "✦ Análise IA concluída — painel Inteligência atualizado.",
+                duration=6000,
+                position="bottom-right",
+            )
+        except Exception as e:
+            logger.error(f"generate_obra_insight_bg state write error: {e}", exc_info=True)
+            try:
+                async with self:
+                    self.obra_insight_loading = False
+            except Exception:
+                pass
 
     @rx.event(background=True)
     async def force_refresh_insight(self):
@@ -5430,11 +5466,19 @@ class GlobalState(rx.State):
             logger.error(f"Error loading weather: {e}")
 
         # ── Step 6: write results to state (brief lock) ──────────────────────
-        async with self:
-            if weather_result:
-                self.weather_data = weather_result
-            self.weather_risk_level = risk
-            self.weather_loading = False
+        try:
+            async with self:
+                if weather_result:
+                    self.weather_data = weather_result
+                self.weather_risk_level = risk
+                self.weather_loading = False
+        except Exception as e:
+            logger.error(f"load_weather_data state write error: {e}", exc_info=True)
+            try:
+                async with self:
+                    self.weather_loading = False
+            except Exception:
+                pass
 
     def _build_project_context_for_weather(self) -> str:
         """Extracts active obras and upcoming schedule milestones for weather cross-reference."""

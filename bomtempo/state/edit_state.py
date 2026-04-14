@@ -273,37 +273,43 @@ class EditState(rx.State):
             except Exception as e:
                 result["error"] = str(e)
 
-        await loop.run_in_executor(get_db_executor(), _fetch)
+        try:
+            await loop.run_in_executor(get_db_executor(), _fetch)
 
-        async with self:
-            self.is_loading_table = False
-            if result["error"]:
-                logger.error(f"Erro load_table: {result['error']}")
-                yield rx.toast(f"Erro ao carregar tabela: {result['error']}", position="bottom-right")
-            else:
-                data = result["data"]
-                self.raw_data = data
-                self.selected_row_idx = -1
+            async with self:
+                self.is_loading_table = False
+                if result["error"]:
+                    logger.error(f"Erro load_table: {result['error']}")
+                    yield rx.toast(f"Erro ao carregar tabela: {result['error']}", position="bottom-right")
+                else:
+                    data = result["data"]
+                    self.raw_data = data
+                    self.selected_row_idx = -1
 
-                # Repopula filtros dinamicamente a partir dos dados carregados.
-                # Cada tabela pode ter colunas diferentes — os dropdowns refletem
-                # os valores reais existentes nela, não a master table fixa.
-                if data:
-                    first = data[0]
-                    if "projeto" in first:
-                        self.projetos = sorted(list(set(
-                            str(r["projeto"]) for r in data if r.get("projeto")
-                        )))
-                    if "contrato" in first:
-                        self.contratos = sorted(list(set(
-                            str(r["contrato"]) for r in data if r.get("contrato")
-                        )))
+                    # Repopula filtros dinamicamente a partir dos dados carregados.
+                    # Cada tabela pode ter colunas diferentes — os dropdowns refletem
+                    # os valores reais existentes nela, não a master table fixa.
+                    if data:
+                        first = data[0]
+                        if "projeto" in first:
+                            self.projetos = sorted(list(set(
+                                str(r["projeto"]) for r in data if r.get("projeto")
+                            )))
+                        if "contrato" in first:
+                            self.contratos = sorted(list(set(
+                                str(r["contrato"]) for r in data if r.get("contrato")
+                            )))
 
-                self._undo_reset_vars()
-                yield rx.toast(
-                    f"Tabela '{selected_tabela}' carregada. ({len(data)} registros)",
-                    position="bottom-right",
-                )
+                    self._undo_reset_vars()
+                    yield rx.toast(
+                        f"Tabela '{selected_tabela}' carregada. ({len(data)} registros)",
+                        position="bottom-right",
+                    )
+        except Exception as e:
+            logger.error(f"load_table executor error: {e}", exc_info=True)
+            async with self:
+                self.is_loading_table = False
+                yield rx.toast(f"❌ Erro ao carregar tabela: {str(e)[:100]}", position="bottom-right")
 
     def on_cell_edited(self, pos: Tuple[int, int], new_value: Dict[str, Any]):
         """Atualiza o grid localmente (sem I/O). Persistir via 'Salvar no Banco'.
