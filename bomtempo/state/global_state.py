@@ -1108,7 +1108,7 @@ class GlobalState(rx.State):
     def is_fullscreen_page(self) -> bool:
         """True para páginas de preenchimento — sem sidebar/header."""
         path = self.router.page.path
-        _fullscreen_paths = ["/rdo-form", "/rdo_form", "/reembolso"]
+        _fullscreen_paths = ["/rdo-form", "/rdo_form", "/rdo-historico", "/reembolso"]
         for p in _fullscreen_paths:
             if path == p or path.startswith(p + "/"):
                 return True

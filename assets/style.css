@@ -1147,23 +1147,64 @@ button:focus-visible {
     backdrop-filter: blur(4px) !important;
 }
 
-/* ── Radix Tooltip Dark Theme ────────────────────────────── */
-/* Contraste elevado: fundo mais claro + borda copper + sombra forte */
+/* ── Radix Tooltip Dark Theme — Enhanced ─────────────────── */
+/* State of the art: entrance animation, glow border, backdrop blur */
+
+@keyframes tooltipEnter {
+    from {
+        opacity: 0;
+        transform: translateY(-5px) scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes tooltipGlowPulse {
+    0%, 100% { box-shadow: 0 8px 28px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(201, 139, 42, 0.10); }
+    50%       { box-shadow: 0 10px 36px rgba(0, 0, 0, 0.70), 0 0 0 1px rgba(201, 139, 42, 0.22), 0 0 14px rgba(201, 139, 42, 0.08); }
+}
+
 .rt-TooltipContent {
-    background-color: #1e3530 !important;
-    border: 1px solid rgba(201, 139, 42, 0.45) !important;
+    background-color: rgba(18, 32, 28, 0.97) !important;
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+    border: 1px solid rgba(201, 139, 42, 0.38) !important;
     color: #f0f0f0 !important;
     font-size: 11px !important;
     font-family: 'Outfit', sans-serif !important;
-    line-height: 1.4 !important;
-    padding: 5px 10px !important;
-    border-radius: 7px !important;
-    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(201, 139, 42, 0.12) !important;
-    letter-spacing: 0.01em !important;
+    font-weight: 500 !important;
+    line-height: 1.45 !important;
+    padding: 6px 12px !important;
+    border-radius: 8px !important;
+    letter-spacing: 0.015em !important;
+    /* Entrance animation */
+    animation: tooltipEnter 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards,
+               tooltipGlowPulse 3.5s ease-in-out infinite 0.5s !important;
+    /* border-top copper accent */
+    border-top: 1px solid rgba(201, 139, 42, 0.55) !important;
 }
 
 .rt-TooltipArrow {
-    fill: #1e3530 !important;
+    fill: rgba(18, 32, 28, 0.97) !important;
+}
+
+/* Tooltip for bottom side — flip animation direction */
+.rt-TooltipContent[data-side="bottom"] {
+    animation: tooltipEnterDown 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards,
+               tooltipGlowPulse 3.5s ease-in-out infinite 0.5s !important;
+}
+
+@keyframes tooltipEnterDown {
+    from {
+        opacity: 0;
+        transform: translateY(5px) scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
 }
 
 /* ── Radix Dropdown Menu Dark Theme ──────────────────────── */

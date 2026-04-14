@@ -11,49 +11,72 @@ from bomtempo.state.global_state import GlobalState
 
 
 def header_banner() -> rx.Component:
-    """Overview header — full-width glass panel matching React reference exactly."""
+    """Overview header — upgraded wow-factor glass panel with pulse indicator and live stats."""
     return rx.box(
-        # Gradient overlay
+        # Multi-layer gradient background
         rx.box(
-            position="absolute",
-            inset="0",
-            background="linear-gradient(90deg, rgba(201,139,42,0.1) 0%, transparent 50%)",
+            position="absolute", inset="0",
+            background="linear-gradient(135deg, rgba(201,139,42,0.08) 0%, transparent 45%)",
             pointer_events="none",
         ),
-        # Background icon
         rx.box(
-            rx.icon(tag="activity", size=200, stroke_width=0.5, color=S.TEXT_MUTED),
-            position="absolute",
-            right="0",
-            top="0",
-            padding="48px",
-            opacity="0.1",
+            position="absolute", bottom="0", right="0",
+            width="50%", height="100%",
+            background="linear-gradient(225deg, rgba(42,157,143,0.04) 0%, transparent 60%)",
+            pointer_events="none",
+        ),
+        # Background decorative icon
+        rx.box(
+            rx.icon(tag="activity", size=200, stroke_width=0.4, color=S.TEXT_MUTED),
+            position="absolute", right="0", top="0",
+            padding="32px", opacity="0.07",
             pointer_events="none",
         ),
         # Content
         rx.vstack(
+            # Status pill row
             rx.hstack(
-                rx.box(
-                    rx.text(
-                        "System Online",
-                        font_size="10px",
-                        font_weight="700",
-                        text_transform="uppercase",
-                        letter_spacing="0.15em",
-                        color=S.BG_VOID,
+                # Live indicator
+                rx.hstack(
+                    rx.box(
+                        rx.box(
+                            position="absolute", inset="0",
+                            border_radius="50%",
+                            background=S.PATINA,
+                            animation="fabGlow 2s ease-in-out infinite",
+                            opacity="0.5",
+                        ),
+                        width="8px", height="8px",
+                        border_radius="50%",
+                        background=S.PATINA,
+                        position="relative",
+                        flex_shrink="0",
                     ),
-                    bg=S.COPPER,
+                    rx.text(
+                        "Sistema Online",
+                        font_size="10px", font_weight="700",
+                        text_transform="uppercase",
+                        letter_spacing="0.12em",
+                        color=S.PATINA,
+                    ),
+                    spacing="2", align="center",
                     padding="4px 10px",
-                    border_radius="2px",
+                    border_radius="20px",
+                    border=f"1px solid rgba(42,157,143,0.3)",
+                    background="rgba(42,157,143,0.08)",
                 ),
-                rx.box(
-                    width="48px",
-                    height="1px",
-                    bg=f"{S.COPPER}80",
+                rx.box(width="48px", height="1px", bg=f"{S.COPPER}50"),
+                rx.text(
+                    "BTP Intelligence v2",
+                    font_size="10px", font_weight="600",
+                    letter_spacing="0.08em",
+                    color=S.TEXT_MUTED,
+                    font_family=S.FONT_MONO,
+                    text_transform="uppercase",
                 ),
-                align="center",
-                spacing="3",
+                spacing="3", align="center",
             ),
+            # Main title
             rx.text(
                 "VISÃO GERAL",
                 font_family=S.FONT_TECH,
@@ -62,31 +85,69 @@ def header_banner() -> rx.Component:
                 color="white",
                 letter_spacing="-0.02em",
                 line_height="1",
-                margin_top="16px",
+                margin_top="14px",
             ),
+            # Subtitle
             rx.text(
                 "Centro de Comando BOMTEMPO INTELLIGENCE. Telemetria financeira, velocidade operacional e marcadores estratégicos em tempo real.",
                 color=S.TEXT_MUTED,
-                font_size="1.125rem",
+                font_size="1rem",
                 font_weight="300",
-                max_width="640px",
+                max_width="600px",
                 margin_top="8px",
+                line_height="1.6",
+            ),
+            # Quick stats strip
+            rx.hstack(
+                rx.hstack(
+                    rx.icon("hard-hat", size=13, color=S.COPPER),
+                    rx.text(
+                        GlobalState.contratos_ativos.to_string(),
+                        font_family=S.FONT_MONO, font_size="13px",
+                        font_weight="700", color="white",
+                    ),
+                    rx.text("obras ativas", font_size="11px", color=S.TEXT_MUTED),
+                    spacing="2", align="center",
+                ),
+                rx.box(width="1px", height="14px", background="rgba(255,255,255,0.1)"),
+                rx.hstack(
+                    rx.icon("trending-up", size=13, color=S.COPPER),
+                    rx.text(
+                        GlobalState.avanco_fisico_geral_fmt,
+                        font_family=S.FONT_MONO, font_size="13px",
+                        font_weight="700", color="white",
+                    ),
+                    rx.text("velocidade média", font_size="11px", color=S.TEXT_MUTED),
+                    spacing="2", align="center",
+                ),
+                rx.box(width="1px", height="14px", background="rgba(255,255,255,0.1)"),
+                rx.hstack(
+                    rx.icon("dollar-sign", size=13, color=S.COPPER),
+                    rx.text(
+                        GlobalState.valor_carteira_formatado,
+                        font_family=S.FONT_MONO, font_size="13px",
+                        font_weight="700", color="white",
+                    ),
+                    rx.text("carteira total", font_size="11px", color=S.TEXT_MUTED),
+                    spacing="2", align="center",
+                ),
+                spacing="4", align="center",
+                margin_top="20px",
+                flex_wrap="wrap",
             ),
             align="start",
             spacing="0",
             position="relative",
             z_index="10",
-            max_width="640px",
         ),
-    # Glass panel styling — FULL WIDTH
-    position="relative",
-    overflow="hidden",
-    padding="48px",
-    border_radius=S.R_CARD,
-    width="100%",
-    border_left=f"3px solid {S.COPPER}",
-    class_name="glass-panel animate-enter",
-)
+        position="relative",
+        overflow="hidden",
+        padding=["28px 24px", "48px"],
+        border_radius=S.R_CARD,
+        width="100%",
+        border_left=f"3px solid {S.COPPER}",
+        class_name="glass-panel animate-enter",
+    )
 
 
 def filter_bar() -> rx.Component:

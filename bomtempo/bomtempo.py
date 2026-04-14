@@ -128,11 +128,13 @@ def mobile_chat():
 
 
 def rdo_form():
-    return default_layout(rdo_form_page())
+    # Standalone — has own sticky header + bottom bar, no sidebar needed
+    return rdo_form_page()
 
 
 def rdo_historico():
-    return default_layout(rdo_historico_page())
+    # Standalone — field-oriented hub, no sidebar needed
+    return rdo_historico_page()
 
 
 def rdo_dashboard():
@@ -157,6 +159,8 @@ app = rx.App(
         "/style.css",
         "/animations.css",  # Smooth transitions and loading animations
         "/light_theme.css",  # Light mode overrides (activated by rx.toggle_color_mode)
+        "/rdo_form.css",     # RDO Form mobile-first enhanced styles
+        "/rdo_historico.css", # RDO Histórico lobby styles
     ],
     theme=rx.theme(
         appearance="inherit",

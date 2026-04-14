@@ -280,20 +280,23 @@ class RDOViewState(rx.State):
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def _section_header(title: str, icon: str, color: str = _COPPER) -> rx.Component:
+    bg_map = {_COPPER: "rgba(201,139,42,0.10)", _PATINA: "rgba(42,157,143,0.10)"}
+    icon_bg = bg_map.get(color, "rgba(201,139,42,0.10)")
     return rx.hstack(
         rx.box(
-            rx.icon(icon, size=14, color=color),
-            width="30px", height="30px",
-            border_radius="6px",
-            bg=f"rgba({','.join(str(int(color.lstrip('#')[i:i+2], 16)) for i in (0,2,4))},0.12)" if color.startswith('#') else "rgba(201,139,42,0.12)",
+            rx.icon(icon, size=15, color=color),
+            width="32px", height="32px",
+            border_radius="8px",
+            background=icon_bg,
+            border=f"1px solid {color}30",
             display="flex", align_items="center", justify_content="center",
             flex_shrink="0",
         ),
         rx.text(
             title,
             font_size="11px",
-            font_weight="700",
-            letter_spacing="0.1em",
+            font_weight="800",
+            letter_spacing="0.12em",
             text_transform="uppercase",
             color=color,
             font_family="'Rajdhani', sans-serif",
@@ -317,7 +320,7 @@ def _card(*children, accent: bool = False) -> rx.Component:
         padding="18px 20px",
         background=_CARD,
         border=f"1px solid {_BORDER2 if accent else _BORDER}",
-        border_radius="12px",
+        border_radius="6px",
         width="100%",
     )
 
@@ -731,40 +734,56 @@ def rdo_view_page() -> rx.Component:
         rx.box(
             rx.hstack(
                 rx.hstack(
-                    rx.image(src="/icon.png", width="24px", height="24px", border_radius="4px", object_fit="cover"),
+                    rx.image(src="/icon.png", width="28px", height="28px",
+                             border_radius="6px", object_fit="cover"),
                     rx.vstack(
-                        rx.text("BOMTEMPO", weight="bold", size="2", color="#fff", line_height="1"),
+                        rx.hstack(
+                            rx.text("BOMTEMPO", weight="bold", size="2", color="#fff",
+                                    font_family="'Rajdhani', sans-serif",
+                                    letter_spacing="0.08em", line_height="1"),
+                            rx.text("INTELLIGENCE", size="1", color=_COPPER,
+                                    font_family="'Rajdhani', sans-serif",
+                                    letter_spacing="0.08em", display=["none", "inline"]),
+                            spacing="2", align="center",
+                        ),
                         rx.text("Relatório Diário de Obra", size="1", color=_MUTED, line_height="1"),
                         spacing="0",
                     ),
-                    spacing="2", align="center",
+                    spacing="3", align="center",
                 ),
                 rx.spacer(),
-                rx.cond(
-                    RDOViewState.pdf_url != "",
-                    rx.link(
-                        rx.button(
-                            rx.icon("download", size=14),
-                            "Baixar PDF",
-                            size="2",
-                            style={
-                                "background": f"linear-gradient(135deg,{_COPPER},#9B6820)",
-                                "color": "#fff",
-                                "borderRadius": "6px",
-                                "fontWeight": "600",
-                            },
+                rx.hstack(
+                    rx.cond(
+                        RDOViewState.pdf_url != "",
+                        rx.link(
+                            rx.button(
+                                rx.icon("download", size=14),
+                                rx.text("Baixar PDF", display=["none", "inline"]),
+                                size="2",
+                                style={
+                                    "background": f"linear-gradient(135deg,{_COPPER},#9B6820)",
+                                    "color": "#fff",
+                                    "borderRadius": "7px",
+                                    "fontWeight": "700",
+                                    "fontFamily": "'Rajdhani', sans-serif",
+                                    "letterSpacing": "0.06em",
+                                    "textTransform": "uppercase",
+                                    "boxShadow": "0 3px 14px rgba(201,139,42,0.35)",
+                                },
+                            ),
+                            href=RDOViewState.pdf_url,
+                            is_external=True,
                         ),
-                        href=RDOViewState.pdf_url,
-                        is_external=True,
+                        rx.fragment(),
                     ),
-                    rx.fragment(),
+                    spacing="2", align="center",
                 ),
                 align="center", width="100%",
             ),
-            padding="10px 20px",
-            background="rgba(11,26,21,0.97)",
-            border_bottom=f"1px solid {_BORDER}",
-            style={"backdropFilter": "blur(14px)"},
+            padding=["10px 16px", "12px 24px"],
+            background="rgba(8,18,16,0.97)",
+            border_bottom=f"1px solid rgba(201,139,42,0.12)",
+            style={"backdropFilter": "blur(16px)", "-webkit-backdrop-filter": "blur(16px)"},
             position="sticky",
             top="0",
             z_index="50",
@@ -805,20 +824,36 @@ def rdo_view_page() -> rx.Component:
 
                     # ── 1. Header card ─────────────────────────────────────
                     rx.box(
-                        # Copper glow background
+                        # Gradient overlays
                         rx.box(
                             position="absolute", top="0", left="0", right="0", bottom="0",
-                            background=f"linear-gradient(135deg, rgba(201,139,42,0.05) 0%, transparent 60%)",
-                            border_radius="14px",
+                            background="linear-gradient(135deg, rgba(201,139,42,0.07) 0%, transparent 55%)",
+                            border_radius="16px",
                             pointer_events="none",
                         ),
+                        # Left accent bar
+                        rx.box(
+                            position="absolute", left="0", top="0", bottom="0",
+                            width="3px",
+                            background=f"linear-gradient(180deg, {_COPPER} 0%, {_PATINA} 100%)",
+                            border_radius="3px 0 0 3px",
+                        ),
                         rx.vstack(
+                            # Top row: contract + date
                             rx.hstack(
                                 rx.vstack(
                                     rx.hstack(
-                                        rx.text(RDOViewState.rdo_contrato, size="5", weight="bold", color=_COPPER, font_family="'Rajdhani', sans-serif"),
+                                        rx.text(
+                                            RDOViewState.rdo_contrato,
+                                            font_size="1.5rem",
+                                            weight="bold",
+                                            color=_COPPER,
+                                            font_family="'Rajdhani', sans-serif",
+                                            letter_spacing="-0.01em",
+                                            line_height="1.1",
+                                        ),
                                         _badge_status(),
-                                        spacing="3", align="center",
+                                        spacing="3", align="center", flex_wrap="wrap",
                                     ),
                                     rx.text(RDOViewState.rdo_projeto, size="2", color=_MUTED),
                                     spacing="1", align="start",
@@ -826,8 +861,14 @@ def rdo_view_page() -> rx.Component:
                                 rx.spacer(),
                                 rx.vstack(
                                     rx.box(
-                                        rx.text(RDOViewState.rdo_data, size="3", weight="bold", color=_TEXT, font_family="'JetBrains Mono', monospace"),
-                                        padding="6px 12px",
+                                        rx.hstack(
+                                            rx.icon("calendar", size=12, color=_COPPER),
+                                            rx.text(RDOViewState.rdo_data, size="2",
+                                                    weight="bold", color=_TEXT,
+                                                    font_family="'JetBrains Mono', monospace"),
+                                            spacing="2", align="center",
+                                        ),
+                                        padding="7px 14px",
                                         background=_COPPER2,
                                         border=f"1px solid {_BORDER2}",
                                         border_radius="8px",
@@ -836,7 +877,9 @@ def rdo_view_page() -> rx.Component:
                                 ),
                                 align="start", width="100%",
                             ),
-                            rx.separator(border_color=_BORDER),
+                            # Divider
+                            rx.box(height="1px", width="100%", background="rgba(255,255,255,0.06)"),
+                            # Meta grid
                             rx.grid(
                                 _kv("Cliente", RDOViewState.rdo_cliente),
                                 _kv("Mestre de Obras", RDOViewState.rdo_mestre),
@@ -855,13 +898,14 @@ def rdo_view_page() -> rx.Component:
                             ),
                             spacing="3",
                         ),
-                        padding="22px 24px",
+                        padding="22px 24px 22px 28px",
                         background=_CARD,
-                        border=f"2px solid {_BORDER2}",
-                        border_radius="14px",
+                        border=f"1px solid rgba(201,139,42,0.2)",
+                        border_radius="8px",
                         width="100%",
                         position="relative",
                         overflow="hidden",
+                        style={"backdropFilter": "blur(8px)"},
                     ),
 
                     # ── 2. GPS Check-in / Check-out ───────────────────────
@@ -1060,49 +1104,81 @@ def rdo_view_page() -> rx.Component:
                     rx.cond(
                         RDOViewState.ai_summary != "",
                         rx.box(
+                            # AI header
                             rx.hstack(
                                 rx.box(
-                                    rx.icon("bot", size=14, color=_PATINA),
-                                    width="28px", height="28px",
-                                    border_radius="6px",
-                                    bg="rgba(42,157,143,0.12)",
+                                    rx.icon("bot", size=16, color=_PATINA),
+                                    width="36px", height="36px",
+                                    border_radius="10px",
+                                    background="rgba(42,157,143,0.12)",
+                                    border=f"1px solid rgba(42,157,143,0.25)",
                                     display="flex", align_items="center", justify_content="center",
                                     flex_shrink="0",
                                 ),
                                 rx.vstack(
-                                    rx.text("Análise BTP Intelligence", size="2", weight="bold", color=_PATINA),
-                                    rx.text("Gerado automaticamente por IA", size="1", color=_MUTED),
+                                    rx.text(
+                                        "Análise BTP Intelligence",
+                                        size="2", weight="bold", color=_PATINA,
+                                        font_family="'Rajdhani', sans-serif",
+                                        letter_spacing="0.04em",
+                                        text_transform="uppercase",
+                                    ),
+                                    rx.text("Gerado automaticamente por IA · Uso interno", size="1", color=_MUTED),
                                     spacing="0", align="start",
                                 ),
-                                spacing="2", align="center",
+                                spacing="3", align="center",
                                 margin_bottom="14px",
+                                width="100%",
                             ),
+                            rx.box(height="1px", width="100%", background="rgba(42,157,143,0.12)", margin_bottom="14px"),
                             rx.box(
                                 rx.markdown(RDOViewState.ai_summary),
-                                style={"color": _TEXT, "fontSize": "14px", "lineHeight": "1.7"},
+                                style={
+                                    "color": _TEXT,
+                                    "fontSize": "14px",
+                                    "lineHeight": "1.75",
+                                    "fontFamily": "'Outfit', sans-serif",
+                                },
+                                class_name="analysis-markdown",
                             ),
-                            padding="18px 20px",
+                            padding="20px 22px",
                             background="rgba(42,157,143,0.04)",
-                            border=f"1px solid rgba(42,157,143,0.2)",
+                            border=f"1px solid rgba(42,157,143,0.15)",
                             border_left=f"3px solid {_PATINA}",
-                            border_radius="12px",
+                            border_radius="6px",
                             width="100%",
+                            style={"backdropFilter": "blur(6px)"},
                         ),
                         rx.fragment(),
                     ),
 
                     # ── Footer ────────────────────────────────────────────
-                    rx.center(
-                        rx.vstack(
-                            rx.divider(border_color=_BORDER),
+                    rx.box(
+                        rx.box(height="1px", background=f"rgba(201,139,42,0.12)", margin_bottom="20px"),
+                        rx.flex(
                             rx.hstack(
-                                rx.image(src="/icon.png", width="16px", height="16px", border_radius="3px", object_fit="cover"),
-                                rx.text("Gerado por BTP Intelligence · Bomtempo Engenharia", size="1", color=_MUTED),
+                                rx.image(src="/icon.png", width="18px", height="18px",
+                                         border_radius="4px", object_fit="cover"),
+                                rx.vstack(
+                                    rx.text("BTP Intelligence · Bomtempo Engenharia",
+                                            size="1", color=_MUTED, weight="medium"),
+                                    rx.text("Documento gerado automaticamente", size="1", color=_MUTED, opacity="0.6"),
+                                    spacing="0",
+                                ),
                                 spacing="2", align="center",
                             ),
-                            spacing="2", align="center", width="100%",
+                            rx.hstack(
+                                rx.icon("shield-check", size=12, color=_PATINA),
+                                rx.text("Registro verificado", size="1", color=_PATINA),
+                                spacing="1", align="center",
+                            ),
+                            justify="between",
+                            align="center",
+                            flex_wrap="wrap",
+                            gap="12px",
                         ),
-                        padding_y="28px",
+                        padding_y="20px",
+                        padding_x="4px",
                         width="100%",
                     ),
 

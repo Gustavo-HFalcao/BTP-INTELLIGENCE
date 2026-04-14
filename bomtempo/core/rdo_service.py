@@ -463,160 +463,821 @@ _RDO_HTML_TEMPLATE = """<!DOCTYPE html>
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
-<script id="tailwind-config">
-  tailwind.config = {
-    theme: {
-      extend: {
-        colors: {
-          "copper": "#C98B2A",
-          "patina": "#2A9D8F",
-          "ink": "#081210",
-          "paper": "#FAFAFA"
-        },
-        fontFamily: {
-          "headline": ["Rajdhani", "sans-serif"],
-          "body": ["Plus Jakarta Sans", "sans-serif"],
-          "label": ["JetBrains Mono", "monospace"]
-        }
-      }
-    }
-  }
-</script>
 <style>
-  @page { size: A4; margin: 0; }
-  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  @media print {
-    body { background: white !important; }
-    .no-print { display: none !important; }
-    .shadow-2xl { box-shadow: none !important; }
-    .page-avoid { page-break-inside: avoid; }
-  }
-  .material-symbols-outlined {
-    font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-    vertical-align: middle;
-    line-height: 1;
-  }
-  .copper-accent { border-left: 4px solid #C98B2A; }
-  .patina-accent { border-left: 4px solid #2A9D8F; }
-  .watermark-rdo {
-    position: fixed; top: 45%; left: 50%;
-    transform: translate(-50%,-50%) rotate(35deg);
-    font-size: 80pt; font-weight: 900;
-    color: rgba(0,0,0,0.04); pointer-events: none;
-    z-index: 999; letter-spacing: 6px;
-    font-family: 'Rajdhani', sans-serif;
-  }
+/* ── Reset & Page Setup ─────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+@page {
+  size: A4;
+  margin: 0;
+}
+
+@page :first {
+  margin: 0;
+}
+
+body {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+  background: #F2F4F3;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 12px;
+  color: #111;
+}
+
+/* ── Page Article ────────────────────────────────────────────── */
+.page-wrap {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 32px 0;
+  background: #EBEBEB;
+}
+
+article {
+  width: 210mm;
+  min-height: 297mm;
+  background: #FAFAFA;
+  box-shadow: 0 4px 40px rgba(0,0,0,0.18);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* ── Watermark ──────────────────────────────────────────────── */
+.watermark-rdo {
+  position: fixed;
+  top: 45%; left: 50%;
+  transform: translate(-50%,-50%) rotate(-35deg);
+  font-size: 72pt; font-weight: 900;
+  color: rgba(0,0,0,0.035);
+  pointer-events: none; z-index: 999;
+  letter-spacing: 8px;
+  font-family: Arial, sans-serif;
+}
+
+/* ── HEADER ─────────────────────────────────────────────────── */
+.doc-header {
+  background: #081210;
+  padding: 28px 36px 22px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 3px solid #C98B2A;
+  position: relative;
+  overflow: hidden;
+}
+
+.doc-header::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(135deg, rgba(201,139,42,0.08) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+.header-brand {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  position: relative;
+}
+
+.brand-mark {
+  width: 52px; height: 52px;
+  background: rgba(201,139,42,0.15);
+  border: 1.5px solid rgba(201,139,42,0.4);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.brand-mark-inner {
+  width: 24px; height: 24px;
+  background: #C98B2A;
+  clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%);
+}
+
+.brand-text h1 {
+  font-family: Arial Black, Arial, sans-serif;
+  font-size: 18px;
+  font-weight: 900;
+  color: #FFFFFF;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.brand-text .brand-subtitle {
+  font-size: 8px;
+  color: rgba(255,255,255,0.4);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  margin-top: 5px;
+  font-family: Arial, sans-serif;
+}
+
+.header-meta {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  position: relative;
+}
+
+.meta-field-label {
+  font-size: 8px;
+  color: rgba(255,255,255,0.35);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-bottom: 1px;
+  font-family: Arial, sans-serif;
+}
+
+.meta-field-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: #FFFFFF;
+  font-family: 'Courier New', monospace;
+}
+
+.meta-date {
+  font-size: 16px;
+  font-weight: 700;
+  color: #C98B2A;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.02em;
+}
+
+/* ── BODY ─────────────────────────────────────────────────── */
+.doc-body {
+  padding: 24px 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  flex: 1;
+}
+
+/* ── Info Grid ─────────────────────────────────────────────── */
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  border: 1px solid #E2E8E6;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.info-cell {
+  padding: 9px 12px;
+  border-right: 1px solid #E2E8E6;
+  border-bottom: 1px solid #E2E8E6;
+}
+
+.info-cell:nth-child(4n) { border-right: none; }
+.info-cell:nth-last-child(-n+4) { border-bottom: none; }
+
+.info-label {
+  font-size: 8px;
+  font-weight: 700;
+  color: #C98B2A;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-bottom: 3px;
+  font-family: Arial, sans-serif;
+}
+
+.info-value {
+  font-size: 11px;
+  font-weight: 600;
+  color: #111;
+  font-family: Arial, sans-serif;
+  word-break: break-word;
+}
+
+.info-value.mono {
+  font-family: 'Courier New', monospace;
+  font-size: 10px;
+  color: #444;
+}
+
+/* ── KPI Strip ─────────────────────────────────────────────── */
+.kpi-strip {
+  background: #081210;
+  border-radius: 4px;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  overflow: hidden;
+  page-break-inside: avoid;
+}
+
+.kpi-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 14px 8px;
+  border-right: 1px solid rgba(255,255,255,0.07);
+}
+
+.kpi-cell:last-child { border-right: none; }
+
+.kpi-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #C98B2A;
+  font-family: 'Courier New', monospace;
+  line-height: 1;
+}
+
+.kpi-label {
+  font-size: 7.5px;
+  color: rgba(255,255,255,0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-top: 5px;
+  font-family: Arial, sans-serif;
+  text-align: center;
+}
+
+/* ── Section Headers ──────────────────────────────────────── */
+.section-h {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding-left: 10px;
+  border-left: 3px solid #C98B2A;
+}
+
+.section-h.patina { border-left-color: #2A9D8F; }
+
+.section-h h2 {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #081210;
+  font-family: Arial Black, Arial, sans-serif;
+}
+
+.section-h.patina h2 { color: #1a6b61; }
+
+/* ── GPS Block ─────────────────────────────────────────────── */
+.gps-block {
+  background: #F0FAF8;
+  border: 1px solid #B2DFD9;
+  border-radius: 4px;
+  padding: 12px 14px;
+  page-break-inside: avoid;
+}
+
+.gps-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(42,157,143,0.12);
+}
+
+.gps-row:last-child { border-bottom: none; }
+
+.gps-pin {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #C98B2A;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.gps-pin::after {
+  content: '▼';
+  font-size: 8px;
+  color: white;
+}
+
+.gps-label {
+  font-size: 8px;
+  font-weight: 700;
+  color: #C98B2A;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.gps-address { font-size: 11px; font-weight: 600; color: #111; }
+.gps-coords { font-size: 9px; color: #888; font-family: 'Courier New', monospace; }
+
+/* ── Scope / Orientação ────────────────────────────────────── */
+.scope-box {
+  background: #FAFAF8;
+  border: 1px solid #E8E0D0;
+  border-radius: 3px;
+  padding: 12px 14px;
+  font-size: 11px;
+  color: #444;
+  line-height: 1.65;
+  font-style: italic;
+}
+
+/* ── Interruption Warning ──────────────────────────────────── */
+.intr-box {
+  background: #FEF3F2;
+  border: 1px solid #FECACA;
+  border-radius: 4px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  page-break-inside: avoid;
+}
+
+.intr-icon {
+  width: 18px; height: 18px;
+  background: #EF4444;
+  border-radius: 50%;
+  color: white;
+  font-weight: 900;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.intr-title {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #B91C1C;
+  letter-spacing: 0.06em;
+  margin-bottom: 3px;
+}
+
+.intr-text { font-size: 11px; color: #7F1D1D; }
+
+/* ── Photo Sections (EPI / Ferramentas) ────────────────────── */
+.photo-single {
+  page-break-inside: avoid;
+}
+
+.photo-single img {
+  max-width: 400px;
+  height: auto;
+  display: block;
+  border-radius: 4px;
+  border: 1px solid #E2E8E6;
+}
+
+/* ── Section page-break wrapper ────────────────────────────── */
+.section-wrap {
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+.section-wrap-breakable {
+  page-break-inside: auto;
+  break-inside: auto;
+}
+
+/* ── Activities Table ──────────────────────────────────────── */
+.activities-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid #E2E8E6;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.activities-table thead {
+  background: #081210;
+}
+
+.activities-table thead th {
+  padding: 9px 12px;
+  font-size: 8.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255,255,255,0.7);
+  text-align: left;
+  border-right: 1px solid rgba(255,255,255,0.07);
+  font-family: Arial, sans-serif;
+}
+
+.activities-table thead th:last-child { border-right: none; }
+
+.activities-table tbody tr { page-break-inside: avoid; }
+
+.activities-table tbody td {
+  padding: 9px 12px;
+  font-size: 11px;
+  border-bottom: 1px solid #F0F0F0;
+  border-right: 1px solid #F0F0F0;
+  vertical-align: middle;
+}
+
+.activities-table tbody td:last-child { border-right: none; }
+.activities-table tbody tr:last-child td { border-bottom: none; }
+
+.activities-table tbody tr:nth-child(even) td { background: #F9FAF9; }
+.activities-table tbody tr:hover td { background: #F0FAF8; }
+
+.prog-bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.prog-bar-bg {
+  flex: 1;
+  height: 5px;
+  background: #E8ECEC;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.prog-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+}
+
+.prog-pct {
+  font-size: 10px;
+  font-weight: 700;
+  font-family: 'Courier New', monospace;
+  min-width: 30px;
+  text-align: right;
+}
+
+.status-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  font-family: Arial, sans-serif;
+}
+
+.status-chip.done { background: rgba(42,157,143,0.12); color: #2A9D8F; }
+.status-chip.progress { background: rgba(201,139,42,0.12); color: #C98B2A; }
+.status-chip.pending { background: rgba(239,68,68,0.10); color: #EF4444; }
+
+.table-total-row td {
+  background: #F5F0E6 !important;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #6B4F1A;
+  letter-spacing: 0.06em;
+  border-top: 1.5px solid #C98B2A !important;
+  padding: 7px 12px !important;
+}
+
+/* ── Evidence Photo Grid ───────────────────────────────────── */
+.evidence-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  page-break-inside: auto;
+  break-inside: auto;
+}
+
+.ev-card {
+  border: 1px solid #E2E8E6;
+  border-radius: 4px;
+  overflow: hidden;
+  page-break-inside: avoid;
+}
+
+.ev-img-wrap {
+  background: #F0F0F0;
+  height: 130px;
+  overflow: hidden;
+}
+
+.ev-img-wrap img {
+  width: 100%;
+  height: 130px;
+  object-fit: cover;
+  display: block;
+}
+
+.ev-caption {
+  padding: 5px 7px;
+  border-left: 2px solid #C98B2A;
+  background: #FAFAFA;
+}
+
+.ev-ts {
+  font-size: 8px;
+  color: #AAA;
+  font-family: 'Courier New', monospace;
+  display: block;
+  margin-bottom: 1px;
+}
+
+.ev-text {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: #333;
+  word-break: break-word;
+}
+
+.ev-ai {
+  font-size: 8.5px;
+  color: #2A9D8F;
+  font-style: italic;
+  margin-top: 2px;
+}
+
+/* ── Observations ──────────────────────────────────────────── */
+.obs-box {
+  background: #FAFAFA;
+  border: 1px solid #E2E8E6;
+  border-radius: 3px;
+  padding: 12px 14px;
+  font-size: 11px;
+  color: #444;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── AI Analysis ────────────────────────────────────────────── */
+.ai-block {
+  background: #F0FAF8;
+  border: 1px solid #B2DFD9;
+  border-left: 3px solid #2A9D8F;
+  border-radius: 4px;
+  padding: 14px 16px;
+  font-size: 11px;
+  color: #1a2e2c;
+  line-height: 1.7;
+  /* Long AI summaries: allow internal breaks, avoid cutting header */
+  page-break-inside: auto;
+  break-inside: auto;
+}
+
+.ai-block h4 {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #2A9D8F;
+  margin: 10px 0 4px;
+  font-family: Arial Black, Arial, sans-serif;
+}
+
+.ai-block h4:first-child { margin-top: 0; }
+.ai-block li { margin: 2px 0 2px 14px; }
+.ai-block strong { color: #111; font-weight: 700; }
+
+/* ── Signatures ─────────────────────────────────────────────── */
+.sig-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  page-break-inside: avoid;
+  margin-top: 8px;
+}
+
+.sig-block {
+  text-align: center;
+}
+
+.sig-area {
+  height: 60px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  margin-bottom: 6px;
+}
+
+.sig-area img {
+  max-height: 56px;
+  display: block;
+}
+
+.sig-line {
+  width: 100%;
+  height: 1px;
+  background: #CCC;
+  margin-bottom: 8px;
+}
+
+.sig-name {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #111;
+  letter-spacing: 0.04em;
+}
+
+.sig-doc {
+  font-size: 8.5px;
+  color: #AAA;
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+.sig-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: rgba(42,157,143,0.08);
+  border: 1px solid rgba(42,157,143,0.2);
+}
+
+.sig-badge-text {
+  font-size: 7.5px;
+  font-weight: 700;
+  color: #2A9D8F;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.sig-rubrica {
+  margin-top: 4px;
+  font-size: 8px;
+  color: #AAA;
+}
+
+/* ── FOOTER ─────────────────────────────────────────────────── */
+.doc-footer {
+  background: #081210;
+  padding: 10px 36px;
+  border-top: 2px solid #C98B2A;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: auto;
+}
+
+.footer-brand {
+  font-size: 8px;
+  font-weight: 700;
+  color: #C98B2A;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  font-family: Arial Black, Arial, sans-serif;
+}
+
+.footer-meta {
+  font-size: 7px;
+  color: rgba(255,255,255,0.3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-family: 'Courier New', monospace;
+  text-align: center;
+}
+
+.footer-tag {
+  font-size: 7.5px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-family: Arial, sans-serif;
+}
+
+/* ── Page Break Utilities ─────────────────────────────────── */
+.page-break-before { page-break-before: always; }
+.page-avoid { page-break-inside: avoid; }
+
+/* ── Print overrides ─────────────────────────────────────── */
+@media print {
+  body { background: white !important; }
+  .page-wrap { padding: 0 !important; background: white !important; }
+  article { box-shadow: none !important; }
+}
 </style>
 </head>
-<body class="bg-zinc-100 font-body text-ink antialiased">
+<body>
 ___WATERMARK___
-<main class="min-h-screen py-8 flex justify-center items-start">
-<article class="w-[210mm] min-h-[297mm] bg-paper shadow-2xl relative flex flex-col">
+<div class="page-wrap">
+<article>
 
-<!-- ── HEADER ── -->
-<header class="flex justify-between items-start border-b-2 border-copper px-12 py-8 bg-white">
-  <div class="flex items-center gap-4">
-    <div class="w-14 h-14 bg-ink flex items-center justify-center rounded-sm flex-shrink-0">
-      <span class="material-symbols-outlined text-copper text-4xl">engineering</span>
+<!-- ── HEADER ──────────────────────────────────────────────── -->
+<header class="doc-header">
+  <div class="header-brand">
+    <div class="brand-mark">
+      <div class="brand-mark-inner"></div>
     </div>
-    <div>
-      <h1 class="font-headline text-3xl font-bold tracking-tight text-ink leading-none">RELATÓRIO DIÁRIO DE OBRA</h1>
-      <p class="font-label text-[10px] text-ink/50 tracking-widest uppercase mt-1">BOMTEMPO ENGENHARIA — Gestão de Campo</p>
-      ___PREVIEW_BADGE___
+    <div class="brand-text">
+      <h1>Bomtempo Engenharia</h1>
+      <div>
+        <p style="font-size:14px;font-weight:700;color:#C98B2A;letter-spacing:0.02em;font-family:Arial Black,Arial,sans-serif;text-transform:uppercase;margin-top:4px;">Relatório Diário de Obra</p>
+        <p class="brand-subtitle">Gestão de Campo · BTP Intelligence</p>
+        ___PREVIEW_BADGE___
+      </div>
     </div>
   </div>
-  <div class="text-right flex flex-col items-end gap-2">
+  <div class="header-meta">
     ___STATUS_BADGE___
     <div>
-      <p class="font-label text-[9px] text-ink/40 uppercase tracking-widest">Contrato</p>
-      <p class="font-label text-base font-bold text-ink">___CONTRATO___</p>
+      <p class="meta-field-label">Contrato</p>
+      <p class="meta-field-value">___CONTRATO___</p>
     </div>
     <div>
-      <p class="font-label text-[9px] text-ink/40 uppercase tracking-widest">Data</p>
-      <p class="font-label text-sm font-bold text-ink">___DATA_RDO___</p>
+      <p class="meta-field-label">Data do Relatório</p>
+      <p class="meta-date">___DATA_RDO___</p>
+    </div>
+    <div>
+      <p class="meta-field-label">Emissão</p>
+      <p style="font-size:10px;color:rgba(255,255,255,0.5);font-family:'Courier New',monospace;">___EMISSAO___</p>
     </div>
   </div>
 </header>
 
-<!-- ── BODY ── -->
-<div class="px-12 py-6 flex flex-col gap-5 flex-1">
+<!-- ── BODY ────────────────────────────────────────────────── -->
+<div class="doc-body">
 
   <!-- INFO GRID -->
-  <section class="grid grid-cols-4 gap-x-6 gap-y-3">
-    <div class="flex flex-col border-b border-zinc-200 pb-2">
-      <span class="font-headline text-[10px] uppercase text-copper font-bold tracking-widest">Projeto</span>
-      <span class="font-body font-semibold text-sm">___PROJETO___</span>
-    </div>
-    <div class="flex flex-col border-b border-zinc-200 pb-2">
-      <span class="font-headline text-[10px] uppercase text-copper font-bold tracking-widest">Cliente</span>
-      <span class="font-body font-semibold text-sm">___CLIENTE___</span>
-    </div>
-    <div class="flex flex-col border-b border-zinc-200 pb-2">
-      <span class="font-headline text-[10px] uppercase text-copper font-bold tracking-widest">Localização</span>
-      <span class="font-body font-semibold text-sm">___LOCALIZACAO___</span>
-    </div>
-    <div class="flex flex-col border-b border-zinc-200 pb-2">
-      <span class="font-headline text-[10px] uppercase text-copper font-bold tracking-widest">Mestre de Obras</span>
-      <span class="font-body font-semibold text-sm">___MESTRE___</span>
-    </div>
-    <div class="flex flex-col border-b border-zinc-200 pb-2">
-      <span class="font-headline text-[10px] uppercase text-copper font-bold tracking-widest">Clima</span>
-      <span class="font-body font-semibold text-sm">___CLIMA___</span>
-    </div>
-    <div class="flex flex-col border-b border-zinc-200 pb-2">
-      <span class="font-headline text-[10px] uppercase text-copper font-bold tracking-widest">Turno</span>
-      <span class="font-body font-semibold text-sm">___TURNO___</span>
-    </div>
-    <div class="flex flex-col border-b border-zinc-200 pb-2">
-      <span class="font-headline text-[10px] uppercase text-copper font-bold tracking-widest">Horário</span>
-      <span class="font-label font-bold text-sm">___H_INI___ – ___H_FIM___</span>
-    </div>
-    <div class="flex flex-col border-b border-zinc-200 pb-2">
-      <span class="font-headline text-[10px] uppercase text-copper font-bold tracking-widest">Tipo de Tarefa</span>
-      <span class="font-body font-semibold text-sm">___TIPO_TAREFA___</span>
-    </div>
-    <div class="flex flex-col border-b border-zinc-200 pb-2">
-      <span class="font-headline text-[10px] uppercase text-copper font-bold tracking-widest">Responsável</span>
-      <span class="font-body font-semibold text-sm">___SIGNATORY_NAME___</span>
-    </div>
-    <div class="flex flex-col border-b border-zinc-200 pb-2">
-      <span class="font-headline text-[10px] uppercase text-copper font-bold tracking-widest">Doc. (CPF/RG)</span>
-      <span class="font-label font-bold text-sm">___SIGNATORY_DOC___</span>
-    </div>
-    <div class="flex flex-col border-b border-zinc-200 pb-2">
-      <span class="font-headline text-[10px] uppercase text-copper font-bold tracking-widest">ID do RDO</span>
-      <span class="font-label text-xs font-bold text-ink/70">___ID_RDO___</span>
-    </div>
-    <div class="flex flex-col border-b border-zinc-200 pb-2">
-      <span class="font-headline text-[10px] uppercase text-copper font-bold tracking-widest">Emissão</span>
-      <span class="font-label text-xs text-ink/60">___EMISSAO___</span>
+  <section class="page-avoid">
+    <div class="info-grid">
+      <div class="info-cell">
+        <div class="info-label">Projeto</div>
+        <div class="info-value">___PROJETO___</div>
+      </div>
+      <div class="info-cell">
+        <div class="info-label">Cliente</div>
+        <div class="info-value">___CLIENTE___</div>
+      </div>
+      <div class="info-cell">
+        <div class="info-label">Localização / Obra</div>
+        <div class="info-value">___LOCALIZACAO___</div>
+      </div>
+      <div class="info-cell">
+        <div class="info-label">Mestre de Obras</div>
+        <div class="info-value">___MESTRE___</div>
+      </div>
+      <div class="info-cell">
+        <div class="info-label">Clima</div>
+        <div class="info-value">___CLIMA___</div>
+      </div>
+      <div class="info-cell">
+        <div class="info-label">Turno</div>
+        <div class="info-value">___TURNO___</div>
+      </div>
+      <div class="info-cell">
+        <div class="info-label">Horário</div>
+        <div class="info-value mono">___H_INI___ – ___H_FIM___</div>
+      </div>
+      <div class="info-cell">
+        <div class="info-label">Tipo de Tarefa</div>
+        <div class="info-value">___TIPO_TAREFA___</div>
+      </div>
+      <div class="info-cell">
+        <div class="info-label">Responsável</div>
+        <div class="info-value">___SIGNATORY_NAME___</div>
+      </div>
+      <div class="info-cell">
+        <div class="info-label">Doc. (CPF/RG)</div>
+        <div class="info-value mono">___SIGNATORY_DOC___</div>
+      </div>
+      <div class="info-cell">
+        <div class="info-label">ID do RDO</div>
+        <div class="info-value mono" style="font-size:9px;color:#777;">___ID_RDO___</div>
+      </div>
+      <div class="info-cell">
+        <div class="info-label">Data de Emissão</div>
+        <div class="info-value mono" style="font-size:9px;color:#777;">___EMISSAO___</div>
+      </div>
     </div>
   </section>
 
-  <!-- KPI BAR -->
-  <div class="grid grid-cols-5 bg-ink rounded-sm overflow-hidden page-avoid">
-    <div class="flex flex-col items-center py-4 border-r border-white/10">
-      <span class="font-label text-2xl font-bold text-copper">___KPI_ATIVIDADES___</span>
-      <span class="font-headline text-[9px] text-white/50 uppercase tracking-widest mt-1">Atividades</span>
+  <!-- KPI STRIP -->
+  <div class="kpi-strip page-avoid">
+    <div class="kpi-cell">
+      <div class="kpi-value">___KPI_ATIVIDADES___</div>
+      <div class="kpi-label">Atividades</div>
     </div>
-    <div class="flex flex-col items-center py-4 border-r border-white/10">
-      <span class="font-label text-2xl font-bold text-copper">___KPI_FOTOS___</span>
-      <span class="font-headline text-[9px] text-white/50 uppercase tracking-widest mt-1">Fotos</span>
+    <div class="kpi-cell">
+      <div class="kpi-value">___KPI_FOTOS___</div>
+      <div class="kpi-label">Fotos</div>
     </div>
-    <div class="flex flex-col items-center py-4 border-r border-white/10">
-      <span class="font-label text-2xl font-bold text-copper">___DURACAO_STR___</span>
-      <span class="font-headline text-[9px] text-white/50 uppercase tracking-widest mt-1">Duração</span>
+    <div class="kpi-cell">
+      <div class="kpi-value">___DURACAO_STR___</div>
+      <div class="kpi-label">Duração</div>
     </div>
-    <div class="flex flex-col items-center py-4 border-r border-white/10">
-      <span class="font-label text-2xl font-bold text-copper">___KPI_EQUIPE___</span>
-      <span class="font-headline text-[9px] text-white/50 uppercase tracking-widest mt-1">Equipe Alocada</span>
+    <div class="kpi-cell">
+      <div class="kpi-value">___KPI_EQUIPE___</div>
+      <div class="kpi-label">Equipe Alocada</div>
     </div>
-    <div class="flex flex-col items-center py-4">
-      <span class="font-label text-2xl font-bold text-copper">___KPI_KM___</span>
-      <span class="font-headline text-[9px] text-white/50 uppercase tracking-widest mt-1">KM Percorrido</span>
+    <div class="kpi-cell">
+      <div class="kpi-value">___KPI_KM___</div>
+      <div class="kpi-label">KM Percorrido</div>
     </div>
   </div>
 
@@ -634,24 +1295,21 @@ ___WATERMARK___
 
   <!-- ATIVIDADES TABLE -->
   <section class="page-avoid">
-    <h2 class="font-headline text-base font-bold copper-accent pl-3 uppercase tracking-wide mb-3 flex items-center gap-2">
-      <span class="material-symbols-outlined text-copper text-lg">checklist</span>
-      Serviços Executados
-    </h2>
-    <div class="overflow-hidden border border-zinc-200 rounded-sm">
-      <table class="w-full text-left border-collapse">
-        <thead class="bg-ink text-white">
-          <tr>
-            <th class="p-3 font-headline text-[10px] uppercase tracking-widest border-r border-white/10">Atividade / Descrição</th>
-            <th class="p-3 font-headline text-[10px] uppercase tracking-widest border-r border-white/10 w-36">Progresso</th>
-            <th class="p-3 font-headline text-[10px] uppercase tracking-widest w-28 text-center">Status</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-zinc-200 text-xs">
-          ___ACTIVITY_ROWS___
-        </tbody>
-      </table>
+    <div class="section-h">
+      <h2>Serviços Executados</h2>
     </div>
+    <table class="activities-table">
+      <thead>
+        <tr>
+          <th style="width:55%;">Atividade / Descrição</th>
+          <th style="width:25%;">Progresso</th>
+          <th style="width:20%;text-align:center;">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        ___ACTIVITY_ROWS___
+      </tbody>
+    </table>
   </section>
 
   <!-- EVIDÊNCIAS (conditional) -->
@@ -659,10 +1317,9 @@ ___WATERMARK___
 
   <!-- OBSERVAÇÕES -->
   <section>
-    <h2 class="font-headline text-base font-bold copper-accent pl-3 uppercase tracking-wide mb-3 flex items-center gap-2">
-      <span class="material-symbols-outlined text-copper text-lg">edit_note</span>
-      Observações Gerais
-    </h2>
+    <div class="section-h">
+      <h2>Observações Gerais</h2>
+    </div>
     ___OBS_BLOCK___
   </section>
 
@@ -671,52 +1328,49 @@ ___WATERMARK___
 
   <!-- IA ANALYSIS -->
   <section class="page-avoid">
-    <h2 class="font-headline text-base font-bold patina-accent pl-3 uppercase tracking-wide mb-3 flex items-center gap-2">
-      <span class="material-symbols-outlined text-lg" style="color:#2A9D8F;">smart_toy</span>
-      Análise Inteligente — BTP AI
-    </h2>
-    <div class="bg-zinc-50 border border-zinc-200 rounded-sm p-4" style="border-left:3px solid #2A9D8F;">
+    <div class="section-h patina">
+      <h2>Análise Inteligente — BTP AI</h2>
+    </div>
+    <div class="ai-block">
       ___AI_BLOCK___
     </div>
   </section>
 
   <!-- ASSINATURAS -->
-  <div class="grid grid-cols-2 gap-12 mt-2 page-avoid">
-    <div class="text-center">
-      <div class="h-14 flex items-end justify-center mb-2">
+  <div class="sig-grid">
+    <div class="sig-block">
+      <div class="sig-area">
         ___SIG_BLOCK___
       </div>
-      <div class="border-t border-zinc-300 pt-3">
-        <p class="font-body font-bold text-xs uppercase">___SIGNATORY_NAME___</p>
-        <p class="font-label text-[9px] text-zinc-400 uppercase tracking-widest">___SIGNATORY_DOC___</p>
-        <div class="mt-1 flex items-center justify-center gap-1" style="color:#2A9D8F;">
-          <span class="material-symbols-outlined text-xs">verified_user</span>
-          <span class="font-label text-[8px] font-bold">ASSINATURA DIGITAL</span>
-        </div>
+      <div class="sig-line"></div>
+      <div class="sig-name">___SIGNATORY_NAME___</div>
+      <div class="sig-doc">___SIGNATORY_DOC___</div>
+      <div class="sig-badge">
+        <span style="color:#2A9D8F;font-size:9px;">✓</span>
+        <span class="sig-badge-text">Assinatura Digital</span>
       </div>
     </div>
-    <div class="text-center">
-      <div class="h-14 flex items-end justify-center mb-2">
-        <span class="font-label text-zinc-300 italic text-[10px] tracking-tighter">Engenheiro / Fiscal</span>
+    <div class="sig-block">
+      <div class="sig-area">
+        <span style="font-size:10px;color:#CCC;font-style:italic;">Engenheiro / Fiscal</span>
       </div>
-      <div class="border-t border-zinc-300 pt-3">
-        <p class="font-body font-bold text-xs uppercase">Engenheiro Responsável</p>
-        <p class="font-label text-[9px] text-zinc-400 uppercase tracking-widest">Data: ___DATA_RDO___ &nbsp;|&nbsp; Rubrica: ________________</p>
-      </div>
+      <div class="sig-line"></div>
+      <div class="sig-name">Engenheiro Responsável</div>
+      <div class="sig-rubrica">Data: ___DATA_RDO___ &nbsp;|&nbsp; Rubrica: _______________</div>
     </div>
   </div>
 
 </div>
 
-<!-- ── FOOTER STRIP ── -->
-<footer class="mt-auto px-12 py-3 border-t-2 border-copper flex justify-between items-center bg-ink">
-  <span class="font-headline text-[9px] font-bold text-copper tracking-widest uppercase">BOMTEMPO ENGENHARIA</span>
-  <span class="font-label text-[8px] text-white/40 uppercase tracking-wider">RDO ___ID_RDO___ · Contrato ___CONTRATO___ · ___DATA_RDO___ · Emitido ___EMISSAO___</span>
-  <span class="font-headline text-[9px] font-bold text-white/70 uppercase tracking-widest">Relatório Diário de Obra</span>
+<!-- ── FOOTER ───────────────────────────────────────────────── -->
+<footer class="doc-footer">
+  <span class="footer-brand">Bomtempo Engenharia</span>
+  <span class="footer-meta">RDO ___ID_RDO___ · ___CONTRATO___ · ___DATA_RDO___</span>
+  <span class="footer-tag">Relatório Diário de Obra</span>
 </footer>
 
 </article>
-</main>
+</div>
 </body>
 </html>"""
 
@@ -748,11 +1402,11 @@ class RDOService:
     def _build_gps_row(label: str, lat, lng, endereco: str, ts, distancia=None) -> str:
         if not lat and not lng:
             return f"""
-            <div class="flex items-center gap-3 py-2 text-zinc-400">
-              <span class="material-symbols-outlined text-zinc-300 text-lg flex-shrink-0">location_off</span>
+            <div class="gps-row" style="opacity:0.5;">
+              <div class="gps-pin" style="background:#ccc;"></div>
               <div>
-                <span class="font-headline text-[10px] uppercase font-bold tracking-widest block" style="color:#C98B2A;">{label}</span>
-                <span class="font-body text-sm italic">Não registrado</span>
+                <div class="gps-label">{label}</div>
+                <div class="gps-address" style="font-style:italic;color:#999;">Não registrado</div>
               </div>
             </div>"""
         time_str = ""
@@ -766,16 +1420,16 @@ class RDOService:
         dist_badge = ""
         if distancia and float(distancia) > 0:
             d = float(distancia)
-            d_str = f"{d:.0f} metros" if d < 1000 else f"{d/1000:.2f} km"
+            d_str = f"{d:.0f} m" if d < 1000 else f"{d/1000:.2f} km"
             clr = "#1d7066" if d <= 100 else ("#8a6d0a" if d <= 300 else "#C0392B")
-            dist_badge = f'<span style="display:inline-block;font-size:9px;font-weight:700;padding:1px 7px;border-radius:9999px;margin-left:6px;background:{clr}20;color:{clr};border:0.5px solid {clr}60;">{d_str} da obra</span>'
+            dist_badge = f'<span style="display:inline-block;font-size:8px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:6px;background:{clr}18;color:{clr};border:0.5px solid {clr}50;">{d_str} da obra</span>'
         return f"""
-            <div class="flex items-start gap-3 py-3 border-b border-zinc-100 last:border-0">
-              <span class="material-symbols-outlined text-lg flex-shrink-0 mt-0.5" style="color:#C98B2A;">location_on</span>
-              <div class="flex-1">
-                <span class="font-headline text-[10px] uppercase font-bold tracking-widest block" style="color:#C98B2A;">{label}{f' — {time_str}' if time_str else ''}</span>
-                <span class="font-body text-sm font-semibold">{addr}{dist_badge}</span>
-                <span class="font-label text-[9px] text-zinc-400 block mt-0.5">({float(lat):.6f}, {float(lng):.6f})</span>
+            <div class="gps-row">
+              <div class="gps-pin"></div>
+              <div style="flex:1;">
+                <div class="gps-label">{label}{f' — {time_str}' if time_str else ''}</div>
+                <div class="gps-address">{addr}{dist_badge}</div>
+                <div class="gps-coords">({float(lat):.6f}, {float(lng):.6f})</div>
               </div>
             </div>"""
 
@@ -799,38 +1453,39 @@ class RDOService:
     def _activity_rows(items: list) -> str:
         e = RDOService._e
         if not items:
-            return '<tr><td colspan="3" class="p-4 text-center font-body italic text-zinc-400 text-sm">Nenhuma atividade registrada.</td></tr>'
+            return '<tr><td colspan="3" style="padding:16px;text-align:center;font-style:italic;color:#AAA;font-size:11px;">Nenhuma atividade registrada.</td></tr>'
         rows = []
         for i, r in enumerate(items[:30]):
             pct = int(r.get("progresso_percentual", r.get("percentual", 0)) or 0)
             status = r.get("status", "Em andamento")
             if pct == 100:
-                badge = '<span style="display:inline-block;padding:2px 8px;background:#2A9D8F20;color:#2A9D8F;font-weight:700;font-size:9px;border-radius:9999px;letter-spacing:0.3px;">CONCLUÍDO</span>'
+                chip_class = "status-chip done"
+                chip_text = "CONCLUÍDO"
             elif pct > 0:
-                badge = f'<span style="display:inline-block;padding:2px 8px;background:#C98B2A20;color:#C98B2A;font-weight:700;font-size:9px;border-radius:9999px;letter-spacing:0.3px;">{e(status).upper()}</span>'
+                chip_class = "status-chip progress"
+                chip_text = e(status).upper()
             else:
-                badge = f'<span style="display:inline-block;padding:2px 8px;background:#ef444420;color:#ef4444;font-weight:700;font-size:9px;border-radius:9999px;letter-spacing:0.3px;">{e(status).upper()}</span>'
+                chip_class = "status-chip pending"
+                chip_text = e(status).upper()
             prog_color = "#2A9D8F" if pct == 100 else "#C98B2A"
-            row_bg = "background:#f9fafb;" if i % 2 == 1 else ""
             rows.append(
-                f'<tr style="{row_bg}">'
-                f'<td class="p-3 font-body font-medium text-xs">{e(r.get("atividade", r.get("descricao", "")))}</td>'
-                f'<td class="p-3">'
-                f'<div style="display:flex;align-items:center;gap:8px;">'
-                f'<div style="flex:1;height:5px;background:#f1f5f9;border-radius:3px;overflow:hidden;">'
-                f'<div style="height:100%;width:{pct}%;background:{prog_color};border-radius:3px;"></div>'
+                f'<tr>'
+                f'<td style="font-size:11px;font-weight:600;">{e(r.get("atividade", r.get("descricao", "")))}</td>'
+                f'<td>'
+                f'<div class="prog-bar-wrap">'
+                f'<div class="prog-bar-bg">'
+                f'<div class="prog-bar-fill" style="width:{pct}%;background:{prog_color};"></div>'
                 f'</div>'
-                f'<span style="font-family:\'JetBrains Mono\',monospace;font-weight:700;font-size:10px;color:{prog_color};">{pct}%</span>'
+                f'<span class="prog-pct" style="color:{prog_color};">{pct}%</span>'
                 f'</div>'
                 f'</td>'
-                f'<td class="p-3 text-center">{badge}</td>'
+                f'<td style="text-align:center;"><span class="{chip_class}">{chip_text}</span></td>'
                 f'</tr>'
             )
         rows.append(
-            f'<tr style="background:#f5f0e6;">'
-            f'<td colspan="3" style="padding:8px 12px;font-family:\'Rajdhani\',sans-serif;font-weight:700;font-size:10px;text-transform:uppercase;border-top:1px solid #C98B2A;">'
-            f'TOTAL: {len(items)} atividade(s) registrada(s)'
-            f'</td></tr>'
+            f'<tr class="table-total-row">'
+            f'<td colspan="3">Total: {len(items)} atividade(s) registrada(s)</td>'
+            f'</tr>'
         )
         return "\n".join(rows)
 
@@ -867,24 +1522,24 @@ class RDOService:
         if not items:
             return ""
         cards = []
-        for item in items[:20]:
+        for item in items[:24]:
             url = item.get("foto_url", "")
             caption = RDOService._e(item.get("legenda") or "")
             analysis = RDOService._e(item.get("analise_vision") or "")
             ts = RDOService._fmt_ts(item.get("timestamp_foto"))
-            ts_html = f'<span style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:#9ca3af;display:block;margin-bottom:2px;">{ts}</span>' if ts != "—" else ""
-            cap_html = f'<span style="font-weight:600;font-size:11px;color:#081210;word-break:break-word;">{caption}</span>' if caption else ""
-            ai_html = f'<span style="font-size:9px;color:#2A9D8F;font-style:italic;margin-top:3px;display:block;">🤖 {analysis}</span>' if analysis else ""
+            ts_html = f'<span class="ev-ts">{ts}</span>' if ts != "—" else ""
+            cap_html = f'<span class="ev-text">{caption}</span>' if caption else ""
+            ai_html = f'<div class="ev-ai">🤖 {analysis}</div>' if analysis else ""
             cards.append(f"""
-            <div style="border:0.5px solid #e4e4e7;border-radius:4px;overflow:hidden;page-break-inside:avoid;">
-              <div style="background:#f4f4f5;display:flex;align-items:center;justify-content:center;height:148px;overflow:hidden;">
-                <img src="{url}" style="width:100%;height:148px;object-fit:cover;display:block;" />
+            <div class="ev-card">
+              <div class="ev-img-wrap">
+                <img src="{url}" />
               </div>
-              <div style="padding:5px 8px 7px;background:#fafafa;border-left:2px solid #C98B2A;">
+              <div class="ev-caption">
                 {ts_html}{cap_html}{ai_html}
               </div>
             </div>""")
-        return f'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;padding:6px 0;">{"".join(cards)}</div>'
+        return f'<div class="evidence-grid">{"".join(cards)}</div>'
 
     @staticmethod
     def build_html(rdo_data: Dict[str, Any], is_preview: bool = False) -> str:
@@ -975,42 +1630,38 @@ class RDOService:
         watermark = '<div class="watermark-rdo">RASCUNHO</div>' if is_preview else ""
         preview_badge = (
             '<span style="display:inline-block;background:#dc2626;color:#fff;'
-            'font-family:\'Rajdhani\',sans-serif;font-weight:700;font-size:9px;'
-            'padding:2px 8px;border-radius:2px;letter-spacing:2px;text-transform:uppercase;margin-top:4px;">'
+            'font-family:Arial,sans-serif;font-weight:700;font-size:8px;'
+            'padding:2px 8px;border-radius:3px;letter-spacing:2px;text-transform:uppercase;margin-top:4px;">'
             'RASCUNHO</span>'
         ) if is_preview else ""
 
         if is_preview:
             status_badge = (
-                '<div style="display:inline-block;padding:4px 10px;'
-                'background:#f59e0b20;border:1px solid #f59e0b;'
-                'color:#b45309;font-family:\'JetBrains Mono\',monospace;'
-                'font-size:9px;font-weight:700;border-radius:2px;">'
+                '<div style="display:inline-block;padding:3px 10px;'
+                'background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.5);'
+                'color:#b45309;font-family:\'Courier New\',monospace;'
+                'font-size:8px;font-weight:700;border-radius:3px;letter-spacing:0.08em;">'
                 'STATUS: RASCUNHO</div>'
             )
         else:
             status_badge = (
-                '<div style="display:inline-block;padding:4px 10px;'
-                'background:#2A9D8F20;border:1px solid #2A9D8F;'
-                'color:#2A9D8F;font-family:\'JetBrains Mono\',monospace;'
-                'font-size:9px;font-weight:700;border-radius:2px;">'
-                'STATUS: OPERACIONAL</div>'
+                '<div style="display:inline-block;padding:3px 10px;'
+                'background:rgba(42,157,143,0.12);border:1px solid rgba(42,157,143,0.4);'
+                'color:#2A9D8F;font-family:\'Courier New\',monospace;'
+                'font-size:8px;font-weight:700;border-radius:3px;letter-spacing:0.08em;">'
+                'STATUS: FINALIZADO</div>'
             )
 
         # GPS block
         has_gps = rdo_data.get("checkin_lat") or rdo_data.get("checkout_lat")
         if has_gps:
             gps_block = (
-                '<section style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:4px;padding:12px 16px;">'
-                '<h2 style="font-family:\'Rajdhani\',sans-serif;font-weight:700;font-size:13px;'
-                'text-transform:uppercase;letter-spacing:0.05em;color:#081210;'
-                'border-left:4px solid #C98B2A;padding-left:10px;margin-bottom:10px;'
-                'display:flex;align-items:center;gap:6px;">'
-                '<span class="material-symbols-outlined" style="color:#C98B2A;font-size:16px;">pin_drop</span>'
-                'Registro GPS</h2>'
+                '<section class="page-avoid">'
+                '<div class="section-h"><h2>Registro GPS — Presença em Campo</h2></div>'
+                '<div class="gps-block">'
                 f'{gps_checkin}'
                 f'{gps_checkout}'
-                '</section>'
+                '</div></section>'
             )
         else:
             gps_block = ""
@@ -1018,63 +1669,44 @@ class RDOService:
         # Orientação / scope
         orientacao_section = (
             '<section>'
-            '<h2 style="font-family:\'Rajdhani\',sans-serif;font-weight:700;font-size:13px;'
-            'text-transform:uppercase;letter-spacing:0.05em;color:#081210;'
-            'border-left:4px solid #C98B2A;padding-left:10px;margin-bottom:10px;">'
-            'Escopo / Orientação</h2>'
-            '<div style="background:#fafafa;padding:14px 16px;border:1px solid #e4e4e7;border-radius:2px;">'
-            f'<p style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:12px;'
-            f'color:#52525b;line-height:1.65;font-style:italic;">{orientacao}</p>'
-            '</div></section>'
+            '<div class="section-h"><h2>Escopo / Orientação do Dia</h2></div>'
+            f'<div class="scope-box">{orientacao}</div>'
+            '</section>'
         ) if orientacao else ""
 
         # Interrupção
         intr_section = (
-            '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:4px;'
-            'padding:12px 16px;display:flex;align-items:flex-start;gap:10px;">'
-            '<span class="material-symbols-outlined" style="color:#ef4444;font-size:18px;flex-shrink:0;">warning</span>'
+            '<div class="intr-box page-avoid">'
+            '<div class="intr-icon">!</div>'
             '<div>'
-            '<p style="font-family:\'Rajdhani\',sans-serif;font-weight:700;font-size:12px;'
-            'text-transform:uppercase;color:#b91c1c;margin-bottom:4px;">Interrupção Registrada</p>'
-            f'<p style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:12px;color:#7f1d1d;">{motivo}</p>'
+            '<p class="intr-title">Interrupção Registrada</p>'
+            f'<p class="intr-text">{motivo}</p>'
             '</div></div>'
         ) if houve_intr else ""
 
-        # EPI photo — full width, no crop
+        # EPI photo
         epi_section = (
-            '<section>'
-            '<h2 style="font-family:\'Rajdhani\',sans-serif;font-weight:700;font-size:13px;'
-            'text-transform:uppercase;letter-spacing:0.05em;color:#081210;'
-            'border-left:4px solid #C98B2A;padding-left:10px;margin-bottom:10px;">'
-            'Equipe com EPIs</h2>'
-            '<div style="background:#f4f4f5;border-radius:4px;border:0.5px solid #e4e4e7;max-width:480px;">'
-            f'<img src="{epi_foto_url}" style="width:100%;height:auto;display:block;border-radius:4px;" />'
-            '</div></section>'
+            '<section class="photo-single page-avoid">'
+            '<div class="section-h"><h2>Equipe com EPIs</h2></div>'
+            f'<img src="{epi_foto_url}" style="max-width:420px;height:auto;display:block;border-radius:4px;border:1px solid #E2E8E6;" />'
+            '</section>'
         ) if epi_foto_url else ""
 
-        # Ferramentas photo — full width, no crop
+        # Ferramentas photo
         ferramentas_section = (
-            '<section>'
-            '<h2 style="font-family:\'Rajdhani\',sans-serif;font-weight:700;font-size:13px;'
-            'text-transform:uppercase;letter-spacing:0.05em;color:#081210;'
-            'border-left:4px solid #C98B2A;padding-left:10px;margin-bottom:10px;">'
-            'Ferramentas Limpas e Organizadas</h2>'
-            '<div style="background:#f4f4f5;border-radius:4px;border:0.5px solid #e4e4e7;max-width:480px;">'
-            f'<img src="{ferramentas_foto_url}" style="width:100%;height:auto;display:block;border-radius:4px;" />'
-            '</div></section>'
+            '<section class="photo-single page-avoid">'
+            '<div class="section-h"><h2>Ferramentas Limpas e Organizadas</h2></div>'
+            f'<img src="{ferramentas_foto_url}" style="max-width:420px;height:auto;display:block;border-radius:4px;border:1px solid #E2E8E6;" />'
+            '</section>'
         ) if ferramentas_foto_url else ""
 
         # Photos
         if evidencias:
             photos_section = (
                 '<section>'
-                '<h2 style="font-family:\'Rajdhani\',sans-serif;font-weight:700;font-size:13px;'
-                'text-transform:uppercase;letter-spacing:0.05em;color:#081210;'
-                'border-left:4px solid #C98B2A;padding-left:10px;margin-bottom:10px;'
-                'display:flex;align-items:center;gap:6px;">'
-                '<span class="material-symbols-outlined" style="color:#C98B2A;font-size:16px;">photo_camera</span>'
-                f'Evidências de Campo ({len(evidencias)} foto{"s" if len(evidencias) != 1 else ""})'
-                '</h2>'
+                '<div class="section-h">'
+                f'<h2>Evidências de Campo ({len(evidencias)} foto{"s" if len(evidencias) != 1 else ""})</h2>'
+                '</div>'
                 f'{evidence_html}'
                 '</section>'
             )
@@ -1084,15 +1716,11 @@ class RDOService:
         # Observations
         if obs:
             obs_block = (
-                '<div style="background:#fafafa;border:1px solid #e4e4e7;border-radius:2px;'
-                'padding:12px 16px;font-family:\'Plus Jakarta Sans\',sans-serif;font-size:12px;'
-                f'color:#3f3f46;line-height:1.7;white-space:pre-wrap;word-break:break-word;">'
-                f'{_html_mod.escape(obs)}</div>'
+                f'<div class="obs-box">{_html_mod.escape(obs)}</div>'
             )
         else:
             obs_block = (
-                '<p style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:12px;'
-                'font-style:italic;color:#a1a1aa;padding:8px 0;">Sem observações para este dia.</p>'
+                '<p style="font-size:11px;font-style:italic;color:#AAA;padding:8px 0;">Sem observações para este dia.</p>'
             )
 
         # AI block
@@ -1102,28 +1730,22 @@ class RDOService:
                 lines = []
                 for line in text.split("\n"):
                     line = _html_mod.escape(line)
-                    line = re.sub(r"^## (.+)$", r'<h4 style="margin:8px 0 4px;color:#2A9D8F;font-family:\'Rajdhani\',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:0.4px;">\1</h4>', line)
-                    line = re.sub(r"^\s*[-•]\s(.+)$", r'<li style="margin:2px 0;">\1</li>', line)
+                    line = re.sub(r"^## (.+)$", r'<h4>\1</h4>', line)
+                    line = re.sub(r"^\s*[-•]\s(.+)$", r'<li>\1</li>', line)
                     line = re.sub(r"\*\*(.+?)\*\*", r'<strong>\1</strong>', line)
                     lines.append(line)
                 html_out = "\n".join(lines)
                 html_out = re.sub(r"(<li[^>]*>.*?</li>\n?)+", lambda m: f"<ul style='margin:4px 0 6px 14px;padding:0;'>{m.group(0)}</ul>", html_out)
                 return html_out
-            ai_block = (
-                '<div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:12px;'
-                f'color:#1a1a1a;line-height:1.7;">{_md_simple(ai_text)}</div>'
-            )
+            ai_block = _md_simple(ai_text)
         else:
-            ai_block = (
-                '<div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:12px;'
-                'font-style:italic;color:#a1a1aa;">⏳ Análise sendo processada…</div>'
-            )
+            ai_block = '<p style="font-style:italic;color:#888;font-size:11px;">⏳ Análise sendo processada…</p>'
 
         # Signature
         if signatory_sig_b64 and signatory_sig_b64.startswith("data:"):
-            sig_block = f'<img src="{signatory_sig_b64}" style="max-height:56px;display:block;margin-bottom:4px;" />'
+            sig_block = f'<img src="{signatory_sig_b64}" style="max-height:56px;display:block;" />'
         else:
-            sig_block = '<div style="height:40px;border-bottom:0.5px solid #d4d4d8;margin-bottom:4px;"></div>'
+            sig_block = '<span style="font-size:10px;color:#CCC;font-style:italic;">Assinatura digital pendente</span>'
 
         # ── Apply replacements to template ──────────────────────────────────
         replacements = {
