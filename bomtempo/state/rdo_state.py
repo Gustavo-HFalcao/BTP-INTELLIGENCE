@@ -1415,9 +1415,8 @@ class RDOState(rx.State):
 
     @rx.event(background=True)
     async def execute_submit(self):
-        import threading
         from bomtempo.core.audit_logger import audit_log, AuditCategory
-        from bomtempo.core.executors import get_ai_executor, get_heavy_executor, get_db_executor
+        from bomtempo.core.executors import get_ai_executor, get_heavy_executor, get_db_executor, get_http_executor
         from bomtempo.core.circuit_breaker import ia_breaker
 
         loop = asyncio.get_running_loop()
@@ -1526,11 +1525,14 @@ class RDOState(rx.State):
                 pass
 
             # 4. Upload PDF
+            # Use get_http_executor() — upload is just HTTP to Supabase, not CPU/memory heavy.
+            # Using get_heavy_executor() here was wrong: it caused upload to queue behind OTHER
+            # users' PDF generation (1-worker pool), delaying completion by 30-90s unnecessarily.
             pdf_url = ""
             if pdf_path:
                 try:
                     pdf_url = await loop.run_in_executor(
-                        get_heavy_executor(),
+                        get_http_executor(),
                         lambda: RDOService.upload_pdf(pdf_path, id_rdo),
                     )
                 except Exception as e:
@@ -1875,7 +1877,10 @@ class RDOState(rx.State):
                 except Exception as e:
                     logger.error(f"Email: {e}")
 
-            threading.Thread(target=_send_email_task, daemon=True).start()
+            # Fire-and-forget via http_executor — do NOT await (email takes 5-30s via SMTP).
+            # Using get_http_executor() instead of bare threading.Thread() ensures the thread
+            # count is bounded (max 4 concurrent email sends) and avoids untracked threads.
+            asyncio.ensure_future(loop.run_in_executor(get_http_executor(), _send_email_task))
 
             # Audit
             audit_log(

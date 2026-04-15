@@ -26,10 +26,12 @@ from concurrent.futures import ThreadPoolExecutor
 # simultâneos saturem o sistema inteiro
 _ai_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="bt-ai")
 
-# ── Executor: PDF (Chromium) ───────────────────────────────────────────────────
-# max_workers=1: Chromium é extremamente pesado (~500MB) — 1 instância é o limite seguro
-# NUNCA misturar com processamento de imagem: foto de celular pode levar 3–8s e
-# bloquearia geração de PDF indefinidamente (ou vice-versa).
+# ── Executor: PDF (xhtml2pdf via subprocess) ──────────────────────────────────
+# max_workers=1: cada geração spawna um multiprocessing.Process isolado.
+# 1 worker garante fila sequencial — múltiplos envios de RDO não se sobrepõem.
+# Se max_workers>1, dois subprocessos xhtml2pdf rodariam em paralelo (~40-80MB cada).
+# Por precaução com o container Fly.io 1GB, mantemos 1.
+# NOTA: upload_pdf e operações HTTP NÃO devem usar este executor — use get_http_executor().
 _heavy_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="bt-heavy")
 
 # ── Executor: Imagem ──────────────────────────────────────────────────────────
@@ -57,7 +59,7 @@ def get_ai_executor() -> ThreadPoolExecutor:
 
 
 def get_heavy_executor() -> ThreadPoolExecutor:
-    """PDF com Chromium (Playwright). NÃO usar para imagens — use get_image_executor()."""
+    """PDF (xhtml2pdf em subprocess isolado). Fila de 1 — não usar para uploads/imagens."""
     return _heavy_executor
 
 
