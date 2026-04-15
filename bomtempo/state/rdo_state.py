@@ -774,6 +774,14 @@ class RDOState(rx.State):
             for f in files:
                 try:
                     file_bytes = await f.read()
+                    # Guard: rejeita arquivos muito grandes antes de processar (evita timeout WebSocket)
+                    _MAX_BYTES = 50 * 1024 * 1024  # 50 MB
+                    if len(file_bytes) > _MAX_BYTES:
+                        yield rx.toast(
+                            f"⚠️ Foto muito grande ({len(file_bytes)//1024//1024}MB). Use uma foto de até 50MB.",
+                            position="top-center", duration=8000,
+                        )
+                        continue
                     _name = getattr(f, "filename", "foto.jpg")
                     _ct   = getattr(f, "content_type", None) or "image/jpeg"
                     _b, _n, _c = file_bytes, _name, _ct
@@ -911,6 +919,14 @@ class RDOState(rx.State):
             for f in files[:1]:  # Only keep the latest EPI photo
                 try:
                     file_bytes = await f.read()
+                    # Guard: rejeita arquivos muito grandes antes de processar (evita timeout WebSocket)
+                    _MAX_BYTES = 50 * 1024 * 1024  # 50 MB
+                    if len(file_bytes) > _MAX_BYTES:
+                        yield rx.toast(
+                            f"⚠️ Foto muito grande ({len(file_bytes)//1024//1024}MB). Use uma foto de até 50MB.",
+                            position="top-center", duration=8000,
+                        )
+                        return
                     _name = getattr(f, "filename", "epi.jpg")
                     _ct   = getattr(f, "content_type", None) or "image/jpeg"
                     _b, _n, _c = file_bytes, _name, _ct
@@ -988,6 +1004,14 @@ class RDOState(rx.State):
             for f in files[:1]:
                 try:
                     file_bytes = await f.read()
+                    # Guard: rejeita arquivos muito grandes antes de processar (evita timeout WebSocket)
+                    _MAX_BYTES = 50 * 1024 * 1024  # 50 MB
+                    if len(file_bytes) > _MAX_BYTES:
+                        yield rx.toast(
+                            f"⚠️ Foto muito grande ({len(file_bytes)//1024//1024}MB). Use uma foto de até 50MB.",
+                            position="top-center", duration=8000,
+                        )
+                        return
                     _name = getattr(f, "filename", "ferramentas.jpg")
                     _ct   = getattr(f, "content_type", None) or "image/jpeg"
                     _b, _n, _c = file_bytes, _name, _ct
@@ -1857,7 +1881,7 @@ class RDOState(rx.State):
                 AlertEngine.check_event(
                     event_type="rdo_submitted",
                     contrato=contrato,
-                    client_id=client_id,
+                    client_id=_submit_client_id,
                     metadata={"rdo_id": str(id_rdo)},
                 )
             except Exception:

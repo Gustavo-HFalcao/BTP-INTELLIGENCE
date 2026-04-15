@@ -1598,75 +1598,77 @@ class HubState(rx.State):
             self.cron_fase_filter = ""
             self.cron_search = ""
 
-        try:
-            # Load project working days config
-            contrato_rows = sb_select("contratos", filters={"contrato": contrato}, limit=1)
-            dias_uteis_str = "seg,ter,qua,qui,sex"
-            if contrato_rows:
-                dias_uteis_str = str(contrato_rows[0].get("dias_uteis_semana", "") or "seg,ter,qua,qui,sex")
+        normalized: list = []
+        dias_uteis_str = "seg,ter,qua,qui,sex"
+        _prev_contrato = contrato
 
-            rows = sb_select(
-                "hub_atividades",
-                filters={"contrato": contrato},
-                order="fase_macro.asc,inicio_previsto.asc",
-                limit=500,
-            )
-            normalized = []
-            for r in rows:
-                fase = _norm_str(r.get("fase", ""))
-                pendente_raw = r.get("pendente_aprovacao", False)
-                pendente = "1" if str(pendente_raw or "").upper() in ("TRUE", "1", "SIM", "YES") else "0"
-                normalized.append({
-                    "id":              _norm_str(r.get("id")),
-                    "contrato":        _norm_str(r.get("contrato")),
-                    "fase_macro":      _norm_str(r.get("fase_macro")),
-                    "fase":            fase,
-                    "atividade":       _norm_str(r.get("atividade")),
-                    "responsavel":     _norm_str(r.get("responsavel"), "—"),
-                    "inicio_previsto": _utc_date_to_br(_norm_str(r.get("inicio_previsto"))),
-                    "termino_previsto": _utc_date_to_br(_norm_str(r.get("termino_previsto"))),
-                    # raw ISO dates kept for Gantt/weather lookups
-                    "inicio_iso": _norm_str(r.get("inicio_previsto"))[:10],
-                    "termino_iso": _norm_str(r.get("termino_previsto"))[:10],
-                    "conclusao_pct":   _norm_pct(r.get("conclusao_pct")),
-                    "critico":         "1" if str(r.get("critico", "") or "").upper() in ("TRUE", "1", "SIM") else "0",
-                    "dependencia":     _norm_str(r.get("dependencia")),
-                    "observacoes":     _norm_str(r.get("observacoes")),
-                    "color":           _fase_color(fase),
-                    # Hierarchical fields
-                    "nivel":           _norm_str(r.get("nivel"), "macro"),
-                    "parent_id":       _norm_str(r.get("parent_id")),
-                    "peso_pct":        _norm_pct(r.get("peso_pct") if r.get("peso_pct") is not None else 100),
-                    "pendente_aprovacao": pendente,
-                    # Quantity tracking
-                    "total_qty":       _norm_str(r.get("total_qty", "0") or "0"),
-                    "exec_qty":        _norm_str(r.get("exec_qty", "0") or "0"),
-                    "unidade":         _norm_str(r.get("unidade", "")),
-                    "dias_planejados": _norm_str(r.get("dias_planejados", "0") or "0"),
-                    "dependencia_id":  _norm_str(r.get("dependencia_id", "")),
-                    # dep_tipo: fallback for legacy rows — if dependencia_id exists → 'tradicional'
-                    "dep_tipo": _norm_str(
-                        r.get("dep_tipo")
-                        or ("tradicional" if r.get("dependencia_id") else "sem_dep")
-                    ),
-                    # Forecast fields (new)
-                    "status_atividade": _norm_str(r.get("status_atividade", "nao_iniciada") or "nao_iniciada"),
-                    "tipo_medicao":     _norm_str(r.get("tipo_medicao", "quantidade") or "quantidade"),
-                    "frente_servico":   _norm_str(r.get("frente_servico", "")),
-                    "data_inicio_real": _utc_date_to_br(_norm_str(r.get("data_inicio_real") or "")),
-                    "data_fim_real":    _utc_date_to_br(_norm_str(r.get("data_fim_real") or "")),
-                    "data_fim_prevista": _utc_date_to_br(_norm_str(r.get("data_fim_prevista") or "")),
-                    "data_inicio_real_iso": _norm_str(r.get("data_inicio_real") or "")[:10],
-                    "data_fim_real_iso":    _norm_str(r.get("data_fim_real") or "")[:10],
-                    "efetivo_alocado":      _norm_str(r.get("efetivo_alocado", "0") or "0"),
-                })
-        except Exception as e:
-            logger.error(f"load_cronograma error: {e}")
-            normalized = []
-
-        # ── Pré-computa forecast fora do lock (CPU-bound, evita bloquear state mutex) ──
-        _prev_contrato = contrato  # fallback
         try:
+            # ── 1. Load rows from DB ───────────────────────────────────────────
+            try:
+                contrato_rows = sb_select("contratos", filters={"contrato": contrato}, limit=1)
+                if contrato_rows:
+                    dias_uteis_str = str(contrato_rows[0].get("dias_uteis_semana", "") or "seg,ter,qua,qui,sex")
+
+                rows = sb_select(
+                    "hub_atividades",
+                    filters={"contrato": contrato},
+                    order="fase_macro.asc,inicio_previsto.asc",
+                    limit=500,
+                )
+                for r in rows:
+                    fase = _norm_str(r.get("fase", ""))
+                    pendente_raw = r.get("pendente_aprovacao", False)
+                    pendente = "1" if str(pendente_raw or "").upper() in ("TRUE", "1", "SIM", "YES") else "0"
+                    normalized.append({
+                        "id":              _norm_str(r.get("id")),
+                        "contrato":        _norm_str(r.get("contrato")),
+                        "fase_macro":      _norm_str(r.get("fase_macro")),
+                        "fase":            fase,
+                        "atividade":       _norm_str(r.get("atividade")),
+                        "responsavel":     _norm_str(r.get("responsavel"), "—"),
+                        "inicio_previsto": _utc_date_to_br(_norm_str(r.get("inicio_previsto"))),
+                        "termino_previsto": _utc_date_to_br(_norm_str(r.get("termino_previsto"))),
+                        # raw ISO dates kept for Gantt/weather lookups
+                        "inicio_iso": _norm_str(r.get("inicio_previsto"))[:10],
+                        "termino_iso": _norm_str(r.get("termino_previsto"))[:10],
+                        "conclusao_pct":   _norm_pct(r.get("conclusao_pct")),
+                        "critico":         "1" if str(r.get("critico", "") or "").upper() in ("TRUE", "1", "SIM") else "0",
+                        "dependencia":     _norm_str(r.get("dependencia")),
+                        "observacoes":     _norm_str(r.get("observacoes")),
+                        "color":           _fase_color(fase),
+                        # Hierarchical fields
+                        "nivel":           _norm_str(r.get("nivel"), "macro"),
+                        "parent_id":       _norm_str(r.get("parent_id")),
+                        "peso_pct":        _norm_pct(r.get("peso_pct") if r.get("peso_pct") is not None else 100),
+                        "pendente_aprovacao": pendente,
+                        # Quantity tracking
+                        "total_qty":       _norm_str(r.get("total_qty", "0") or "0"),
+                        "exec_qty":        _norm_str(r.get("exec_qty", "0") or "0"),
+                        "unidade":         _norm_str(r.get("unidade", "")),
+                        "dias_planejados": _norm_str(r.get("dias_planejados", "0") or "0"),
+                        "dependencia_id":  _norm_str(r.get("dependencia_id", "")),
+                        # dep_tipo: fallback for legacy rows — if dependencia_id exists → 'tradicional'
+                        "dep_tipo": _norm_str(
+                            r.get("dep_tipo")
+                            or ("tradicional" if r.get("dependencia_id") else "sem_dep")
+                        ),
+                        # Forecast fields (new)
+                        "status_atividade": _norm_str(r.get("status_atividade", "nao_iniciada") or "nao_iniciada"),
+                        "tipo_medicao":     _norm_str(r.get("tipo_medicao", "quantidade") or "quantidade"),
+                        "frente_servico":   _norm_str(r.get("frente_servico", "")),
+                        "data_inicio_real": _utc_date_to_br(_norm_str(r.get("data_inicio_real") or "")),
+                        "data_fim_real":    _utc_date_to_br(_norm_str(r.get("data_fim_real") or "")),
+                        "data_fim_prevista": _utc_date_to_br(_norm_str(r.get("data_fim_prevista") or "")),
+                        "data_inicio_real_iso": _norm_str(r.get("data_inicio_real") or "")[:10],
+                        "data_fim_real_iso":    _norm_str(r.get("data_fim_real") or "")[:10],
+                        "efetivo_alocado":      _norm_str(r.get("efetivo_alocado", "0") or "0"),
+                        # Âncora temporal: data do último RDO que atualizou esta atividade
+                        "last_rdo_date":        _norm_str(r.get("last_rdo_date") or "")[:10],
+                    })
+            except Exception as e:
+                logger.error(f"load_cronograma (db fetch): {e}", exc_info=True)
+
+            # ── 2. Pré-computa forecast fora do lock (CPU-bound) ───────────────
             import asyncio as _aio_fc
             _fc_loop = _aio_fc.get_running_loop()
             forecast_cache = await _fc_loop.run_in_executor(
@@ -1679,11 +1681,8 @@ class HubState(rx.State):
                 self.cron_working_days_str = dias_uteis_str
                 _prev_contrato = self.cron_contrato
                 self.cron_contrato = contrato
-                self.cron_loading = False
 
             # ── Update projetos_list (reactive var) with fresh progress from Supabase ──
-            # projetos_list é uma var Reflex reativa → atualizar ela dispara filtered_contratos
-            # → Progress Pulse no card reflete os mesmos dados do cronograma KPI.
             if normalized and contrato:
                 progress_map = {
                     r["id"]: {"conclusao_pct": r.get("conclusao_pct", "0"), "peso_pct": r.get("peso_pct", "100")}
@@ -1695,11 +1694,15 @@ class HubState(rx.State):
             # If switching contracts, load persisted insights from Supabase for the new one
             if contrato and contrato != _prev_contrato:
                 yield HubState.load_persisted_insights(contrato)
+
         except Exception as e:
             logger.error(f"load_cronograma (forecast/state): {e}", exc_info=True)
             async with self:
-                self.cron_loading = False
                 self.cron_rows = normalized
+
+        finally:
+            async with self:
+                self.cron_loading = False
 
     def set_cron_fase_filter(self, value: str):
         self.cron_fase_filter = "" if self.cron_fase_filter == value else value
@@ -3501,6 +3504,10 @@ Retorne SOMENTE JSON válido, sem texto antes/depois, sem markdown:
         def _fetch_production_data():
             try:
                 from bomtempo.core.supabase_client import sb_rpc
+                # Sanitize contrato code before SQL interpolation — strip quotes/semicolons
+                # Contract codes are alphanumeric + hyphens (e.g. "CONT-001-2026"), never user-typed
+                # but we sanitize defensively to prevent injection if a code is ever edited in DB.
+                _safe_contrato = str(_contrato).replace("'", "''").replace(";", "")[:100]
                 # Query: join rdo_atividades with rdo_master to get qty+efetivo+date per activity
                 query = f"""
                     SELECT
@@ -3513,7 +3520,7 @@ Retorne SOMENTE JSON válido, sem texto antes/depois, sem markdown:
                         rm.condicao_climatica
                     FROM rdo_atividades ra
                     JOIN rdo_master rm ON rm.id = ra.rdo_id
-                    WHERE rm.contrato = '{_contrato}'
+                    WHERE rm.contrato = '{_safe_contrato}'
                       AND ra.quantidade IS NOT NULL
                       AND ra.efetivo IS NOT NULL
                       AND ra.efetivo > 0
@@ -3682,6 +3689,26 @@ Retorne SOMENTE JSON válido, sem texto antes/depois, sem markdown:
             spi_line = f"SPI global do projeto: {spi_geral} (inclui atividades ainda não iniciadas)"
         else:
             spi_line = "SPI: dados insuficientes"
+
+        # Calcular dias_sem_rdo para diferenciar "atrasado" de "aguardando lançamento"
+        dias_sem_rdo = None
+        rdo_status_line = ""
+        if last_rdo:
+            try:
+                _last_rdo_date_str = (last_rdo.get("data") or "")[:10]
+                if _last_rdo_date_str:
+                    _last_rdo_dt = _date_cls.fromisoformat(_last_rdo_date_str)
+                    dias_sem_rdo = (today_dt - _last_rdo_dt).days
+                    if dias_sem_rdo == 0:
+                        rdo_status_line = "⏳ RDO de HOJE já recebido — dados atualizados."
+                    elif dias_sem_rdo == 1:
+                        rdo_status_line = f"⏳ Aguardando RDO de hoje ({today_str}). Último: {_last_rdo_date_str}. SPI pode estar desatualizado por 1 dia — NÃO é atraso."
+                    elif dias_sem_rdo <= 3:
+                        rdo_status_line = f"⚠️ {dias_sem_rdo} dias sem RDO (último: {_last_rdo_date_str}). Dados de progresso podem estar desatualizados."
+                    else:
+                        rdo_status_line = f"🔴 {dias_sem_rdo} dias sem RDO (último: {_last_rdo_date_str}). Comunicação com campo comprometida."
+            except (ValueError, AttributeError):
+                pass
         late_summary = "\n".join(late_lines[:12]) if late_lines else "  Nenhuma atividade com prazo vencido detectada."
         ahead_summary = "\n".join(ahead_lines[:5]) if ahead_lines else "  Nenhuma."
         not_started_summary = "\n".join(f"  - {n}" for n in not_started_critical[:5]) if not_started_critical else "  Nenhuma."
@@ -3825,11 +3852,13 @@ MISSÃO: gerar entre 4 e 6 insights CIRÚRGICOS e ACIONÁVEIS. O gestor deve ler
 7. Insights POSITIVOS são tão importantes quanto negativos — reconheça e capitalize sobre o que está indo bem
 8. CRÍTICO — NÃO confunda ausência de dados com atraso: atividades com início_previsto > hoje são FUTURAS e não estão atrasadas. Só considere atrasada uma atividade cujo termino_previsto < hoje E pct < 100. Atividades futuras sem exec_qty são NORMAIS — obra não começou essa fase ainda.
 9. SPI do contexto abaixo é calculado APENAS sobre atividades já iniciadas (início ≤ hoje). Não extrapole para "equipe insuficiente" se as atividades ativas estão todas concluídas ou no ritmo.
+10. CRÍTICO — "Dias sem RDO" no contexto NÃO é automaticamente atraso: 0 dias = dados atuais; 1 dia = aguardando RDO de hoje (normal); ≥2 dias = possível atraso de comunicação. Só gere alerta de atraso operacional se termino_previsto < hoje E dias_sem_rdo >= 2.
 
 ═══ CONTEXTO DO PROJETO ═══
 Contrato: {_contrato}
 Data de hoje: {today_str}
 {spi_line}
+{rdo_status_line}
 
 ═══ ATIVIDADES COM PRAZO VENCIDO ═══
 {late_summary}

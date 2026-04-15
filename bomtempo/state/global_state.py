@@ -1387,16 +1387,21 @@ class GlobalState(rx.State):
     async def load_notifications(self):
         """Load unread @mention notifications for the current user from user_notifications."""
         username = ""
+        client_id = ""
         async with self:
             username = str(self.current_user_name)
+            client_id = str(self.current_client_id or "")
         if not username:
             return
 
         from bomtempo.core.supabase_client import sb_select as _sel, sb_update as _upd
+        _filters: dict = {"recipient": username}
+        if client_id:
+            _filters["client_id"] = client_id
         try:
             rows = _sel(
                 "user_notifications",
-                filters={"recipient": username},
+                filters=_filters,
                 order="created_at.desc",
                 limit=50,
             )
@@ -1439,13 +1444,18 @@ class GlobalState(rx.State):
     async def mark_all_notifs_read(self):
         """Mark all notifications as read for the current user."""
         username = ""
+        client_id = ""
         async with self:
             username = str(self.current_user_name)
+            client_id = str(self.current_client_id or "")
         if not username:
             return
         from bomtempo.core.supabase_client import sb_update as _upd
+        _upd_filters: dict = {"recipient": username}
+        if client_id:
+            _upd_filters["client_id"] = client_id
         try:
-            _upd("user_notifications", filters={"recipient": username}, data={"read": True})
+            _upd("user_notifications", filters=_upd_filters, data={"read": True})
         except Exception as e:
             logger.warning(f"mark_all_notifs_read error: {e}")
         async with self:
@@ -1543,7 +1553,9 @@ class GlobalState(rx.State):
     @rx.event(background=True)
     async def save_password(self):
         """Troca senha — background para não bloquear event loop durante queries de DB."""
+        import asyncio as _aio_pw
         from bomtempo.core.supabase_client import sb_select, sb_update
+        from bomtempo.core.executors import get_db_executor as _get_db
         async with self:
             pw_new = self.pw_new.strip()
             pw_current = self.pw_current.strip()
@@ -1565,8 +1577,11 @@ class GlobalState(rx.State):
                 self.pw_error = "As senhas não coincidem."
             return
 
+        loop = _aio_pw.get_running_loop()
         try:
-            rows = sb_select("login", filters={"username": username})
+            rows = await loop.run_in_executor(
+                _get_db(), lambda: sb_select("login", filters={"username": username})
+            )
             if not rows:
                 async with self:
                     self.pw_error = "Usuário não encontrado."
@@ -1576,10 +1591,9 @@ class GlobalState(rx.State):
                 async with self:
                     self.pw_error = "Senha atual incorreta."
                 return
-            sb_update(
-                "login",
-                filters={"username": username},
-                data={"password": pw_new},
+            await loop.run_in_executor(
+                _get_db(),
+                lambda: sb_update("login", filters={"username": username}, data={"password": pw_new}),
             )
             async with self:
                 self.pw_current = ""
@@ -1831,13 +1845,14 @@ class GlobalState(rx.State):
                     f"considere paginar no Supabase (limit + filtro por ano/contrato)"
                 )
 
-            self.is_loading = False
             logger.info("✅ Estado global atualizado com sucesso")
 
         except Exception as e:
             self.error_message = str(e)
-            self.is_loading = False
             logger.error(f"❌ Erro no estado global: {e}")
+
+        finally:
+            self.is_loading = False
 
     @rx.event(background=True)
     async def force_refresh_data(self):
@@ -2226,8 +2241,8 @@ class GlobalState(rx.State):
                 if _role in ("Administrador", "admin", "Gestão-Mobile"):
                     sb_select("system_logs", limit=1)
                     sb_select("rdo_master", limit=1)
-            except Exception:
-                pass  # falha silenciosa — é só aquecimento
+            except Exception as _warm_err:
+                logger.warning(f"⚠️ Module connection warmup failed (non-fatal): {_warm_err}")
 
         _threading.Thread(target=_warm_module_connections, daemon=True).start()
 

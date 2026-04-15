@@ -69,66 +69,73 @@ class RDOHistoricoState(rx.State):
         loop = asyncio.get_running_loop()
         client_id = str(gs.current_client_id or "")
 
-        # Filtrar por role + tenant (client_id sempre passado para isolamento multi-tenant)
-        if role in ("Administrador", "admin", "Gestão-Mobile"):
-            rdos = await loop.run_in_executor(get_db_executor(), lambda: RDOService.get_rdos_list(limit=200, client_id=client_id))
-        elif role == "Mestre de Obras":
-            rdos = await loop.run_in_executor(
-                get_db_executor(),
-                lambda: RDOService.get_rdos_list(contrato=contrato, mestre_id=user, limit=100, client_id=client_id),
-            )
-        else:
-            rdos = await loop.run_in_executor(
-                get_db_executor(),
-                lambda: RDOService.get_rdos_list(contrato=contrato, limit=100, client_id=client_id),
-            )
+        try:
+            # Filtrar por role + tenant (client_id sempre passado para isolamento multi-tenant)
+            if role in ("Administrador", "admin", "Gestão-Mobile"):
+                rdos = await loop.run_in_executor(get_db_executor(), lambda: RDOService.get_rdos_list(limit=200, client_id=client_id))
+            elif role == "Mestre de Obras":
+                rdos = await loop.run_in_executor(
+                    get_db_executor(),
+                    lambda: RDOService.get_rdos_list(contrato=contrato, mestre_id=user, limit=100, client_id=client_id),
+                )
+            else:
+                rdos = await loop.run_in_executor(
+                    get_db_executor(),
+                    lambda: RDOService.get_rdos_list(contrato=contrato, limit=100, client_id=client_id),
+                )
 
-        def _fmt_date(val: str) -> str:
-            """Converte YYYY-MM-DD ou ISO datetime → DD/MM/YYYY."""
-            v = str(val or "")[:10]
-            if len(v) == 10 and v[4] == "-":
+            def _fmt_date(val: str) -> str:
+                """Converte YYYY-MM-DD ou ISO datetime → DD/MM/YYYY."""
+                v = str(val or "")[:10]
+                if len(v) == 10 and v[4] == "-":
+                    try:
+                        parts = v.split("-")
+                        return f"{parts[2]}/{parts[1]}/{parts[0]}"
+                    except Exception:
+                        pass
+                return v
+
+            def _fmt_datetime(val: str) -> str:
+                """Converte ISO UTC datetime → DD/MM/YYYY HH:MM (BRT, UTC-3)."""
+                from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+                _BRT = _tz(_td(hours=-3))
+                v = str(val or "")
+                if not v or len(v) < 16:
+                    return v
                 try:
-                    parts = v.split("-")
-                    return f"{parts[2]}/{parts[1]}/{parts[0]}"
+                    dt = _dt.fromisoformat(v.replace("Z", "+00:00")[:32])
+                    brt = dt.astimezone(_BRT)
+                    return brt.strftime("%d/%m/%Y %H:%M")
                 except Exception:
                     pass
-            return v
+                return v[:16].replace("T", " ")
 
-        def _fmt_datetime(val: str) -> str:
-            """Converte ISO UTC datetime → DD/MM/YYYY HH:MM (BRT, UTC-3)."""
-            from datetime import datetime as _dt, timezone as _tz, timedelta as _td
-            _BRT = _tz(_td(hours=-3))
-            v = str(val or "")
-            if not v or len(v) < 16:
-                return v
-            try:
-                dt = _dt.fromisoformat(v.replace("Z", "+00:00")[:32])
-                brt = dt.astimezone(_BRT)
-                return brt.strftime("%d/%m/%Y %H:%M")
-            except Exception:
-                pass
-            return v[:16].replace("T", " ")
+            # Normalizar para exibição
+            normalized = []
+            for r in (rdos or []):
+                normalized.append({
+                    "id_rdo":     str(r.get("id_rdo", "")),
+                    "contrato":   str(r.get("contrato", "")),
+                    "data":       _fmt_date(r.get("data", "")),
+                    "status":     str(r.get("status", "rascunho")),
+                    "clima":      str(r.get("condicao_climatica", "")),
+                    "turno":      str(r.get("turno", "")),
+                    "mestre":     str(r.get("mestre_id", "")),
+                    "pdf_url":    str(r.get("pdf_url", "")),
+                    "view_token": str(r.get("view_token", "")),
+                    "checkin":    "✓" if r.get("checkin_lat") else "—",
+                    "created_at": _fmt_datetime(r.get("created_at", "")),
+                })
 
-        # Normalizar para exibição
-        normalized = []
-        for r in (rdos or []):
-            normalized.append({
-                "id_rdo":     str(r.get("id_rdo", "")),
-                "contrato":   str(r.get("contrato", "")),
-                "data":       _fmt_date(r.get("data", "")),
-                "status":     str(r.get("status", "rascunho")),
-                "clima":      str(r.get("condicao_climatica", "")),
-                "turno":      str(r.get("turno", "")),
-                "mestre":     str(r.get("mestre_id", "")),
-                "pdf_url":    str(r.get("pdf_url", "")),
-                "view_token": str(r.get("view_token", "")),
-                "checkin":    "✓" if r.get("checkin_lat") else "—",
-                "created_at": _fmt_datetime(r.get("created_at", "")),
-            })
-
-        async with self:
-            self.rdos_list = normalized
-            self.is_loading = False
+            async with self:
+                self.rdos_list = normalized
+        except Exception as e:
+            logger.error(f"load_rdos error: {e}", exc_info=True)
+            async with self:
+                yield rx.toast("❌ Erro ao carregar RDOs.", position="top-center", duration=5000)
+        finally:
+            async with self:
+                self.is_loading = False
 
     def set_filter(self, status: str):
         self.filter_status = status
