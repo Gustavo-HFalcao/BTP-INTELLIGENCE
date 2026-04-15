@@ -1887,6 +1887,11 @@ class HubState(rx.State):
 
     def set_cron_edit_atividade(self, v: str): self.cron_edit_atividade = v
     def set_cron_edit_fase_macro(self, v: str):
+        # Para micro/sub a fase_macro é herdada do pai — bloqueado para edição.
+        # A UI já deve renderizar o campo somente leitura, mas este guard evita
+        # alterações acidentais via chamadas diretas ou bugs no frontend.
+        if self.cron_edit_nivel in ("micro", "sub"):
+            return
         self.cron_edit_fase_macro = v
         # Para atividades macro, o nome é a própria fase macro
         if self.cron_edit_nivel == "macro":
@@ -2228,6 +2233,29 @@ class HubState(rx.State):
                     data["pendente_aprovacao"] = False
                 sb_update("hub_atividades", filters={"id": edit_id}, data=data)
                 action = f"Atividade '{atividade_nome}' {'aprovada' if pending_review_id else 'atualizada'}"
+
+                # ── Cascade renome de macro → fase_macro em todos os filhos ──────
+                # Quando uma macro é renomeada, todas as micros e subs filhas precisam
+                # ter fase_macro atualizado para manter a hierarquia consistente.
+                # Sem isso, a micro exibe "Montagem X" mas a macro chama "Estrutura Y".
+                if edit_nivel == "macro" and not pending_review_id:
+                    old_fase_macro = old_snapshot.get("fase_macro", "")
+                    if old_fase_macro != edit_fase_macro:
+                        try:
+                            micros = sb_select("hub_atividades", filters={"parent_id": edit_id}, limit=200)
+                            for micro in micros:
+                                mid = micro.get("id", "")
+                                if mid:
+                                    sb_update("hub_atividades", filters={"id": mid}, data={"fase_macro": edit_fase_macro})
+                                    # Cascade subs (sub → micro → macro)
+                                    subs = sb_select("hub_atividades", filters={"parent_id": mid}, limit=200)
+                                    for sub in subs:
+                                        sid = sub.get("id", "")
+                                        if sid:
+                                            sb_update("hub_atividades", filters={"id": sid}, data={"fase_macro": edit_fase_macro})
+                            logger.info(f"✅ Cascade fase_macro: '{old_fase_macro}' → '{edit_fase_macro}' para filhos de {edit_id}")
+                        except Exception as _casc_err:
+                            logger.warning(f"⚠️ Cascade fase_macro error (non-fatal): {_casc_err}")
 
                 # ── Full diff log → hub_cronograma_log + hub_timeline ─────────
                 if not pending_review_id:

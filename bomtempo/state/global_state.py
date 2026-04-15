@@ -1323,8 +1323,7 @@ class GlobalState(rx.State):
     async def check_login_on_enter(self, key: str):
         """Login apenas se Enter for pressionado"""
         if key == "Enter":
-            async for update in self.check_login():
-                yield update
+            yield GlobalState.check_login
 
     async def logout(self):
         """Sai da plataforma"""
@@ -1978,44 +1977,53 @@ class GlobalState(rx.State):
 
     # ── Authentication ──────────────────────────────────────────
 
+    @rx.event(background=True)
     async def check_login(self):
-        """Verifica credenciais no Supabase. Async para mostrar loading antes da query."""
-        username = self.username_input.strip().lower()
-        password = self.password_input.strip()
+        """Verifica credenciais no Supabase.
+
+        background=True: todo I/O Supabase acontece FORA de async with self:
+        — a lock Redis é segurada por milissegundos (apenas para leitura/escrita
+        de variáveis em memória), não durante queries de rede de 1–2s.
+        Isso elimina os warnings 'Lock was held too long' em check_login.
+        """
+        # ── Read inputs outside lock ───────────────────────────────────────
+        username = ""
+        password = ""
+        async with self:
+            username = self.username_input.strip().lower()
+            password = self.password_input.strip()
 
         logger.info(f"Tentativa de login: User='{username}'")
 
         if not username or not password:
-            self.login_error = "Preencha usuário e senha"
+            async with self:
+                self.login_error = "Preencha usuário e senha"
             return
 
-        # ── Intermediate auth state: button changes on login page ─────────────
-        self.is_authenticating = True
-        self.login_error = ""
-        yield
+        # ── Show spinner ───────────────────────────────────────────────────
+        async with self:
+            self.is_authenticating = True
+            self.login_error = ""
 
-        # ── Supabase ──────────────────────────────────────────────────────────
+        # ── All Supabase I/O happens here — OUTSIDE any state lock ─────────
         try:
             import os
 
             if not os.getenv("SUPABASE_SERVICE_KEY"):
-                logger.error(
-                    "CRITICAL: SUPABASE_SERVICE_KEY não encontrada nas variáveis de ambiente."
-                )
-                self.is_authenticating = False
-                self.show_loading_screen = False
-                self.login_error = "Erro de Configuração: Chave de API não encontrada no servidor."
-                self.is_authenticated = False
+                logger.error("CRITICAL: SUPABASE_SERVICE_KEY não encontrada.")
+                async with self:
+                    self.is_authenticating = False
+                    self.show_loading_screen = False
+                    self.login_error = "Erro de Configuração: Chave de API não encontrada no servidor."
+                    self.is_authenticated = False
                 return
 
             from bomtempo.core.supabase_client import async_sb_select
 
-            # Busca apenas o usuário específico — async para não bloquear event loop
             user_rows = await async_sb_select("login", filters={"username": username}, limit=1)
             logger.info(f"Supabase login: query filtrada p/ '{username}' → {len(user_rows)} linha(s)")
 
             def _get_password_field(row: dict) -> str:
-                # pw_hash first (post-migration), then legacy column names
                 for key in ("pw_hash", "password", "senha", "pass", "pwd"):
                     val = row.get(key)
                     if val is not None:
@@ -2039,10 +2047,11 @@ class GlobalState(rx.State):
                     username=username,
                     status="error",
                 )
-                self.is_authenticating = False
-                self.show_loading_screen = False
-                self.login_error = "Usuário ou senha inválidos"
-                self.is_authenticated = False
+                async with self:
+                    self.is_authenticating = False
+                    self.show_loading_screen = False
+                    self.login_error = "Usuário ou senha inválidos"
+                    self.is_authenticated = False
                 return
 
             if not verify_password(_get_password_field(matched), password):
@@ -2053,101 +2062,104 @@ class GlobalState(rx.State):
                     username=username,
                     status="error",
                 )
-                self.is_authenticating = False
-                self.show_loading_screen = False
-                self.login_error = "Usuário ou senha inválidos"
-                self.is_authenticated = False
+                async with self:
+                    self.is_authenticating = False
+                    self.show_loading_screen = False
+                    self.login_error = "Usuário ou senha inválidos"
+                    self.is_authenticated = False
                 return
 
-            # ── Login OK — switch to enterprise full-screen loader ────────────
-            self.is_authenticating = False
-            self.show_loading_screen = True
-            yield
-
+            # ── Login OK — fetch all remaining data BEFORE writing state ─────
             role = _get_role_field(matched)
-            self.is_authenticated = True
-            self.current_user_name = str(
+            _user_name_val = str(
                 matched.get("username") or matched.get("user") or matched.get("login") or username
             )
-            self.current_user_role = role
-            self.current_user_contrato = str(
-                matched.get("project") or matched.get("contrato") or ""
-            )
-            
-            # --- Multi-tenant Identity ---
-            self.current_client_id = str(matched.get("client_id") or "")
-            
-            # Busca info do cliente para saber se é Master
-            if self.current_client_id:
-                client_info = await async_sb_select("clients", filters={"id": self.current_client_id}, limit=1)
+            _contrato = str(matched.get("project") or matched.get("contrato") or "")
+            _client_id = str(matched.get("client_id") or "")
+
+            # Fetch client info
+            _client_is_master = False
+            _client_name = ""
+            if _client_id:
+                client_info = await async_sb_select("clients", filters={"id": _client_id}, limit=1)
                 if client_info:
-                    self.current_client_name = str(client_info[0].get("name", ""))
-                    self.client_is_master = bool(client_info[0].get("is_master", False))
-                else:
-                    self.client_is_master = False
-            else:
-                self.client_is_master = False
+                    _client_name = str(client_info[0].get("name", ""))
+                    _client_is_master = bool(client_info[0].get("is_master", False))
 
-            self.login_error = ""
-            self.username_input = ""
-            self.password_input = ""
-            logger.info(f"✅ Login OK via Supabase. Role: {role}")
-
-            # ── Fetch module permissions + role icon from roles table ─────────
+            # Fetch module permissions + role icon
+            _allowed_modules: list = []
+            _role_icon = "user"
             try:
                 from bomtempo.state.usuarios_state import MODULE_SLUGS
-                role_rows = await async_sb_select("roles", filters={"name": role, "client_id": self.current_client_id})
+                role_rows = await async_sb_select("roles", filters={"name": role, "client_id": _client_id})
                 if role_rows:
-                    self.allowed_modules = list(role_rows[0].get("modules", []))
-                    self.current_user_role_icon = str(role_rows[0].get("icon", "user") or "user")
-                    logger.info(f"Permissões carregadas: {len(self.allowed_modules)} módulos")
+                    _allowed_modules = list(role_rows[0].get("modules", []))
+                    _role_icon = str(role_rows[0].get("icon", "user") or "user")
+                    logger.info(f"Permissões carregadas: {len(_allowed_modules)} módulos")
                 else:
-                    # Fallback: master e Administrador têm acesso total, outros nenhum
-                    if self.client_is_master or role == "Administrador":
-                        self.allowed_modules = list(MODULE_SLUGS)
-                        self.current_user_role_icon = "crown" if self.client_is_master else "user"
-                        logger.info(f"Role '{role}' não encontrado em roles — acesso total concedido (master/admin)")
+                    if _client_is_master or role == "Administrador":
+                        _allowed_modules = list(MODULE_SLUGS)
+                        _role_icon = "crown" if _client_is_master else "user"
+                        logger.info(f"Role '{role}' não encontrado — acesso total (master/admin)")
                     else:
-                        self.allowed_modules = []
-                        self.current_user_role_icon = "user"
-                        logger.warning(f"Role '{role}' não encontrado na tabela roles — sem permissões")
+                        _allowed_modules = []
+                        _role_icon = "user"
+                        logger.warning(f"Role '{role}' não encontrado — sem permissões")
             except Exception as role_err:
                 logger.error(f"Erro ao carregar permissões do role '{role}': {role_err}")
-                self.allowed_modules = list(MODULE_SLUGS) if role == "Administrador" else []
-                self.current_user_role_icon = "user"
+                from bomtempo.state.usuarios_state import MODULE_SLUGS
+                _allowed_modules = list(MODULE_SLUGS) if role == "Administrador" else []
+                _role_icon = "user"
 
-            # ── Load feature flags for user's contract ────────────────────────
-            _contrato = str(matched.get("project") or matched.get("contrato") or "")
+            # Fetch feature flags
+            _active_features: list = []
             if _contrato and _contrato not in ("nan", "None", ""):
                 try:
                     from bomtempo.core.feature_flags import FeatureFlagsService
-                    self.active_features = FeatureFlagsService.get_features_for_contract(_contrato)
-                    logger.info(f"Feature flags carregadas: {self.active_features}")
+                    _active_features = FeatureFlagsService.get_features_for_contract(_contrato)
+                    logger.info(f"Feature flags carregadas: {_active_features}")
                 except Exception as ff_err:
                     logger.warning(f"Erro ao carregar feature flags: {ff_err}")
-                    self.active_features = []
-            else:
-                self.active_features = []
 
-            # ── Load user avatar + contact preferences from login row ─────────
-            self.current_user_avatar_icon = str(matched.get("avatar_icon", "") or "")
-            self.current_user_avatar_type = str(matched.get("avatar_type", "initial") or "initial")
-            self.current_user_email = str(matched.get("email", "") or "")
-            self.current_user_whatsapp = str(matched.get("whatsapp", "") or "")
+            # ── Commit all state in ONE async with self: block ────────────────
+            # All I/O done — lock held for <1ms now instead of 1–2s.
+            async with self:
+                self.is_authenticating = False
+                self.show_loading_screen = True
+                self.is_authenticated = True
+                self.current_user_name = _user_name_val
+                self.current_user_role = role
+                self.current_user_contrato = _contrato
+                self.current_client_id = _client_id
+                self.current_client_name = _client_name
+                self.client_is_master = _client_is_master
+                self.allowed_modules = _allowed_modules
+                self.current_user_role_icon = _role_icon
+                self.active_features = _active_features
+                self.current_user_avatar_icon = str(matched.get("avatar_icon", "") or "")
+                self.current_user_avatar_type = str(matched.get("avatar_type", "initial") or "initial")
+                self.current_user_email = str(matched.get("email", "") or "")
+                self.current_user_whatsapp = str(matched.get("whatsapp", "") or "")
+                self.login_error = ""
+                self.username_input = ""
+                self.password_input = ""
+
+            logger.info(f"✅ Login OK via Supabase. Role: {role}")
+
             audit_log(
                 category=AuditCategory.LOGIN,
                 action=f"Login bem-sucedido — role: {role}",
-                username=self.current_user_name,
+                username=_user_name_val,
                 metadata={"role": role},
                 status="success",
-                client_id=str(self.current_client_id or ""),
+                client_id=_client_id,
             )
 
-            # Master redirect happens BEFORE dashboard data loads to avoid flicker
-            if self.client_is_master:
-                self.initial_loading = False
-                self.show_loading_screen = False
-                yield
+            # Master redirect
+            if _client_is_master:
+                async with self:
+                    self.initial_loading = False
+                    self.show_loading_screen = False
                 yield GlobalState.load_notifications
                 yield rx.redirect("/admin/master-gestion")
                 return
@@ -2164,11 +2176,9 @@ class GlobalState(rx.State):
             elif role == "engenheiro":
                 yield rx.redirect("/projetos")
             else:
-                # Smart fallback: roles criados por tenants podem ter módulos específicos
-                _mods = self.allowed_modules
-                if ("rdo_form" in _mods or "rdo_historico" in _mods) and "visao_geral" not in _mods:
+                if ("rdo_form" in _allowed_modules or "rdo_historico" in _allowed_modules) and "visao_geral" not in _allowed_modules:
                     yield rx.redirect("/rdo-historico")
-                elif "reembolso" in _mods and "visao_geral" not in _mods:
+                elif "reembolso" in _allowed_modules and "visao_geral" not in _allowed_modules:
                     yield rx.redirect("/reembolso")
                 else:
                     yield rx.redirect("/")
@@ -2180,10 +2190,11 @@ class GlobalState(rx.State):
                 username=username,
                 error=e,
             )
-            self.is_authenticating = False
-            self.show_loading_screen = False
-            self.login_error = "Erro ao conectar com o servidor. Tente novamente."
-            self.is_authenticated = False
+            async with self:
+                self.is_authenticating = False
+                self.show_loading_screen = False
+                self.login_error = "Erro ao conectar com o servidor. Tente novamente."
+                self.is_authenticated = False
 
     async def guard_index_page(self):
         """on_load da página /: redireciona roles sem permissão ou usuários não autenticados."""
@@ -2205,14 +2216,20 @@ class GlobalState(rx.State):
             return
         yield GlobalState.load_data
 
+    @rx.event(background=True)
     async def load_initial_data_smooth(self):
         """Loading screen pós-login com duração mínima garantida pela animação CSS.
-        
+
+        background=True: o asyncio.sleep(5s) agora fica FORA de qualquer lock Redis.
+        Antes (handler regular), o lock era segurado por 5s inteiros causando
+        'Lock was held too long time_taken=5.1s' para TODOS os eventos do usuário.
+        Agora a lock é liberada em <1ms (apenas para leitura/escrita de vars).
+
         Fluxo:
-        - Carrega dados do Supabase enquanto a animação roda (pré-aquece o cache)
-        - Aguarda no mínimo ANIMATION_DURATION + BUFFER (5.0s) antes de esconder
-        - Se dados demorarem mais que a animação (raro), aguarda os dados + BUFFER
-        - Quando on_load disparar na página destino, bate no cache e retorna instantaneamente
+        - Marca loading = True (async with self: rápido)
+        - Despacha load_data como evento separado (roda concorrentemente)
+        - Dorme 5s FORA da lock — outros eventos do usuário processam normalmente
+        - Marca loading = False
         """
         import asyncio
         import time
@@ -2221,30 +2238,33 @@ class GlobalState(rx.State):
         BUFFER = 0.5               # tempo extra após animação completar
         MIN_DISPLAY = ANIMATION_DURATION + BUFFER  # 5.0s mínimo total
 
-        self.initial_loading = True
-        self.show_loading_screen = True
-        yield
+        async with self:
+            self.initial_loading = True
+            self.show_loading_screen = True
 
         start = time.monotonic()
 
-        # Executa load_data inline (itera o async generator) para pré-carregar o cache
-        # Assim quando on_load disparar na página destino, já bate no cache
-        if not self.contratos_list:
-            async for _ in self.load_data():
-                pass  # consome os yields do async generator sem enviar deltas parciais
+        # Despacha load_data como evento separado — roda concorrentemente à animação.
+        # Quando on_load disparar na página destino, os dados já estarão no cache.
+        has_data = False
+        async with self:
+            has_data = bool(self.contratos_list)
+
+        if not has_data:
+            yield GlobalState.load_data
 
         # Aquece connection pool para módulos pesados em background durante a animação
-        # Enquanto a tela de loading exibe os 4.5s de animação, preparamos as conexões
+        _role = ""
+        async with self:
+            _role = self.current_user_role
+
         import threading as _threading
-        _role = self.current_user_role
 
         def _warm_module_connections():
             """Pré-aquece HTTP keep-alive para tabelas dos módulos secundários."""
             try:
                 from bomtempo.core.supabase_client import sb_select
-                # Todos os roles beneficiam de alertas pré-aquecidos
                 sb_select("alert_subscriptions", limit=1)
-                # Admin/Gestão: pré-aquece logs e RDO
                 if _role in ("Administrador", "admin", "Gestão-Mobile"):
                     sb_select("system_logs", limit=1)
                     sb_select("rdo_master", limit=1)
@@ -2255,13 +2275,15 @@ class GlobalState(rx.State):
 
         data_elapsed = time.monotonic() - start
 
-        # Aguarda o tempo restante para completar animação + buffer.
-        # Se dados demoraram mais que a animação, aguarda só o buffer mínimo.
+        # ── asyncio.sleep FORA de qualquer async with self: ───────────────────
+        # Antes: sleep dentro de handler regular → lock segurada 5s → todos os
+        # eventos do usuário bloqueados. Agora: lock liberada, sleep não impacta ninguém.
         remaining = max(MIN_DISPLAY - data_elapsed, BUFFER)
         await asyncio.sleep(remaining)
 
-        self.initial_loading = False
-        self.show_loading_screen = False
+        async with self:
+            self.initial_loading = False
+            self.show_loading_screen = False
 
     # ── Filter Options ───────────────────────────────────────────
 

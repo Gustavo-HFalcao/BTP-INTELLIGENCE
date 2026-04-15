@@ -3989,8 +3989,29 @@ def _cron_edit_dialog() -> rx.Component:
                 # per-keystroke round-trips to the server that cause input lag.
                 # Date/number inputs keep on_change (they don't have the lag problem).
                 rx.flex(
-                    rx.vstack(rx.text("Fase Macro", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
-                              rx.el.input(default_value=HubState.cron_edit_fase_macro, on_blur=HubState.set_cron_edit_fase_macro, placeholder="Ex: Elétrica", style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","padding":"8px 10px","fontSize":"14px","width":"100%","outline":"none"}), spacing="1", flex="1"),
+                    # Fase Macro: editável apenas para macros; somente leitura para micro/sub
+                    # (micro e sub herdam a fase_macro da macro pai — não pode ser alterado manualmente)
+                    rx.cond(
+                        HubState.cron_edit_nivel == "macro",
+                        rx.vstack(
+                            rx.text("Fase Macro", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                            rx.el.input(default_value=HubState.cron_edit_fase_macro, on_blur=HubState.set_cron_edit_fase_macro, placeholder="Ex: Elétrica", style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","padding":"8px 10px","fontSize":"14px","width":"100%","outline":"none"}),
+                            spacing="1", flex="1",
+                        ),
+                        rx.vstack(
+                            rx.hstack(
+                                rx.text("Fase Macro", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
+                                rx.icon("lock", size=12, color=S.TEXT_MUTED),
+                                spacing="1", align="center",
+                            ),
+                            rx.box(
+                                rx.text(HubState.cron_edit_fase_macro, font_size="14px", color="rgba(255,255,255,0.5)"),
+                                style={"background":"rgba(14,26,23,0.4)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"padding":"8px 10px","width":"100%"},
+                                title="Fase Macro é herdada da atividade pai e não pode ser alterada aqui.",
+                            ),
+                            spacing="1", flex="1",
+                        ),
+                    ),
                     rx.vstack(rx.text("Fase", font_size="11px", color=S.TEXT_MUTED, font_family=S.FONT_MONO),
                               rx.el.input(default_value=HubState.cron_edit_fase, on_blur=HubState.set_cron_edit_fase, placeholder="Ex: SPDA", style={"background":"rgba(14,26,23,0.8)","border":f"1px solid {S.BORDER_SUBTLE}","borderRadius":S.R_CONTROL,"color":"white","padding":"8px 10px","fontSize":"14px","width":"100%","outline":"none"}), spacing="1", flex="1"),
                     gap="12px", flex_wrap="wrap",

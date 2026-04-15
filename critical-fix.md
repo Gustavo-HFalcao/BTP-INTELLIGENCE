@@ -34,3 +34,52 @@ Ao adicionar novos handlers que realizam IO síncrono ou processamento pesado:
 3. **Mantenha** chamadas de IA isoladas para não degradar a experiência de navegação do usuário.
 
 Este fix garante que, mesmo que um relatório falhe ou demore, o resto do sistema (Login, Dashboard, RDO) permaneça responsivo.
+
+---
+
+## ⚠️ Crash Sistêmico — Redis Lock & Background Tasks (Abril 2026)
+
+### Causa Raiz Identificada
+O `execute_submit` do RDO fazia `await self.get_state(GlobalState)` **DENTRO** de um bloco `async with self:`. Isso segurava o **Redis lock** do estado enquanto aguardava uma segunda operação Redis para carregar GlobalState — uma deadlock-like condition que causava `LockExpiredError` após 10s.
+
+A cadeia de falhas:
+1. `execute_submit` → `async with self:` → await `get_state(GlobalState)` → lock expira em 10s
+2. `LockExpiredError` em `set_navigating` → exceção não capturada em `AsyncServer._handle_event_internal`
+3. WebSocket do usuário entra em estado quebrado → nenhum evento processa até reconexão
+
+**Adicionalmente:** `check_login` e `load_initial_data_smooth` NÃO tinham `@rx.event(background=True)`, segurando o Redis lock por 1–5 segundos enquanto faziam I/O de rede.
+
+### Fixes Aplicados (Abril 2026)
+
+1. **`execute_submit`** (`rdo_state.py`): Movido `get_state(GlobalState)` para **antes** do `async with self:`. Adicionado `try/except` em todos os blocos `async with self:` de status update. Limpeza de estado grande (`signatory_sig_b64`, `hub_atividades_options`) logo após snapshot inicial para reduzir tamanho da serialização Redis.
+
+2. **`lock_expiration`** (`rxconfig.py`): Aumentado de 10s para 60s via `state_manager_lock_expiration=60000`. Dá margem segura para Redis sob carga sem risco de lock zombie.
+
+3. **`check_login`** (`global_state.py`): Convertido para `@rx.event(background=True)`. Todas as queries Supabase (1–2s) agora ocorrem **fora** de qualquer lock. Lock é segurado apenas milissegundos para ler/escrever variáveis em memória. `check_login_on_enter` atualizado para usar `yield GlobalState.check_login` em vez de chamar diretamente como generator.
+
+4. **`load_initial_data_smooth`** (`global_state.py`): Convertido para `@rx.event(background=True)`. O `asyncio.sleep(5s)` agora ocorre **fora** de qualquer lock Redis. Antes, segurava o lock por 5s inteiros causando lock warnings e bloqueando todos os eventos do usuário.
+
+### Regra de Ouro — `@rx.event(background=True)`
+> **NUNCA faça `await` dentro de `async with self:`** a menos que seja uma operação trivialmente rápida.
+> Qualquer I/O de rede (DB, HTTP, Redis) deve acontecer **fora** do bloco `async with self:`.
+> Padrão correto:
+> ```python
+> gs = await self.get_state(OtherState)  # I/O fora da lock
+> async with self:                         # lock ~1ms
+>     self.some_var = gs.some_value
+> ```
+
+---
+
+## Hierarquia de Atividades — Consistência Macro/Micro (Abril 2026)
+
+- `fase_macro` de atividades **micro/sub** é somente leitura — herdada do pai.
+- UI: campo "Fase Macro" exibido como display (não input) para nivel micro/sub.
+- Backend: renomear uma macro agora cascateia `fase_macro` para todos os filhos (micros e subs) automaticamente.
+- Guard no `set_cron_edit_fase_macro`: retorna sem alterar se `nivel in ("micro", "sub")`.
+
+## Watermark — Qualidade e Consistência (Abril 2026)
+
+- Font size: `max(28, w//40)` → `max(40, out_w//32)` — calculado sobre a largura de **saída** (não processamento).
+- Normalização de saída: usa `max(foto_w, foto_h)` em vez de apenas `w`. Portrait iPhone agora normaliza corretamente para 1920px no lado maior.
+- JPEG quality: 88 → 92 para melhor legibilidade do texto da watermark.

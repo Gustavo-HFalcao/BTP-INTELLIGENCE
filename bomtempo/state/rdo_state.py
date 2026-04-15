@@ -1423,14 +1423,24 @@ class RDOState(rx.State):
         loop = asyncio.get_running_loop()
 
         try:
+            # ── Snapshot state variables — get_state MUST be OUTSIDE async with self:
+            # Calling await inside async with self: holds the Redis lock during another
+            # Redis round-trip → LockExpiredError when lock times out (10s default).
+            from bomtempo.state.global_state import GlobalState
+            gs = await self.get_state(GlobalState)   # Redis I/O: before acquiring lock
+
             async with self:
-                from bomtempo.state.global_state import GlobalState
-                gs = await self.get_state(GlobalState)
                 user_name = str(gs.current_user_name)
                 rdo_data  = self._build_rdo_data()
                 contrato  = rdo_data.get("contrato", "")
                 _submit_client_id = rdo_data.get("client_id") or ""
                 self.submit_status = "💾 Salvando RDO…"
+                # Clear large ephemeral state immediately so all subsequent
+                # async with self: blocks serialize a smaller state to Redis.
+                # signatory_sig_b64 = base64 JPEG (10–100KB); hub_atividades_options
+                # = potentially hundreds of items — both safe to clear now.
+                self.signatory_sig_b64 = ""
+                self.hub_atividades_options = []
 
             if not _submit_client_id:
                 async with self:
@@ -1446,8 +1456,12 @@ class RDOState(rx.State):
             )
             logger.info(f"💾 RDO2 salvo: {id_rdo}")
 
-            async with self:
-                self.submit_status = "🤖 Análise IA…"
+            # Status updates are best-effort — don't block on failures
+            try:
+                async with self:
+                    self.submit_status = "🤖 Análise IA…"
+            except Exception:
+                pass
 
             # 2. Run AI analysis BEFORE PDF so the PDF contains the real analysis text
             ai_summary = ""
@@ -1475,8 +1489,11 @@ class RDOState(rx.State):
             # Inject ai_summary into rdo_data so build_html renders it in PDF
             rdo_data_with_ai = {**rdo_data, "ai_summary": ai_summary}
 
-            async with self:
-                self.submit_status = "📄 Gerando PDF…"
+            try:
+                async with self:
+                    self.submit_status = "📄 Gerando PDF…"
+            except Exception:
+                pass
 
             # 3a. Marca status=processando_pdf antes de iniciar — rastreável se crashar
             await loop.run_in_executor(
@@ -1502,8 +1519,11 @@ class RDOState(rx.State):
             except Exception as e:
                 logger.error(f"⚠️ PDF: {e}")
 
-            async with self:
-                self.submit_status = "☁️ Enviando PDF…"
+            try:
+                async with self:
+                    self.submit_status = "☁️ Enviando PDF…"
+            except Exception:
+                pass
 
             # 4. Upload PDF
             pdf_url = ""
@@ -1516,8 +1536,11 @@ class RDOState(rx.State):
                 except Exception as e:
                     logger.warning(f"⚠️ Upload PDF: {e}")
 
-            async with self:
-                self.submit_status = "✅ Finalizando…"
+            try:
+                async with self:
+                    self.submit_status = "✅ Finalizando…"
+            except Exception:
+                pass
 
             # 5. Finalize in DB (status: processando_pdf → finalizado)
             await loop.run_in_executor(
@@ -1906,26 +1929,43 @@ class RDOState(rx.State):
             if recipients:
                 parts.append(f"📧 Email enviado para {len(recipients)} destinatário(s).")
             toast_msg = " ".join(parts)
-            async with self:
-                self._reset_form()
-                self.is_submitting = False
-                self.submit_status = ""
-                # Usuário já está no /rdo-historico (redirecionado antes do processamento)
-                # Este toast aparece lá quando o processamento termina em background
-                yield rx.toast(toast_msg, position="top-center", duration=8000)
+            # Wrap in try/except — if Redis is slow and lock expires, we still want to
+            # log success and not leave the UI in a broken state.
+            try:
+                async with self:
+                    self._reset_form()
+                    self.is_submitting = False
+                    self.submit_status = ""
+                    yield rx.toast(toast_msg, position="top-center", duration=8000)
+            except Exception as _final_err:
+                logger.error(f"⚠️ execute_submit final state update failed: {_final_err}")
+                # RDO was successfully saved/emailed — just state update failed.
+                # Attempt minimal reset without yield
+                try:
+                    async with self:
+                        self.is_submitting = False
+                        self.submit_status = ""
+                except Exception:
+                    pass
 
         except Exception as e:
             logger.error(f"❌ execute_submit: {e}", exc_info=True)
-            async with self:
-                self.submit_error = str(e)[:100]
-                yield rx.toast(f"❌ Erro no processamento do RDO: {str(e)[:80]}", position="top-center", duration=8000)
+            try:
+                async with self:
+                    self.submit_error = str(e)[:100]
+                    yield rx.toast(f"❌ Erro no processamento do RDO: {str(e)[:80]}", position="top-center", duration=8000)
+            except Exception:
+                pass
 
         finally:
             # Garante que is_submitting SEMPRE volta pra False — mesmo em crash/CancelledError/OOM
-            async with self:
-                if self.is_submitting:
-                    self.is_submitting = False
-                    self.submit_status = ""
+            try:
+                async with self:
+                    if self.is_submitting:
+                        self.is_submitting = False
+                        self.submit_status = ""
+            except Exception:
+                pass
 
     # ── Helpers ───────────────────────────────────────────────
 

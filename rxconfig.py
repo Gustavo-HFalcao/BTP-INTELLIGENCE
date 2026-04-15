@@ -31,4 +31,8 @@ config = rx.Config(
     uploads_dir="uploaded_files",
     # Redis para state persistence — ativo automaticamente quando REDIS_URL está no .env
     **({ "redis_url": _redis_url } if _redis_url else {}),
+    # Aumentado de 10s para 60s: background tasks com PDF/AI podem ter async with self:
+    # demorado quando Redis está sob carga. 60s dá margem sem risco de lock zombie
+    # (background tasks em execução normal completam async with self: em <1s).
+    state_manager_lock_expiration=60000,
 )

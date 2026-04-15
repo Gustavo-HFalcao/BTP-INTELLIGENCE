@@ -250,11 +250,12 @@ def _apply_watermark(img_bytes: bytes, meta: Dict[str, Any], content_type: str =
     """
     # ── Resolução padronizada de saída:
     # 1. Cap de processamento (anti-OOM): limita ao processar a 2048px no lado maior.
-    # 2. Resolução de saída final: normaliza TODAS as imagens para 1920px no lado maior.
-    #    Garante watermark consistente independente da câmera/resolução original.
-    #    Imagens menores que 1920px são mantidas sem upscale.
+    # 2. Resolução de saída: normaliza para 1920px no lado MAIOR da FOTO (portrait ou landscape).
+    #    - Landscape 4032px wide  → 1920×1440 (+panel)   fsize~60px  ✓ legível
+    #    - Portrait  3024×4032px  → 1440×1920 (+panel)   fsize~60px  ✓ legível (corrigido)
+    #    - Imagens menores que 1920px: sem upscale, mantidas como estão.
     _MAX_DIM = 2048       # cap de processamento (anti-OOM)
-    _OUTPUT_DIM = 1920    # resolução de saída normalizada
+    _OUTPUT_DIM = 1920    # resolução de saída no lado maior da foto
 
     try:
         from PIL import Image, ImageDraw, ImageFont
@@ -268,7 +269,7 @@ def _apply_watermark(img_bytes: bytes, meta: Dict[str, Any], content_type: str =
         except Exception:
             pass
 
-        # Resize se necessário — preserva aspect ratio
+        # Resize se necessário — preserva aspect ratio, cap no maior lado
         w, h = img.size
         if max(w, h) > _MAX_DIM:
             if w >= h:
@@ -279,10 +280,15 @@ def _apply_watermark(img_bytes: bytes, meta: Dict[str, Any], content_type: str =
 
         w, h = img.size
 
-        # ── Font: proportional to image width, min 28px for readability ──────
-        # iPhone 13 portrait = 3024px wide → fsize ≈ 75px (legível em impressão A4)
-        # Imagem pequena 800px → fsize ≈ 28px (mínimo seguro)
-        fsize = max(28, w // 40)
+        # Calcula a escala de saída antecipadamente para dimensionar a fonte
+        # corretamente em relação ao output final (não ao tamanho de processamento).
+        _photo_max = max(w, h)
+        _output_scale = (_OUTPUT_DIM / _photo_max) if _photo_max > _OUTPUT_DIM else 1.0
+        _out_w = int(w * _output_scale)  # largura efetiva na saída
+
+        # ── Font: proporcional à largura de SAÍDA, mínimo 40px para legibilidade ──
+        # Garante texto nítido tanto em portrait (largura ~1440px) quanto landscape (1920px).
+        fsize = max(40, _out_w // 32)
         fnt = ImageFont.load_default()
         fnt_sm = ImageFont.load_default()
         for fp in [
@@ -419,17 +425,17 @@ def _apply_watermark(img_bytes: bytes, meta: Dict[str, Any], content_type: str =
         result.paste(img, (0, 0))
         result.paste(panel, (0, h), panel)
 
-        # ── Normaliza resolução de saída para _OUTPUT_DIM no lado maior da FOTO.
-        # O painel do watermark cresce proporcionalmente.
-        # Imagens menores que _OUTPUT_DIM não são ampliadas (sem upscale).
-        if w > _OUTPUT_DIM:
-            scale = _OUTPUT_DIM / w
-            out_w = _OUTPUT_DIM
-            out_h = int(total_h * scale)
+        # ── Normaliza resolução de saída: 1920px no lado maior da FOTO ──────────
+        # Usa _output_scale calculado no início (baseado em max(w, h) da foto).
+        # O painel cresce proporcionalmente — resultado consistente para qualquer
+        # orientação (portrait ou landscape). Sem upscale (escala <= 1.0).
+        if _output_scale < 1.0:
+            out_w = max(1, int(result.width  * _output_scale))
+            out_h = max(1, int(result.height * _output_scale))
             result = result.resize((out_w, out_h), Image.LANCZOS)
 
         buf = io.BytesIO()
-        result.convert("RGB").save(buf, format="JPEG", quality=88, optimize=True)
+        result.convert("RGB").save(buf, format="JPEG", quality=92, optimize=True)
         return buf.getvalue()
     except Exception as e:
         logger.error(f"❌ Watermark falhou (retornando original): {e}")
