@@ -11,7 +11,7 @@
 |---|--------|---------|-------------|--------|
 | 1 | Data de referência do RDO guia tudo | 🔴 Crítico | Alta | ✅ Feito |
 | 2 | Trigger de IA do RDO não disparou | 🔴 Crítico | Baixa | ✅ Feito |
-| 3 | Cache do hub não invalida após RDO | 🟠 Alto | Média | ⬜ Pendente |
+| 3 | Cache do hub não invalida após RDO | 🟠 Alto | Média | ✅ Feito |
 | 4 | SPI errôneo: 0.17 numa obra em dia | 🔴 Crítico | Média | ✅ Feito |
 | 5 | Insight de equipe incorreto | 🟠 Alto | Baixa | ✅ Feito |
 | 6 | Produtividade diária usa data de envio | 🔴 Crítico | Alta | ✅ Feito (via #1) |
@@ -28,8 +28,8 @@
 | 17 | Foto ferramentas: logout ao subir | 🔴 Crítico | Alta | ✅ Mitigado |
 | A | Feedback visual pós-submit (notificação em background) | 🟠 Alto | Baixa | ✅ Feito |
 | B | Orientações/pendências na IA do RDO | 🟠 Alto | Baixa | ✅ Feito |
-| C | Hub não recarrega cronograma após submit | 🔴 Crítico | Baixa | ✅ Feito (via #3 parcial) |
-| D | Gráfico de produtividade diária: sem agrupamento por data_rdo | 🟠 Alto | Média | ⬜ Pendente |
+| C | Hub não recarrega cronograma após submit | 🔴 Crítico | Baixa | ✅ Feito |
+| D | Gráfico de produtividade diária: sem agrupamento por data_rdo | 🟠 Alto | Média | ✅ Feito |
 | E | Consistência do tipo de atividade (marco vs %, vs qty) | 🟠 Alto | Média | ⬜ Pendente |
 | F | Preenchimento retroativo: RDO de dias anteriores | 🟡 Médio | Alta | ⬜ Pendente |
 

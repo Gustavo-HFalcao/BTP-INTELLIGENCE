@@ -216,12 +216,19 @@ class RDOViewState(rx.State):
 
                 all_entries = [_build_cron_entry(r) for r in (hub_rows or [])]
 
-                # Smart filter: prefer activities that match what this RDO reported
-                if rdo_ativ_names and all_entries:
+                # Mostrar APENAS atividades que foram relatadas neste RDO específico.
+                # Se o mestre não registrou nenhuma atividade (rdo_ativ_names vazio),
+                # fallback para atividades com exec_qty > 0 (algo já foi produzido).
+                # Nunca mostrar TODAS as atividades do cronograma — seria ruído enorme.
+                if rdo_ativ_names:
                     matched = [e for e in all_entries if e["atividade"].lower().strip() in rdo_ativ_names]
-                    cron_list = matched if matched else all_entries
+                    cron_list = matched  # pode ser vazio se nomes não baterem exatamente
                 else:
-                    cron_list = all_entries
+                    # Fallback: só atividades com produção registrada (exec_qty > 0)
+                    cron_list = [
+                        e for e in all_entries
+                        if e.get("exec_label", "").strip() and not e["exec_label"].startswith("0.0/")
+                    ]
             except Exception:
                 pass
 

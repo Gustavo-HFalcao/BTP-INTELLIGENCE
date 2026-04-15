@@ -1326,7 +1326,7 @@ class GlobalState(rx.State):
             async for update in self.check_login():
                 yield update
 
-    def logout(self):
+    async def logout(self):
         """Sai da plataforma"""
         audit_log(
             category=AuditCategory.LOGOUT,
@@ -1380,6 +1380,13 @@ class GlobalState(rx.State):
         # Clear notifications
         self.notifications_list = []
         self.notif_unread_count = 0
+        # Limpa HubState para evitar flicker de dados sensíveis ao fazer login com outro usuário
+        # cron_rows, agente_insights, etc. ficam em memória e aparecem brevemente no próximo login
+        try:
+            from bomtempo.state.hub_state import HubState as _HS
+            yield _HS.reset_for_logout
+        except Exception:
+            pass
 
     # ── Notifications ─────────────────────────────────────────
 
@@ -3534,7 +3541,7 @@ class GlobalState(rx.State):
             hist_df = hist_df[hist_df["contrato"] == code].copy()
         if hist_df.empty:
             return []
-        if "created_at" not in hist_df.columns:
+        if "created_at" not in hist_df.columns and "data" not in hist_df.columns:
             return []
 
         # Busca pesos das atividades
@@ -3552,9 +3559,16 @@ class GlobalState(rx.State):
                 for _, r in sub.iterrows():
                     peso_map[str(r["id"])] = float(r["peso_pct"])
 
-        hist_df["created_at"] = pd.to_datetime(hist_df["created_at"], errors="coerce", utc=True)
-        hist_df = hist_df.dropna(subset=["created_at"])
-        hist_df["data"] = hist_df["created_at"].dt.tz_convert("America/Sao_Paulo").dt.strftime("%d/%m")
+        # Prefer `data` (RDO reference date) over `created_at` (submission timestamp).
+        # Retroactive RDOs filed late would otherwise create false spikes on the submission day.
+        if "data" in hist_df.columns and hist_df["data"].notna().any():
+            hist_df = hist_df.copy()
+            hist_df["data"] = pd.to_datetime(hist_df["data"], errors="coerce").dt.strftime("%d/%m")
+            hist_df = hist_df.dropna(subset=["data"])
+        else:
+            hist_df["created_at"] = pd.to_datetime(hist_df["created_at"], errors="coerce", utc=True)
+            hist_df = hist_df.dropna(subset=["created_at"])
+            hist_df["data"] = hist_df["created_at"].dt.tz_convert("America/Sao_Paulo").dt.strftime("%d/%m")
         hist_df["conclusao_pct_novo"] = pd.to_numeric(hist_df.get("conclusao_pct_novo", 0), errors="coerce").fillna(0)
         hist_df["conclusao_pct_anterior"] = pd.to_numeric(hist_df.get("conclusao_pct_anterior", 0), errors="coerce").fillna(0)
         hist_df["delta_raw"] = hist_df["conclusao_pct_novo"] - hist_df["conclusao_pct_anterior"]

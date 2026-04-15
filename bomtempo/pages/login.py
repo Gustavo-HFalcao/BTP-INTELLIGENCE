@@ -234,7 +234,13 @@ def _auth_form() -> rx.Component:
                 placeholder="Digite seu usuário",
                 value=GlobalState.username_input,
                 on_change=GlobalState.set_username_input,
-                debounce_timeout=150,
+                debounce_timeout=300,
+                custom_attrs={
+                    "autocomplete": "username",
+                    "autocorrect": "off",
+                    "autocapitalize": "none",
+                    "spellcheck": "false",
+                },
                 bg="#06100e", # surface-container-lowest
                 border=f"1px solid {S.BORDER_SUBTLE}",
                 color="white",
@@ -272,7 +278,8 @@ def _auth_form() -> rx.Component:
                 type="password",
                 value=GlobalState.password_input,
                 on_change=GlobalState.set_password_input,
-                debounce_timeout=150,
+                debounce_timeout=300,
+                custom_attrs={"autocomplete": "current-password"},
                 bg="#06100e", # surface-container-lowest
                 border=rx.cond(
                     GlobalState.login_error != "",

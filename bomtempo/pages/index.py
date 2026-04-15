@@ -453,37 +453,63 @@ def index_page() -> rx.Component:
             spacing="8",
             on_mount=lambda: GlobalState.set_current_path("/"),
         ),
-        # Restricted access fallback — shown while guard redirects non-dashboard roles
-        rx.center(
+        # Restricted access fallback — full-screen overlay (covers topbar via position:fixed)
+        rx.box(
+            # Scan line animation (reuses existing CSS keyframe)
+            rx.box(class_name="sync-scan-line"),
+            # Content
             rx.vstack(
+                # Brand icon box
                 rx.box(
-                    rx.icon(tag="zap", size=32, color=S.COPPER),
-                    padding="16px",
-                    bg=S.COPPER_GLOW,
+                    rx.image(
+                        src="/icon.png",
+                        width="48px",
+                        height="48px",
+                        border_radius="6px",
+                        object_fit="cover",
+                    ),
+                    padding="4px",
+                    background=S.COPPER_GLOW,
                     border=f"1px solid {S.BORDER_ACCENT}",
-                    border_radius="12px",
-                    margin_bottom="8px",
+                    border_radius="8px",
                 ),
-                rx.spinner(size="2", color=S.COPPER),
-                rx.text(
-                    "Carregando...",
-                    color="white",
-                    font_size="15px",
-                    font_weight="600",
-                    font_family=S.FONT_TECH,
-                    letter_spacing="0.05em",
-                ),
-                rx.text(
-                    "Redirecionando para seu módulo",
-                    color=S.TEXT_MUTED,
-                    font_size="12px",
-                    font_family=S.FONT_MONO,
+                # Copper spinner
+                rx.spinner(size="3", color_scheme="amber"),
+                # Status text
+                rx.vstack(
+                    rx.text(
+                        "BOMTEMPO",
+                        color="white",
+                        font_size="14px",
+                        font_weight="700",
+                        font_family=S.FONT_TECH,
+                        letter_spacing="0.12em",
+                        text_transform="uppercase",
+                    ),
+                    rx.text(
+                        "Redirecionando para seu módulo…",
+                        color=S.TEXT_MUTED,
+                        font_size="11px",
+                        font_family=S.FONT_MONO,
+                        letter_spacing="0.04em",
+                    ),
+                    spacing="1",
+                    align="center",
                 ),
                 align="center",
-                spacing="3",
+                spacing="4",
             ),
-            width="100%",
-            height="100vh",
-            bg=S.BG_VOID,
+            # Full-screen overlay — position:fixed covers the global topbar
+            position="fixed",
+            top="0",
+            left="0",
+            right="0",
+            bottom="0",
+            display="flex",
+            align_items="center",
+            justify_content="center",
+            background=S.BG_VOID,
+            z_index="9999",
+            overflow="hidden",
         ),
     )

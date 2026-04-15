@@ -817,7 +817,7 @@ class RDOState(rx.State):
                 except Exception as e:
                     logger.error(f"upload_evidence_files: {e}", exc_info=True)
                     yield rx.toast(f"❌ Erro no upload: {e}", position="top-center", duration=8000)
-                    return
+                    continue
 
             self.evidencias_items     = [*self.evidencias_items, *new_items]
             self.ev_legenda           = ""
@@ -1655,10 +1655,12 @@ class RDOState(rx.State):
                     _hist_exec = upd_data.get("exec_qty")
                     _hist_total = float((cur_rows[0].get("total_qty", 0) or 0) if cur_rows else 0) or None
                     _hist_unidade = str((cur_rows[0].get("unidade", "") or "") if cur_rows else "")
+                    _hist_data = rdo_data.get("data") or None
                     await loop.run_in_executor(get_db_executor(), lambda: _sb_ins2("hub_atividade_historico", {
                         "atividade_id":         _ativ_id,
                         "contrato":             contrato,
                         "rdo_id":               id_rdo,
+                        "data":                 _hist_data,
                         "conclusao_pct_anterior": cur_pct,
                         "conclusao_pct_novo":   _progresso,
                         "producao_dia":         _hist_prod,
@@ -1759,10 +1761,12 @@ class RDOState(rx.State):
                         _ex_upd["last_rdo_date"] = _ex_rdo_date
                     await loop.run_in_executor(get_db_executor(), lambda i=_ex_id, d=_ex_upd: _sb_upd_ex("hub_atividades", filters={"id": i}, data=d))
                     _cid_ex = rdo_data.get("client_id") or None
-                    await loop.run_in_executor(get_db_executor(), lambda i=_ex_id, p=_ex_pct, cp=_cur_pct, hp=_ex_hist_prod, he=_ex_hist_exec, ht=_ex_hist_total, hu=_ex_hist_unidade: _sb_ins_ex("hub_atividade_historico", {
+                    _ex_data = rdo_data.get("data") or None
+                    await loop.run_in_executor(get_db_executor(), lambda i=_ex_id, p=_ex_pct, cp=_cur_pct, hp=_ex_hist_prod, he=_ex_hist_exec, ht=_ex_hist_total, hu=_ex_hist_unidade, dd=_ex_data: _sb_ins_ex("hub_atividade_historico", {
                         "atividade_id": i,
                         "contrato": contrato,
                         "rdo_id": id_rdo,
+                        "data": dd,
                         "conclusao_pct_anterior": cp,
                         "conclusao_pct_novo": p,
                         "producao_dia": hp,
@@ -1865,6 +1869,13 @@ class RDOState(rx.State):
             try:
                 from bomtempo.core.data_loader import DataLoader as _DL
                 _DL.invalidate_cache()
+            except Exception:
+                pass
+
+            # Invalida cache do cronograma no Hub e recarrega se estava aberto
+            try:
+                from bomtempo.state.hub_state import HubState as _HS
+                yield _HS.reload_after_rdo(contrato)
             except Exception:
                 pass
 

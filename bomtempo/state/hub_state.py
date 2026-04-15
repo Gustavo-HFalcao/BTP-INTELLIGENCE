@@ -3557,286 +3557,287 @@ Retorne SOMENTE JSON válido, sem texto antes/depois, sem markdown:
                 self.agente_error = "Erro ao buscar dados. Tente novamente."
             return
 
-        # Build context for AI
-        today_dt = date.today()
-        today = today_dt.isoformat()
-
-        # Activity summary (top 20 most relevant rows)
-        micros = [r for r in _cron_rows if r.get("nivel", "") == "micro"]
-        if not micros:
-            micros = _cron_rows  # fallback: all rows
-
-        def _ativ_summary(rows):
-            lines = []
-            for r in rows[:25]:
-                pct = r.get("conclusao_pct", "0")
-                name = r.get("atividade", "")
-                termino = r.get("termino_previsto", "")
-                inicio = r.get("inicio_previsto", "")
-                critico = r.get("critico", "0")
-                total_qty = r.get("total_qty", "")
-                exec_qty = r.get("exec_qty", "")
-                unidade = r.get("unidade", "")
-                responsavel = r.get("responsavel", "")
-                status = r.get("status_atividade", "nao_iniciada")
-                peso = r.get("peso_pct", "")
-                prod_info = f", qty: {exec_qty}/{total_qty} {unidade}".strip() if total_qty else ""
-                line = (
-                    f"- [{r.get('fase','')}.{r.get('fase_macro','')}] {name}"
-                    f" | {pct}% | {inicio}→{termino}"
-                    f" | resp: {responsavel} | status: {status}"
-                    f" | critico: {critico} | peso: {peso}%{prod_info}"
-                )
-                lines.append(line)
-            return "\n".join(lines)
-
-        ativ_text = _ativ_summary(micros)
-
-        # Last RDO summary — from rdo_master (correct table)
-        rdo_text = ""
-        if last_rdo:
-            obs = (last_rdo.get('observacoes') or '').strip()
-            orient = (last_rdo.get('orientacao') or '').strip()
-            rdo_text = (
-                f"Data de referência: {last_rdo.get('data','')}\n"
-                f"Equipe alocada: {last_rdo.get('equipe_alocada','')}\n"
-                f"Condição climática: {last_rdo.get('condicao_climatica','')}\n"
-                f"Houve chuva: {last_rdo.get('houve_chuva','')}\n"
-                f"Houve interrupção: {last_rdo.get('houve_interrupcao','')}\n"
-                f"Motivo interrupção: {last_rdo.get('motivo_interrupcao','')}\n"
-                f"Observações: {obs or 'Nenhuma'}\n"
-                + (f"⚠️ ORIENTAÇÕES/PENDÊNCIAS DO MESTRE: {orient}\n" if orient else "")
-                + f"Houve acidente: {last_rdo.get('houve_acidente','')}\n"
-            )
-
-        # ── Compute derived metrics for richer prompt context ─────────────────
-        from datetime import date as _date_cls
-        late_lines: list = []
-        critical_late: list = []
-        ahead_lines: list = []
-        not_started_critical: list = []
-        total_peso = 0.0
-        realizado_peso = 0.0
-
-        for r in micros:
-            termino_iso = (r.get("data_fim_real_iso") or r.get("termino_previsto", ""))[:10]
-            pct_str = r.get("conclusao_pct", "0") or "0"
-            critico = r.get("critico", "0")
-            name = r.get("atividade", "")
-            status = r.get("status_atividade", "nao_iniciada")
-            try:
-                pct_val = float(pct_str)
-            except (ValueError, TypeError):
-                pct_val = 0.0
-            try:
-                peso_val = float(r.get("peso_pct", "0") or "0")
-                total_peso += peso_val
-                realizado_peso += peso_val * pct_val / 100.0
-            except (ValueError, TypeError):
-                pass
-            if pct_val < 100.0 and termino_iso:
-                try:
-                    term_dt = _date_cls.fromisoformat(termino_iso)
-                    delta = (today_dt - term_dt).days  # type: ignore[attr-defined]
-                    if delta > 0:
-                        tag = " [CRÍTICO]" if critico == "1" else ""
-                        late_lines.append(f"  - {name}: {delta}d atrasada{tag}")
-                        if critico == "1":
-                            critical_late.append((name, delta))
-                    elif delta < -30 and pct_val > 10:
-                        ahead_lines.append(f"  - {name}: {abs(delta)}d de folga, {pct_val:.0f}% concluído")
-                except ValueError:
-                    pass
-            if critico == "1" and status == "nao_iniciada":
-                inicio_iso = r.get("inicio_previsto", "")[:10]
-                try:
-                    ini_dt = _date_cls.fromisoformat(inicio_iso)
-                    if ini_dt <= today_dt:  # type: ignore[attr-defined]
-                        not_started_critical.append(name)
-                except ValueError:
-                    pass
-
-        spi_geral = round(realizado_peso / total_peso, 2) if total_peso > 0 else None
-        # Calcular SPI corrigido: apenas sobre atividades que já deveriam ter iniciado
-        # Atividades futuras (inicio > hoje) ainda NÃO deveriam estar em andamento — excluir do SPI
-        active_peso = 0.0
-        active_realizado = 0.0
-        for r in micros:
-            ini_iso = r.get("inicio_previsto", "")[:10] or r.get("inicio_iso", "")[:10]
-            if not ini_iso:
-                continue
-            try:
-                ini_dt = _date_cls.fromisoformat(ini_iso)
-            except ValueError:
-                continue
-            if ini_dt > today_dt:
-                continue  # atividade futura — não penaliza SPI
-            try:
-                peso_val = float(r.get("peso_pct", "0") or "0")
-                pct_val = float(r.get("conclusao_pct", "0") or "0")
-                active_peso += peso_val
-                active_realizado += peso_val * pct_val / 100.0
-            except (ValueError, TypeError):
-                pass
-        if active_peso > 0:
-            spi_ativo = round(active_realizado / active_peso, 2)
-            spi_line = (
-                f"SPI das atividades ativas (já iniciadas): {spi_ativo} "
-                f"(IMPORTANTE: {len([r for r in micros if (r.get('inicio_previsto','')[:10] or r.get('inicio_iso','')[:10]) > today_dt.isoformat()])} "
-                f"atividades são futuras e NÃO devem ser penalizadas no SPI)"
-            )
-        elif spi_geral is not None:
-            spi_line = f"SPI global do projeto: {spi_geral} (inclui atividades ainda não iniciadas)"
-        else:
-            spi_line = "SPI: dados insuficientes"
-
-        # Calcular dias_sem_rdo para diferenciar "atrasado" de "aguardando lançamento"
-        dias_sem_rdo = None
-        rdo_status_line = ""
-        if last_rdo:
-            try:
-                _last_rdo_date_str = (last_rdo.get("data") or "")[:10]
-                if _last_rdo_date_str:
-                    _last_rdo_dt = _date_cls.fromisoformat(_last_rdo_date_str)
-                    dias_sem_rdo = (today_dt - _last_rdo_dt).days
-                    if dias_sem_rdo == 0:
-                        rdo_status_line = "⏳ RDO de HOJE já recebido — dados atualizados."
-                    elif dias_sem_rdo == 1:
-                        rdo_status_line = f"⏳ Aguardando RDO de hoje ({today_str}). Último: {_last_rdo_date_str}. SPI pode estar desatualizado por 1 dia — NÃO é atraso."
-                    elif dias_sem_rdo <= 3:
-                        rdo_status_line = f"⚠️ {dias_sem_rdo} dias sem RDO (último: {_last_rdo_date_str}). Dados de progresso podem estar desatualizados."
-                    else:
-                        rdo_status_line = f"🔴 {dias_sem_rdo} dias sem RDO (último: {_last_rdo_date_str}). Comunicação com campo comprometida."
-            except (ValueError, AttributeError):
-                pass
-        late_summary = "\n".join(late_lines[:12]) if late_lines else "  Nenhuma atividade com prazo vencido detectada."
-        ahead_summary = "\n".join(ahead_lines[:5]) if ahead_lines else "  Nenhuma."
-        not_started_summary = "\n".join(f"  - {n}" for n in not_started_critical[:5]) if not_started_critical else "  Nenhuma."
-
-        # ── Crew context from rdo_master (correct fields) ─────────────────────
-        crew_context = ""
-        if last_rdo:
-            try:
-                alocada = int(last_rdo.get("equipe_alocada") or 0)
-                clima = last_rdo.get("condicao_climatica", "")
-                chuva = last_rdo.get("houve_chuva", False)
-                interrupcao = last_rdo.get("houve_interrupcao", False)
-                motivo = last_rdo.get("motivo_interrupcao", "")
-                acidente = last_rdo.get("houve_acidente", False)
-                rdo_date = last_rdo.get("data", "")
-
-                parts = [f"Último RDO ({rdo_date}): {alocada} pessoas alocadas, clima: {clima}"]
-                if chuva:
-                    parts.append("⚠️ Houve chuva")
-                if interrupcao:
-                    parts.append(f"⚠️ Houve interrupção: {motivo or 'motivo não informado'}")
-                if acidente:
-                    parts.append("🔴 ACIDENTE REGISTRADO no último RDO")
-                crew_context = " | ".join(parts)
-            except (ValueError, TypeError):
-                crew_context = f"Equipe do último RDO: {last_rdo.get('equipe_alocada','?')} pessoas."
-
-        # ── Real productivity from rdo_atividades (quantidade + efetivo + data) ─
-        # Fonte: hub_atividade_historico (producao_dia, exec_qty, total_qty, unidade)
-        # + rdo_atividades (quantidade, unidade, efetivo por atividade por dia)
-        productivity_context = ""
         try:
-            prod_lines = []
-            # Group by atividade → compute taxa = quantidade / efetivo per day
-            from collections import defaultdict
-            activity_rates: dict = defaultdict(list)  # atividade → [(qty, efetivo, data)]
+            # Build context for AI
+            today_dt = date.today()
+            today = today_dt.isoformat()
 
-            for row in prod_rows:
-                act_name = (row.get("atividade") or "").strip()
-                qty = row.get("quantidade")
-                efetivo = row.get("efetivo")
-                data = row.get("data", "")
-                unidade = row.get("unidade", "")
-                if not act_name or qty is None or efetivo is None:
-                    continue
+            # Activity summary (top 20 most relevant rows)
+            micros = [r for r in _cron_rows if r.get("nivel", "") == "micro"]
+            if not micros:
+                micros = _cron_rows  # fallback: all rows
+
+            def _ativ_summary(rows):
+                lines = []
+                for r in rows[:25]:
+                    pct = r.get("conclusao_pct", "0")
+                    name = r.get("atividade", "")
+                    termino = r.get("termino_previsto", "")
+                    inicio = r.get("inicio_previsto", "")
+                    critico = r.get("critico", "0")
+                    total_qty = r.get("total_qty", "")
+                    exec_qty = r.get("exec_qty", "")
+                    unidade = r.get("unidade", "")
+                    responsavel = r.get("responsavel", "")
+                    status = r.get("status_atividade", "nao_iniciada")
+                    peso = r.get("peso_pct", "")
+                    prod_info = f", qty: {exec_qty}/{total_qty} {unidade}".strip() if total_qty else ""
+                    line = (
+                        f"- [{r.get('fase','')}.{r.get('fase_macro','')}] {name}"
+                        f" | {pct}% | {inicio}→{termino}"
+                        f" | resp: {responsavel} | status: {status}"
+                        f" | critico: {critico} | peso: {peso}%{prod_info}"
+                    )
+                    lines.append(line)
+                return "\n".join(lines)
+
+            ativ_text = _ativ_summary(micros)
+
+            # Last RDO summary — from rdo_master (correct table)
+            rdo_text = ""
+            if last_rdo:
+                obs = (last_rdo.get('observacoes') or '').strip()
+                orient = (last_rdo.get('orientacao') or '').strip()
+                rdo_text = (
+                    f"Data de referência: {last_rdo.get('data','')}\n"
+                    f"Equipe alocada: {last_rdo.get('equipe_alocada','')}\n"
+                    f"Condição climática: {last_rdo.get('condicao_climatica','')}\n"
+                    f"Houve chuva: {last_rdo.get('houve_chuva','')}\n"
+                    f"Houve interrupção: {last_rdo.get('houve_interrupcao','')}\n"
+                    f"Motivo interrupção: {last_rdo.get('motivo_interrupcao','')}\n"
+                    f"Observações: {obs or 'Nenhuma'}\n"
+                    + (f"⚠️ ORIENTAÇÕES/PENDÊNCIAS DO MESTRE: {orient}\n" if orient else "")
+                    + f"Houve acidente: {last_rdo.get('houve_acidente','')}\n"
+                )
+
+            # ── Compute derived metrics for richer prompt context ─────────────────
+            from datetime import date as _date_cls
+            late_lines: list = []
+            critical_late: list = []
+            ahead_lines: list = []
+            not_started_critical: list = []
+            total_peso = 0.0
+            realizado_peso = 0.0
+
+            for r in micros:
+                termino_iso = (r.get("data_fim_real_iso") or r.get("termino_previsto", ""))[:10]
+                pct_str = r.get("conclusao_pct", "0") or "0"
+                critico = r.get("critico", "0")
+                name = r.get("atividade", "")
+                status = r.get("status_atividade", "nao_iniciada")
                 try:
-                    qty_f = float(qty)
-                    efetivo_i = int(efetivo)
-                    if efetivo_i > 0 and qty_f > 0:
-                        activity_rates[act_name].append({
-                            "qty": qty_f, "efetivo": efetivo_i,
-                            "taxa": round(qty_f / efetivo_i, 2),
-                            "data": data, "unidade": unidade
-                        })
+                    pct_val = float(pct_str)
+                except (ValueError, TypeError):
+                    pct_val = 0.0
+                try:
+                    peso_val = float(r.get("peso_pct", "0") or "0")
+                    total_peso += peso_val
+                    realizado_peso += peso_val * pct_val / 100.0
                 except (ValueError, TypeError):
                     pass
+                if pct_val < 100.0 and termino_iso:
+                    try:
+                        term_dt = _date_cls.fromisoformat(termino_iso)
+                        delta = (today_dt - term_dt).days  # type: ignore[attr-defined]
+                        if delta > 0:
+                            tag = " [CRÍTICO]" if critico == "1" else ""
+                            late_lines.append(f"  - {name}: {delta}d atrasada{tag}")
+                            if critico == "1":
+                                critical_late.append((name, delta))
+                        elif delta < -30 and pct_val > 10:
+                            ahead_lines.append(f"  - {name}: {abs(delta)}d de folga, {pct_val:.0f}% concluído")
+                    except ValueError:
+                        pass
+                if critico == "1" and status == "nao_iniciada":
+                    inicio_iso = r.get("inicio_previsto", "")[:10]
+                    try:
+                        ini_dt = _date_cls.fromisoformat(inicio_iso)
+                        if ini_dt <= today_dt:  # type: ignore[attr-defined]
+                            not_started_critical.append(name)
+                    except ValueError:
+                        pass
 
-            for act_name, samples in activity_rates.items():
-                if not samples:
+            spi_geral = round(realizado_peso / total_peso, 2) if total_peso > 0 else None
+            # Calcular SPI corrigido: apenas sobre atividades que já deveriam ter iniciado
+            # Atividades futuras (inicio > hoje) ainda NÃO deveriam estar em andamento — excluir do SPI
+            active_peso = 0.0
+            active_realizado = 0.0
+            for r in micros:
+                ini_iso = r.get("inicio_previsto", "")[:10] or r.get("inicio_iso", "")[:10]
+                if not ini_iso:
                     continue
-                unidade = samples[0]["unidade"]
-                avg_taxa = round(sum(s["taxa"] for s in samples) / len(samples), 2)
-                avg_efetivo = round(sum(s["efetivo"] for s in samples) / len(samples), 1)
-                avg_qty = round(sum(s["qty"] for s in samples) / len(samples), 1)
-                n = len(samples)
-
-                # Saldo restante da atividade (da tabela hub_atividades via cron_rows)
-                cron_act = next((x for x in micros if x.get("atividade", "").strip() == act_name), None)
-                saldo_str = ""
-                recovery_str = ""
-                if cron_act:
-                    try:
-                        total_q = float(cron_act.get("total_qty") or 0)
-                        exec_q = float(cron_act.get("exec_qty") or 0)
-                        remaining = total_q - exec_q
-                        if remaining > 0 and avg_taxa > 0:
-                            # Opção A: recuperar com equipe histórica média
-                            dias_com_media = round(remaining / (avg_taxa * avg_efetivo), 1)
-                            # Opção B: recuperar em prazo reduzido (2/3 dos dias) → workers necessários
-                            prazo_target = max(1, dias_com_media * 0.67)
-                            workers_needed = round(remaining / (avg_taxa * prazo_target), 1)
-                            saldo_str = f" | saldo: {remaining:.1f} {unidade}"
-                            recovery_str = (
-                                f" | RECOVERY: A) {dias_com_media}d com {avg_efetivo:.0f}p "
-                                f"B) {round(prazo_target)}d com {workers_needed:.0f}p"
-                            )
-                    except (ValueError, TypeError):
-                        pass
-
-                # Efetivo alocado planejado vs real para granularidade
-                efetivo_plan_str = ""
-                if cron_act:
-                    try:
-                        ef_plan = int(cron_act.get("efetivo_alocado", 0) or 0)
-                        if ef_plan > 0:
-                            diff = avg_efetivo - ef_plan
-                            status = "OK" if abs(diff) <= 1 else (f"+{diff:.0f}p extra" if diff > 0 else f"{abs(diff):.0f}p faltando")
-                            efetivo_plan_str = f" [planejado: {ef_plan}p → real: {avg_efetivo:.0f}p → {status}]"
-                    except (ValueError, TypeError):
-                        pass
-
-                prod_lines.append(
-                    f"  - [{act_name}] taxa histórica: {avg_taxa} {unidade}/pessoa/dia "
-                    f"(média {n} RDOs, {avg_efetivo:.0f}p, {avg_qty:.1f} {unidade}/dia)"
-                    f"{efetivo_plan_str}{saldo_str}{recovery_str}"
+                try:
+                    ini_dt = _date_cls.fromisoformat(ini_iso)
+                except ValueError:
+                    continue
+                if ini_dt > today_dt:
+                    continue  # atividade futura — não penaliza SPI
+                try:
+                    peso_val = float(r.get("peso_pct", "0") or "0")
+                    pct_val = float(r.get("conclusao_pct", "0") or "0")
+                    active_peso += peso_val
+                    active_realizado += peso_val * pct_val / 100.0
+                except (ValueError, TypeError):
+                    pass
+            if active_peso > 0:
+                spi_ativo = round(active_realizado / active_peso, 2)
+                spi_line = (
+                    f"SPI das atividades ativas (já iniciadas): {spi_ativo} "
+                    f"(IMPORTANTE: {len([r for r in micros if (r.get('inicio_previsto','')[:10] or r.get('inicio_iso','')[:10]) > today_dt.isoformat()])} "
+                    f"atividades são futuras e NÃO devem ser penalizadas no SPI)"
                 )
-
-            # Also enrich with hub_atividade_historico producao_dia for any gaps
-            hist_acts_seen = {s.split("] ")[0].lstrip("  - [") for s in prod_lines}
-            hist_by_act: dict = defaultdict(list)
-            for h in hist_rows:
-                act_id = h.get("atividade_id", "")
-                prod_dia = h.get("producao_dia")
-                unidade_h = h.get("unidade", "")
-                if prod_dia and act_id:
-                    hist_by_act[act_id].append({"prod": float(prod_dia), "unidade": unidade_h})
-
-            if prod_lines:
-                productivity_context = "\n".join(prod_lines)
+            elif spi_geral is not None:
+                spi_line = f"SPI global do projeto: {spi_geral} (inclui atividades ainda não iniciadas)"
             else:
-                productivity_context = "  Sem dados de quantidade+efetivo nos RDOs para calcular taxa."
-        except Exception as _e:
-            logger.warning(f"Agente productivity calc error: {_e}")
-            productivity_context = "  Erro ao calcular dados de produtividade."
+                spi_line = "SPI: dados insuficientes"
 
-        today_str: str = today  # already defined as date.today().isoformat()
+            # Calcular dias_sem_rdo para diferenciar "atrasado" de "aguardando lançamento"
+            dias_sem_rdo = None
+            rdo_status_line = ""
+            if last_rdo:
+                try:
+                    _last_rdo_date_str = (last_rdo.get("data") or "")[:10]
+                    if _last_rdo_date_str:
+                        _last_rdo_dt = _date_cls.fromisoformat(_last_rdo_date_str)
+                        dias_sem_rdo = (today_dt - _last_rdo_dt).days
+                        if dias_sem_rdo == 0:
+                            rdo_status_line = "⏳ RDO de HOJE já recebido — dados atualizados."
+                        elif dias_sem_rdo == 1:
+                            rdo_status_line = f"⏳ Aguardando RDO de hoje ({today_str}). Último: {_last_rdo_date_str}. SPI pode estar desatualizado por 1 dia — NÃO é atraso."
+                        elif dias_sem_rdo <= 3:
+                            rdo_status_line = f"⚠️ {dias_sem_rdo} dias sem RDO (último: {_last_rdo_date_str}). Dados de progresso podem estar desatualizados."
+                        else:
+                            rdo_status_line = f"🔴 {dias_sem_rdo} dias sem RDO (último: {_last_rdo_date_str}). Comunicação com campo comprometida."
+                except (ValueError, AttributeError):
+                    pass
+            late_summary = "\n".join(late_lines[:12]) if late_lines else "  Nenhuma atividade com prazo vencido detectada."
+            ahead_summary = "\n".join(ahead_lines[:5]) if ahead_lines else "  Nenhuma."
+            not_started_summary = "\n".join(f"  - {n}" for n in not_started_critical[:5]) if not_started_critical else "  Nenhuma."
 
-        prompt = f"""Você é o Agente de Atividades da plataforma Bomtempo — especialista sênior em engenharia civil, gestão de obras e análise de cronograma. Sua audiência é o gestor de obra: ele lê seu insight e em 30 segundos sabe exatamente o que fazer.
+            # ── Crew context from rdo_master (correct fields) ─────────────────────
+            crew_context = ""
+            if last_rdo:
+                try:
+                    alocada = int(last_rdo.get("equipe_alocada") or 0)
+                    clima = last_rdo.get("condicao_climatica", "")
+                    chuva = last_rdo.get("houve_chuva", False)
+                    interrupcao = last_rdo.get("houve_interrupcao", False)
+                    motivo = last_rdo.get("motivo_interrupcao", "")
+                    acidente = last_rdo.get("houve_acidente", False)
+                    rdo_date = last_rdo.get("data", "")
+
+                    parts = [f"Último RDO ({rdo_date}): {alocada} pessoas alocadas, clima: {clima}"]
+                    if chuva:
+                        parts.append("⚠️ Houve chuva")
+                    if interrupcao:
+                        parts.append(f"⚠️ Houve interrupção: {motivo or 'motivo não informado'}")
+                    if acidente:
+                        parts.append("🔴 ACIDENTE REGISTRADO no último RDO")
+                    crew_context = " | ".join(parts)
+                except (ValueError, TypeError):
+                    crew_context = f"Equipe do último RDO: {last_rdo.get('equipe_alocada','?')} pessoas."
+
+            # ── Real productivity from rdo_atividades (quantidade + efetivo + data) ─
+            # Fonte: hub_atividade_historico (producao_dia, exec_qty, total_qty, unidade)
+            # + rdo_atividades (quantidade, unidade, efetivo por atividade por dia)
+            productivity_context = ""
+            try:
+                prod_lines = []
+                # Group by atividade → compute taxa = quantidade / efetivo per day
+                from collections import defaultdict
+                activity_rates: dict = defaultdict(list)  # atividade → [(qty, efetivo, data)]
+
+                for row in prod_rows:
+                    act_name = (row.get("atividade") or "").strip()
+                    qty = row.get("quantidade")
+                    efetivo = row.get("efetivo")
+                    data = row.get("data", "")
+                    unidade = row.get("unidade", "")
+                    if not act_name or qty is None or efetivo is None:
+                        continue
+                    try:
+                        qty_f = float(qty)
+                        efetivo_i = int(efetivo)
+                        if efetivo_i > 0 and qty_f > 0:
+                            activity_rates[act_name].append({
+                                "qty": qty_f, "efetivo": efetivo_i,
+                                "taxa": round(qty_f / efetivo_i, 2),
+                                "data": data, "unidade": unidade
+                            })
+                    except (ValueError, TypeError):
+                        pass
+
+                for act_name, samples in activity_rates.items():
+                    if not samples:
+                        continue
+                    unidade = samples[0]["unidade"]
+                    avg_taxa = round(sum(s["taxa"] for s in samples) / len(samples), 2)
+                    avg_efetivo = round(sum(s["efetivo"] for s in samples) / len(samples), 1)
+                    avg_qty = round(sum(s["qty"] for s in samples) / len(samples), 1)
+                    n = len(samples)
+
+                    # Saldo restante da atividade (da tabela hub_atividades via cron_rows)
+                    cron_act = next((x for x in micros if x.get("atividade", "").strip() == act_name), None)
+                    saldo_str = ""
+                    recovery_str = ""
+                    if cron_act:
+                        try:
+                            total_q = float(cron_act.get("total_qty") or 0)
+                            exec_q = float(cron_act.get("exec_qty") or 0)
+                            remaining = total_q - exec_q
+                            if remaining > 0 and avg_taxa > 0:
+                                # Opção A: recuperar com equipe histórica média
+                                dias_com_media = round(remaining / (avg_taxa * avg_efetivo), 1)
+                                # Opção B: recuperar em prazo reduzido (2/3 dos dias) → workers necessários
+                                prazo_target = max(1, dias_com_media * 0.67)
+                                workers_needed = round(remaining / (avg_taxa * prazo_target), 1)
+                                saldo_str = f" | saldo: {remaining:.1f} {unidade}"
+                                recovery_str = (
+                                    f" | RECOVERY: A) {dias_com_media}d com {avg_efetivo:.0f}p "
+                                    f"B) {round(prazo_target)}d com {workers_needed:.0f}p"
+                                )
+                        except (ValueError, TypeError):
+                            pass
+
+                    # Efetivo alocado planejado vs real para granularidade
+                    efetivo_plan_str = ""
+                    if cron_act:
+                        try:
+                            ef_plan = int(cron_act.get("efetivo_alocado", 0) or 0)
+                            if ef_plan > 0:
+                                diff = avg_efetivo - ef_plan
+                                status = "OK" if abs(diff) <= 1 else (f"+{diff:.0f}p extra" if diff > 0 else f"{abs(diff):.0f}p faltando")
+                                efetivo_plan_str = f" [planejado: {ef_plan}p → real: {avg_efetivo:.0f}p → {status}]"
+                        except (ValueError, TypeError):
+                            pass
+
+                    prod_lines.append(
+                        f"  - [{act_name}] taxa histórica: {avg_taxa} {unidade}/pessoa/dia "
+                        f"(média {n} RDOs, {avg_efetivo:.0f}p, {avg_qty:.1f} {unidade}/dia)"
+                        f"{efetivo_plan_str}{saldo_str}{recovery_str}"
+                    )
+
+                # Also enrich with hub_atividade_historico producao_dia for any gaps
+                hist_acts_seen = {s.split("] ")[0].lstrip("  - [") for s in prod_lines}
+                hist_by_act: dict = defaultdict(list)
+                for h in hist_rows:
+                    act_id = h.get("atividade_id", "")
+                    prod_dia = h.get("producao_dia")
+                    unidade_h = h.get("unidade", "")
+                    if prod_dia and act_id:
+                        hist_by_act[act_id].append({"prod": float(prod_dia), "unidade": unidade_h})
+
+                if prod_lines:
+                    productivity_context = "\n".join(prod_lines)
+                else:
+                    productivity_context = "  Sem dados de quantidade+efetivo nos RDOs para calcular taxa."
+            except Exception as _e:
+                logger.warning(f"Agente productivity calc error: {_e}")
+                productivity_context = "  Erro ao calcular dados de produtividade."
+
+            today_str: str = today  # already defined as date.today().isoformat()
+
+            prompt = f"""Você é o Agente de Atividades da plataforma Bomtempo — especialista sênior em engenharia civil, gestão de obras e análise de cronograma. Sua audiência é o gestor de obra: ele lê seu insight e em 30 segundos sabe exatamente o que fazer.
 
 MISSÃO: gerar entre 4 e 6 insights CIRÚRGICOS e ACIONÁVEIS. O gestor deve ler e já ter a decisão na mão.
 
@@ -3911,99 +3912,107 @@ Tipos:
 
 Ícones Lucide: alert-triangle, trending-up, trending-down, users, cloud-rain, calendar-check, zap, clock, hard-hat, wrench, check-circle, flame, shield-alert, target, layers"""
 
-        def _call_ai():
-            try:
-                return ai_client.query(
-                    [{"role": "user", "content": prompt}],
-                    model="gpt-4o",
-                    username="agente_atividades",
-                )
-            except Exception as e:
-                logger.error(f"Agente IA error: {e}")
-                return ""
-
-        raw = ""
-        if not ia_breaker.is_open():
-            try:
-                raw = await asyncio.wait_for(
-                    loop.run_in_executor(get_ai_executor(), _call_ai),
-                    timeout=40.0,
-                )
-                ia_breaker.record_success()
-            except asyncio.TimeoutError:
-                ia_breaker.record_failure()
-                raw = ""
-            except Exception as e:
-                ia_breaker.record_failure(e)
-                raw = ""
-
-        # Parse JSON from response
-        insights: list = []
-        if raw:
-            try:
-                # Strip possible markdown fences
-                text = raw.strip()
-                if text.startswith("```"):
-                    text = text.split("```")[1]
-                    if text.startswith("json"):
-                        text = text[4:]
-                parsed = json.loads(text.strip())
-                if isinstance(parsed, list):
-                    insights = [
-                        {
-                            "type": str(item.get("type", "alert")),
-                            "priority": str(item.get("priority", "medium")),
-                            "icon": str(item.get("icon", "zap")),
-                            "title": str(item.get("title", ""))[:80],
-                            "atividade": str(item.get("atividade", "")),
-                            "body": str(item.get("body", "")),
-                        }
-                        for item in parsed
-                        if isinstance(item, dict)
-                    ]
-            except Exception as parse_err:
-                logger.error(f"Agente parse error: {parse_err}\nraw={raw[:200]}")
-
-        now_brt = datetime.now(_BRT).strftime("%d/%m/%Y %H:%M")
-
-        async with self:
-            self.agente_loading = False
-            self.agente_last_updated = now_brt
-            self.agente_contrato = _contrato
-            if rdo_id:
-                self.agente_last_rdo_id = rdo_id
-            if insights:
-                self.agente_insights = insights
-                self.agente_error = ""
-            else:
-                self.agente_error = "Não foi possível gerar insights no momento. Tente novamente."
-
-        # Persist new insights to Supabase so they survive page navigation
-        if insights:
-            _insights_snapshot = list(insights)
-            _contrato_snap = _contrato
-            _rdo_snap = rdo_id or ""
-            _ts_snap = now_brt
-            def _save():
+            def _call_ai():
                 try:
-                    from bomtempo.core.supabase_client import sb_upsert
-                    import json as _json
-                    # insights column is jsonb — pass as JSON string, PostgREST will cast it
-                    sb_upsert(
-                        "agente_insights",
-                        {
-                            "contrato":    _contrato_snap,
-                            "insights":    _json.dumps(_insights_snapshot, ensure_ascii=False),
-                            "last_rdo_id": _rdo_snap,
-                            "updated_at":  _ts_snap,
-                        },
-                        on_conflict="contrato",
+                    return ai_client.query(
+                        [{"role": "user", "content": prompt}],
+                        model="gpt-4o",
+                        username="agente_atividades",
                     )
-                    logger.info(f"agente_insights saved for {_contrato_snap}")
-                except Exception as _e:
-                    logger.warning(f"agente_insights save failed: {_e}")
-            import threading as _threading
-            _threading.Thread(target=_save, daemon=True).start()
+                except Exception as e:
+                    logger.error(f"Agente IA error: {e}")
+                    return ""
+
+            raw = ""
+            if not ia_breaker.is_open():
+                try:
+                    raw = await asyncio.wait_for(
+                        loop.run_in_executor(get_ai_executor(), _call_ai),
+                        timeout=40.0,
+                    )
+                    ia_breaker.record_success()
+                except asyncio.TimeoutError:
+                    ia_breaker.record_failure()
+                    raw = ""
+                except Exception as e:
+                    ia_breaker.record_failure(e)
+                    raw = ""
+
+            # Parse JSON from response
+            insights: list = []
+            if raw:
+                try:
+                    # Strip possible markdown fences
+                    text = raw.strip()
+                    if text.startswith("```"):
+                        text = text.split("```")[1]
+                        if text.startswith("json"):
+                            text = text[4:]
+                    parsed = json.loads(text.strip())
+                    if isinstance(parsed, list):
+                        insights = [
+                            {
+                                "type": str(item.get("type", "alert")),
+                                "priority": str(item.get("priority", "medium")),
+                                "icon": str(item.get("icon", "zap")),
+                                "title": str(item.get("title", ""))[:80],
+                                "atividade": str(item.get("atividade", "")),
+                                "body": str(item.get("body", "")),
+                            }
+                            for item in parsed
+                            if isinstance(item, dict)
+                        ]
+                except Exception as parse_err:
+                    logger.error(f"Agente parse error: {parse_err}\nraw={raw[:200]}")
+
+            now_brt = datetime.now(_BRT).strftime("%d/%m/%Y %H:%M")
+
+            async with self:
+                self.agente_loading = False
+                self.agente_last_updated = now_brt
+                self.agente_contrato = _contrato
+                if rdo_id:
+                    self.agente_last_rdo_id = rdo_id
+                if insights:
+                    self.agente_insights = insights
+                    self.agente_error = ""
+                else:
+                    self.agente_error = "Não foi possível gerar insights no momento. Tente novamente."
+
+            # Persist new insights to Supabase so they survive page navigation
+            if insights:
+                _insights_snapshot = list(insights)
+                _contrato_snap = _contrato
+                _rdo_snap = rdo_id or ""
+                _ts_snap = now_brt
+                def _save():
+                    try:
+                        from bomtempo.core.supabase_client import sb_upsert
+                        import json as _json
+                        # insights column is jsonb — pass as JSON string, PostgREST will cast it
+                        sb_upsert(
+                            "agente_insights",
+                            {
+                                "contrato":    _contrato_snap,
+                                "insights":    _json.dumps(_insights_snapshot, ensure_ascii=False),
+                                "last_rdo_id": _rdo_snap,
+                                "updated_at":  _ts_snap,
+                            },
+                            on_conflict="contrato",
+                        )
+                        logger.info(f"agente_insights saved for {_contrato_snap}")
+                    except Exception as _e:
+                        logger.warning(f"agente_insights save failed: {_e}")
+                import threading as _threading
+                _threading.Thread(target=_save, daemon=True).start()
+
+        except Exception as _agente_err:
+            logger.error(f"run_agente_atividades error: {_agente_err}", exc_info=True)
+        finally:
+            # Garante que agente_loading SEMPRE volta pra False — mesmo em crash/CancelledError
+            async with self:
+                if self.agente_loading:
+                    self.agente_loading = False
 
     @rx.event(background=True)
     async def load_persisted_insights(self, contrato: str):
@@ -4082,6 +4091,16 @@ Tipos:
             finally:
                 self.agente_loading = False
 
+    def reload_after_rdo(self, contrato: str = ""):
+        """Invalida o cache do cronograma após submit de um RDO.
+        Chamado via yield em rdo_state.execute_submit para garantir que o hub
+        mostre dados atualizados sem que o usuário precise sair e voltar.
+        Se o cronograma desse contrato já estava carregado, dispara reload."""
+        self._cron_forecast_cache = []
+        if contrato and self.cron_contrato == contrato:
+            # Cronograma deste contrato estava visível — recarrega silenciosamente
+            return HubState.load_cronograma(contrato)
+
     def force_run_agente(self, contrato: str = ""):
         """Clear existing insights and force a fresh Agente run (botão manual)."""
         self.agente_insights = []
@@ -4089,3 +4108,24 @@ Tipos:
         self.agente_last_rdo_id = ""  # invalida cache
         _c = contrato or self.agente_contrato or self.cron_contrato
         return HubState.run_agente_atividades(_c, force=True)
+
+    def reset_for_logout(self):
+        """Limpa todo o estado sensível do Hub ao fazer logout.
+        Evita flicker de dados de outro usuário/tenant ao fazer login na sequência.
+        Chamado via yield em GlobalState.logout."""
+        self.cron_rows = []
+        self._cron_forecast_cache = []
+        self.cron_contrato = ""
+        self.cron_fase_filter = ""
+        self.cron_search = ""
+        self.cron_search_input = ""
+        self._audit_loaded_contrato = ""
+        self._timeline_loaded_contrato = ""
+        self.audit_images = []
+        self.timeline_entries = []
+        self.agente_insights = []
+        self.agente_loading = False
+        self.agente_error = ""
+        self.agente_contrato = ""
+        self.agente_last_rdo_id = ""
+        self.agente_last_updated = ""

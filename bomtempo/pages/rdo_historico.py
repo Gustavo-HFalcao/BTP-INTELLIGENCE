@@ -544,23 +544,6 @@ def _rdo_historico_topnav() -> rx.Component:
                 spacing="2", align="center",
             ),
             rx.spacer(),
-            # Back to dashboard link (for Admin/Eng roles)
-            rx.link(
-                rx.hstack(
-                    rx.icon("layout-dashboard", size=13, color=_MUTED),
-                    rx.text("Dashboard", size="1", color=_MUTED, display=["none", "inline"]),
-                    spacing="1", align="center",
-                ),
-                href="/",
-                style={
-                    "padding": "6px 12px",
-                    "borderRadius": "4px",
-                    "border": "1px solid rgba(255,255,255,0.08)",
-                    "textDecoration": "none",
-                    "transition": "all 0.15s ease",
-                    "_hover": {"borderColor": "rgba(201,139,42,0.3)", "color": _COPPER},
-                },
-            ),
             align="center", width="100%",
         ),
         padding=["8px 14px", "10px 24px"],

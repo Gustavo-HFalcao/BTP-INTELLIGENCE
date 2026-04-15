@@ -1171,19 +1171,25 @@ button:focus-visible {
     backdrop-filter: blur(16px) !important;
     -webkit-backdrop-filter: blur(16px) !important;
     border: 1px solid rgba(201, 139, 42, 0.38) !important;
-    color: #f0f0f0 !important;
+    color: #f0ebe0 !important;
     font-size: 11px !important;
     font-family: 'Outfit', sans-serif !important;
     font-weight: 500 !important;
     line-height: 1.45 !important;
     padding: 6px 12px !important;
-    border-radius: 8px !important;
+    border-radius: 6px !important;
     letter-spacing: 0.015em !important;
     /* Entrance animation */
     animation: tooltipEnter 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards,
                tooltipGlowPulse 3.5s ease-in-out infinite 0.5s !important;
     /* border-top copper accent */
     border-top: 1px solid rgba(201, 139, 42, 0.55) !important;
+}
+
+/* Force text color on the inner Radix text node */
+.rt-TooltipContent .rt-TooltipText,
+.rt-TooltipText {
+    color: #f0ebe0 !important;
 }
 
 .rt-TooltipArrow {

@@ -2368,24 +2368,33 @@ Responda em português, de forma direta e objetiva, com as seções:
 
     @staticmethod
     def _save_sub_items(id_rdo: str, rdo_data: Dict[str, Any]) -> None:
-        # Resolve rdo_id UUID from rdo_master (the FK column is 'rdo_id', not 'id_rdo')
-        rdo_master_rows = sb_select("rdo_master", filters={"id_rdo": id_rdo}, limit=1)
-        if not rdo_master_rows:
-            logger.warning(f"_save_sub_items: rdo_master not found for id_rdo={id_rdo}")
-            return
-        rdo_uuid = rdo_master_rows[0]["id"]
+        try:
+            # Resolve rdo_id UUID from rdo_master (the FK column is 'rdo_id', not 'id_rdo')
+            rdo_master_rows = sb_select("rdo_master", filters={"id_rdo": id_rdo}, limit=1)
+            if not rdo_master_rows:
+                logger.warning(f"_save_sub_items: rdo_master not found for id_rdo={id_rdo}")
+                return
+            rdo_uuid = rdo_master_rows[0]["id"]
 
-        sb_delete("rdo_atividades", {"rdo_id": rdo_uuid})
+            try:
+                sb_delete("rdo_atividades", {"rdo_id": rdo_uuid})
+            except Exception as _del_err:
+                logger.warning(f"_save_sub_items: sb_delete falhou (continuando): {_del_err}")
 
-        for item in (rdo_data.get("atividades") or []):
-            atv = item.get("atividade") or item.get("descricao") or ""
-            if atv:
-                sb_insert("rdo_atividades", {
-                    "rdo_id":    rdo_uuid,
-                    "atividade": atv,
-                    "efetivo":   int(item.get("efetivo") or item.get("progresso_percentual") or 0),
-                    "observacao": item.get("status") or item.get("observacao") or "",
-                })
+            for item in (rdo_data.get("atividades") or []):
+                atv = item.get("atividade") or item.get("descricao") or ""
+                if atv:
+                    try:
+                        sb_insert("rdo_atividades", {
+                            "rdo_id":    rdo_uuid,
+                            "atividade": atv,
+                            "efetivo":   int(item.get("efetivo") or item.get("progresso_percentual") or 0),
+                            "observacao": item.get("status") or item.get("observacao") or "",
+                        })
+                    except Exception as _ins_err:
+                        logger.warning(f"_save_sub_items: sb_insert '{atv[:40]}' falhou: {_ins_err}")
+        except Exception as e:
+            logger.error(f"_save_sub_items: erro inesperado: {e}", exc_info=True)
 
 
 # ── Startup geocode backfill ─────────────────────────────────────────────────
