@@ -1,8 +1,25 @@
 """
-PDF utilities — HTML-to-PDF via Playwright + Microsoft Edge.
-"""
+PDF utilities — HTML-to-PDF via xhtml2pdf in an isolated subprocess.
 
-import threading
+ARCHITECTURE NOTE — WHY subprocess isolation matters:
+  The previous Playwright/Chromium implementation used 300–500 MB RAM per call.
+  On the Fly.io 1 GB container, one PDF generation was enough to push the process
+  past the OOM limit → the kernel killed the entire Python process → ALL WebSocket
+  connections dropped → every user saw "Reconectando" simultaneously.
+
+  The new implementation spawns a SEPARATE PROCESS for each PDF job via
+  multiprocessing.Process(context="spawn"). If that worker crashes or OOMs,
+  ONLY the subprocess dies. The main Reflex server process and every active
+  user connection remain alive. The calling code gets a RuntimeError and can
+  show the user an error message instead of bringing down the platform.
+
+  xhtml2pdf peak RAM: ~20–40 MB vs Playwright/Chromium ~300–500 MB.
+  xhtml2pdf has zero binary dependencies — no Chromium download required.
+"""
+from __future__ import annotations
+
+import multiprocessing
+import time
 from pathlib import Path
 
 from bomtempo.core.logging_utils import get_logger
@@ -10,162 +27,191 @@ from bomtempo.core.logging_utils import get_logger
 logger = get_logger(__name__)
 
 
-
+# ─── Public API ───────────────────────────────────────────────────────────────
 
 def html_to_pdf(
     html: str,
     path: Path,
-    margin: dict = None,
+    margin: dict | None = None,
     display_header_footer: bool = True,
-    header_template: str = None,
-    footer_template: str = None,
+    header_template: str | None = None,
+    footer_template: str | None = None,
 ) -> None:
     """
-    Renders an HTML string to a PDF file using Playwright with Microsoft Edge.
-    Edge is pre-installed on Windows 11 — no Chromium download required.
+    Render an HTML string to a PDF file using xhtml2pdf.
 
-    Runs async_playwright in a dedicated thread with its own event loop so
-    this function is safe to call from any context: sync code, asyncio handlers,
-    or run_in_executor threads — no "Sync API inside asyncio loop" error.
-
-    Usa semáforo global para limitar a 1 instância Chromium simultânea.
-    Em caso de timeout, o processo browser é encerrado via SIGTERM/terminate().
+    Runs in an isolated subprocess — a crash or OOM in the worker cannot
+    affect the main server process or other users' connections.
 
     Args:
         html: Full HTML document string (UTF-8).
         path: Destination Path for the PDF file.
-        margin: Optional dict with top/right/bottom/left keys. Defaults to
-                {"top":"1.8cm","right":"1.4cm","bottom":"1.8cm","left":"1.4cm"}.
-        display_header_footer: Whether to show Playwright header/footer. Default True.
-        header_template: Override header HTML. If None, uses default BOMTEMPO header.
-        footer_template: Override footer HTML. If None, uses default page-number footer.
+        margin: Optional dict with top/right/bottom/left keys.
+                Defaults to {"top":"1.8cm","right":"1.4cm","bottom":"1.8cm","left":"1.4cm"}.
+        display_header_footer: Whether to inject the BOMTEMPO header/footer on each page.
+        header_template: Override header HTML (raw HTML fragment). Ignored when
+                         display_header_footer=False.
+        footer_template: Override footer HTML (raw HTML fragment). Ignored when
+                         display_header_footer=False.
 
     Raises:
-        RuntimeError: If Playwright or Edge is unavailable, times out, or queue full.
+        RuntimeError: On timeout, worker crash, or xhtml2pdf errors.
     """
-    import asyncio
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
 
-    errors: list = []
-    # Compartilhado entre threads para cleanup de emergência no timeout
-    browser_proc: list = []
+    prepared = _prepare_html(html, margin, display_header_footer, header_template, footer_template)
 
-    async def _render() -> None:
-        import sys
-        from playwright.async_api import async_playwright
+    # "spawn" starts a fresh Python interpreter — safe from asyncio/threading
+    # inheritance issues (unlike "fork"). ~1-2s startup is fine for PDF generation.
+    ctx = multiprocessing.get_context("spawn")
+    q: multiprocessing.Queue = ctx.Queue()
 
-        async def _launch(p):
-            """Launch browser: Edge on Windows, Chromium on Linux (auto-install if missing)."""
-            if sys.platform == "win32":
-                try:
-                    return await p.chromium.launch(channel="msedge")
-                except Exception:
-                    return await p.chromium.launch()
-            else:
-                try:
-                    return await p.chromium.launch()
-                except Exception as launch_err:
-                    if "Executable doesn't exist" in str(launch_err) or "executable" in str(launch_err).lower():
-                        logger.info("pdf_utils: Chromium not found — installing via playwright...")
-                        import subprocess
-                        subprocess.run(
-                            [sys.executable, "-m", "playwright", "install", "chromium"],
-                            check=False, capture_output=True, timeout=300,
-                        )
-                        return await p.chromium.launch()
-                    raise
+    proc = ctx.Process(
+        target=_xhtml2pdf_worker,
+        args=(prepared, str(path), q),
+        daemon=True,
+    )
 
-        async with async_playwright() as p:
-            browser = await _launch(p)
-            # Registra o processo para cleanup de emergência caso timeout
-            if hasattr(browser, 'process') and browser.process:
-                browser_proc.append(browser.process)
-            try:
-                page = await browser.new_page()
+    t0 = time.monotonic()
+    proc.start()
+    proc.join(timeout=120)
+    elapsed = time.monotonic() - t0
 
-                # Bloqueia requests externas (Google Fonts, Tailwind CDN, etc.)
-                # Em produção o servidor pode não ter acesso à internet, e networkidle
-                # nunca dispara enquanto essas requests ficam pendentes → timeout de 90s.
-                # O PDF é gerado corretamente com as fontes do sistema mesmo sem elas.
-                _BLOCKED_HOSTS = (
-                    "fonts.googleapis.com",
-                    "fonts.gstatic.com",
-                    "cdn.tailwindcss.com",
-                    "unpkg.com",
-                    "jsdelivr.net",
-                    "cdnjs.cloudflare.com",
-                )
-                async def _block_external(route):
-                    if any(h in route.request.url for h in _BLOCKED_HOSTS):
-                        await route.abort()
-                    else:
-                        await route.continue_()
-                await page.route("**/*", _block_external)
+    if proc.is_alive():
+        proc.kill()
+        proc.join(timeout=5)
+        raise RuntimeError("PDF generation timed out after 120s")
 
-                # domcontentloaded: não espera requests externas bloqueadas acima.
-                # load seria suficiente para HTML inline, mas domcontentloaded é mais rápido
-                # e PDFs não dependem de lazy-loaded assets.
-                await page.set_content(html, wait_until="domcontentloaded", timeout=15000)
-                _default_header = (
-                    '<div style="width:100%;box-sizing:border-box;padding:0 48px;'
-                    'font-family:Arial,sans-serif;font-size:8px;color:#9CA3AF;'
-                    'display:flex;justify-content:space-between;align-items:center;'
-                    'border-bottom:1px solid #E5E7EB;padding-bottom:6px;">'
-                    '<span style="font-weight:700;color:#C98B2A;letter-spacing:0.12em;">'
-                    'BOMTEMPO INTELLIGENCE</span>'
-                    '<span>Relatório Executivo · Confidencial</span>'
-                    '</div>'
-                )
-                _default_footer = (
-                    '<div style="width:100%;box-sizing:border-box;padding:0 48px;'
-                    'font-family:Arial,sans-serif;font-size:8px;color:#9CA3AF;'
-                    'display:flex;justify-content:space-between;align-items:center;'
-                    'border-top:1px solid #E5E7EB;padding-top:6px;">'
-                    '<span>Documento Confidencial — Uso Interno</span>'
-                    '<span>Página <span class="pageNumber"></span> '
-                    'de <span class="totalPages"></span></span>'
-                    '</div>'
-                )
-                _margin = margin if margin is not None else {
-                    "top": "1.8cm", "right": "1.4cm", "bottom": "1.8cm", "left": "1.4cm"
-                }
-                await page.pdf(
-                    path=str(path),
-                    format="A4",
-                    print_background=True,
-                    margin=_margin,
-                    display_header_footer=display_header_footer,
-                    header_template=header_template if header_template is not None else _default_header,
-                    footer_template=footer_template if footer_template is not None else _default_footer,
-                )
-                logger.debug(f"pdf_utils: PDF written → {path.name}")
-            finally:
-                await browser.close()
-                browser_proc.clear()
+    if proc.exitcode not in (0, None):
+        raise RuntimeError(f"PDF worker process crashed (exitcode={proc.exitcode})")
 
-    def _thread_main() -> None:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            loop.run_until_complete(_render())
-        except Exception as exc:
-            errors.append(exc)
-        finally:
-            loop.close()
+    # Check for application-level error reported by the worker
+    try:
+        err = q.get_nowait()
+    except Exception:
+        err = None
 
-    t = threading.Thread(target=_thread_main, daemon=True)
-    t.start()
-    t.join(timeout=90)
+    if err:
+        raise RuntimeError(f"PDF generation failed: {err}")
 
-    if t.is_alive():
-        # Timeout: encerra browser órfão para liberar RAM imediatamente
-        for proc in browser_proc:
-            try:
-                proc.terminate()
-                logger.warning("pdf_utils: browser process encerrado por timeout")
-            except Exception:
-                pass
-        browser_proc.clear()
-        raise RuntimeError("PDF generation timed out after 90s")
+    if not path.exists() or path.stat().st_size < 100:
+        raise RuntimeError("PDF file was not created or is suspiciously small")
 
-    if errors:
-        raise errors[0]
+    logger.debug(f"pdf_utils: PDF written → {path.name} ({elapsed:.1f}s)")
+
+
+# ─── Worker function (executes inside isolated subprocess) ───────────────────
+
+def _xhtml2pdf_worker(html: str, path_str: str, result_queue: "multiprocessing.Queue") -> None:
+    """
+    xhtml2pdf renderer — this function runs in a completely isolated subprocess.
+
+    Any exception or OOM here only kills this worker process; the parent
+    Reflex server process is unaffected.
+    """
+    try:
+        from xhtml2pdf import pisa  # type: ignore[import]  # noqa: PLC0415
+
+        with open(path_str, "wb") as fh:
+            result = pisa.CreatePDF(html, dest=fh, encoding="utf-8")
+
+        if result.err:
+            result_queue.put(f"xhtml2pdf reported {result.err} error(s)")
+        else:
+            result_queue.put(None)  # None = success sentinel
+
+    except Exception as exc:  # noqa: BLE001
+        result_queue.put(str(exc))
+
+
+# ─── HTML preparation helpers ─────────────────────────────────────────────────
+
+_DEFAULT_HEADER_HTML = (
+    '<div style="width:100%;box-sizing:border-box;'
+    'font-family:Arial,sans-serif;font-size:8px;color:#9CA3AF;'
+    'display:flex;justify-content:space-between;align-items:center;'
+    'border-bottom:1px solid #E5E7EB;padding-bottom:4px;">'
+    '<span style="font-weight:700;color:#C98B2A;letter-spacing:0.12em;">'
+    "BOMTEMPO INTELLIGENCE</span>"
+    "<span>Relatório Executivo · Confidencial</span>"
+    "</div>"
+)
+
+_DEFAULT_FOOTER_HTML = (
+    '<div style="width:100%;box-sizing:border-box;'
+    'font-family:Arial,sans-serif;font-size:8px;color:#9CA3AF;'
+    'display:flex;justify-content:space-between;align-items:center;'
+    'border-top:1px solid #E5E7EB;padding-top:4px;">'
+    "<span>Documento Confidencial — Uso Interno</span>"
+    "<span>Página <pdf:pagenumber /> de <pdf:pagecount /></span>"
+    "</div>"
+)
+
+
+def _prepare_html(
+    html: str,
+    margin: dict | None,
+    display_header_footer: bool,
+    header_template: str | None,
+    footer_template: str | None,
+) -> str:
+    """
+    Inject @page CSS margins and optional fixed-position header/footer into HTML.
+
+    xhtml2pdf renders elements with `position: fixed` as running headers/footers
+    that repeat on every page. <pdf:pagenumber /> and <pdf:pagecount /> are
+    xhtml2pdf-specific tags for page numbering.
+    """
+    _m = margin or {"top": "1.8cm", "right": "1.4cm", "bottom": "1.8cm", "left": "1.4cm"}
+    top    = _m.get("top",    "1.8cm")
+    right  = _m.get("right",  "1.4cm")
+    bottom = _m.get("bottom", "1.8cm")
+    left   = _m.get("left",   "1.4cm")
+
+    # When header/footer is enabled, increase top/bottom margins to prevent overlap.
+    # Fixed-position elements occupy space that is NOT subtracted from the flow area
+    # automatically — we must pad the page margins manually.
+    if display_header_footer and top not in ("0", "0cm", "0mm", "0px", "0pt"):
+        top    = "2.2cm"
+        bottom = "2.0cm"
+
+    page_css = (
+        "<style>"
+        f"@page {{ margin: {top} {right} {bottom} {left}; }}"
+        "</style>"
+    )
+
+    # Ensure valid HTML structure
+    if "<html" not in html.lower():
+        html = f"<html><head></head><body>{html}</body></html>"
+
+    # Inject @page style into <head>
+    if "</head>" in html:
+        html = html.replace("</head>", f"{page_css}</head>", 1)
+    else:
+        html = page_css + html
+
+    if display_header_footer:
+        _header = header_template if header_template is not None else _DEFAULT_HEADER_HTML
+        _footer = footer_template if footer_template is not None else _DEFAULT_FOOTER_HTML
+
+        # xhtml2pdf: position:fixed elements repeat on every page
+        hf_html = (
+            f'<div style="position:fixed;top:0;left:0;right:0;height:0.7cm;">'
+            f"{_header}"
+            f"</div>"
+            f'<div style="position:fixed;bottom:0;left:0;right:0;height:0.7cm;">'
+            f"{_footer}"
+            f"</div>"
+        )
+
+        if "<body" in html:
+            # Insert immediately after <body ...>
+            idx = html.index("<body")
+            end_tag = html.index(">", idx) + 1
+            html = html[:end_tag] + hf_html + html[end_tag:]
+        else:
+            html = hf_html + html
+
+    return html

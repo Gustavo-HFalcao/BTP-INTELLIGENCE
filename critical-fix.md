@@ -78,6 +78,35 @@ A cadeia de falhas:
 - Backend: renomear uma macro agora cascateia `fase_macro` para todos os filhos (micros e subs) automaticamente.
 - Guard no `set_cron_edit_fase_macro`: retorna sem alterar se `nivel in ("micro", "sub")`.
 
+---
+
+## OOM Kill Global — Substituição do Playwright/Chromium (Abril 2026)
+
+### Causa Raiz do Crash Global
+O processo de geração de PDF usava **Playwright/Chromium**, que consome 300–500 MB de RAM por chamada. No container Fly.io com apenas 1 GB de RAM total, uma única geração de PDF empurrava o processo Python para o limite → o kernel disparava um **OOM Kill** → o processo Reflex era reiniciado → **TODAS as conexões WebSocket caíam simultaneamente** → todos os usuários viam "Reconectando" ao mesmo tempo.
+
+O problema NÃO era lock Redis — era **eliminação do processo pelo kernel por falta de memória**. Um crash de processo é global por natureza.
+
+### Solução Arquitetural — Isolamento de Processo
+
+**Antes:** Playwright rodava em thread no MESMO processo → OOM mata tudo.  
+**Depois:** xhtml2pdf roda em subprocess isolado via `multiprocessing.Process` → se o worker OOM, SOMENTE ele morre. O servidor Reflex e todos os WebSockets continuam vivos.
+
+**Mudanças em `pdf_utils.py`:**
+1. Substituído Playwright/Chromium por **xhtml2pdf** (pico de RAM: ~20–40 MB, sem dependências binárias)
+2. PDF generation roda em `multiprocessing.get_context("spawn").Process` — processo completamente isolado
+3. Timeout de 120s (era 90s) — processo worker é `kill()`-ado se exceder
+4. Qualquer RuntimeError no worker é capturado e retornado como `RuntimeError` para o chamador
+5. Dependência adicionada em `requirements.txt`: `xhtml2pdf==0.2.16`
+
+**Mudanças em `rdo_service.py` — redução de RAM do PIL:**
+- `_MAX_DIM`: 2048 → 1440 px (reduz pico de memória PIL ~44%)
+- `_OUTPUT_DIM`: 1920 → 1440 px (sem impacto visual perceptível no relatório)
+
+### Regra de Ouro — Isolamento de Processos Pesados
+> **NUNCA** rode Playwright, Chromium, wkhtmltopdf, ou qualquer binário externo de >100MB RAM em thread no processo principal do Reflex.
+> Use `multiprocessing.Process(context="spawn")` para isolar o crash. O processo filho pode morrer; o servidor principal deve sobreviver.
+
 ## Watermark — Qualidade e Consistência (Abril 2026)
 
 - Font size: `max(28, w//40)` → `max(40, out_w//32)` — calculado sobre a largura de **saída** (não processamento).

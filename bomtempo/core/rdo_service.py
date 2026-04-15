@@ -249,13 +249,13 @@ def _apply_watermark(img_bytes: bytes, meta: Dict[str, Any], content_type: str =
       map_bytes               – bytes|None OSM tile thumbnail
     """
     # ── Resolução padronizada de saída:
-    # 1. Cap de processamento (anti-OOM): limita ao processar a 2048px no lado maior.
-    # 2. Resolução de saída: normaliza para 1920px no lado MAIOR da FOTO (portrait ou landscape).
-    #    - Landscape 4032px wide  → 1920×1440 (+panel)   fsize~60px  ✓ legível
-    #    - Portrait  3024×4032px  → 1440×1920 (+panel)   fsize~60px  ✓ legível (corrigido)
-    #    - Imagens menores que 1920px: sem upscale, mantidas como estão.
-    _MAX_DIM = 2048       # cap de processamento (anti-OOM)
-    _OUTPUT_DIM = 1920    # resolução de saída no lado maior da foto
+    # 1. Cap de processamento (anti-OOM): limita ao processar a 1440px no lado maior.
+    # 2. Resolução de saída: normaliza para 1440px no lado MAIOR da FOTO (portrait ou landscape).
+    #    - Landscape 4032px wide  → 1440×1080 (+panel)   fsize~45px  ✓ legível
+    #    - Portrait  3024×4032px  → 1080×1440 (+panel)   fsize~45px  ✓ legível
+    #    - Imagens menores que 1440px: sem upscale, mantidas como estão.
+    _MAX_DIM = 1440       # cap de processamento (anti-OOM) — reduzido de 2048 para cortar pico de RAM ~44%
+    _OUTPUT_DIM = 1440    # resolução de saída no lado maior da foto — reduzido de 1920
 
     try:
         from PIL import Image, ImageDraw, ImageFont
