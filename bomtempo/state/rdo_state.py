@@ -884,175 +884,200 @@ class RDOState(rx.State):
         self.ev_editing_draft = value
         self.save_edit_caption()
 
+    @rx.event(background=True)
     async def upload_epi_files(self, files: List[rx.UploadFile]):
-        """Upload EPI photo — watermark + Supabase Storage."""
+        """Upload EPI photo — watermark + Supabase Storage.
+
+        background=True: Redis lock held only for brief state reads/writes.
+        All file I/O, image processing, and Supabase upload run OUTSIDE the lock.
+
+        Old pattern (regular handler): lock held ~7s → LockExpiredError on slow systems.
+        New pattern: lock held ~1ms per async with self: block.
+        """
         if not files:
             return
 
-        self.is_uploading_epi = True
-        yield
+        loop = asyncio.get_running_loop()
 
+        # 1. Read file bytes BEFORE acquiring any lock — WebSocket I/O, not state mutation
+        _MAX_BYTES = 50 * 1024 * 1024
+        raw_bytes = None
+        raw_name = "epi.jpg"
+        raw_ct = "image/jpeg"
         try:
-            from bomtempo.state.global_state import GlobalState
-            gs = await self.get_state(GlobalState)
+            f = files[0]
+            raw_bytes = await f.read()
+            raw_name = getattr(f, "filename", "epi.jpg")
+            raw_ct   = getattr(f, "content_type", None) or "image/jpeg"
+        except Exception as e:
+            async with self:
+                yield rx.toast(f"❌ Erro ao ler arquivo: {str(e)[:80]}", position="top-center", duration=8000)
+            return
+
+        if len(raw_bytes) > _MAX_BYTES:
+            async with self:
+                yield rx.toast(
+                    f"⚠️ Foto muito grande ({len(raw_bytes)//1024//1024}MB). Use uma foto de até 50MB.",
+                    position="top-center", duration=8000,
+                )
+            return
+
+        # 2. Get GlobalState outside lock
+        from bomtempo.state.global_state import GlobalState
+        gs = await self.get_state(GlobalState)
+
+        # 3. Snapshot state + set loading flag — brief lock, only synchronous reads
+        async with self:
+            self.is_uploading_epi = True
             user     = str(gs.current_user_name)
             contrato = str(self.rdo_contrato)
             data     = str(self.rdo_data)
             id_rdo   = str(self.draft_id_rdo)
+            ci_lat   = float(self.checkin_lat or 0.0)
+            ci_lng   = float(self.checkin_lng or 0.0)
+            ci_end   = str(self.checkin_endereco or "")
+            rdo_snap = self._build_rdo_data() if not id_rdo and contrato.strip() else None
 
-            loop = asyncio.get_running_loop()
-
-            if not id_rdo and contrato.strip():
-                rdo_data = self._build_rdo_data()
+        try:
+            # 4. Create draft if needed — DB I/O outside lock
+            if not id_rdo and contrato.strip() and rdo_snap:
                 id_rdo = await loop.run_in_executor(
                     get_db_executor(),
-                    lambda: RDOService.upsert_draft(rdo_data, mestre_id=user),
+                    lambda: RDOService.upsert_draft(rdo_snap, mestre_id=user),
                 )
-                self.draft_id_rdo = id_rdo
+                async with self:
+                    self.draft_id_rdo = id_rdo
 
             if not id_rdo:
+                async with self:
+                    self.is_uploading_epi = False
+                    yield rx.toast("⚠️ Preencha o contrato antes de adicionar fotos", position="top-center")
+                return
+
+            # 5. Process image — watermark + resize + Supabase upload, all outside lock
+            _b, _n, _c = raw_bytes, raw_name, raw_ct
+            result = await loop.run_in_executor(
+                get_image_executor(),
+                lambda: RDOService.process_evidence(
+                    id_rdo=id_rdo, file_bytes=_b,
+                    filename=f"epi_{_n}", content_type=_c,
+                    legenda="Equipe com EPIs", mestre=user,
+                    contrato=contrato, data=data,
+                    checkin_lat=ci_lat, checkin_lng=ci_lng, checkin_endereco=ci_end,
+                ),
+            )
+
+            # 6. Write result to state — brief lock
+            async with self:
+                if result.get("foto_url"):
+                    self.epi_foto_items = [result]
+                    yield rx.toast("✅ Foto EPI adicionada", position="top-center")
+                else:
+                    yield rx.toast("⚠️ Nenhuma foto foi processada", position="top-center")
+
+        except Exception as e:
+            logger.error(f"upload_epi_files: {e}", exc_info=True)
+            async with self:
+                yield rx.toast(f"❌ Erro no upload EPI: {str(e)[:100]}", position="top-center", duration=8000)
+        finally:
+            async with self:
                 self.is_uploading_epi = False
-                yield rx.toast("⚠️ Preencha o contrato antes de adicionar fotos", position="top-center")
-                return
 
-            new_items = []
-            for f in files[:1]:  # Only keep the latest EPI photo
-                try:
-                    file_bytes = await f.read()
-                    # Guard: rejeita arquivos muito grandes antes de processar (evita timeout WebSocket)
-                    _MAX_BYTES = 50 * 1024 * 1024  # 50 MB
-                    if len(file_bytes) > _MAX_BYTES:
-                        yield rx.toast(
-                            f"⚠️ Foto muito grande ({len(file_bytes)//1024//1024}MB). Use uma foto de até 50MB.",
-                            position="top-center", duration=8000,
-                        )
-                        return
-                    _name = getattr(f, "filename", "epi.jpg")
-                    _ct   = getattr(f, "content_type", None) or "image/jpeg"
-                    _b, _n, _c = file_bytes, _name, _ct
-                    _ci_lat = float(self.checkin_lat or 0.0)
-                    _ci_lng = float(self.checkin_lng or 0.0)
-                    _ci_end = str(self.checkin_endereco or "")
-                    result = await loop.run_in_executor(
-                        get_image_executor(),
-                        lambda: RDOService.process_evidence(
-                            id_rdo=id_rdo,
-                            file_bytes=_b,
-                            filename=f"epi_{_n}",
-                            content_type=_c,
-                            legenda="Equipe com EPIs",
-                            mestre=user,
-                            contrato=contrato,
-                            data=data,
-                            checkin_lat=_ci_lat,
-                            checkin_lng=_ci_lng,
-                            checkin_endereco=_ci_end,
-                        ),
-                    )
-                    if result.get("foto_url"):
-                        new_items.append(result)
-                except Exception as e:
-                    logger.error(f"upload_epi_files: {e}", exc_info=True)
-                    yield rx.toast(f"❌ Erro no upload EPI: {e}", position="top-center", duration=8000)
-                    return
-
-            if new_items:
-                self.epi_foto_items = new_items
-
-            if new_items:
-                yield rx.toast("✅ Foto EPI adicionada", position="top-center")
-            else:
-                yield rx.toast("⚠️ Nenhuma foto foi processada", position="top-center")
-        except Exception as e:
-            logger.error(f"upload_epi_files (outer): {e}", exc_info=True)
-            yield rx.toast(f"❌ Erro inesperado no upload EPI: {str(e)[:100]}", position="top-center", duration=8000)
-        finally:
-            self.is_uploading_epi = False
-
+    @rx.event(background=True)
     async def upload_ferramentas_files(self, files: List[rx.UploadFile]):
-        """Upload ferramentas photo — watermark + Supabase Storage."""
+        """Upload ferramentas photo — watermark + Supabase Storage.
+
+        background=True: same pattern as upload_epi_files.
+        Lock held ~1ms per async with self: — not ~7s like the old regular handler.
+        """
         if not files:
             return
 
-        self.is_uploading_ferramentas = True
-        yield
+        loop = asyncio.get_running_loop()
 
+        # 1. Read file bytes BEFORE acquiring any lock
+        _MAX_BYTES = 50 * 1024 * 1024
+        raw_bytes = None
+        raw_name = "ferramentas.jpg"
+        raw_ct = "image/jpeg"
         try:
-            from bomtempo.state.global_state import GlobalState
-            gs = await self.get_state(GlobalState)
+            f = files[0]
+            raw_bytes = await f.read()
+            raw_name = getattr(f, "filename", "ferramentas.jpg")
+            raw_ct   = getattr(f, "content_type", None) or "image/jpeg"
+        except Exception as e:
+            async with self:
+                yield rx.toast(f"❌ Erro ao ler arquivo: {str(e)[:80]}", position="top-center", duration=8000)
+            return
+
+        if len(raw_bytes) > _MAX_BYTES:
+            async with self:
+                yield rx.toast(
+                    f"⚠️ Foto muito grande ({len(raw_bytes)//1024//1024}MB). Use uma foto de até 50MB.",
+                    position="top-center", duration=8000,
+                )
+            return
+
+        # 2. Get GlobalState outside lock
+        from bomtempo.state.global_state import GlobalState
+        gs = await self.get_state(GlobalState)
+
+        # 3. Snapshot state + set loading flag — brief lock, only synchronous reads
+        async with self:
+            self.is_uploading_ferramentas = True
             user     = str(gs.current_user_name)
             contrato = str(self.rdo_contrato)
             data     = str(self.rdo_data)
             id_rdo   = str(self.draft_id_rdo)
+            ci_lat   = float(self.checkin_lat or 0.0)
+            ci_lng   = float(self.checkin_lng or 0.0)
+            ci_end   = str(self.checkin_endereco or "")
+            rdo_snap = self._build_rdo_data() if not id_rdo and contrato.strip() else None
 
-            loop = asyncio.get_running_loop()
-
-            if not id_rdo and contrato.strip():
-                rdo_data = self._build_rdo_data()
+        try:
+            # 4. Create draft if needed — DB I/O outside lock
+            if not id_rdo and contrato.strip() and rdo_snap:
                 id_rdo = await loop.run_in_executor(
                     get_db_executor(),
-                    lambda: RDOService.upsert_draft(rdo_data, mestre_id=user),
+                    lambda: RDOService.upsert_draft(rdo_snap, mestre_id=user),
                 )
-                self.draft_id_rdo = id_rdo
+                async with self:
+                    self.draft_id_rdo = id_rdo
 
             if not id_rdo:
-                self.is_uploading_ferramentas = False
-                yield rx.toast("⚠️ Preencha o contrato antes de adicionar fotos", position="top-center")
+                async with self:
+                    self.is_uploading_ferramentas = False
+                    yield rx.toast("⚠️ Preencha o contrato antes de adicionar fotos", position="top-center")
                 return
 
-            new_items = []
-            for f in files[:1]:
-                try:
-                    file_bytes = await f.read()
-                    # Guard: rejeita arquivos muito grandes antes de processar (evita timeout WebSocket)
-                    _MAX_BYTES = 50 * 1024 * 1024  # 50 MB
-                    if len(file_bytes) > _MAX_BYTES:
-                        yield rx.toast(
-                            f"⚠️ Foto muito grande ({len(file_bytes)//1024//1024}MB). Use uma foto de até 50MB.",
-                            position="top-center", duration=8000,
-                        )
-                        return
-                    _name = getattr(f, "filename", "ferramentas.jpg")
-                    _ct   = getattr(f, "content_type", None) or "image/jpeg"
-                    _b, _n, _c = file_bytes, _name, _ct
-                    _ci_lat = float(self.checkin_lat or 0.0)
-                    _ci_lng = float(self.checkin_lng or 0.0)
-                    _ci_end = str(self.checkin_endereco or "")
-                    result = await loop.run_in_executor(
-                        get_image_executor(),
-                        lambda: RDOService.process_evidence(
-                            id_rdo=id_rdo,
-                            file_bytes=_b,
-                            filename=f"ferramentas_{_n}",
-                            content_type=_c,
-                            legenda="Ferramentas Limpas e Organizadas",
-                            mestre=user,
-                            contrato=contrato,
-                            data=data,
-                            checkin_lat=_ci_lat,
-                            checkin_lng=_ci_lng,
-                            checkin_endereco=_ci_end,
-                        ),
-                    )
-                    if result.get("foto_url"):
-                        new_items.append(result)
-                except Exception as e:
-                    logger.error(f"upload_ferramentas_files: {e}", exc_info=True)
-                    yield rx.toast(f"❌ Erro no upload ferramentas: {e}", position="top-center", duration=8000)
-                    return
+            # 5. Process image — watermark + resize + Supabase upload, all outside lock
+            _b, _n, _c = raw_bytes, raw_name, raw_ct
+            result = await loop.run_in_executor(
+                get_image_executor(),
+                lambda: RDOService.process_evidence(
+                    id_rdo=id_rdo, file_bytes=_b,
+                    filename=f"ferramentas_{_n}", content_type=_c,
+                    legenda="Ferramentas Limpas e Organizadas", mestre=user,
+                    contrato=contrato, data=data,
+                    checkin_lat=ci_lat, checkin_lng=ci_lng, checkin_endereco=ci_end,
+                ),
+            )
 
-            if new_items:
-                self.ferramentas_foto_items = new_items
+            # 6. Write result to state — brief lock
+            async with self:
+                if result.get("foto_url"):
+                    self.ferramentas_foto_items = [result]
+                    yield rx.toast("✅ Foto de ferramentas adicionada", position="top-center")
+                else:
+                    yield rx.toast("⚠️ Nenhuma foto foi processada", position="top-center")
 
-            if new_items:
-                yield rx.toast("✅ Foto de ferramentas adicionada", position="top-center")
-            else:
-                yield rx.toast("⚠️ Nenhuma foto foi processada", position="top-center")
         except Exception as e:
-            logger.error(f"upload_ferramentas_files (outer): {e}", exc_info=True)
-            yield rx.toast(f"❌ Erro inesperado no upload ferramentas: {str(e)[:100]}", position="top-center", duration=8000)
+            logger.error(f"upload_ferramentas_files: {e}", exc_info=True)
+            async with self:
+                yield rx.toast(f"❌ Erro no upload ferramentas: {str(e)[:100]}", position="top-center", duration=8000)
         finally:
-            self.is_uploading_ferramentas = False
+            async with self:
+                self.is_uploading_ferramentas = False
 
     # ── Assinatura ────────────────────────────────────────────
 
