@@ -3264,6 +3264,13 @@ class GlobalState(rx.State):
         if peso_total == 0:
             return []
 
+        import numpy as _np
+
+        def _bdays(a: pd.Timestamp, b: pd.Timestamp) -> int:
+            """Dias úteis (seg-sex) entre a (inclusive) e b (exclusive). Mínimo 1."""
+            return max(1, int(_np.busday_count(a.date(), b.date())))
+
+
         # ── Reconstruir histórico de conclusao_pct por atividade por data ──────
         # Para cada dia d, conclusao_hist[ativ_id][d] = último conclusao_pct_novo <= d
         hist_df = self._hub_historico_df
@@ -3325,14 +3332,14 @@ class GlobalState(rx.State):
                 inicio = row["inicio_previsto"]
                 termino = row["termino_previsto"]
                 peso = float(row["peso_pct"]) / peso_total * 100
-                duracao = max(1, (termino - inicio).days)
-                # Previsto: interpolação linear até d_end
+                duracao = _bdays(inicio, termino)
+                # Previsto: interpolação linear em dias úteis até d_end
                 if d_end < inicio:
                     frac_prev = 0.0
                 elif d_end >= termino:
                     frac_prev = 1.0
                 else:
-                    frac_prev = (d_end - inicio).days / duracao
+                    frac_prev = _bdays(inicio, d_end) / duracao
                 previsto_acc += frac_prev * peso
                 # Realizado: conclusao_pct histórico para este dia
                 if d.date() <= today.date():

@@ -197,10 +197,9 @@ class RelatoriosState(rx.State):
         obra: dict = {}
         disciplinas: list = []
 
-        # get_state FORA do lock — faz I/O Redis
         from bomtempo.state.global_state import GlobalState
-        gs = await self.get_state(GlobalState)
         async with self:
+            gs = await self.get_state(GlobalState)
             contrato = self.selected_contrato or "Geral / Portfólio"
             self.is_generating_static = True
             self.report_html_preview = ""
@@ -311,10 +310,9 @@ class RelatoriosState(rx.State):
         obra: dict = {}
         disciplinas: list = []
 
-        # get_state FORA do lock — faz I/O Redis
         from bomtempo.state.global_state import GlobalState
-        gs = await self.get_state(GlobalState)
         async with self:
+            gs = await self.get_state(GlobalState)
             contrato = self.selected_contrato or "Geral / Portfólio"
             abordagem = self.selected_abordagem
             self.is_generating_ai = True
@@ -428,10 +426,9 @@ class RelatoriosState(rx.State):
         obra: dict = {}
         disciplinas: list = []
 
-        # get_state FORA do lock — faz I/O Redis
         from bomtempo.state.global_state import GlobalState
-        gs = await self.get_state(GlobalState)
         async with self:
+            gs = await self.get_state(GlobalState)
             contrato = self.selected_contrato or "Geral / Portfólio"
             prompt = self.custom_prompt.strip()
 
@@ -621,10 +618,9 @@ class RelatoriosState(rx.State):
         escopo: dict = {}
         recipients: list = []
 
-        # get_state FORA do lock — faz I/O Redis
         from bomtempo.state.global_state import GlobalState
-        gs = await self.get_state(GlobalState)
         async with self:
+            gs = await self.get_state(GlobalState)
             contrato = self.selected_contrato or "Geral / Portfólio"
             abordagem = self.selected_abordagem
             periodo_inicio = self.periodo_inicio
@@ -876,10 +872,9 @@ class RelatoriosState(rx.State):
     @rx.event(background=True)
     async def send_report_email(self, report_id: str = ""):
         """Envia o relatório atual por email para os destinatários configurados."""
-        # get_state FORA do lock — faz I/O Redis
         from bomtempo.state.global_state import GlobalState
-        gs = await self.get_state(GlobalState)
         async with self:
+            gs = await self.get_state(GlobalState)
             recipients = list(self.report_recipients)
             pdf_url = self.report_pdf_url
             contrato = self.selected_contrato

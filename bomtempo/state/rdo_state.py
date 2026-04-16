@@ -151,6 +151,7 @@ class RDOState(rx.State):
     rdo_ativ_unidade: str = ""       # informativo: unit name
     rdo_ativ_nivel: str = "micro"    # nivel da atividade selecionada (macro/micro/sub)
     rdo_ativ_parent_id: str = ""     # parent_id da atividade (para cascata de progresso)
+    rdo_efetivo_primaria: str = ""   # pessoas alocadas na atividade primária hoje
     # Two-step macro → activity selection
     rdo_fase_macro_sel: str = ""     # selected macro phase (step 1)
 
@@ -184,6 +185,108 @@ class RDOState(rx.State):
                 result[fase] = []
             result[fase].append(o)
         return result
+
+    @rx.var
+    def today_planned_atividades(self) -> List[Dict[str, str]]:
+        """Activities planned for today (inicio_previsto <= today <= termino_previsto, pct < 100)."""
+        today = self.rdo_data or datetime.now().strftime("%Y-%m-%d")
+        result = []
+        for o in self.hub_atividades_options:
+            inicio = o.get("inicio_previsto", "")[:10]
+            termino = o.get("termino_previsto", "")[:10]
+            pct_str = o.get("pct", "0")
+            nivel = o.get("nivel", "micro")
+            # Only micro/sub activities (macros are driven by children)
+            if nivel not in ("micro", "sub"):
+                continue
+            try:
+                pct = int(pct_str or "0")
+            except Exception:
+                pct = 0
+            if pct >= 100:
+                continue
+            if inicio and termino and inicio <= today <= termino:
+                result.append({
+                    "id": o.get("id", ""),
+                    "label": o.get("label", ""),
+                    "fase_macro": o.get("fase_macro", ""),
+                    "pct": pct_str,
+                    "termino": termino,
+                    "status": o.get("status_atividade", ""),
+                })
+        return result
+
+    @rx.var
+    def overdue_atividades(self) -> List[Dict[str, str]]:
+        """Activities past their termino_previsto with pct < 100 — overdue."""
+        today = self.rdo_data or datetime.now().strftime("%Y-%m-%d")
+        result = []
+        for o in self.hub_atividades_options:
+            termino = o.get("termino_previsto", "")[:10]
+            pct_str = o.get("pct", "0")
+            nivel = o.get("nivel", "micro")
+            if nivel not in ("micro", "sub"):
+                continue
+            try:
+                pct = int(pct_str or "0")
+            except Exception:
+                pct = 0
+            if pct >= 100:
+                continue
+            if termino and termino < today:
+                result.append({
+                    "id": o.get("id", ""),
+                    "label": o.get("label", ""),
+                    "fase_macro": o.get("fase_macro", ""),
+                    "pct": pct_str,
+                    "termino": termino,
+                    "status": o.get("status_atividade", ""),
+                })
+        return result
+
+    @rx.var
+    def equipe_allocation_text(self) -> str:
+        """Shows X/Y alocados, Z disponíveis based on extras + primary efetivo vs total equipe."""
+        total_str = str(self.rdo_equipe_alocada or "").strip()
+        try:
+            total = int(total_str)
+        except Exception:
+            return ""
+        allocated = 0
+        # Primary activity
+        try:
+            allocated += int(str(self.rdo_efetivo_primaria or "").strip() or "0")
+        except Exception:
+            pass
+        # Extra activities
+        for ex in self.rdo_extra_atividades:
+            try:
+                allocated += int(str(ex.get("efetivo_alocado", "") or "").strip() or "0")
+            except Exception:
+                pass
+        if allocated == 0:
+            return ""
+        disponivel = total - allocated
+        if disponivel < 0:
+            return f"{allocated}/{total} alocados (⚠️ excede equipe)"
+        return f"{allocated}/{total} alocados · {disponivel} disponível{'is' if disponivel != 1 else ''}"
+
+    @rx.var
+    def macro_has_pending_micros(self) -> bool:
+        """True if the selected primary activity is a macro with micro children not at 100%."""
+        if self.rdo_ativ_nivel != "macro" or not self.rdo_atividade_id:
+            return False
+        ativ_id = self.rdo_atividade_id
+        # Check if any micro in hub_atividades_options has this as parent with pct < 100
+        for o in self.hub_atividades_options:
+            if o.get("parent_id", "") == ativ_id and o.get("nivel", "") in ("micro", "sub"):
+                try:
+                    pct = int(o.get("pct", "0") or "0")
+                except Exception:
+                    pct = 0
+                if pct < 100:
+                    return True
+        return False
 
     # If no existing activity: create a pending one (legacy single — kept for reset compat)
     rdo_nova_atividade: bool = False
@@ -380,9 +483,10 @@ class RDOState(rx.State):
         Se o formulário estiver vazio, carrega o rascunho automaticamente.
         Caso contrário, exibe o banner de retomada."""
         from bomtempo.state.global_state import GlobalState
-        # get_state DEVE ser FORA do async with self: — faz I/O Redis e causaria deadlock
-        gs = await self.get_state(GlobalState)
         async with self:
+            # get_state deve estar DENTRO do async with self (exigido pelo StateProxy)
+            # mas extraímos os valores imediatamente e saímos do lock antes de qualquer I/O pesado
+            gs = await self.get_state(GlobalState)
             user = str(gs.current_user_name)
             contrato = str(gs.current_user_contrato).strip()
             current_draft_id = str(self.draft_id_rdo)
@@ -520,6 +624,9 @@ class RDOState(rx.State):
         self.submit_status = ""
         self.rdo_extra_atividades = []
         self.rdo_novas_atividades = []
+        self.rdo_efetivo_primaria = ""
+        self.rdo_ativ_nivel = "micro"
+        self.rdo_ativ_parent_id = ""
 
     async def select_rdo_contrato(self, value: str):
         """Admin/gestor escolhe o contrato — auto-preenche projeto, cliente, localização."""
@@ -885,22 +992,19 @@ class RDOState(rx.State):
         self.ev_editing_draft = value
         self.save_edit_caption()
 
-    @rx.event(background=True)
     async def upload_epi_files(self, files: List[rx.UploadFile]):
         """Upload EPI photo — watermark + Supabase Storage.
 
-        background=True: Redis lock held only for brief state reads/writes.
-        All file I/O, image processing, and Supabase upload run OUTSIDE the lock.
-
-        Old pattern (regular handler): lock held ~7s → LockExpiredError on slow systems.
-        New pattern: lock held ~1ms per async with self: block.
+        Handler regular (sem background=True) — upload handlers têm essa restrição no Reflex.
+        I/O pesado roda via run_in_executor para não bloquear o event loop.
+        get_state() sem async with self: é válido aqui (self é instância real, não StateProxy).
         """
         if not files:
             return
 
         loop = asyncio.get_running_loop()
 
-        # 1. Read file bytes BEFORE acquiring any lock — WebSocket I/O, not state mutation
+        # 1. Read file bytes — WebSocket I/O
         _MAX_BYTES = 50 * 1024 * 1024
         raw_bytes = None
         raw_name = "epi.jpg"
@@ -911,25 +1015,22 @@ class RDOState(rx.State):
             raw_name = getattr(f, "filename", "epi.jpg")
             raw_ct   = getattr(f, "content_type", None) or "image/jpeg"
         except Exception as e:
-            async with self:
-                yield rx.toast(f"❌ Erro ao ler arquivo: {str(e)[:80]}", position="top-center", duration=8000)
+            yield rx.toast(f"❌ Erro ao ler arquivo: {str(e)[:80]}", position="top-center", duration=8000)
             return
 
         if len(raw_bytes) > _MAX_BYTES:
-            async with self:
-                yield rx.toast(
-                    f"⚠️ Foto muito grande ({len(raw_bytes)//1024//1024}MB). Use uma foto de até 50MB.",
-                    position="top-center", duration=8000,
-                )
+            yield rx.toast(
+                f"⚠️ Foto muito grande ({len(raw_bytes)//1024//1024}MB). Use uma foto de até 50MB.",
+                position="top-center", duration=8000,
+            )
             return
 
-        # 2. Get GlobalState outside lock
+        # 2. Snapshot state — get_state OK em handler regular (self é instância real)
         from bomtempo.state.global_state import GlobalState
-        gs = await self.get_state(GlobalState)
-
-        # 3. Snapshot state + set loading flag — brief lock, only synchronous reads
-        async with self:
-            self.is_uploading_epi = True
+        self.is_uploading_epi = True
+        yield rx.toast("⏳ Processando foto com watermark…", position="top-center", duration=4000)
+        try:
+            gs = await self.get_state(GlobalState)
             user     = str(gs.current_user_name)
             contrato = str(self.rdo_contrato)
             data     = str(self.rdo_data)
@@ -938,24 +1039,27 @@ class RDOState(rx.State):
             ci_lng   = float(self.checkin_lng or 0.0)
             ci_end   = str(self.checkin_endereco or "")
             rdo_snap = self._build_rdo_data() if not id_rdo and contrato.strip() else None
+        except Exception as e:
+            logger.error(f"upload_epi_files: erro ao ler state: {e}")
+            self.is_uploading_epi = False
+            yield rx.toast("❌ Erro interno ao iniciar upload. Tente novamente.", position="top-center")
+            return
 
         try:
-            # 4. Create draft if needed — DB I/O outside lock
+            # 3. Create draft if needed — DB I/O via executor
             if not id_rdo and contrato.strip() and rdo_snap:
                 id_rdo = await loop.run_in_executor(
                     get_db_executor(),
                     lambda: RDOService.upsert_draft(rdo_snap, mestre_id=user),
                 )
-                async with self:
-                    self.draft_id_rdo = id_rdo
+                self.draft_id_rdo = id_rdo
 
             if not id_rdo:
-                async with self:
-                    self.is_uploading_epi = False
-                    yield rx.toast("⚠️ Preencha o contrato antes de adicionar fotos", position="top-center")
+                self.is_uploading_epi = False
+                yield rx.toast("⚠️ Preencha o contrato antes de adicionar fotos", position="top-center")
                 return
 
-            # 5. Process image — watermark + resize + Supabase upload, all outside lock
+            # 4. Process image — watermark + resize + Supabase upload via executor
             _b, _n, _c = raw_bytes, raw_name, raw_ct
             result = await loop.run_in_executor(
                 get_image_executor(),
@@ -968,35 +1072,31 @@ class RDOState(rx.State):
                 ),
             )
 
-            # 6. Write result to state — brief lock
-            async with self:
-                if result.get("foto_url"):
-                    self.epi_foto_items = [result]
-                    yield rx.toast("✅ Foto EPI adicionada", position="top-center")
-                else:
-                    yield rx.toast("⚠️ Nenhuma foto foi processada", position="top-center")
+            if result.get("foto_url"):
+                self.epi_foto_items = [result]
+                yield rx.toast("✅ Foto EPI adicionada", position="top-center")
+            else:
+                yield rx.toast("⚠️ Nenhuma foto foi processada", position="top-center")
 
         except Exception as e:
             logger.error(f"upload_epi_files: {e}", exc_info=True)
-            async with self:
-                yield rx.toast(f"❌ Erro no upload EPI: {str(e)[:100]}", position="top-center", duration=8000)
+            yield rx.toast(f"❌ Erro no upload EPI: {str(e)[:100]}", position="top-center", duration=8000)
         finally:
-            async with self:
-                self.is_uploading_epi = False
+            self.is_uploading_epi = False
 
-    @rx.event(background=True)
     async def upload_ferramentas_files(self, files: List[rx.UploadFile]):
         """Upload ferramentas photo — watermark + Supabase Storage.
 
-        background=True: same pattern as upload_epi_files.
-        Lock held ~1ms per async with self: — not ~7s like the old regular handler.
+        Handler regular (sem background=True) — upload handlers têm essa restrição no Reflex.
+        I/O pesado roda via run_in_executor para não bloquear o event loop.
+        get_state() sem async with self: é válido aqui (self é instância real, não StateProxy).
         """
         if not files:
             return
 
         loop = asyncio.get_running_loop()
 
-        # 1. Read file bytes BEFORE acquiring any lock
+        # 1. Read file bytes — WebSocket I/O
         _MAX_BYTES = 50 * 1024 * 1024
         raw_bytes = None
         raw_name = "ferramentas.jpg"
@@ -1007,25 +1107,22 @@ class RDOState(rx.State):
             raw_name = getattr(f, "filename", "ferramentas.jpg")
             raw_ct   = getattr(f, "content_type", None) or "image/jpeg"
         except Exception as e:
-            async with self:
-                yield rx.toast(f"❌ Erro ao ler arquivo: {str(e)[:80]}", position="top-center", duration=8000)
+            yield rx.toast(f"❌ Erro ao ler arquivo: {str(e)[:80]}", position="top-center", duration=8000)
             return
 
         if len(raw_bytes) > _MAX_BYTES:
-            async with self:
-                yield rx.toast(
-                    f"⚠️ Foto muito grande ({len(raw_bytes)//1024//1024}MB). Use uma foto de até 50MB.",
-                    position="top-center", duration=8000,
-                )
+            yield rx.toast(
+                f"⚠️ Foto muito grande ({len(raw_bytes)//1024//1024}MB). Use uma foto de até 50MB.",
+                position="top-center", duration=8000,
+            )
             return
 
-        # 2. Get GlobalState outside lock
+        # 2. Snapshot state — get_state OK em handler regular (self é instância real)
         from bomtempo.state.global_state import GlobalState
-        gs = await self.get_state(GlobalState)
-
-        # 3. Snapshot state + set loading flag — brief lock, only synchronous reads
-        async with self:
-            self.is_uploading_ferramentas = True
+        self.is_uploading_ferramentas = True
+        yield rx.toast("⏳ Processando foto com watermark…", position="top-center", duration=4000)
+        try:
+            gs = await self.get_state(GlobalState)
             user     = str(gs.current_user_name)
             contrato = str(self.rdo_contrato)
             data     = str(self.rdo_data)
@@ -1034,24 +1131,27 @@ class RDOState(rx.State):
             ci_lng   = float(self.checkin_lng or 0.0)
             ci_end   = str(self.checkin_endereco or "")
             rdo_snap = self._build_rdo_data() if not id_rdo and contrato.strip() else None
+        except Exception as e:
+            logger.error(f"upload_ferramentas_files: erro ao ler state: {e}")
+            self.is_uploading_ferramentas = False
+            yield rx.toast("❌ Erro interno ao iniciar upload. Tente novamente.", position="top-center")
+            return
 
         try:
-            # 4. Create draft if needed — DB I/O outside lock
+            # 3. Create draft if needed — DB I/O via executor
             if not id_rdo and contrato.strip() and rdo_snap:
                 id_rdo = await loop.run_in_executor(
                     get_db_executor(),
                     lambda: RDOService.upsert_draft(rdo_snap, mestre_id=user),
                 )
-                async with self:
-                    self.draft_id_rdo = id_rdo
+                self.draft_id_rdo = id_rdo
 
             if not id_rdo:
-                async with self:
-                    self.is_uploading_ferramentas = False
-                    yield rx.toast("⚠️ Preencha o contrato antes de adicionar fotos", position="top-center")
+                self.is_uploading_ferramentas = False
+                yield rx.toast("⚠️ Preencha o contrato antes de adicionar fotos", position="top-center")
                 return
 
-            # 5. Process image — watermark + resize + Supabase upload, all outside lock
+            # 4. Process image — watermark + resize + Supabase upload via executor
             _b, _n, _c = raw_bytes, raw_name, raw_ct
             result = await loop.run_in_executor(
                 get_image_executor(),
@@ -1064,21 +1164,17 @@ class RDOState(rx.State):
                 ),
             )
 
-            # 6. Write result to state — brief lock
-            async with self:
-                if result.get("foto_url"):
-                    self.ferramentas_foto_items = [result]
-                    yield rx.toast("✅ Foto de ferramentas adicionada", position="top-center")
-                else:
-                    yield rx.toast("⚠️ Nenhuma foto foi processada", position="top-center")
+            if result.get("foto_url"):
+                self.ferramentas_foto_items = [result]
+                yield rx.toast("✅ Foto de ferramentas adicionada", position="top-center")
+            else:
+                yield rx.toast("⚠️ Nenhuma foto foi processada", position="top-center")
 
         except Exception as e:
             logger.error(f"upload_ferramentas_files: {e}", exc_info=True)
-            async with self:
-                yield rx.toast(f"❌ Erro no upload ferramentas: {str(e)[:100]}", position="top-center", duration=8000)
+            yield rx.toast(f"❌ Erro no upload ferramentas: {str(e)[:100]}", position="top-center", duration=8000)
         finally:
-            async with self:
-                self.is_uploading_ferramentas = False
+            self.is_uploading_ferramentas = False
 
     # ── Assinatura ────────────────────────────────────────────
 
@@ -1143,11 +1239,15 @@ class RDOState(rx.State):
         self.rdo_ativ_unidade = ""
         self.rdo_ativ_nivel = "micro"
         self.rdo_ativ_parent_id = ""
+        self.rdo_efetivo_primaria = ""
+
+    def set_rdo_efetivo_primaria(self, v: str): self.rdo_efetivo_primaria = str(v) if v is not None else ""
 
     def set_rdo_atividade_id(self, v: str):
         real_v = "" if v == "__none__" else v
         self.rdo_atividade_id = real_v
         self.rdo_producao_dia = ""
+        self.rdo_efetivo_primaria = ""
         opt = next((o for o in self.hub_atividades_options if o.get("id") == real_v), None)
         # Strip prefix from label for display name
         raw_label = opt["label"] if opt else ""
@@ -1335,6 +1435,8 @@ class RDOState(rx.State):
                     "status_atividade": str(r.get("status_atividade", "") or "nao_iniciada"),
                     "tipo_medicao":     str(r.get("tipo_medicao", "") or "quantidade"),
                     "efetivo_alocado":  str(r.get("efetivo_alocado", 0) or 0),
+                    "inicio_previsto":  str(r.get("inicio_previsto", "") or ""),
+                    "termino_previsto": str(r.get("termino_previsto", "") or ""),
                 }
 
             opts: list = []
@@ -1367,11 +1469,10 @@ class RDOState(rx.State):
                 return
             self.is_draft_saving = True
 
-        # get_state FORA do lock — faz I/O Redis
         from bomtempo.state.global_state import GlobalState
-        gs = await self.get_state(GlobalState)
-
         async with self:
+            # get_state dentro do async with self (exigido pelo StateProxy)
+            gs = await self.get_state(GlobalState)
             user = str(gs.current_user_name)
             rdo_data = self._build_rdo_data()
 
@@ -1454,12 +1555,12 @@ class RDOState(rx.State):
 
         try:
             # ── Snapshot state variables — get_state MUST be OUTSIDE async with self:
-            # Calling await inside async with self: holds the Redis lock during another
-            # Redis round-trip → LockExpiredError when lock times out (10s default).
             from bomtempo.state.global_state import GlobalState
-            gs = await self.get_state(GlobalState)   # Redis I/O: before acquiring lock
-
             async with self:
+                # get_state de outro estado (GlobalState) usa lock Redis DIFERENTE do RDOState —
+                # sem deadlock. O LockExpiredError era causado por I/O lento (httpx/SMTP) dentro
+                # do lock, não pelo get_state. Aqui só lemos state e fazemos operações síncronas rápidas.
+                gs = await self.get_state(GlobalState)
                 user_name = str(gs.current_user_name)
                 rdo_data  = self._build_rdo_data()
                 contrato  = rdo_data.get("contrato", "")
@@ -1647,6 +1748,10 @@ class RDOState(rx.State):
                 _nova_fase = str(self.rdo_nova_atividade_fase)
                 _extra_ativs = [dict(r) for r in self.rdo_extra_atividades]
                 _novas_ativs = [dict(r) for r in self.rdo_novas_atividades]
+                try:
+                    _efetivo_primaria = int(str(self.rdo_efetivo_primaria or "").strip() or "0")
+                except Exception:
+                    _efetivo_primaria = 0
 
             if _ativ_id:
                 try:
@@ -1689,8 +1794,11 @@ class RDOState(rx.State):
                     _rdo_ref_date = rdo_data.get("data", "")  # formato YYYY-MM-DD
                     if _rdo_ref_date:
                         upd_data["last_rdo_date"] = _rdo_ref_date
+                    # Registra efetivo alocado nesta atividade (pessoas hoje)
+                    if _efetivo_primaria > 0:
+                        upd_data["efetivo_alocado"] = _efetivo_primaria
 
-                    # Update progress + qty + status + last_rdo_date
+                    # Update progress + qty + status + last_rdo_date + efetivo
                     if upd_data:
                         await loop.run_in_executor(get_db_executor(), lambda: _sb_upd("hub_atividades", filters={"id": _ativ_id}, data=upd_data))
 
@@ -2068,11 +2176,18 @@ class RDOState(rx.State):
 
         # 1. Primary cronograma activity (highest priority)
         if self.rdo_atividade_id and self.rdo_atividade_nome:
-            _add({
+            _primary: Dict[str, Any] = {
                 "atividade": self.rdo_atividade_nome,
                 "progresso_percentual": str(self.rdo_progresso_atividade),
                 "status": "Em andamento",
-            })
+            }
+            try:
+                _ef = int(str(self.rdo_efetivo_primaria or "").strip() or "0")
+                if _ef > 0:
+                    _primary["efetivo"] = _ef
+            except Exception:
+                pass
+            _add(_primary)
 
         # 2. Extra cronograma activities with efetivo
         for r in self.rdo_extra_atividades:

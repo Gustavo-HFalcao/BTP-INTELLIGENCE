@@ -1567,8 +1567,89 @@ def _section_cronograma() -> rx.Component:
             ),
         )
 
+    def _today_panel() -> rx.Component:
+        """Painel: atividades previstas para hoje + atrasadas."""
+        def _ativ_chip(item: dict, color: str) -> rx.Component:
+            return rx.hstack(
+                rx.text(item["label"], size="1", color=color, flex="1", min_width="0",
+                        style={"overflow": "hidden", "text-overflow": "ellipsis", "white-space": "nowrap"}),
+                rx.text(item["pct"] + "%", size="1", color=color, font_family="var(--font-mono)", white_space="nowrap"),
+                spacing="2", align="center", width="100%",
+            )
+
+        return rx.cond(
+            (RDOState.today_planned_atividades.length() > 0) | (RDOState.overdue_atividades.length() > 0),
+            rx.vstack(
+                # Previstas hoje
+                rx.cond(
+                    RDOState.today_planned_atividades.length() > 0,
+                    rx.vstack(
+                        rx.hstack(
+                            rx.icon(tag="calendar-check", size=12, color="rgba(42,157,143,0.9)"),
+                            rx.text("Previstas para hoje", size="1", color="rgba(42,157,143,0.9)",
+                                    font_family="var(--font-mono)", weight="bold"),
+                            spacing="1", align="center",
+                        ),
+                        rx.foreach(
+                            RDOState.today_planned_atividades,
+                            lambda item: _ativ_chip(item, "rgba(42,157,143,0.85)"),
+                        ),
+                        spacing="1", width="100%",
+                        padding="8px 10px", border_radius="6px",
+                        bg="rgba(42,157,143,0.06)", border="1px solid rgba(42,157,143,0.2)",
+                    ),
+                    rx.fragment(),
+                ),
+                # Atrasadas
+                rx.cond(
+                    RDOState.overdue_atividades.length() > 0,
+                    rx.vstack(
+                        rx.hstack(
+                            rx.icon(tag="alert-circle", size=12, color="rgba(224,82,82,0.9)"),
+                            rx.text("Atrasadas (prazo vencido)", size="1", color="rgba(224,82,82,0.9)",
+                                    font_family="var(--font-mono)", weight="bold"),
+                            spacing="1", align="center",
+                        ),
+                        rx.foreach(
+                            RDOState.overdue_atividades,
+                            lambda item: _ativ_chip(item, "rgba(224,82,82,0.85)"),
+                        ),
+                        spacing="1", width="100%",
+                        padding="8px 10px", border_radius="6px",
+                        bg="rgba(224,82,82,0.06)", border="1px solid rgba(224,82,82,0.2)",
+                    ),
+                    rx.fragment(),
+                ),
+                spacing="2", width="100%",
+            ),
+            rx.fragment(),
+        )
+
+    def _allocation_counter() -> rx.Component:
+        """Contador de alocação: X/Y alocados · Z disponíveis."""
+        return rx.cond(
+            RDOState.equipe_allocation_text != "",
+            rx.hstack(
+                rx.icon(tag="users", size=13, color="rgba(201,139,42,0.8)"),
+                rx.text(
+                    RDOState.equipe_allocation_text,
+                    size="1", color="rgba(201,139,42,0.9)",
+                    font_family="var(--font-mono)", weight="bold",
+                ),
+                spacing="2", align="center",
+                padding="6px 10px", border_radius="6px",
+                bg="rgba(201,139,42,0.06)", border="1px solid rgba(201,139,42,0.2)",
+                width="100%",
+            ),
+            rx.fragment(),
+        )
+
     return _section_card(
         rx.vstack(
+            # Painel de atividades de hoje + atrasadas
+            _today_panel(),
+            # Contador de alocação
+            _allocation_counter(),
             # Loading state
             rx.cond(
                 RDOState.hub_atividades_loading,
@@ -1652,6 +1733,43 @@ def _section_cronograma() -> rx.Component:
                         ),
                         # Step 3 — campos de progresso
                         _progress_fields(),
+                        # Step 4 — Pessoas hoje (efetivo nesta atividade)
+                        rx.cond(
+                            RDOState.rdo_atividade_id != "",
+                            rx.vstack(
+                                rx.text("Pessoas hoje nesta atividade", size="1", color="rgba(255,255,255,0.5)", font_family="var(--font-mono)"),
+                                rx.hstack(
+                                    rx.icon(tag="users", size=13, color="rgba(201,139,42,0.6)"),
+                                    rx.el.input(
+                                        type="number", min="0",
+                                        placeholder="Ex: 4",
+                                        default_value=RDOState.rdo_efetivo_primaria,
+                                        on_change=RDOState.set_rdo_efetivo_primaria,
+                                        style=dict(_CARD_INPUT, **{"width": "100px"}),
+                                    ),
+                                    rx.text("pessoas", size="2", color="rgba(255,255,255,0.3)"),
+                                    spacing="2", align="center",
+                                ),
+                                # macro bloqueada — aviso
+                                rx.cond(
+                                    RDOState.macro_has_pending_micros,
+                                    rx.hstack(
+                                        rx.icon(tag="alert-triangle", size=13, color="#E05252"),
+                                        rx.text(
+                                            "Macro com sub-atividades pendentes — o progresso nao pode ser marcado como 100% ate que todas as micros sejam concluidas.",
+                                            size="1", color="#E05252", font_style="italic",
+                                        ),
+                                        spacing="2", align="start",
+                                        padding="6px 10px", border_radius="6px",
+                                        bg="rgba(224,82,82,0.07)", border="1px solid rgba(224,82,82,0.25)",
+                                        width="100%",
+                                    ),
+                                    rx.fragment(),
+                                ),
+                                spacing="1", width="100%",
+                            ),
+                            rx.fragment(),
+                        ),
                         spacing="3", width="100%",
                     ),
                 ),
