@@ -55,7 +55,11 @@
       "Bash(cmd /c \"cd /d C:\\\\Users\\\\Gustavo\\\\bomtempo-dashboard && py -c \\\\\"import ast; ast.parse\\(open\\('bomtempo/pages/rdo_view.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\\\\\"\")",
       "Bash(cmd /c \"cd /d C:\\\\\\\\Users\\\\\\\\Gustavo\\\\\\\\bomtempo-dashboard && py -c \\\\\"import ast, sys; ast.parse\\(open\\('bomtempo/pages/rdo_view.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\\\\\"\")",
       "Bash(cmd /c \"cd /d C:\\\\\\\\Users\\\\\\\\Gustavo\\\\\\\\bomtempo-dashboard && py check_syntax.py\")",
-      "Bash(cmd /c \"py C:\\\\\\\\Users\\\\\\\\Gustavo\\\\\\\\bomtempo-dashboard\\\\\\\\bomtempo\\\\\\\\pages\\\\\\\\rdo_view.py\")"
+      "Bash(cmd /c \"py C:\\\\\\\\Users\\\\\\\\Gustavo\\\\\\\\bomtempo-dashboard\\\\\\\\bomtempo\\\\\\\\pages\\\\\\\\rdo_view.py\")",
+      "Bash(py -c \"import ast; ast.parse\\(open\\('bomtempo/core/pdf_utils.py'\\).read\\(\\)\\); print\\('pdf_utils.py OK'\\)\")",
+      "Bash(py -c \"import psutil; m=psutil.virtual_memory\\(\\); print\\(f'total={m.total//1024//1024}MB available={m.available//1024//1024}MB'\\)\")",
+      "Bash(py -c \"import ast; ast.parse\\(open\\('bomtempo/core/pdf_utils.py'\\).read\\(\\)\\); ast.parse\\(open\\('bomtempo/core/circuit_breaker.py'\\).read\\(\\)\\); ast.parse\\(open\\('bomtempo/state/rdo_state.py'\\).read\\(\\)\\); print\\('All OK'\\)\")",
+      "Bash(py -c ' *)"
     ]
   },
   "mcpServers": {
