@@ -148,9 +148,12 @@ def _xhtml2pdf_worker(html: str, path_str: str, result_queue: "multiprocessing.Q
     try:
         import resource  # noqa: PLC0415 — stdlib, Linux only
         _400MB = 400 * 1024 * 1024
-        resource.setrlimit(resource.RLIMIT_AS, (_400MB, _400MB))
-    except (ImportError, ValueError, resource.error):  # type: ignore[attr-defined]
-        pass  # Windows / macOS / insufficient privileges — skip silently
+        try:
+            resource.setrlimit(resource.RLIMIT_AS, (_400MB, _400MB))
+        except (ValueError, OSError, resource.error):  # type: ignore[attr-defined]
+            pass  # insufficient privileges or unsupported — skip
+    except ImportError:
+        pass  # Windows / macOS — module does not exist, skip silently
 
     try:
         from xhtml2pdf import pisa  # type: ignore[import]  # noqa: PLC0415
