@@ -59,7 +59,14 @@
       "Bash(py -c \"import ast; ast.parse\\(open\\('bomtempo/core/pdf_utils.py'\\).read\\(\\)\\); print\\('pdf_utils.py OK'\\)\")",
       "Bash(py -c \"import psutil; m=psutil.virtual_memory\\(\\); print\\(f'total={m.total//1024//1024}MB available={m.available//1024//1024}MB'\\)\")",
       "Bash(py -c \"import ast; ast.parse\\(open\\('bomtempo/core/pdf_utils.py'\\).read\\(\\)\\); ast.parse\\(open\\('bomtempo/core/circuit_breaker.py'\\).read\\(\\)\\); ast.parse\\(open\\('bomtempo/state/rdo_state.py'\\).read\\(\\)\\); print\\('All OK'\\)\")",
-      "Bash(py -c ' *)"
+      "Bash(py -c ' *)",
+      "Bash(start C:\\\\Users\\\\Gustavo\\\\AppData\\\\Local\\\\Temp\\\\test_rdo_lean.pdf)",
+      "Bash(cmd.exe /c \"start C:\\\\Users\\\\Gustavo\\\\AppData\\\\Local\\\\Temp\\\\test_rdo_lean.pdf\")",
+      "Bash(sed -n '1979,1983p' bomtempo/state/global_state.py)",
+      "Bash(sed -n '2218,2222p' bomtempo/state/global_state.py)",
+      "Bash(sed -n '886,890p' bomtempo/state/rdo_state.py)",
+      "Bash(sed -n '985,991p' bomtempo/state/rdo_state.py)",
+      "Bash(awk ':*)"
     ]
   },
   "mcpServers": {

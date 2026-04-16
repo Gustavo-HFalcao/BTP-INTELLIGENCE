@@ -795,10 +795,10 @@ class ReembolsoState(rx.State):
             image_b64 = ""
             image_mime = "image/jpeg"
             ai_override_flag = False
+            # get_state FORA do lock — faz I/O Redis, causaria LockExpiredError se dentro do async with self:
+            from bomtempo.state.global_state import GlobalState
+            gs = await self.get_state(GlobalState)
             async with self:
-                from bomtempo.state.global_state import GlobalState
-
-                gs = await self.get_state(GlobalState)
                 current_user = str(gs.current_user_name)
                 current_client_id = str(gs.current_client_id or "")
                 data = self._build_data()

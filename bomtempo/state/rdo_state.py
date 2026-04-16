@@ -380,8 +380,9 @@ class RDOState(rx.State):
         Se o formulário estiver vazio, carrega o rascunho automaticamente.
         Caso contrário, exibe o banner de retomada."""
         from bomtempo.state.global_state import GlobalState
+        # get_state DEVE ser FORA do async with self: — faz I/O Redis e causaria deadlock
+        gs = await self.get_state(GlobalState)
         async with self:
-            gs = await self.get_state(GlobalState)
             user = str(gs.current_user_name)
             contrato = str(gs.current_user_contrato).strip()
             current_draft_id = str(self.draft_id_rdo)
@@ -1365,7 +1366,12 @@ class RDOState(rx.State):
             if not self.rdo_contrato.strip():
                 return
             self.is_draft_saving = True
-            gs = await self.get_state(__import__("bomtempo.state.global_state", fromlist=["GlobalState"]).GlobalState)
+
+        # get_state FORA do lock — faz I/O Redis
+        from bomtempo.state.global_state import GlobalState
+        gs = await self.get_state(GlobalState)
+
+        async with self:
             user = str(gs.current_user_name)
             rdo_data = self._build_rdo_data()
 

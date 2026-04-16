@@ -197,15 +197,15 @@ class RelatoriosState(rx.State):
         obra: dict = {}
         disciplinas: list = []
 
+        # get_state FORA do lock — faz I/O Redis
+        from bomtempo.state.global_state import GlobalState
+        gs = await self.get_state(GlobalState)
         async with self:
             contrato = self.selected_contrato or "Geral / Portfólio"
             self.is_generating_static = True
             self.report_html_preview = ""
             self.report_pdf_url = ""
             self.error_msg = ""
-
-            from bomtempo.state.global_state import GlobalState
-            gs = await self.get_state(GlobalState)
             fmt = dict(gs.obra_kpi_fmt)
             obra = dict(gs.obra_enterprise_data)
             disciplinas = list(gs.disciplina_progress_chart)
@@ -311,6 +311,9 @@ class RelatoriosState(rx.State):
         obra: dict = {}
         disciplinas: list = []
 
+        # get_state FORA do lock — faz I/O Redis
+        from bomtempo.state.global_state import GlobalState
+        gs = await self.get_state(GlobalState)
         async with self:
             contrato = self.selected_contrato or "Geral / Portfólio"
             abordagem = self.selected_abordagem
@@ -318,9 +321,6 @@ class RelatoriosState(rx.State):
             self.is_streaming = True
             self.ai_report_text = ""
             self.error_msg = ""
-
-            from bomtempo.state.global_state import GlobalState
-            gs = await self.get_state(GlobalState)
             fmt = dict(gs.obra_kpi_fmt)
             obra = dict(gs.obra_enterprise_data)
             disciplinas = list(gs.disciplina_progress_chart)
@@ -428,6 +428,9 @@ class RelatoriosState(rx.State):
         obra: dict = {}
         disciplinas: list = []
 
+        # get_state FORA do lock — faz I/O Redis
+        from bomtempo.state.global_state import GlobalState
+        gs = await self.get_state(GlobalState)
         async with self:
             contrato = self.selected_contrato or "Geral / Portfólio"
             prompt = self.custom_prompt.strip()
@@ -440,9 +443,6 @@ class RelatoriosState(rx.State):
             self.is_streaming = True
             self.ai_report_text = ""
             self.error_msg = ""
-
-            from bomtempo.state.global_state import GlobalState
-            gs = await self.get_state(GlobalState)
             fmt = dict(gs.obra_kpi_fmt)
             obra = dict(gs.obra_enterprise_data)
             disciplinas = list(gs.disciplina_progress_chart)
@@ -621,6 +621,9 @@ class RelatoriosState(rx.State):
         escopo: dict = {}
         recipients: list = []
 
+        # get_state FORA do lock — faz I/O Redis
+        from bomtempo.state.global_state import GlobalState
+        gs = await self.get_state(GlobalState)
         async with self:
             contrato = self.selected_contrato or "Geral / Portfólio"
             abordagem = self.selected_abordagem
@@ -634,9 +637,6 @@ class RelatoriosState(rx.State):
             self.ai_report_text = ""
             self.error_msg = ""
             self.success_msg = ""
-
-            from bomtempo.state.global_state import GlobalState
-            gs = await self.get_state(GlobalState)
             current_user = str(gs.current_user_name)
             client_id = str(gs.current_client_id or "")
             for c in gs.contratos_list:
@@ -876,6 +876,9 @@ class RelatoriosState(rx.State):
     @rx.event(background=True)
     async def send_report_email(self, report_id: str = ""):
         """Envia o relatório atual por email para os destinatários configurados."""
+        # get_state FORA do lock — faz I/O Redis
+        from bomtempo.state.global_state import GlobalState
+        gs = await self.get_state(GlobalState)
         async with self:
             recipients = list(self.report_recipients)
             pdf_url = self.report_pdf_url
@@ -886,9 +889,6 @@ class RelatoriosState(rx.State):
             if not pdf_url:
                 self.error_msg = "Gere o relatório antes de enviar."
                 return
-            current_user = ""
-            from bomtempo.state.global_state import GlobalState
-            gs = await self.get_state(GlobalState)
             current_user = str(gs.current_user_name)
 
         def _send():

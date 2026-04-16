@@ -2458,10 +2458,11 @@ class HubState(rx.State):
 
         weather = {}
         rows = []
+        # get_state FORA do lock — faz I/O Redis
+        gs = await self.get_state(GlobalState)
         async with self:
             self.cron_climate_loading = True
             self.cron_climate_analysis = ""
-            gs = await self.get_state(GlobalState)
             weather = dict(gs.weather_data) if gs.weather_data else {}
             rows = list(self.cron_rows)
 
@@ -2834,8 +2835,9 @@ Retorne SOMENTE JSON válido, sem texto antes/depois, sem markdown:
         contrato = ""
 
         working_days_str = "seg,ter,qua,qui,sex"
+        # get_state FORA do lock — faz I/O Redis
+        gs = await self.get_state(GlobalState)
         async with self:
-            gs = await self.get_state(GlobalState)
             client_id = str(gs.current_client_id or "")
             selected_ids = set(self.cron_import_selected)
             all_preview = list(self.cron_import_preview)
