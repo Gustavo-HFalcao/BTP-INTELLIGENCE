@@ -1417,7 +1417,7 @@ class RDOState(rx.State):
     async def execute_submit(self):
         from bomtempo.core.audit_logger import audit_log, AuditCategory
         from bomtempo.core.executors import get_ai_executor, get_heavy_executor, get_db_executor, get_http_executor
-        from bomtempo.core.circuit_breaker import ia_breaker
+        from bomtempo.core.circuit_breaker import ia_breaker, pdf_breaker
 
         loop = asyncio.get_running_loop()
 
@@ -1500,23 +1500,53 @@ class RDOState(rx.State):
                 lambda: RDOService.mark_processing(id_rdo),
             )
 
-            # 3b. Generate PDF (with AI already embedded)
-            # O semáforo em pdf_utils.py garante 1 Chromium por vez — sem OOM.
-            # Demais chamadas ficam na fila (até 5 min) sem bloquear o event loop.
+            # 3b. Generate PDF — circuit breaker + backpressure + queue
+            #
+            # Proteções em camadas:
+            #   1. pdf_breaker (circuit breaker): se 3 PDFs falharam recentemente →
+            #      pula geração, RDO já foi salvo, usuário pode gerar PDF depois.
+            #   2. Backpressure: se a fila do heavy_executor já tem >=3 jobs pendentes,
+            #      rejeita imediatamente em vez de enfileirar por até 6+ minutos.
+            #   3. asyncio.wait_for(400s): timeout total da espera na fila + geração.
+            #   4. Pre-flight em pdf_utils: checa RAM antes de spawnar subprocess.
+            #   5. OS memory cap: resource.setrlimit limita o subprocess a 400MB.
             pdf_path = ""
-            try:
-                pdf_result = await asyncio.wait_for(
-                    loop.run_in_executor(
-                        get_heavy_executor(),
-                        lambda: RDOService.generate_pdf(rdo_data_with_ai, is_preview=False, id_rdo=id_rdo),
-                    ),
-                    timeout=400.0,  # 90s (pdf_utils interno) + fila (até 300s) + margem
-                )
-                pdf_path = pdf_result[0] if pdf_result else ""
-            except asyncio.TimeoutError:
-                logger.error("⚠️ PDF generation timeout total — continuando sem PDF")
-            except Exception as e:
-                logger.error(f"⚠️ PDF: {e}")
+            _pdf_skipped_reason = ""
+
+            if pdf_breaker.is_open():
+                _pdf_skipped_reason = "circuit breaker PDF aberto (falhas recentes)"
+                logger.warning(f"⚠️ Pulando geração de PDF: {_pdf_skipped_reason}")
+            else:
+                # ── Backpressure: checar profundidade da fila antes de enfileirar ──
+                try:
+                    _pending = get_heavy_executor()._work_queue.qsize()
+                except Exception:
+                    _pending = 0
+
+                if _pending >= 3:
+                    _pdf_skipped_reason = f"fila PDF cheia ({_pending} jobs pendentes) — tente em alguns minutos"
+                    logger.warning(f"⚠️ Backpressure PDF: {_pdf_skipped_reason}")
+                    pdf_breaker.record_failure(Exception(_pdf_skipped_reason))
+                else:
+                    try:
+                        pdf_result = await asyncio.wait_for(
+                            loop.run_in_executor(
+                                get_heavy_executor(),
+                                lambda: RDOService.generate_pdf(rdo_data_with_ai, is_preview=False, id_rdo=id_rdo),
+                            ),
+                            timeout=400.0,  # 120s interno (subprocess) + fila + margem
+                        )
+                        pdf_path = pdf_result[0] if pdf_result else ""
+                        if pdf_path:
+                            pdf_breaker.record_success()
+                        else:
+                            pdf_breaker.record_failure(Exception("generate_pdf returned empty path"))
+                    except asyncio.TimeoutError:
+                        pdf_breaker.record_failure(Exception("timeout 400s"))
+                        logger.error("⚠️ PDF generation timeout total — continuando sem PDF")
+                    except Exception as e:
+                        pdf_breaker.record_failure(e)
+                        logger.error(f"⚠️ PDF: {e}")
 
             try:
                 async with self:
@@ -1929,6 +1959,8 @@ class RDOState(rx.State):
             parts = ["✅ RDO finalizado com sucesso!"]
             if pdf_url:
                 parts.append("PDF gerado.")
+            elif _pdf_skipped_reason:
+                parts.append(f"⚠️ PDF não gerado ({_pdf_skipped_reason}) — use 'Gerar PDF' no histórico.")
             else:
                 parts.append("⚠️ PDF pendente — use 'Gerar PDF' no histórico.")
             if recipients:

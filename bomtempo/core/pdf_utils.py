@@ -19,12 +19,20 @@ ARCHITECTURE NOTE — WHY subprocess isolation matters:
 from __future__ import annotations
 
 import multiprocessing
+import sys
 import time
 from pathlib import Path
 
 from bomtempo.core.logging_utils import get_logger
 
 logger = get_logger(__name__)
+
+# Minimum free RAM required before spawning the PDF subprocess.
+# xhtml2pdf peak: ~40 MB. We require 150 MB to leave headroom for the rest
+# of the server (Redis, async handlers, ongoing requests).
+# If available RAM is below this, we fail fast with a clear error instead of
+# spawning and causing an OOM kill that would disconnect all users.
+_MIN_FREE_MB = 150
 
 
 # ─── Public API ───────────────────────────────────────────────────────────────
@@ -59,6 +67,23 @@ def html_to_pdf(
     """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
+
+    # ── Pre-flight: memory pressure check ────────────────────────────────────
+    # Check available RAM BEFORE spawning the subprocess. If the system is already
+    # under memory pressure, fail fast here rather than spawning a process that
+    # will immediately get OOM-killed (which could cascade and harm other users).
+    try:
+        import psutil
+        available_mb = psutil.virtual_memory().available // (1024 * 1024)
+        if available_mb < _MIN_FREE_MB:
+            raise RuntimeError(
+                f"Memória insuficiente para gerar PDF "
+                f"(disponível: {available_mb} MB, mínimo: {_MIN_FREE_MB} MB). "
+                f"O RDO foi salvo — tente gerar o PDF novamente em alguns minutos."
+            )
+        logger.debug(f"pdf_utils: pre-flight OK — {available_mb} MB disponível")
+    except ImportError:
+        pass  # psutil not available — skip check, proceed
 
     prepared = _prepare_html(html, margin, display_header_footer, header_template, footer_template)
 
@@ -109,7 +134,24 @@ def _xhtml2pdf_worker(html: str, path_str: str, result_queue: "multiprocessing.Q
 
     Any exception or OOM here only kills this worker process; the parent
     Reflex server process is unaffected.
+
+    OS-level memory cap (Linux/Fly.io):
+      resource.setrlimit(RLIMIT_AS, 400 MB) is set at startup of this subprocess.
+      If xhtml2pdf tries to allocate more than 400 MB of virtual address space,
+      the OS raises MemoryError inside THIS process — not OOM-killing the parent.
+      This is a hard ceiling enforced by the kernel, not Python.
     """
+    # ── OS-enforced memory cap — Linux only (Fly.io, Docker, most VPS) ───────
+    # On Windows/macOS (local dev) this is silently skipped.
+    # 400 MB virtual address space: generous for xhtml2pdf (~40 MB typical),
+    # but hard-caps runaway allocations before they can pressure the host.
+    try:
+        import resource  # noqa: PLC0415 — stdlib, Linux only
+        _400MB = 400 * 1024 * 1024
+        resource.setrlimit(resource.RLIMIT_AS, (_400MB, _400MB))
+    except (ImportError, ValueError, resource.error):  # type: ignore[attr-defined]
+        pass  # Windows / macOS / insufficient privileges — skip silently
+
     try:
         from xhtml2pdf import pisa  # type: ignore[import]  # noqa: PLC0415
 
@@ -121,6 +163,8 @@ def _xhtml2pdf_worker(html: str, path_str: str, result_queue: "multiprocessing.Q
         else:
             result_queue.put(None)  # None = success sentinel
 
+    except MemoryError:
+        result_queue.put("PDF worker atingiu limite de memória (400 MB) — documento muito grande?")
     except Exception as exc:  # noqa: BLE001
         result_queue.put(str(exc))
 

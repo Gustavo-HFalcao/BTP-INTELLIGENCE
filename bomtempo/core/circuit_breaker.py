@@ -139,3 +139,10 @@ email_breaker = CircuitBreaker("email", fail_max=5, reset_timeout=120.0)
 
 # Supabase Storage: uploads — 5 falhas → 60s
 storage_breaker = CircuitBreaker("storage", fail_max=5, reset_timeout=60.0)
+
+# PDF (xhtml2pdf subprocess): 3 falhas consecutivas → 5 min de cooldown.
+# Quando aberto, RDOs são salvos e enviados por email sem PDF anexo.
+# O usuário pode gerar o PDF manualmente no histórico quando o sistema se recuperar.
+# reset_timeout=300 é conservador — evita tentar logo após OOM (sistema pode estar
+# em processo de liberar memória).
+pdf_breaker = CircuitBreaker("pdf_xhtml2pdf", fail_max=3, reset_timeout=300.0)
