@@ -1493,9 +1493,24 @@ class RDOState(rx.State):
             except Exception:
                 pass
 
+            # ── Feature flags — resolve uma vez, usa em todo o fluxo ───────────
+            from bomtempo.core.feature_flags import (
+                FeatureFlagsService as _FFS,
+                FEATURE_PDF_GENERATION, FEATURE_EMAIL_SEND,
+                FEATURE_AI_INSIGHT, FEATURE_RDO_VIEW,
+            )
+            _ff_contract = str(contrato)
+            _flag_ai     = await loop.run_in_executor(get_db_executor(), lambda: _FFS.is_enabled(FEATURE_AI_INSIGHT,     _ff_contract))
+            _flag_pdf    = await loop.run_in_executor(get_db_executor(), lambda: _FFS.is_enabled(FEATURE_PDF_GENERATION,  _ff_contract))
+            _flag_email  = await loop.run_in_executor(get_db_executor(), lambda: _FFS.is_enabled(FEATURE_EMAIL_SEND,      _ff_contract))
+            _flag_view   = await loop.run_in_executor(get_db_executor(), lambda: _FFS.is_enabled(FEATURE_RDO_VIEW,        _ff_contract))
+            logger.info(f"🚩 Feature flags [{_ff_contract}]: ai={_flag_ai} pdf={_flag_pdf} email={_flag_email} view={_flag_view}")
+
             # 2. Run AI analysis BEFORE PDF so the PDF contains the real analysis text
             ai_summary = ""
-            if not ia_breaker.is_open():
+            if not _flag_ai:
+                logger.info("🚩 AI insight desabilitado via feature flag — pulando")
+            elif not ia_breaker.is_open():
                 try:
                     _d_for_ai = dict(rdo_data)
                     _id_for_ai = str(id_rdo)
@@ -1519,65 +1534,59 @@ class RDOState(rx.State):
             # Inject ai_summary into rdo_data so build_html renders it in PDF
             rdo_data_with_ai = {**rdo_data, "ai_summary": ai_summary}
 
-            try:
-                async with self:
-                    self.submit_status = "📄 Gerando PDF…"
-            except Exception:
-                pass
-
-            # 3a. Marca status=processando_pdf antes de iniciar — rastreável se crashar
-            await loop.run_in_executor(
-                get_db_executor(),
-                lambda: RDOService.mark_processing(id_rdo),
-            )
-
-            # 3b. Generate PDF — circuit breaker + backpressure + queue
-            #
-            # Proteções em camadas:
-            #   1. pdf_breaker (circuit breaker): se 3 PDFs falharam recentemente →
-            #      pula geração, RDO já foi salvo, usuário pode gerar PDF depois.
-            #   2. Backpressure: se a fila do heavy_executor já tem >=3 jobs pendentes,
-            #      rejeita imediatamente em vez de enfileirar por até 6+ minutos.
-            #   3. asyncio.wait_for(400s): timeout total da espera na fila + geração.
-            #   4. Pre-flight em pdf_utils: checa RAM antes de spawnar subprocess.
-            #   5. OS memory cap: resource.setrlimit limita o subprocess a 400MB.
+            # 3. Generate PDF (feature flag + circuit breaker + backpressure)
             pdf_path = ""
             _pdf_skipped_reason = ""
 
-            if pdf_breaker.is_open():
-                _pdf_skipped_reason = "circuit breaker PDF aberto (falhas recentes)"
-                logger.warning(f"⚠️ Pulando geração de PDF: {_pdf_skipped_reason}")
+            if not _flag_pdf:
+                _pdf_skipped_reason = "desabilitado via feature flag (servidor 1GB)"
+                logger.info("🚩 PDF desabilitado via feature flag — pulando geração")
             else:
-                # ── Backpressure: checar profundidade da fila antes de enfileirar ──
                 try:
-                    _pending = get_heavy_executor()._work_queue.qsize()
+                    async with self:
+                        self.submit_status = "📄 Gerando PDF…"
                 except Exception:
-                    _pending = 0
+                    pass
 
-                if _pending >= 3:
-                    _pdf_skipped_reason = f"fila PDF cheia ({_pending} jobs pendentes) — tente em alguns minutos"
-                    logger.warning(f"⚠️ Backpressure PDF: {_pdf_skipped_reason}")
-                    pdf_breaker.record_failure(Exception(_pdf_skipped_reason))
+                # 3a. Marca status=processando_pdf antes de iniciar — rastreável se crashar
+                await loop.run_in_executor(
+                    get_db_executor(),
+                    lambda: RDOService.mark_processing(id_rdo),
+                )
+
+                if pdf_breaker.is_open():
+                    _pdf_skipped_reason = "circuit breaker PDF aberto (falhas recentes)"
+                    logger.warning(f"⚠️ Pulando geração de PDF: {_pdf_skipped_reason}")
                 else:
                     try:
-                        pdf_result = await asyncio.wait_for(
-                            loop.run_in_executor(
-                                get_heavy_executor(),
-                                lambda: RDOService.generate_pdf(rdo_data_with_ai, is_preview=False, id_rdo=id_rdo),
-                            ),
-                            timeout=400.0,  # 120s interno (subprocess) + fila + margem
-                        )
-                        pdf_path = pdf_result[0] if pdf_result else ""
-                        if pdf_path:
-                            pdf_breaker.record_success()
-                        else:
-                            pdf_breaker.record_failure(Exception("generate_pdf returned empty path"))
-                    except asyncio.TimeoutError:
-                        pdf_breaker.record_failure(Exception("timeout 400s"))
-                        logger.error("⚠️ PDF generation timeout total — continuando sem PDF")
-                    except Exception as e:
-                        pdf_breaker.record_failure(e)
-                        logger.error(f"⚠️ PDF: {e}")
+                        _pending = get_heavy_executor()._work_queue.qsize()
+                    except Exception:
+                        _pending = 0
+
+                    if _pending >= 3:
+                        _pdf_skipped_reason = f"fila PDF cheia ({_pending} jobs pendentes)"
+                        logger.warning(f"⚠️ Backpressure PDF: {_pdf_skipped_reason}")
+                        pdf_breaker.record_failure(Exception(_pdf_skipped_reason))
+                    else:
+                        try:
+                            pdf_result = await asyncio.wait_for(
+                                loop.run_in_executor(
+                                    get_heavy_executor(),
+                                    lambda: RDOService.generate_pdf(rdo_data_with_ai, is_preview=False, id_rdo=id_rdo),
+                                ),
+                                timeout=400.0,
+                            )
+                            pdf_path = pdf_result[0] if pdf_result else ""
+                            if pdf_path:
+                                pdf_breaker.record_success()
+                            else:
+                                pdf_breaker.record_failure(Exception("generate_pdf returned empty path"))
+                        except asyncio.TimeoutError:
+                            pdf_breaker.record_failure(Exception("timeout 400s"))
+                            logger.error("⚠️ PDF generation timeout total — continuando sem PDF")
+                        except Exception as e:
+                            pdf_breaker.record_failure(e)
+                            logger.error(f"⚠️ PDF: {e}")
 
             try:
                 async with self:
@@ -1903,45 +1912,46 @@ class RDOState(rx.State):
             except Exception as e:
                 logger.warning(f"⚠️ hub_auditoria_imgs sync: {e}")
 
-            # 5d. Build view URL (public — absolute for email, relative for UI)
-            from bomtempo.core.supabase_client import sb_select
-            master_rows = await loop.run_in_executor(
-                get_db_executor(),
-                lambda: sb_select("rdo_master", filters={"id_rdo": id_rdo}),
-            )
-            view_token = (master_rows[0].get("view_token") or "") if master_rows else ""
-            # Relative path used inside the app; email service will prepend domain
-            view_url   = f"/rdo-view/{view_token}" if view_token else f"/rdo-view/{id_rdo}"
+            # 5d. Build view URL (feature flag: rdo_view)
+            view_url = ""
+            if _flag_view:
+                from bomtempo.core.supabase_client import sb_select
+                master_rows = await loop.run_in_executor(
+                    get_db_executor(),
+                    lambda: sb_select("rdo_master", filters={"id_rdo": id_rdo}),
+                )
+                view_token = (master_rows[0].get("view_token") or "") if master_rows else ""
+                view_url = f"/rdo-view/{view_token}" if view_token else f"/rdo-view/{id_rdo}"
+            else:
+                logger.info("🚩 RDO view desabilitado via feature flag")
 
-            # 6. Get email recipients
+            # 6. Get email recipients + send (feature flag: email_send)
             from bomtempo.core.supabase_client import sb_select as _sb_select
             recipients = []
-            try:
-                rows = await loop.run_in_executor(
-                    get_db_executor(),
-                    lambda: _sb_select("email_sender", filters={"module": "rdo"}),
-                )
-                recipients = [r.get("email", "").strip() for r in (rows or []) if r.get("email", "").strip()]
-            except Exception:
-                pass
-
-            # 7. Email (fire-and-forget — AI already ran above, pass ai_summary to email)
-            # SEMPRE envia se houver destinatários — mesmo sem PDF.
-            # Se PDF falhou, o email inclui link online + aviso para gerar o PDF pela plataforma.
-            _d, _p, _r, _vu, _ai = dict(rdo_data_with_ai), str(pdf_path), list(recipients), str(view_url), str(ai_summary)
-
-            def _send_email_task():
-                if not _r:
-                    return
+            if not _flag_email:
+                logger.info("🚩 Email desabilitado via feature flag — pulando envio")
+            else:
                 try:
-                    RDOService.send_email(_r, _d, _p, _vu, _ai)
-                except Exception as e:
-                    logger.error(f"Email: {e}")
+                    rows = await loop.run_in_executor(
+                        get_db_executor(),
+                        lambda: _sb_select("email_sender", filters={"module": "rdo"}),
+                    )
+                    recipients = [r.get("email", "").strip() for r in (rows or []) if r.get("email", "").strip()]
+                except Exception:
+                    pass
 
-            # Fire-and-forget via http_executor — do NOT await (email takes 5-30s via SMTP).
-            # Using get_http_executor() instead of bare threading.Thread() ensures the thread
-            # count is bounded (max 4 concurrent email sends) and avoids untracked threads.
-            asyncio.ensure_future(loop.run_in_executor(get_http_executor(), _send_email_task))
+                # Fire-and-forget via http_executor — sem PDF mas com link online
+                _d, _p, _r, _vu, _ai = dict(rdo_data_with_ai), str(pdf_path), list(recipients), str(view_url), str(ai_summary)
+
+                def _send_email_task():
+                    if not _r:
+                        return
+                    try:
+                        RDOService.send_email(_r, _d, _p, _vu, _ai)
+                    except Exception as e:
+                        logger.error(f"Email: {e}")
+
+                asyncio.ensure_future(loop.run_in_executor(get_http_executor(), _send_email_task))
 
             # Audit
             audit_log(
@@ -1988,13 +1998,17 @@ class RDOState(rx.State):
                 pass
 
             parts = ["✅ RDO finalizado com sucesso!"]
-            if pdf_url:
+            if not _flag_pdf:
+                parts.append("📄 PDF desabilitado — disponível após upgrade do servidor.")
+            elif pdf_url:
                 parts.append("PDF gerado.")
             elif _pdf_skipped_reason:
                 parts.append(f"⚠️ PDF não gerado ({_pdf_skipped_reason}) — use 'Gerar PDF' no histórico.")
             else:
                 parts.append("⚠️ PDF pendente — use 'Gerar PDF' no histórico.")
-            if recipients:
+            if view_url:
+                parts.append("🔗 Link de visualização disponível.")
+            if _flag_email and recipients:
                 parts.append(f"📧 Email enviado para {len(recipients)} destinatário(s).")
             toast_msg = " ".join(parts)
             # Wrap in try/except — if Redis is slow and lock expires, we still want to

@@ -23,6 +23,10 @@ _MODULE_AMBOS_COLOR  = "#8B6FBF"       # slate-violet
 _MODULE_AMBOS_BG     = "rgba(139,111,191,0.08)"
 _MODULE_AMBOS_BORDER = "rgba(139,111,191,0.18)"
 
+_MODULE_INFRA_COLOR  = "#E05252"       # vermelho alerta — infra crítica
+_MODULE_INFRA_BG     = "rgba(224,82,82,0.08)"
+_MODULE_INFRA_BORDER = "rgba(224,82,82,0.18)"
+
 _ROW_ON_BG      = "rgba(201,139,42,0.04)"
 _ROW_ON_BORDER  = "rgba(201,139,42,0.16)"
 _ROW_OFF_BG     = "transparent"
@@ -39,24 +43,28 @@ def _module_chip(module: str) -> rx.Component:
         ("reembolso", _MODULE_REEMBOLSO_COLOR),
         ("rdo",       _MODULE_RDO_COLOR),
         ("ambos",     _MODULE_AMBOS_COLOR),
+        ("infra",     _MODULE_INFRA_COLOR),
         S.TEXT_MUTED,
     )
     bg     = rx.match(module,
         ("reembolso", _MODULE_REEMBOLSO_BG),
         ("rdo",       _MODULE_RDO_BG),
         ("ambos",     _MODULE_AMBOS_BG),
+        ("infra",     _MODULE_INFRA_BG),
         "rgba(255,255,255,0.04)",
     )
     border = rx.match(module,
         ("reembolso", _MODULE_REEMBOLSO_BORDER),
         ("rdo",       _MODULE_RDO_BORDER),
         ("ambos",     _MODULE_AMBOS_BORDER),
+        ("infra",     _MODULE_INFRA_BORDER),
         "rgba(255,255,255,0.08)",
     )
     label  = rx.match(module,
         ("reembolso", "Reembolso"),
         ("rdo",       "RDO"),
         ("ambos",     "Ambos"),
+        ("infra",     "Infra"),
         module,
     )
     return rx.box(
@@ -99,6 +107,11 @@ def _module_tag(module: str) -> rx.Component:
                 font_size="9px", font_weight="700", font_family=S.FONT_TECH,
                 letter_spacing="0.07em", color=_MODULE_AMBOS_COLOR,
             )),
+            ("infra", rx.text(
+                "INFRA",
+                font_size="9px", font_weight="700", font_family=S.FONT_TECH,
+                letter_spacing="0.07em", color=_MODULE_INFRA_COLOR,
+            )),
             rx.text(module, font_size="9px", color=S.TEXT_MUTED),
         ),
         px="7px",
@@ -110,6 +123,7 @@ def _module_tag(module: str) -> rx.Component:
                 ("reembolso", _MODULE_REEMBOLSO_BG),
                 ("rdo",       _MODULE_RDO_BG),
                 ("ambos",     _MODULE_AMBOS_BG),
+                ("infra",     _MODULE_INFRA_BG),
                 "rgba(255,255,255,0.04)",
             ),
             "border": rx.match(
@@ -117,6 +131,7 @@ def _module_tag(module: str) -> rx.Component:
                 ("reembolso", f"1px solid {_MODULE_REEMBOLSO_BORDER}"),
                 ("rdo",       f"1px solid {_MODULE_RDO_BORDER}"),
                 ("ambos",     f"1px solid {_MODULE_AMBOS_BORDER}"),
+                ("infra",     f"1px solid {_MODULE_INFRA_BORDER}"),
                 "1px solid rgba(255,255,255,0.08)",
             ),
         },
@@ -126,13 +141,14 @@ def _module_tag(module: str) -> rx.Component:
 # ── Section header (separador de módulo) ────────────────────────────────────
 
 def _section_header(label: str, module: str) -> rx.Component:
-    color  = _MODULE_REEMBOLSO_COLOR if module == "reembolso" else (
-             _MODULE_RDO_COLOR       if module == "rdo"       else _MODULE_AMBOS_COLOR)
-    bg     = _MODULE_REEMBOLSO_BG   if module == "reembolso" else (
-             _MODULE_RDO_BG         if module == "rdo"        else _MODULE_AMBOS_BG)
-    border = _MODULE_REEMBOLSO_BORDER if module == "reembolso" else (
-             _MODULE_RDO_BORDER       if module == "rdo"        else _MODULE_AMBOS_BORDER)
-    icon   = "credit-card" if module == "reembolso" else ("clipboard-list" if module == "rdo" else "layers")
+    _color_map  = {"reembolso": _MODULE_REEMBOLSO_COLOR, "rdo": _MODULE_RDO_COLOR, "ambos": _MODULE_AMBOS_COLOR, "infra": _MODULE_INFRA_COLOR}
+    _bg_map     = {"reembolso": _MODULE_REEMBOLSO_BG,    "rdo": _MODULE_RDO_BG,    "ambos": _MODULE_AMBOS_BG,    "infra": _MODULE_INFRA_BG}
+    _border_map = {"reembolso": _MODULE_REEMBOLSO_BORDER,"rdo": _MODULE_RDO_BORDER,"ambos": _MODULE_AMBOS_BORDER,"infra": _MODULE_INFRA_BORDER}
+    _icon_map   = {"reembolso": "credit-card", "rdo": "clipboard-list", "ambos": "layers", "infra": "server"}
+    color  = _color_map.get(module, _MODULE_AMBOS_COLOR)
+    bg     = _bg_map.get(module, _MODULE_AMBOS_BG)
+    border = _border_map.get(module, _MODULE_AMBOS_BORDER)
+    icon   = _icon_map.get(module, "layers")
 
     return rx.hstack(
         rx.box(
@@ -470,6 +486,14 @@ def contract_features_page() -> rx.Component:
                                         font_family=S.FONT_TECH, font_weight="600"),
                                 spacing="1", align="center",
                             ),
+                            rx.hstack(
+                                rx.box(width="8px", height="8px", border_radius="2px",
+                                       bg=_MODULE_INFRA_BG,
+                                       border=f"1px solid {_MODULE_INFRA_BORDER}"),
+                                rx.text("Infra", font_size="10px", color=_MODULE_INFRA_COLOR,
+                                        font_family=S.FONT_TECH, font_weight="600"),
+                                spacing="1", align="center",
+                            ),
                             spacing="3",
                         ),
                         align="center",
@@ -478,6 +502,24 @@ def contract_features_page() -> rx.Component:
                         border_bottom=f"1px solid {_SECTION_DIVIDER}",
                         margin_bottom="16px",
                     ),
+
+                    # Grupo Infraestrutura
+                    _section_header("Infraestrutura do Sistema", "infra"),
+                    rx.box(height="8px"),
+                    rx.vstack(
+                        rx.foreach(
+                            FeatureFlagsState.feature_rows,
+                            lambda row: rx.cond(
+                                row["module"] == "infra",
+                                _feature_row(row),
+                                rx.fragment(),
+                            ),
+                        ),
+                        spacing="2",
+                        width="100%",
+                    ),
+
+                    rx.box(height="16px"),
 
                     # Grupo Reembolso
                     _section_header("Módulo Reembolso", "reembolso"),
@@ -630,6 +672,16 @@ def contract_features_page() -> rx.Component:
                     rx.text(
                         "Configurações são independentes por contrato — contratos diferentes podem ter combinações distintas",
                         font_size="11px", color="rgba(136,153,153,0.7)", line_height="1.6",
+                    ),
+                    spacing="2", align="start",
+                ),
+                rx.hstack(
+                    rx.box(width="3px", height="3px", border_radius="50%",
+                           bg=f"{_MODULE_INFRA_COLOR}55", margin_top="6px", flex_shrink="0"),
+                    rx.text(
+                        "Flags de Infraestrutura têm padrão global — PDF desligado por padrão (servidor 1 GB RAM). "
+                        "Ligue por contrato após upgrade de máquina.",
+                        font_size="11px", color=f"{_MODULE_INFRA_COLOR}BB", line_height="1.6",
                     ),
                     spacing="2", align="start",
                 ),

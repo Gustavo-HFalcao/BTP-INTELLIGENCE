@@ -5,8 +5,23 @@ Cada contrato pode ter um conjunto diferente de features habilitadas.
 O gestor controla isso em /admin/contract-features.
 A tabela `contract_features` armazena: (contract_id, feature_key, is_enabled).
 
-Features OFF por padrão (opt-in): tank_capacity_check
-Features ON por padrão (opt-out): todas as demais
+Há dois grupos de flags:
+
+1. FLAGS DE NEGÓCIO (por contrato, granular):
+   Controlam comportamentos do produto para cada contrato individualmente.
+   Ex: validação GPS, score IA, assinatura digital.
+
+2. FLAGS DE INFRAESTRUTURA (por contrato, mas com default global):
+   Controlam features que afetam recursos do servidor.
+   Nascem com um default global (ON ou OFF) e podem ser sobrescritas por contrato.
+   Ex: pdf_generation está OFF globalmente enquanto o servidor tem 1GB RAM.
+       Quando a máquina for upgradeada para 2GB, basta ligar no painel — sem deploy.
+
+   Padrão atual:
+     pdf_generation  → OFF  (Chromium usa 300-500MB; servidor tem 1GB; OOM kill)
+     email_send      → ON   (SMTP leve, sem impacto de RAM)
+     ai_insight      → ON   (API externa, sem impacto de RAM)
+     rdo_view        → ON   (só salva view_token no banco, sem custo)
 """
 
 from typing import Dict, List
@@ -18,7 +33,7 @@ logger = get_logger(__name__)
 
 _TABLE = "contract_features"
 
-# ── Feature Keys ────────────────────────────────────────────────────────────
+# ── Feature Keys — Negócio ───────────────────────────────────────────────────
 
 # Reembolso
 FEATURE_GPS_VALIDATION      = "gps_validation"
@@ -30,31 +45,67 @@ FEATURE_DIGITAL_SIGNATURE   = "digital_signature"
 FEATURE_CONDITIONAL_FIELDS  = "conditional_fields"   # chuva / acidente
 FEATURE_AUTO_WEATHER        = "auto_weather"          # clima no check-in
 
-# Features que ficam OFF por padrão (admin precisa ativar explicitamente)
+# ── Feature Keys — Infraestrutura ────────────────────────────────────────────
+# Flags que controlam recursos do servidor. Default global pode ser OFF.
+# Um contrato pode sobrescrever (ex: contrato premium com PDF ativo).
+
+FEATURE_PDF_GENERATION      = "pdf_generation"   # Chromium subprocess — OFF até upgrade de RAM
+FEATURE_EMAIL_SEND          = "email_send"        # Envio de e-mails via SMTP
+FEATURE_AI_INSIGHT          = "ai_insight"        # Análise IA no RDO (Claude API)
+FEATURE_RDO_VIEW            = "rdo_view"          # Geração de link de visualização pública
+
+# ── Defaults globais de infraestrutura ───────────────────────────────────────
+# Usado quando o contrato não tem configuração explícita no banco.
+# OFF = desligado para todos os tenants até configuração manual.
+INFRA_DEFAULTS: Dict[str, bool] = {
+    FEATURE_PDF_GENERATION: False,  # OFF — servidor 1GB, Chromium causa OOM
+    FEATURE_EMAIL_SEND:     True,
+    FEATURE_AI_INSIGHT:     True,
+    FEATURE_RDO_VIEW:       True,
+}
+
+# Features que ficam OFF por padrão para flags de negócio
 FEATURES_OFF_BY_DEFAULT: List[str] = []
 
 # ── Metadata ────────────────────────────────────────────────────────────────
 
 FEATURE_LABELS: Dict[str, str] = {
+    # Negócio
     FEATURE_GPS_VALIDATION:      "Validação GPS (Localização vs Check-in)",
     FEATURE_DUPLICATE_DETECTION: "Detecção de Duplicidade (Hash MD5)",
     FEATURE_AI_SCORE:            "Score de Confiabilidade IA (0–100)",
     FEATURE_DIGITAL_SIGNATURE:   "Assinatura Digital",
     FEATURE_CONDITIONAL_FIELDS:  "Campos Condicionais (Chuvas / Acidentes)",
     FEATURE_AUTO_WEATHER:        "Clima Automático no Check-in (RDO)",
+    # Infra
+    FEATURE_PDF_GENERATION:      "Geração de PDF (Chromium — requer 2GB RAM)",
+    FEATURE_EMAIL_SEND:          "Envio de E-mails (SMTP)",
+    FEATURE_AI_INSIGHT:          "Análise IA no RDO (Claude API)",
+    FEATURE_RDO_VIEW:            "Link de Visualização Pública (RDO View)",
 }
 
 FEATURE_MODULES: Dict[str, str] = {
+    # Negócio
     FEATURE_GPS_VALIDATION:      "reembolso",
     FEATURE_DUPLICATE_DETECTION: "reembolso",
     FEATURE_AI_SCORE:            "reembolso",
     FEATURE_DIGITAL_SIGNATURE:   "ambos",
     FEATURE_CONDITIONAL_FIELDS:  "rdo",
     FEATURE_AUTO_WEATHER:        "rdo",
+    # Infra
+    FEATURE_PDF_GENERATION:      "infra",
+    FEATURE_EMAIL_SEND:          "infra",
+    FEATURE_AI_INSIGHT:          "infra",
+    FEATURE_RDO_VIEW:            "infra",
 }
 
-# Ordem fixa para a UI
+# Ordem fixa para a UI — infra primeiro (mais visível para admin)
 FEATURE_ORDER: List[str] = [
+    # — Infraestrutura
+    FEATURE_PDF_GENERATION,
+    FEATURE_EMAIL_SEND,
+    FEATURE_AI_INSIGHT,
+    FEATURE_RDO_VIEW,
     # — Reembolso
     FEATURE_GPS_VALIDATION,
     FEATURE_DUPLICATE_DETECTION,
@@ -65,8 +116,19 @@ FEATURE_ORDER: List[str] = [
     FEATURE_AUTO_WEATHER,
 ]
 
-# Features ativas por padrão quando não há configuração no banco
-_DEFAULT_ACTIVE = [fk for fk in FEATURE_ORDER if fk not in FEATURES_OFF_BY_DEFAULT]
+# Features ativas por padrão quando não há configuração no banco.
+# Infra flags usam INFRA_DEFAULTS; flags de negócio usam opt-out (ON por padrão).
+def _build_default_active() -> List[str]:
+    result = []
+    for fk in FEATURE_ORDER:
+        if fk in INFRA_DEFAULTS:
+            if INFRA_DEFAULTS[fk]:
+                result.append(fk)
+        elif fk not in FEATURES_OFF_BY_DEFAULT:
+            result.append(fk)
+    return result
+
+_DEFAULT_ACTIVE = _build_default_active()
 
 
 # ── Service ─────────────────────────────────────────────────────────────────
@@ -75,20 +137,68 @@ class FeatureFlagsService:
     """Serviço de feature flags por contrato."""
 
     @staticmethod
+    def is_enabled(feature_key: str, contract_id: str = "") -> bool:
+        """
+        Verifica se uma feature está habilitada para um contrato.
+
+        Lógica de resolução (precedência):
+          1. Se há registro explícito no banco para (contract_id, feature_key) → usa esse valor.
+          2. Se não há registro E é flag de infra → usa INFRA_DEFAULTS (global).
+          3. Se não há registro E é flag de negócio → assume ON (opt-out padrão).
+
+        Uso:
+            if FeatureFlagsService.is_enabled(FEATURE_PDF_GENERATION, contrato):
+                # gera PDF
+        """
+        try:
+            if contract_id and contract_id.strip() not in ("", "nan", "None"):
+                rows = sb_select(
+                    _TABLE,
+                    filters={"contract_id": contract_id, "feature_key": feature_key},
+                    limit=1,
+                ) or []
+                if rows:
+                    return bool(rows[0].get("is_enabled", True))
+            # Sem registro explícito: infra usa default global, negócio usa ON
+            if feature_key in INFRA_DEFAULTS:
+                return INFRA_DEFAULTS[feature_key]
+            return feature_key not in FEATURES_OFF_BY_DEFAULT
+        except Exception as e:
+            logger.error(f"is_enabled({feature_key}, {contract_id}): {e}")
+            # Fail-safe: infra flags ficam no default global, negócio fica ON
+            if feature_key in INFRA_DEFAULTS:
+                return INFRA_DEFAULTS[feature_key]
+            return True
+
+    @staticmethod
     def get_features_for_contract(contract_id: str) -> List[str]:
         """Retorna lista de feature keys habilitadas para um contrato.
-        Padrão opt-out: se não houver registros, retorna _DEFAULT_ACTIVE."""
+        Lógica:
+          - Flags com registro explícito no BD → usa o valor do BD.
+          - Flags sem registro: infra → usa INFRA_DEFAULTS; negócio → ON (opt-out).
+        """
         try:
             if not contract_id or contract_id.strip() in ("", "nan", "None"):
                 return list(_DEFAULT_ACTIVE)
             rows = sb_select(_TABLE, filters={"contract_id": contract_id}) or []
-            if not rows:
-                return list(_DEFAULT_ACTIVE)
-            return [
-                str(r["feature_key"])
-                for r in rows
-                if r.get("feature_key") and bool(r.get("is_enabled", True))
-            ]
+            # Monta dict {feature_key: is_enabled} para os registros existentes
+            db_map: Dict[str, bool] = {}
+            for r in rows:
+                fk = r.get("feature_key")
+                if fk:
+                    db_map[str(fk)] = bool(r.get("is_enabled", True))
+            # Para cada feature na ordem, decide se está ativa
+            result = []
+            for fk in FEATURE_ORDER:
+                if fk in db_map:
+                    if db_map[fk]:
+                        result.append(fk)
+                elif fk in INFRA_DEFAULTS:
+                    if INFRA_DEFAULTS[fk]:
+                        result.append(fk)
+                elif fk not in FEATURES_OFF_BY_DEFAULT:
+                    result.append(fk)
+            return result
         except Exception as e:
             logger.error(f"get_features_for_contract({contract_id}): {e}")
             return list(_DEFAULT_ACTIVE)  # erro → fail-open
